@@ -1,11 +1,11 @@
 from __future__ import print_function
 
-from time import time
-import sys
 import os
-import shutil
+import sys
+from time import time
 
-INF = float('inf')
+from utils import read, write, ensure_dir, safe_rm_dir, INF
+
 TEMP_DIR = 'temp/'
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
@@ -59,51 +59,32 @@ SEARCH_OPTIONS = {
 
 ##################################################
 
-def read(filename):
-    with open(filename, 'r') as f:
-        return f.read()
-
-
-def write(filename, string):
-    with open(filename, 'w') as f:
-        f.write(string)
-
-
-def safe_remove(p):
-    if os.path.exists(p):
-        os.remove(p)
-
-
-def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
-
-def safe_rm_file(p):
-    if os.path.exists(p):
-        os.remove(p)
-
-
-def safe_rm_dir(d):
-    if os.path.exists(d):
-        shutil.rmtree(d)
-
-
-##################################################
 
 def get_fd_root():
     if ENV_VAR not in os.environ:
         raise RuntimeError('Environment variable %s is not defined.' % ENV_VAR)
     return os.environ[ENV_VAR]
 
-
-def run_translate(verbose, temp_dir, use_negative=False):
-    t0 = time()
+def add_translate_path():
     translate_path = os.path.join(get_fd_root(), FD_BIN, TRANSLATE_DIR)
     if translate_path not in sys.path:
         sys.path.append(translate_path)
 
+def translate_task(domain_path, problem_path, translate_flags=[]):
+    add_translate_path()
+
+    temp_argv = sys.argv[:]
+    sys.argv = sys.argv[:1] + translate_flags + [domain_path, problem_path]
+    import pddl_parser
+    sys.argv = temp_argv
+
+    task = pddl_parser.open(
+        domain_filename=domain_path, task_filename=problem_path)
+    return task
+
+def run_translate(temp_dir, verbose, use_negative=False):
+    t0 = time()
+    add_translate_path()
     translate_flags = []  # '--keep-unreachable-facts'
     if use_negative:
         translate_flags += ['--negative-axioms']
@@ -134,7 +115,7 @@ def run_translate(verbose, temp_dir, use_negative=False):
             os.chdir(old_cwd)
 
 
-def run_search(planner, max_time, max_cost, verbose, temp_dir):
+def run_search(temp_dir, planner, max_time, max_cost, verbose):
     if max_time == INF:
         max_time = 'infinity'
     elif isinstance(max_time, float):
@@ -173,16 +154,21 @@ def parse_solution(solution):
         plan.append((entries[0], list(entries[1:])))
     return plan
 
-
-def fast_downward(domain_pddl, problem_pddl, planner='max-astar',
-                  max_time=INF, max_cost=INF, verbose=False, clean=False, temp_dir=TEMP_DIR):
-    t0 = time()
+def write_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR):
     safe_rm_dir(temp_dir)
     ensure_dir(temp_dir)
-    write(temp_dir + DOMAIN_INPUT, domain_pddl)
-    write(temp_dir + PROBLEM_INPUT, problem_pddl)
-    run_translate(verbose, temp_dir)
-    solution = run_search(planner, max_time, max_cost, verbose, temp_dir)
+    domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
+    problem_path = os.path.join(temp_dir, PROBLEM_INPUT)
+    write(domain_path, domain_pddl)
+    write(problem_path, problem_pddl)
+    return domain_path, problem_path
+
+def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
+                      max_time=INF, max_cost=INF, verbose=False, clean=False, temp_dir=TEMP_DIR):
+    t0 = time()
+    write_pddl(domain_pddl, problem_pddl, temp_dir)
+    run_translate(temp_dir, verbose)
+    solution = run_search(temp_dir, planner, max_time, max_cost, verbose)
     if clean:
         safe_rm_dir(temp_dir)
     print('Total runtime:', time() - t0)

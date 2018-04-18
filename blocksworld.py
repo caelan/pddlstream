@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
 
-from fast_downward import fast_downward
+from fast_downward import run_fast_downward, translate_task, write_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -40,15 +40,27 @@ PROBLEM_PDDL = """
 (define (problem pb2)
    (:domain blocksworld)
    (:objects a b)
-   (:init (on-table a) (on-table b)  (clear a)  (clear b) (arm-empty))
+   (:init (on-table a) (on-table b) (clear a) (clear b) (arm-empty))
    (:goal (and (on a b))))
 """
 
 
 ##################################################
 
+# TODO: read PDDL from a file or string
+# Can always parse name, parameters, etc from pddl
+# No types to start but later can extend
+# Not assuming any special preconditions and effects makes it easy to extend to other PDDL variants
+# Can extend problem file as well if provided with an object map
+
 def main():
-    plan = fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=True)
+    #domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
+    #task = translate_task(domain_path, problem_path)
+    #task.dump()
+    #print(task.__dict__)
+    #return
+
+    plan = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=True)
     print(plan)
 
 
