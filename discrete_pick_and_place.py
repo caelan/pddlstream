@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from fast_downward import run_fast_downward, translate_task, write_pddl
-from problem import Problem, solve_pddl_problem, PDDLProblem
+from problem import solve_pddl_problem, PDDLProblem
 
 
 DOMAIN_PDDL = """

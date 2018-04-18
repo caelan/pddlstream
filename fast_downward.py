@@ -70,16 +70,18 @@ def add_translate_path():
     if translate_path not in sys.path:
         sys.path.append(translate_path)
 
-def translate_task(domain_path, problem_path, translate_flags=[]):
+def translate_task(domain_path, problem_path):
     add_translate_path()
 
     temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + translate_flags + [domain_path, problem_path]
+    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
     import pddl_parser
+    import normalize
     sys.argv = temp_argv
 
     task = pddl_parser.open(
         domain_filename=domain_path, task_filename=problem_path)
+    normalize.normalize(task)
     return task
 
 def run_translate(temp_dir, verbose, use_negative=False):

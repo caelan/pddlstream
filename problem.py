@@ -1,23 +1,9 @@
 from utils import read
 from fast_downward import run_fast_downward, translate_task, write_pddl
 import re
-
-class Problem(object):
-    def __init__(self, domain_pddl=None, domain_path=None,
-                 streams=[], constant_map={}):
-        # TODO: allow reading and extending a problem file as well
-        # TODO: objective
-        assert((domain_pddl is None) != (domain_path is None))
-        if domain_path is not None:
-            domain_pddl = read(domain_path)
-        self.domain_pddl = domain_pddl
-        self.streams = streams
-        self.constant_map = constant_map
-    def pddl(self):
-        return ''
+import collections
 
 class PDDLProblem(object):
-
     def __init__(self, domain_pddl, problem_pddl, object_map={}):
         self.domain_pddl = domain_pddl
         self.problem_pddl = problem_pddl
@@ -41,19 +27,68 @@ def solve_pddl_problem(pddl_problem, **kwargs):
     s_plan = run_fast_downward(pddl_problem.domain_pddl, pddl_problem.problem_pddl, **kwargs)
     return pddl_problem.convert_plan(s_plan)
 
+##################################################
+
+class PDDLStreamProblem(object):
+    def __init__(self, domain_pddl=None, domain_path=None,
+                 streams=[], constant_map={}):
+        # TODO: allow reading and extending a problem file as well
+        # TODO: objective
+        assert((domain_pddl is None) != (domain_path is None))
+        if domain_path is not None:
+            domain_pddl = read(domain_path)
+        self.domain_pddl = domain_pddl
+        self.streams = streams
+        self.constant_map = constant_map
+    def pddl(self):
+        return ''
+
+##################################################
+
 class Object(object):
-    _template = 'x{}'
+    #_template = 'o{}'
+    _prefix = 'o'
     num = 0
     # TODO: maintain dictionary here for looking up values. Test if underlying thing has a hash
     # TODO: PDDL name to object
     # TODO: hash to object
+    _obj_from_value = {}
+    _obj_from_index = []
+    #_obj_from_name = []
     def __init__(self, value):
         # TODO: unique vs hash
         self.value = value
-        self.n = self.__class__.num # TODO: could use id(self)
+        # TODO: could use id(self)
+        self.index = self.__class__.num
         self.__class__.num += 1
     @property
     def pddl(self):
-        return self._template.format(self.n)
+        #return self._template.format(self.n)
+        return '{}{}'.format(self._prefix, self.index)
+    @staticmethod
+    def from_value(value):
+        #if isinstance(0, collections.Hashable):
+        #   pass
+        # TODO: just has based on its id in memory?
+        if value not in Object._obj_from_value: # TODO: return here instead of updating?
+            Object._obj_from_value[value] = Object(value)
+        return Object._obj_from_value[value]
+    @staticmethod
+    def from_index(index):
+        return Object._obj_from_index[index]
+    @staticmethod
+    def from_name(name):
+        index = int(name.split(Object._prefix)[1]) # TODO: match regex or strip prefix
+        return Object.from_index(index)
     def __repr__(self):
-        return repr(self.value)
+        #return repr(self.value)
+        return self.pddl
+
+##################################################
+
+class Stream(object):
+    # TODO: could even parse a stream like an action to some degree
+    # TODO: constant map?
+    def __init__(self, inp, domain, fn, out, certifed, name=None):
+        # TODO: should each be a list or a string
+        pass
