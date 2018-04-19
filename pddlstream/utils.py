@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 
 INF = float('inf')
 
@@ -32,3 +33,7 @@ def safe_rm_file(p):
 def safe_rm_dir(d):
     if os.path.exists(d):
         shutil.rmtree(d)
+
+
+def elapsed_time(start_time):
+    return time.time() - start_time

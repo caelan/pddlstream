@@ -211,11 +211,12 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
 
 def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
                       max_time=INF, max_cost=INF, verbose=False, clean=False, temp_dir=TEMP_DIR):
-    t0 = time()
+    start_time = time()
     write_pddl(domain_pddl, problem_pddl, temp_dir)
     run_translate(temp_dir, verbose)
     solution = run_search(temp_dir, planner, max_time, max_cost, verbose)
     if clean:
         safe_rm_dir(temp_dir)
-    print('Total runtime:', time() - t0)
+    if verbose:
+        print('Total runtime:', time() - start_time)
     return parse_solution(solution)
