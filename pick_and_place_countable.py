@@ -1,6 +1,9 @@
 #!/usr/bin/env python
+
+from __future__ import print_function
+
 from pddlstream.conversion import AND
-from pddlstream.incremental import solve_exhaustive, solve_no_streams, solve_incremental
+from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
 # TODO: each action would be associated with a control primitive anyways
 from pddlstream.stream import from_gen_fn, from_fn
 
@@ -106,11 +109,13 @@ def get_problem1(n_blocks=1, n_poses=5):
 
 def main():
     problem = get_problem1()
-    #plan, init = solve_no_streams(problem)
-    #plan, init = solve_exhaustive(problem)
-    plan, init = solve_incremental(problem)
-    print(plan)
-    print(init)
+    #plan, cost, init = solve_no_streams(problem)
+    #plan, cost, init = solve_exhaustive(problem)
+    plan, cost, init = solve_incremental(problem)
+    print('\n'
+          'Cost: {}\n'
+          'Plan: {}\n'
+          'Init: {}'.format(cost, plan, init))
 
 if __name__ == '__main__':
     main()

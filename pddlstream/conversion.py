@@ -129,6 +129,9 @@ def evaluations_from_init(init):
 def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
 
+def objects_from_values(values):
+    return tuple(map(Object.from_value, values))
+
 def init_from_evaluations(evaluations):
     init = []
     for evaluation in evaluations:
