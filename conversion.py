@@ -4,32 +4,6 @@ from problem import Object
 
 CONSTANTS = ':constants'
 OBJECTS = ':objects'
-DOMAIN_PDDL = """
-(define (domain pick-and-place)
-  (:requirements :strips :equality)
-  (:predicates 
-    (Block ?x1)
-    (Pose ?x1)
-    (AtPose ?x1 ?x2)
-    (Holding ?x1)
-    (HandEmpty)
-  )
-  (:action pick
-    :parameters (?b ?p)
-    :precondition (and (AtPose ?b ?p) (HandEmpty))
-    :effect (and (Holding ?b)
-                 (not (AtPose ?b ?p)) (not (HandEmpty)))
-  )
-)
-"""
-STREAM_PDDL = """
-  (:stream inverse-kinematics
-    :inputs (?b ?p)
-    :domain (Pose ?p)
-    :outputs (?q)
-    :certified (Kin ?q ?p)
-  )
-"""
 
 
 def constant(name):
@@ -117,6 +91,12 @@ TotalCost = 'total-cost'
 CONNECTIVES = (EQ, AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS
+
+TOTAL_COST = 'total-cost'
+DOMAIN_NAME = 'pddlstream'
+PROBLEM_NAME = DOMAIN_NAME
+
+
 Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
@@ -146,12 +126,6 @@ def objects_from_evaluations(evaluations):
     for evaluation in evaluations:
         objects.update(evaluation.head.args)
     return objects
-
-
-TOTAL_COST = 'total-cost'
-DOMAIN_NAME = 'pddlstream'
-PROBLEM_NAME = DOMAIN_NAME
-
 
 def get_pddl_problem(init_evaluations, goal_expression,
                      problem=DOMAIN_NAME, domain=PROBLEM_NAME, objective=(TOTAL_COST,)):

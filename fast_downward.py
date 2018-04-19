@@ -72,8 +72,16 @@ def add_translate_path():
 
 def parse_lisp(s):
     add_translate_path()
-    from pddl_parser.lisp_parser import parse_pddl_file
-    return parse_pddl_file(s)
+    temp_argv = sys.argv[:]
+    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
+    #from pddl_parser.lisp_parser import parse_pddl_file
+    #from pddl_parser.lisp_parser import parse_nested_list
+    import pddl_parser.lisp_parser
+    sys.argv = temp_argv
+
+    #return parse_pddl_file(s)
+    #return parse_nested_list(s)
+    return pddl_parser.lisp_parser.parse_nested_list(s)
 
 def translate_task(domain_path, problem_path):
     add_translate_path()

@@ -1,10 +1,40 @@
 #!/usr/bin/env python
-from conversion import DOMAIN_PDDL, convert_head, convert_expression, pddl_from_expression, EQ, AND, NOT, \
+from conversion import convert_head, convert_expression, pddl_from_expression, EQ, AND, NOT, \
     evaluations_from_init, get_pddl_problem
-from fast_downward import run_fast_downward
+from fast_downward import run_fast_downward, parse_lisp
 from problem import Stream, Object
 
 # TODO: each action would be associated with a control primitive anyways
+
+DOMAIN_PDDL = """
+(define (domain pick-and-place)
+  (:requirements :strips :equality)
+  (:predicates 
+    (Block ?x1)
+    (Pose ?x1)
+    (AtPose ?x1 ?x2)
+    (Holding ?x1)
+    (HandEmpty)
+  )
+  (:action pick
+    :parameters (?b ?p)
+    :precondition (and (AtPose ?b ?p) (HandEmpty))
+    :effect (and (Holding ?b)
+                 (not (AtPose ?b ?p)) (not (HandEmpty)))
+  )
+)
+"""
+
+STREAM_PDDL = """
+(define (stream pick-and-place)
+  (:stream inverse-kinematics
+    :inputs (?b ?p)
+    :domain (Pose ?p)
+    :outputs (?q)
+    :certified (Kin ?q ?p)
+  )
+)
+"""
 
 Stream(inp='?p', domain='(Pose ?p)',
        fn=lambda p: (p,),
@@ -56,10 +86,12 @@ def get_problem1():
             (NOT, ('HandEmpty',)),
             )
 
+    domain_pddl = DOMAIN_PDDL
+    stream_pddl = STREAM_PDDL
     streams = {}
     constants = {}
 
-    return init, goal, DOMAIN_PDDL, streams, constants
+    return init, goal, domain_pddl, stream_pddl, streams, constants
 
 
 
@@ -67,7 +99,10 @@ def main():
     problem = get_problem1()
     #print(problem)
 
-    init, goal, domain_pddl, streams, constants = problem
+    init, goal, domain_pddl, stream_pddl, streams, constants = problem
+
+    print(parse_lisp(domain_pddl))
+    print(parse_lisp(stream_pddl))
 
     goal_expression = convert_expression(goal)
 
