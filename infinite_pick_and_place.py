@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-from conversion import convert_head, NOT, EQ, AND, TOTAL_COST, Stream, solve_finite, solve_exhaustive
-from problem import Stream, Object
-
+from pddlstream.conversion import convert_head, AND
+from pddlstream.incremental import solve_exhaustive
+from pddlstream.problem import Stream, Object
 # TODO: each action would be associated with a control primitive anyways
+from pddlstream.stream import from_gen_fn, from_fn, Stream
 
 DOMAIN_PDDL = """
 (define (domain pick-and-place)
@@ -58,31 +59,6 @@ STREAM_PDDL = """
 )
 """
 
-Stream(inp='?p', domain='(Pose ?p)',
-       fn=lambda p: (p,),
-       out='?q', certifed='(Kin ?q ?p)'),
-
-def from_list_gen_fn(list_gen_fn):
-    return list_gen_fn
-
-def from_gen_fn(gen_fn):
-    return lambda *args: ([output_values] for output_values in gen_fn(*args))
-
-def from_list_fn(list_fn):
-    return lambda *args: iter([list_fn(*args)])
-
-def from_fn(fn):
-    def list_fn(*args):
-        outputs = fn(*args)
-        if outputs is None:
-            return []
-        return [outputs]
-    return from_list_fn(list_fn)
-
-def from_test(test):
-    return from_fn(lambda *args: tuple() if test(*args) else None)
-
-# TODO: denote rule by just treu
 
 def get_problem1(n_blocks=1, n_poses=5):
     assert(n_blocks + 1 <= n_poses)
@@ -120,7 +96,7 @@ def get_problem1(n_blocks=1, n_poses=5):
         #'sample-pose': (lambda: (((x, 0),) for x in range(n_blocks, n_poses))),
         'sample-pose': from_gen_fn(lambda: (((x, 0),) for x in range(len(poses), n_poses))),
         #'inverse-kinematics': (lambda p: iter([((p[0], p[1]+1),)])),
-        'inverse-kinematics':  from_fn(lambda p: ((p[0], p[1]+1),)),
+        'inverse-kinematics':  from_fn(lambda p: ((p[0], p[1] + 1),)),
 
     }
     constants = {}

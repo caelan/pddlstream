@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from fast_downward import run_fast_downward, translate_task, write_pddl
-from problem import solve_pddl_problem, PDDLProblem
+from pddlstream.problem import solve_pddl_problem, PDDLProblem
 
+from pddlstream.fast_downward import run_fast_downward
 
 DOMAIN_PDDL = """
 (define (domain pick-and-place)

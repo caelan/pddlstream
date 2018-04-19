@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
 
-from fast_downward import run_fast_downward, translate_task, write_pddl, parse_lisp, parse_domain
+from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl, parse_domain
 
 DOMAIN_PDDL = '''
 (define (domain blocksworld)

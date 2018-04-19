@@ -1,5 +1,5 @@
-from utils import read
-from fast_downward import run_fast_downward, translate_task, write_pddl
+from pddlstream.utils import read
+from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl
 import re
 import collections
 

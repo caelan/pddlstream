@@ -5,7 +5,7 @@ import sys
 from time import time
 from collections import namedtuple
 
-from utils import read, write, ensure_dir, safe_rm_dir, INF
+from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF
 import re
 
 TEMP_DIR = 'temp/'
