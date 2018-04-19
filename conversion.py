@@ -15,8 +15,7 @@ CONNECTIVES = (EQ, AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS
 
-#TotalCost = 'total-cost'
-TOTAL_COST = 'total-cost'
+TOTAL_COST = 'total-cost' # TotalCost
 DOMAIN_NAME = 'pddlstream'
 PROBLEM_NAME = DOMAIN_NAME
 
@@ -191,6 +190,16 @@ def init_from_evaluations(evaluations):
             init.append((EQ, head, evaluation.value))
     return init
 
+def state_from_evaluations(evaluations):
+    # TODO: default value?
+    # TODO: could also implement within predicates
+    state = {}
+    for evaluation in evaluations:
+        if evaluation.head in state:
+            assert(evaluation.value == state[evaluation.head])
+        state[evaluation.head] = evaluation.value
+    return state
+
 def is_atom(evaluation):
     return evaluation.value is True
 
@@ -208,7 +217,8 @@ def objects_from_evaluations(evaluations):
     return objects
 
 def get_pddl_problem(init_evaluations, goal_expression,
-                     problem_name=DOMAIN_NAME, domain_name=PROBLEM_NAME, objective=(TOTAL_COST,)):
+                     problem_name=DOMAIN_NAME, domain_name=PROBLEM_NAME,
+                     objective=(TOTAL_COST,)):
     # TODO: mako or some more elegant way of creating this
     objects = objects_from_evaluations(init_evaluations)
     s = '(define (problem {})\n' \
@@ -219,6 +229,7 @@ def get_pddl_problem(init_evaluations, goal_expression,
                                  pddl_from_objects(objects),
                                  pddl_from_evaluations(init_evaluations),
                                  pddl_from_expression(goal_expression))
+    #objective = None # minimizes length
     if objective is not None:
         s += '\n\t(:metric minimize {})'.format(
             pddl_from_expression(objective))
@@ -385,9 +396,9 @@ def solve_exhaustive(problem, **kwargs):
     goal_expression = convert_expression(goal)
     problem_pddl = get_pddl_problem(evaluations, goal_expression,
                                     domain_name=domain.name)
-    plan = value_from_obj_plan(obj_from_pddl_plan(
-        run_fast_downward(domain_pddl, problem_pddl)))
-    return plan, init_from_evaluations(evaluations)
+    plan, cost = run_fast_downward(domain_pddl, problem_pddl, **kwargs)
+    return value_from_obj_plan(obj_from_pddl_plan(plan)), \
+           init_from_evaluations(evaluations)
 
 
 # Basic functions for parsing PDDL (Lisp) files.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from conversion import convert_head, EQ, AND, Stream, solve_finite, solve_exhaustive
+from conversion import convert_head, NOT, EQ, AND, TOTAL_COST, Stream, solve_finite, solve_exhaustive
 from problem import Stream, Object
 
 # TODO: each action would be associated with a control primitive anyways
@@ -18,7 +18,7 @@ DOMAIN_PDDL = """
     (HandEmpty)
   )
   (:action move
-    :parameters (?q1 ?a2)
+    :parameters (?q1 ?q2)
     :precondition (and (Conf ?q1) (Conf ?q2) 
                        (AtConf ?q1))
     :effect (and (AtConf ?q2)
@@ -90,21 +90,25 @@ def get_problem1(n_blocks=1, n_poses=5):
     #poses = [(x, 0) for x in range(n_blocks)]
     poses = [(x, 0) for x in range(n_blocks+1)]
     #poses = [(x, 0) for x in range(n_poses)]
-    conf = (5, 0)
+    conf = (0, 5)
+    goal_conf = (5, 5)
 
     #objects = []
     init = [
         ('Conf', conf),
+        ('Conf', goal_conf),
         ('AtConf', conf),
         ('HandEmpty',),
         #(NOT, ('Holding', blocks[0])),  # Confirms that not
-        (EQ, ('total-cost',), 0),
+        #(EQ, (TOTAL_COST,), 0),
     ]
 
     init += [('Block', b) for b in blocks]
     init += [('Pose', p) for p in poses]
     init += [('AtPose', b, p) for b, p in zip(blocks, poses)]
 
+    #goal = ('AtConf', conf)
+    goal = ('AtConf', goal_conf)
     #goal = (AND,
     #        ('Holding', blocks[0]),
     #        (NOT, ('HandEmpty',)))

@@ -6,6 +6,7 @@ from time import time
 from collections import namedtuple
 
 from utils import read, write, ensure_dir, safe_rm_dir, INF
+import re
 
 TEMP_DIR = 'temp/'
 DOMAIN_INPUT = 'domain.pddl'
@@ -182,15 +183,20 @@ def run_search(temp_dir, planner, max_time, max_cost, verbose):
 ##################################################
 
 def parse_solution(solution):
+    #action_regex = r'\((\w+(\s+\w+)\)' # TODO: regex
+    cost_regex = r'cost\s*=\s*(\d+)'
+    cost = INF
     if solution is None:
-        return None
-    # TODO: regex
+        return None, cost
+    matches = re.findall(cost_regex, solution)
+    if matches:
+        cost = int(matches[0])
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = []
     for line in lines:
         entries = line.strip('( )').split(' ')
         plan.append((entries[0], list(entries[1:])))
-    return plan
+    return plan, cost
 
 def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     safe_rm_dir(temp_dir)
