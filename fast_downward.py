@@ -70,17 +70,29 @@ def add_translate_path():
     if translate_path not in sys.path:
         sys.path.append(translate_path)
 
+def parse_lisp(s):
+    add_translate_path()
+    from pddl_parser.lisp_parser import parse_pddl_file
+    return parse_pddl_file(s)
+
 def translate_task(domain_path, problem_path):
     add_translate_path()
 
     temp_argv = sys.argv[:]
     sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    import pddl_parser
+    #import pddl_parser
+    #from pddl_parser import open
     import normalize
+    from pddl_parser.pddl_file import open
+    from pddl_parser.pddl_file import parse_pddl_file
     sys.argv = temp_argv
 
-    task = pddl_parser.open(
-        domain_filename=domain_path, task_filename=problem_path)
+    for line in parse_pddl_file('domain', domain_path):
+        print(line)
+
+    task = open(domain_filename=domain_path, task_filename=problem_path)
+    #task = pddl_parser.open(
+    #    domain_filename=domain_path, task_filename=problem_path)
     normalize.normalize(task)
     return task
 
