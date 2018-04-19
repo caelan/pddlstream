@@ -1,23 +1,46 @@
-from collections import namedtuple
-
+from collections import namedtuple, defaultdict
+from itertools import product
 from fast_downward import parse_lisp, parse_domain, run_fast_downward
 from problem import Object
 
-CONSTANTS = ':constants'
-OBJECTS = ':objects'
+EQ = '=' # nxor
+AND = 'and'
+OR = 'or'
+NOT = 'not'
+EXISTS = 'exists'
+FORALL = 'forall'
+CONNECTIVES = (EQ, AND, OR, NOT)
+QUANTIFIERS = (FORALL, EXISTS)
+OPERATORS = CONNECTIVES + QUANTIFIERS
+
+#TotalCost = 'total-cost'
+TOTAL_COST = 'total-cost'
+DOMAIN_NAME = 'pddlstream'
+PROBLEM_NAME = DOMAIN_NAME
+
+STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
+
+Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
+Head = namedtuple('Head', ['function', 'args'])
+Evaluation = namedtuple('Evaluation', ['head', 'value'])
+Stream = namedtuple('Stream', ['name', 'gen_fn', 'inputs', 'domain', 'outputs', 'certified'])
 
 
-def constant(name):
-    return '{{{}}}'.format(name)
-    #return '{{{}}}'.format(name)
+#CONSTANTS = ':constants'
+# = ':objects'
 
 
-class Atom(object):
-    pass
+#def constant(name):
+#    return '{{{}}}'.format(name)
+#    #return '{{{}}}'.format(name)
 
 
-def partition(array, i):
-    return array[:i], array[i:]
+#class Atom(object):
+#    pass
+
+
+#def partition(array, i):
+#    return array[:i], array[i:]
 
 
 def convert_head(atom):
@@ -80,28 +103,6 @@ def pddl_from_objects(objects):
 def get_prefix(expression):
     return expression[0]
 
-
-EQ = '=' # nxor
-AND = 'and'
-OR = 'or'
-NOT = 'not'
-EXISTS = 'exists'
-FORALL = 'forall'
-TotalCost = 'total-cost'
-CONNECTIVES = (EQ, AND, OR, NOT)
-QUANTIFIERS = (FORALL, EXISTS)
-OPERATORS = CONNECTIVES + QUANTIFIERS
-
-TOTAL_COST = 'total-cost'
-DOMAIN_NAME = 'pddlstream'
-PROBLEM_NAME = DOMAIN_NAME
-
-
-Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
-Head = namedtuple('Head', ['function', 'args'])
-Evaluation = namedtuple('Evaluation', ['head', 'value'])
-
-
 def evaluations_from_init(init):
     evaluations = []
     for fact in init:
@@ -119,6 +120,8 @@ def evaluations_from_init(init):
         evaluations.append(Evaluation(head, value))
     return evaluations
 
+def atoms_from_evaluations(evaluations):
+    return map(lambda e: e.head, filter(lambda e: e.value is True, evaluations))
 
 def objects_from_evaluations(evaluations):
     # TODO: assumes object predicates
@@ -157,36 +160,88 @@ def value_from_obj_plan(obj_plan):
     return [(action, [a.value for a in args]) for action, args in obj_plan]
 
 
-STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
-Stream = namedtuple('Stream', ['name', 'inputs', 'gen_fn', 'domain', 'outputs'])
+def list_from_conjunction(expression):
+    if not expression:
+        return []
+    prefix = get_prefix(expression)
+    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
+    if prefix == AND:
+        children = []
+        for child in expression[1:]:
+            children += list_from_conjunction(child)
+        return children
+    return [tuple(expression)]
 
-
-def parse_stream(stream_pddl, streams):
+def parse_stream(stream_pddl, stream_map):
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
 
+    streams = []
     for stream in stream_iter:
         attributes = [stream[i] for i in range(0, len(stream), 2)]
         assert(STREAM_ATTRIBUTES == attributes)
         name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
-        if name not in streams:
+        if name not in stream_map:
             raise ValueError('Undefined stream conditional generator: {}'.format(name))
-        yield Stream(name, inputs, streams[name], outputs, certified)
+        streams.append(Stream(name, stream_map[name],
+                     tuple(inputs), list_from_conjunction(domain),
+                     tuple(outputs), list_from_conjunction(certified)))
+    return streams
 
 
 def solve_finite(problem, **kwargs):
-    init, goal, domain_pddl, stream_pddl, streams, constants = problem
+    init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
     evaluations = evaluations_from_init(init)
     goal_expression = convert_expression(goal)
     domain = parse_domain(domain_pddl)
     problem_pddl = get_pddl_problem(evaluations, goal_expression,
                                     domain_name=domain.name)
-    print(list(parse_stream(stream_pddl, streams)))
+    streams = list(parse_stream(stream_pddl, stream_map))
+
+    print(atoms_from_evaluations(evaluations))
+
+    instantiator = Instantiator(evaluations, streams)
 
     return value_from_obj_plan(obj_from_pddl_plan(
         run_fast_downward(domain_pddl, problem_pddl)))
+
+class Instantiator(object): # Dynamic Stream Instantiator
+    def __init__(self, evaluations, streams):
+        # TODO: filter eager
+        self.evaluations = evaluations
+        self.streams_from_atom = defaultdict(list)
+        #self.stream_queue = deque()
+        #self.stream_instances = set()
+        for stream in streams:
+            for i, atom in enumerate(stream.domain):
+                self.streams_from_atom[atom].append((stream, i))
+        self.atoms = set()
+
+    def _update_instances(self, atom):
+
+
+
+        for relation, i in self.streams_from_predicate[atom.head.function]:
+            # TODO: bug! if not all things are bound within the domain. Might not match
+            values = [self.atoms_from_predicate.get(a.head.function, {}) if i != j else {atom}
+                      for j, a in enumerate(relation.domain)]
+            for combo in product(*values):
+                # TODO: build this incrementally to prune bad combinations
+                mapping = get_mapping(relation.domain, combo)
+                if mapping is not None:
+                    self._add_instance(relation, mapping)
+
+    def add_atom(self, atom):
+        if atom in self.atoms:
+            return False
+        self.atoms.add(atom)
+        # TODO: doing this in a way that will eventually allow constants
+        for domain_atom, i in self.streams_from_atom:
+            if get_prefix(atom) == get_prefix(domain_atom):
+                pass
+
 
 
 # Basic functions for parsing PDDL (Lisp) files.
