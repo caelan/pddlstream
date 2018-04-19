@@ -2,7 +2,7 @@
 
 from fast_downward import run_fast_downward, translate_task, write_pddl, parse_lisp, parse_domain
 
-DOMAIN_PDDL = """
+DOMAIN_PDDL = '''
 (define (domain blocksworld)
   (:requirements :strips :equality)
   (:predicates (clear ?x)
@@ -34,9 +34,9 @@ DOMAIN_PDDL = """
     :precondition (and (on ?ob ?underob) (clear ?ob) (arm-empty))
     :effect (and (holding ?ob) (clear ?underob)
                  (not (on ?ob ?underob)) (not (clear ?ob)) (not (arm-empty)))))
-"""
+'''
 
-PROBLEM_PDDL = """
+PROBLEM_PDDL = '''
 (define (problem pb2)
    (:domain blocksworld)
    (:objects a b)
@@ -47,7 +47,7 @@ PROBLEM_PDDL = """
      (clear b)
      (arm-empty))
    (:goal (and (on a b))))
-"""
+'''
 
 
 ##################################################

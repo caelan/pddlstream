@@ -54,7 +54,6 @@ def pddl_from_expression(tree):
         return pddl_from_object(tree)
     if isinstance(tree, str):
         return tree
-    print(tree)
     return '({})'.format(' '.join(map(pddl_from_expression, tree)))
 
 
@@ -131,7 +130,6 @@ def get_pddl_problem(init_evaluations, goal_expression,
                      problem_name=DOMAIN_NAME, domain_name=PROBLEM_NAME, objective=(TOTAL_COST,)):
     # TODO: mako or some more elegant way of creating this
     objects = objects_from_evaluations(init_evaluations)
-    print(objects)
     s = '(define (problem {})\n' \
            '\t(:domain {})\n' \
            '\t(:objects {})\n' \

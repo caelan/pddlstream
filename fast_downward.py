@@ -77,7 +77,7 @@ Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'co
 def parse_domain(domain_path):
     add_translate_path()
     temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT]
+    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
     from pddl_parser.pddl_file import parse_pddl_file
     from pddl_parser.parsing_functions import parse_domain_pddl
     sys.argv = temp_argv
@@ -87,17 +87,14 @@ def parse_problem(domain_path, problem_path):
     # TODO: requires domain_path
     raise NotImplementedError()
 
-def parse_lisp(s):
+def parse_lisp(lisp):
     add_translate_path()
     temp_argv = sys.argv[:]
     sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    #from pddl_parser.pddl_file import parse_pddl_file
-    from pddl_parser.lisp_parser import parse_nested_list
+    from pddl_parser.lisp_parser import parse_nested_list, tokenize
     sys.argv = temp_argv
-    # https://docs.python.org/2/library/codecs.html
-
-    #return parse_pddl_file('domain', s)
-    return parse_nested_list(s)
+    lines = lisp.split()
+    return parse_nested_list(lines)
 
 def translate_task(domain_path, problem_path):
     add_translate_path()

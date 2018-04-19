@@ -10,11 +10,19 @@ DOMAIN_PDDL = """
 (define (domain pick-and-place)
   (:requirements :strips :equality)
   (:predicates 
-    (Block ?x1)
-    (Pose ?x1)
-    (AtPose ?x1 ?x2)
-    (Holding ?x1)
+    (Block ?b)
+    (Pose ?p)
+    (Conf ?q)
+    (AtPose ?p ?q)
+    (AtConf ?q)
+    (Holding ?b)
     (HandEmpty)
+  )
+  (:action move
+    :parameters (?q1 ?a2)
+    :precondition (and (Conf ?q1) (Conf ?q2) (AtConf ?q1))
+    :effect (and (AtConf ?q2)
+                 (not (AtConf ?q1)))
   )
   (:action pick
     :parameters (?b ?p)
@@ -22,16 +30,22 @@ DOMAIN_PDDL = """
     :effect (and (Holding ?b)
                  (not (AtPose ?b ?p)) (not (HandEmpty)))
   )
+  (:action place
+    :parameters (?b ?p)
+    :precondition (Holding ?b)
+    :effect (and (AtPose ?b ?p) (HandEmpty)
+                 (not (Holding ?b)))
+  )
 )
 """
 
 STREAM_PDDL = """
 (define (stream pick-and-place)
   (:stream inverse-kinematics
-    :inputs (?b ?p)
+    :inputs (?p)
     :domain (Pose ?p)
     :outputs (?q)
-    :certified (Kin ?q ?p)
+    :certified (and (Conf ?q) (Kin ?q ?p))
   )
 )
 """
@@ -63,28 +77,29 @@ Stream(inp='?p', domain='(Pose ?p)',
 # TODO: I think we do want everything to be an object at the end of the day
 
 
-def get_problem1():
-    block0 = 'block0'
-    p0 = (0, 0)
+def get_problem1(n_blocks=1, n_poses=2):
+    assert(n_blocks <= n_poses)
+    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    poses = [(i, 0) for i in range(n_poses)]
+    conf = (5, 0)
 
     #objects = []
     init = [
-        ('Block', block0),
-        ('Pose', p0),
-        ('AtPose', block0, p0),
+        ('Conf', conf),
+        ('AtConf', conf),
         ('HandEmpty',),
-        #(NOT, ('Holding', block0)), # Confirms that not
+        #(NOT, ('Holding', blocks[0])),  # Confirms that not
         (EQ, ('total-cost',), 0),
     ]
-    #goal = [
-    #    ('Holding', block0),
-    #    ('not', ('Holding', block0)),
-    #    (NOT, ('Holding', block0)),
-    #]
-    goal = (AND,
-            ('Holding', block0),
-            (NOT, ('HandEmpty',)),
-            )
+
+    init += [('Block', b) for b in blocks]
+    init += [('Pose', p) for p in poses]
+    init += [('AtPose', b, p) for b, p in zip(blocks, poses)]
+
+    #goal = (AND,
+    #        ('Holding', blocks[0]),
+    #        (NOT, ('HandEmpty',)))
+    goal = ('AtPose', blocks[0], poses[1])
 
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
@@ -103,44 +118,26 @@ def value_from_obj_plan(obj_plan):
         return None
     return [(action, [a.value for a in args]) for action, args in obj_plan]
 
-def main():
-    problem = get_problem1()
-    #print(problem)
-    write_pddl()
-
+def solve_finite(problem, **kwargs):
     init, goal, domain_pddl, stream_pddl, streams, constants = problem
-
+    evaluations = evaluations_from_init(init)
+    goal_expression = convert_expression(goal)
     domain_path, _ = write_pddl(domain_pddl=domain_pddl)
     domain = parse_domain(domain_path)
-    print(domain)
-
-    print(parse_lisp(domain_pddl))
+    problem_pddl = get_pddl_problem(evaluations, goal_expression,
+                                    domain_name=domain.name)
     print(parse_lisp(stream_pddl))
+    #print(parse_lisp(stream_pddl.encode('ascii')))
+    print(parse_lisp(stream_pddl.decode('latin-1')))
+    #print(parse_lisp(stream_pddl.decode('ISO-8859-1')))
+    print(stream_pddl.split())
 
-    goal_expression = convert_expression(goal)
+    return value_from_obj_plan(obj_from_pddl_plan(
+        run_fast_downward(domain_pddl, problem_pddl)))
 
-    print(goal_expression)
-    print(repr(goal_expression))
-    print(str(goal_expression))
-    print(pddl_from_expression(goal_expression))
-
-    evaluations = evaluations_from_init(init)
-    print(evaluations)
-
-    for evaluation in evaluations:
-        print(evaluation)
-
-    problem_pddl = get_pddl_problem(evaluations, goal_expression, domain_name=domain.name)
-
-    print(domain_pddl)
-    print(problem_pddl)
-
-    plan = run_fast_downward(domain_pddl, problem_pddl)
-    print(plan)
-    plan = obj_from_pddl_plan(plan)
-    print(plan)
-    plan = value_from_obj_plan(plan)
-    print(plan)
+def main():
+    problem = get_problem1()
+    print(solve_finite(problem))
 
     return
 
