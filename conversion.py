@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+from fast_downward import parse_lisp, parse_domain, run_fast_downward
 from problem import Object
 
 CONSTANTS = ':constants'
@@ -142,3 +143,69 @@ def get_pddl_problem(init_evaluations, goal_expression,
         s += '\n\t(:metric minimize {})'.format(
             pddl_from_expression(objective))
     return s + ')\n'
+
+
+def obj_from_pddl_plan(pddl_plan):
+    if pddl_plan is None:
+        return None
+    return [(action, map(Object.from_name, args)) for action, args in pddl_plan]
+
+
+def value_from_obj_plan(obj_plan):
+    if obj_plan is None:
+        return None
+    return [(action, [a.value for a in args]) for action, args in obj_plan]
+
+
+STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
+Stream = namedtuple('Stream', ['name', 'inputs', 'gen_fn', 'domain', 'outputs'])
+
+
+def parse_stream(stream_pddl, streams):
+    stream_iter = iter(parse_lisp(stream_pddl))
+    assert('define' == next(stream_iter))
+    pddl_type, stream_name = next(stream_iter)
+    assert('stream' == pddl_type)
+
+    for stream in stream_iter:
+        attributes = [stream[i] for i in range(0, len(stream), 2)]
+        assert(STREAM_ATTRIBUTES == attributes)
+        name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
+        if name not in streams:
+            raise ValueError('Undefined stream conditional generator: {}'.format(name))
+        yield Stream(name, inputs, streams[name], outputs, certified)
+
+
+def solve_finite(problem, **kwargs):
+    init, goal, domain_pddl, stream_pddl, streams, constants = problem
+    evaluations = evaluations_from_init(init)
+    goal_expression = convert_expression(goal)
+    domain = parse_domain(domain_pddl)
+    problem_pddl = get_pddl_problem(evaluations, goal_expression,
+                                    domain_name=domain.name)
+    print(list(parse_stream(stream_pddl, streams)))
+
+    return value_from_obj_plan(obj_from_pddl_plan(
+        run_fast_downward(domain_pddl, problem_pddl)))
+
+
+# Basic functions for parsing PDDL (Lisp) files.
+
+# @ # $ % [] {} <> || \/
+# What if we have #p1 and #p11
+
+# https://docs.python.org/3.4/library/string.html
+# mako/templating?
+
+#class Not(object):
+
+# TODO: start by requiring that all objects have a substituion
+
+
+#def pddl_from_head(head):
+#    return pddl_from_expression((head.name,) + head.args)
+
+#def And(*expressions):
+#    return (AND,) + expressions
+
+# TODO: I think we do want everything to be an object at the end of the day
