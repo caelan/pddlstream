@@ -1,4 +1,4 @@
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 from itertools import product
 from fast_downward import parse_lisp, parse_domain, run_fast_downward
 from problem import Object
@@ -103,6 +103,9 @@ def pddl_from_objects(objects):
 def get_prefix(expression):
     return expression[0]
 
+def get_args(head):
+    return head[1:]
+
 def evaluations_from_init(init):
     evaluations = []
     for fact in init:
@@ -115,8 +118,8 @@ def evaluations_from_init(init):
         else:
             head = fact
             value = True
-        func, args = head[0], map(Object.from_value, head[1:])
-        head = Head(func, args)
+        func, args = get_prefix(head), get_args(head)
+        head = Head(func.lower(), tuple(map(Object.from_value, args)))
         evaluations.append(Evaluation(head, value))
     return evaluations
 
@@ -207,40 +210,76 @@ def solve_finite(problem, **kwargs):
     return value_from_obj_plan(obj_from_pddl_plan(
         run_fast_downward(domain_pddl, problem_pddl)))
 
+
+def get_mapping(atoms1, atoms2, initial={}):
+    # TODO unify this stuff
+    assert len(atoms1) == len(atoms2)
+    mapping = initial.copy()
+    for a1, a2 in zip(atoms1, atoms2):
+        assert(get_prefix(a1) == get_prefix(a2))
+        for arg1, arg2 in zip(get_args(a1), a2[1]): # TODO: this is because eval vs predicate
+            if mapping.get(arg1, arg2) == arg2:
+                mapping[arg1] = arg2
+            else:
+                return None
+    return mapping
+
 class Instantiator(object): # Dynamic Stream Instantiator
     def __init__(self, evaluations, streams):
         # TODO: filter eager
-        self.evaluations = evaluations
-        self.streams_from_atom = defaultdict(list)
-        #self.stream_queue = deque()
+        #self.streams_from_atom = defaultdict(list)
+        self.stream_queue = deque()
         #self.stream_instances = set()
-        for stream in streams:
-            for i, atom in enumerate(stream.domain):
-                self.streams_from_atom[atom].append((stream, i))
+        self.streams = streams
         self.atoms = set()
+        self.atoms_from_domain = defaultdict(list)
+        for stream in self.streams:
+            if not stream.inputs:
+                self._add_instance(stream, {})
+        for atom in atoms_from_evaluations(evaluations):
+            self.add_atom(atom)
 
-    def _update_instances(self, atom):
+    def _add_instance(self, stream, input_mapping):
+        # TODO shouldn't be any constants
+        input_values = [input_mapping[c].value for c in stream.inputs]
+        print(stream.inputs)
+        print(input_mapping)
+        print(stream.name, input_values)
+        gen = stream.gen_fn(*input_values)
+        for output_values in gen:
+            print(output_values)
+            output_mapping = {}
 
 
 
-        for relation, i in self.streams_from_predicate[atom.head.function]:
-            # TODO: bug! if not all things are bound within the domain. Might not match
-            values = [self.atoms_from_predicate.get(a.head.function, {}) if i != j else {atom}
-                      for j, a in enumerate(relation.domain)]
-            for combo in product(*values):
-                # TODO: build this incrementally to prune bad combinations
-                mapping = get_mapping(relation.domain, combo)
-                if mapping is not None:
-                    self._add_instance(relation, mapping)
+
+
+
+
+        pass
 
     def add_atom(self, atom):
         if atom in self.atoms:
             return False
         self.atoms.add(atom)
         # TODO: doing this in a way that will eventually allow constants
-        for domain_atom, i in self.streams_from_atom:
-            if get_prefix(atom) == get_prefix(domain_atom):
-                pass
+        for i, stream in enumerate(self.streams):
+            for j, domain_atom in enumerate(stream.domain):
+                if get_prefix(atom) != get_prefix(domain_atom):
+                    continue
+                assert(len(get_args(atom)) == len(get_args(domain_atom)))
+                if any(isinstance(b, Object) and (a != b) for (a, b) in
+                       zip(get_args(atom), get_args(domain_atom))):
+                    continue
+                self.atoms_from_domain[(i, j)].append((stream, i))
+                values = [self.atoms_from_domain[(i, k)] if j != k else [atom]
+                          for k, a in enumerate(stream.domain)]
+                for combo in product(*values):
+                    print(combo)
+                    raw_input('awef')
+                    mapping = get_mapping(stream.domain, combo)
+                    if mapping is not None:
+                        self._add_instance(stream, mapping)
 
 
 
