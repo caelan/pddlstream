@@ -3,6 +3,7 @@ from conversion import convert_head, convert_expression, pddl_from_expression, E
     evaluations_from_init, get_pddl_problem
 from fast_downward import run_fast_downward, parse_lisp, parse_domain, write_pddl
 from problem import Stream, Object
+from collections import namedtuple
 
 # TODO: each action would be associated with a control primitive anyways
 
@@ -41,6 +42,12 @@ DOMAIN_PDDL = """
 
 STREAM_PDDL = """
 (define (stream pick-and-place)
+  (:stream sample-pose
+    :inputs ()
+    :domain ()
+    :outputs (?p)
+    :certified (and (Pose ?p))
+  )
   (:stream inverse-kinematics
     :inputs (?p)
     :domain (Pose ?p)
@@ -80,7 +87,7 @@ Stream(inp='?p', domain='(Pose ?p)',
 def get_problem1(n_blocks=1, n_poses=2):
     assert(n_blocks <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
-    poses = [(i, 0) for i in range(n_poses)]
+    poses = [(x, 0) for x in range(n_poses)]
     conf = (5, 0)
 
     #objects = []
@@ -103,7 +110,10 @@ def get_problem1(n_blocks=1, n_poses=2):
 
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
-    streams = {}
+    streams = {
+        'sample-pose': (lambda: (((x, 0),) for x in range(n_blocks, n_poses))),
+        'inverse-kinematics': (lambda p: [((p[0], p[1]+1),)]),
+    }
     constants = {}
 
     return init, goal, domain_pddl, stream_pddl, streams, constants
@@ -118,19 +128,31 @@ def value_from_obj_plan(obj_plan):
         return None
     return [(action, [a.value for a in args]) for action, args in obj_plan]
 
+STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
+Stream = namedtuple('Stream', ['name', 'inputs', 'gen_fn', 'domain', 'outputs'])
+
+def parse_stream(stream_pddl, streams):
+    stream_iter = iter(parse_lisp(stream_pddl))
+    assert('define' == next(stream_iter))
+    pddl_type, stream_name = next(stream_iter)
+    assert('stream' == pddl_type)
+
+    for stream in stream_iter:
+        attributes = [stream[i] for i in range(0, len(stream), 2)]
+        assert(STREAM_ATTRIBUTES == attributes)
+        name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
+        if name not in streams:
+            raise ValueError('Undefined stream conditional generator: {}'.format(name))
+        yield Stream(name, inputs, streams[name], outputs, certified)
+
 def solve_finite(problem, **kwargs):
     init, goal, domain_pddl, stream_pddl, streams, constants = problem
     evaluations = evaluations_from_init(init)
     goal_expression = convert_expression(goal)
-    domain_path, _ = write_pddl(domain_pddl=domain_pddl)
-    domain = parse_domain(domain_path)
+    domain = parse_domain(domain_pddl)
     problem_pddl = get_pddl_problem(evaluations, goal_expression,
                                     domain_name=domain.name)
-    print(parse_lisp(stream_pddl))
-    #print(parse_lisp(stream_pddl.encode('ascii')))
-    print(parse_lisp(stream_pddl.decode('latin-1')))
-    #print(parse_lisp(stream_pddl.decode('ISO-8859-1')))
-    print(stream_pddl.split())
+    print(list(parse_stream(stream_pddl, streams)))
 
     return value_from_obj_plan(obj_from_pddl_plan(
         run_fast_downward(domain_pddl, problem_pddl)))

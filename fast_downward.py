@@ -74,19 +74,6 @@ def add_translate_path():
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
-def parse_domain(domain_path):
-    add_translate_path()
-    temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    from pddl_parser.pddl_file import parse_pddl_file
-    from pddl_parser.parsing_functions import parse_domain_pddl
-    sys.argv = temp_argv
-    return Domain(*parse_domain_pddl(parse_pddl_file('domain', domain_path)))
-
-def parse_problem(domain_path, problem_path):
-    # TODO: requires domain_path
-    raise NotImplementedError()
-
 def parse_lisp(lisp):
     add_translate_path()
     temp_argv = sys.argv[:]
@@ -95,6 +82,22 @@ def parse_lisp(lisp):
     sys.argv = temp_argv
     lines = lisp.split()
     return parse_nested_list(lines)
+
+#def parse_domain(domain_path):
+def parse_domain(domain_pddl):
+    add_translate_path()
+    temp_argv = sys.argv[:]
+    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
+    from pddl_parser.pddl_file import parse_pddl_file
+    from pddl_parser.parsing_functions import parse_domain_pddl
+    sys.argv = temp_argv
+    #return Domain(*parse_domain_pddl(parse_pddl_file('domain', domain_path) ))
+    #domain_pddl = read(domain_path)
+    return Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+
+def parse_problem(domain_path, problem_path):
+    # TODO: requires domain_path
+    raise NotImplementedError()
 
 def translate_task(domain_path, problem_path):
     add_translate_path()
