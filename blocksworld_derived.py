@@ -1,7 +1,8 @@
 #!/usr/bin/env python2.7
 
-from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl
+from __future__ import print_function
 
+from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -60,7 +61,7 @@ PROBLEM_PDDL = """
 # Not assuming any special preconditions and effects makes it easy to extend to other PDDL variants
 # Can extend problem file as well if provided with an object map
 
-def main():
+def brainstorm():
     domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
     task = translate_task(domain_path, problem_path) # TODO: might need to make these wrt temp
     print(task.objects)
@@ -71,10 +72,10 @@ def main():
     import sys
     # TODO: could even directly convert and mutate the task
 
-    plan = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=True)
-    print(plan)
-    print(sys.argv)
-
+def main():
+    plan, cost = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=False)
+    print('Plan:', plan)
+    print('Cost:', cost)
 
 if __name__ == '__main__':
     main()

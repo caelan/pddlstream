@@ -1,5 +1,7 @@
 #!/usr/bin/env python2.7
 
+from __future__ import print_function
+
 from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl, parse_domain
 
 DOMAIN_PDDL = '''
@@ -60,7 +62,8 @@ PROBLEM_PDDL = '''
 # TODO: could extract the FD parser by itself
 # TODO: include my version of FD as a submodule
 
-def main():
+
+def brainstorm():
     #print(DOMAIN_PDDL)
     #print(PROBLEM_PDDL)
     #print(parse_lisp(DOMAIN_PDDL.encode('latin-1')))
@@ -72,8 +75,6 @@ def main():
 
     domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
     print(parse_domain(domain_path))
-    return
-
 
     task = translate_task(domain_path, problem_path) # TODO: might need to make these wrt temp
     print(task.objects)
@@ -82,11 +83,12 @@ def main():
     #return
     import sys
     # TODO: could even directly convert and mutate the task
+    return
 
-    plan = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=True)
-    print(plan)
-    print(sys.argv)
-
+def main():
+    plan, cost = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=False)
+    print('Plan:', plan)
+    print('Cost:', cost)
 
 if __name__ == '__main__':
     main()

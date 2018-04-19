@@ -84,12 +84,3 @@ class Object(object):
     def __repr__(self):
         #return repr(self.value)
         return self.pddl
-
-##################################################
-
-class Stream(object):
-    # TODO: could even parse a stream like an action to some degree
-    # TODO: constant map?
-    def __init__(self, inp, domain, fn, out, certifed, name=None):
-        # TODO: should each be a list or a string
-        pass

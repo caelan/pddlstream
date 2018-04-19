@@ -18,8 +18,8 @@ def solve_finite(problem, **kwargs):
 
     problem_pddl = get_pddl_problem(evaluations, goal_expression,
                                     domain_name=domain.name)
-    plan = value_from_obj_plan(obj_from_pddl_plan(
-        run_fast_downward(domain_pddl, problem_pddl)))
+    plan_pddl, cost = run_fast_downward(domain_pddl, problem_pddl)
+    plan = value_from_obj_plan(obj_from_pddl_plan(plan_pddl))
     return plan, init
 
 

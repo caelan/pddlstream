@@ -81,12 +81,14 @@ class StreamInstance(object):
 
 
 def parse_stream(stream_pddl, stream_map):
+    streams = []
+    if stream_pddl is None:
+        return streams
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
 
-    streams = []
     for stream in stream_iter:
         attributes = [stream[i] for i in range(0, len(stream), 2)]
         assert(STREAM_ATTRIBUTES == attributes)
@@ -97,3 +99,11 @@ def parse_stream(stream_pddl, stream_map):
                      tuple(inputs), list_from_conjunction(domain),
                      tuple(outputs), list_from_conjunction(certified)))
     return streams
+
+
+# class Stream(object):
+#     # TODO: could even parse a stream like an action to some degree
+#     # TODO: constant map?
+#     def __init__(self, inp, domain, fn, out, certifed, name=None):
+#         # TODO: should each be a list or a string
+#         pass

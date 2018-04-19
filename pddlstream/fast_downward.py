@@ -184,10 +184,10 @@ def run_search(temp_dir, planner, max_time, max_cost, verbose):
 
 def parse_solution(solution):
     #action_regex = r'\((\w+(\s+\w+)\)' # TODO: regex
-    cost_regex = r'cost\s*=\s*(\d+)'
     cost = INF
     if solution is None:
         return None, cost
+    cost_regex = r'cost\s*=\s*(\d+)'
     matches = re.findall(cost_regex, solution)
     if matches:
         cost = int(matches[0])
@@ -218,6 +218,4 @@ def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
     if clean:
         safe_rm_dir(temp_dir)
     print('Total runtime:', time() - t0)
-    if solution is None:
-        return None
     return parse_solution(solution)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pddlstream.conversion import convert_head, AND
-from pddlstream.incremental import solve_exhaustive
-from pddlstream.problem import Stream, Object
+from pddlstream.incremental import solve_exhaustive, solve_finite
+from pddlstream.problem import Object
 # TODO: each action would be associated with a control primitive anyways
 from pddlstream.stream import from_gen_fn, from_fn, Stream
 
@@ -105,16 +105,12 @@ def get_problem1(n_blocks=1, n_poses=5):
 
 def main():
     problem = get_problem1()
-    #plan, init = solve_finite(problem)
-    plan, init = solve_exhaustive(problem)
+    plan, init = solve_finite(problem)
+    #plan, init = solve_exhaustive(problem)
     print(plan)
     print(init)
 
-
-
-    return
-
-
+def brainstorm():
     #Block = 'Block'
     #Block = Predicate('Block')
 
@@ -127,10 +123,6 @@ def main():
     gen_fns = { # TODO: return
         'inverse-kinematics': ik, # TODO: include various options as well
     }
-
-
-
-
 
     # TODO: the more I can separate representation language from parsing, the better
 
@@ -188,10 +180,7 @@ def main():
     ]
     # TODO: maybe I take an even more basic view where certified are just the statements to write down completing the values
     # TODO: then I could have functions and streams do equivalent things
-
     # TODO: name whatever the output of the stream is but don't require that it be an object.
-
-
     # TODO: can make a wrapper around the stream fn to simplify what its behavior is
 
     # (Predicate ?inp1 ?inp2 ?out1 ?out2)
