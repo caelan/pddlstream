@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
 
-from fast_downward import run_fast_downward, translate_task, write_pddl
+from fast_downward import run_fast_downward, translate_task, write_pddl, parse_lisp, parse_domain
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -61,7 +61,20 @@ PROBLEM_PDDL = """
 # TODO: include my version of FD as a submodule
 
 def main():
+    #print(DOMAIN_PDDL)
+    #print(PROBLEM_PDDL)
+    #print(parse_lisp(DOMAIN_PDDL.encode('latin-1')))
+    #print(parse_lisp(DOMAIN_PDDL.encode('ISO-8859-1')))
+    #print(parse_lisp(PROBLEM_PDDL))
+    #print(parse_domain(DOMAIN_PDDL))
+    #print(parse_domain(parse_lisp(DOMAIN_PDDL)))
+    #return
+
     domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
+    print(parse_domain(domain_path))
+    return
+
+
     task = translate_task(domain_path, problem_path) # TODO: might need to make these wrt temp
     print(task.objects)
     task.dump()

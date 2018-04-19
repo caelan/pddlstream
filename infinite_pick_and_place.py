@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from conversion import convert_head, convert_expression, pddl_from_expression, EQ, AND, NOT, \
     evaluations_from_init, get_pddl_problem
-from fast_downward import run_fast_downward, parse_lisp
+from fast_downward import run_fast_downward, parse_lisp, parse_domain, write_pddl
 from problem import Stream, Object
 
 # TODO: each action would be associated with a control primitive anyways
@@ -93,13 +93,26 @@ def get_problem1():
 
     return init, goal, domain_pddl, stream_pddl, streams, constants
 
+def obj_from_pddl_plan(pddl_plan):
+    if pddl_plan is None:
+        return None
+    return [(action, map(Object.from_name, args)) for action, args in pddl_plan]
 
+def value_from_obj_plan(obj_plan):
+    if obj_plan is None:
+        return None
+    return [(action, [a.value for a in args]) for action, args in obj_plan]
 
 def main():
     problem = get_problem1()
     #print(problem)
+    write_pddl()
 
     init, goal, domain_pddl, stream_pddl, streams, constants = problem
+
+    domain_path, _ = write_pddl(domain_pddl=domain_pddl)
+    domain = parse_domain(domain_path)
+    print(domain)
 
     print(parse_lisp(domain_pddl))
     print(parse_lisp(stream_pddl))
@@ -117,13 +130,17 @@ def main():
     for evaluation in evaluations:
         print(evaluation)
 
-    problem_pddl = get_pddl_problem(evaluations, goal_expression)
+    problem_pddl = get_pddl_problem(evaluations, goal_expression, domain_name=domain.name)
 
     print(domain_pddl)
     print(problem_pddl)
 
     plan = run_fast_downward(domain_pddl, problem_pddl)
-
+    print(plan)
+    plan = obj_from_pddl_plan(plan)
+    print(plan)
+    plan = value_from_obj_plan(plan)
+    print(plan)
 
     return
 

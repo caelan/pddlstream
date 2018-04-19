@@ -48,38 +48,39 @@ class PDDLStreamProblem(object):
 class Object(object):
     #_template = 'o{}'
     _prefix = 'o'
-    num = 0
     # TODO: maintain dictionary here for looking up values. Test if underlying thing has a hash
-    # TODO: PDDL name to object
-    # TODO: hash to object
     _obj_from_value = {}
-    _obj_from_index = []
-    #_obj_from_name = []
+    #_obj_from_index = []
+    _obj_from_name = {}
     def __init__(self, value):
         # TODO: unique vs hash
         self.value = value
         # TODO: could use id(self)
-        self.index = self.__class__.num
-        self.__class__.num += 1
+        self.index = len(Object._obj_from_value)
+        self.name = '{}{}'.format(self._prefix, self.index)
+        Object._obj_from_value[self.value] = self
+        Object._obj_from_name[self.name] = self
     @property
     def pddl(self):
         #return self._template.format(self.n)
-        return '{}{}'.format(self._prefix, self.index)
+        #return '{}{}'.format(self._prefix, self.index)
+        return self.name
     @staticmethod
     def from_value(value):
         #if isinstance(0, collections.Hashable):
         #   pass
         # TODO: just has based on its id in memory?
         if value not in Object._obj_from_value: # TODO: return here instead of updating?
-            Object._obj_from_value[value] = Object(value)
+            return Object(value)
         return Object._obj_from_value[value]
-    @staticmethod
-    def from_index(index):
-        return Object._obj_from_index[index]
+    #@staticmethod
+    #def from_index(index):
+    #    return Object._obj_from_index[index]
     @staticmethod
     def from_name(name):
-        index = int(name.split(Object._prefix)[1]) # TODO: match regex or strip prefix
-        return Object.from_index(index)
+        #index = int(name.split(Object._prefix)[1]) # TODO: match regex or strip prefix
+        #return Object.from_index(index)
+        return Object._obj_from_name[name]
     def __repr__(self):
         #return repr(self.value)
         return self.pddl

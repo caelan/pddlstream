@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import sys
 from time import time
+from collections import namedtuple
 
 from utils import read, write, ensure_dir, safe_rm_dir, INF
 
@@ -70,18 +71,33 @@ def add_translate_path():
     if translate_path not in sys.path:
         sys.path.append(translate_path)
 
+Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
+                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
+
+def parse_domain(domain_path):
+    add_translate_path()
+    temp_argv = sys.argv[:]
+    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT]
+    from pddl_parser.pddl_file import parse_pddl_file
+    from pddl_parser.parsing_functions import parse_domain_pddl
+    sys.argv = temp_argv
+    return Domain(*parse_domain_pddl(parse_pddl_file('domain', domain_path)))
+
+def parse_problem(domain_path, problem_path):
+    # TODO: requires domain_path
+    raise NotImplementedError()
+
 def parse_lisp(s):
     add_translate_path()
     temp_argv = sys.argv[:]
     sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    #from pddl_parser.lisp_parser import parse_pddl_file
-    #from pddl_parser.lisp_parser import parse_nested_list
-    import pddl_parser.lisp_parser
+    #from pddl_parser.pddl_file import parse_pddl_file
+    from pddl_parser.lisp_parser import parse_nested_list
     sys.argv = temp_argv
+    # https://docs.python.org/2/library/codecs.html
 
-    #return parse_pddl_file(s)
-    #return parse_nested_list(s)
-    return pddl_parser.lisp_parser.parse_nested_list(s)
+    #return parse_pddl_file('domain', s)
+    return parse_nested_list(s)
 
 def translate_task(domain_path, problem_path):
     add_translate_path()
@@ -176,13 +192,15 @@ def parse_solution(solution):
         plan.append((entries[0], list(entries[1:])))
     return plan
 
-def write_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR):
+def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     safe_rm_dir(temp_dir)
     ensure_dir(temp_dir)
     domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
+    if domain_pddl is not None:
+        write(domain_path, domain_pddl)
     problem_path = os.path.join(temp_dir, PROBLEM_INPUT)
-    write(domain_path, domain_pddl)
-    write(problem_path, problem_pddl)
+    if problem_pddl is not None:
+        write(problem_path, problem_pddl)
     return domain_path, problem_path
 
 def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
