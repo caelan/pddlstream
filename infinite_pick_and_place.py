@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from conversion import convert_head, EQ, AND, Stream, solve_finite
+from conversion import convert_head, EQ, AND, Stream, solve_finite, solve_exhaustive
 from problem import Stream, Object
 
 # TODO: each action would be associated with a control primitive anyways
@@ -8,9 +8,10 @@ DOMAIN_PDDL = """
 (define (domain pick-and-place)
   (:requirements :strips :equality)
   (:predicates 
+    (Conf ?q)
     (Block ?b)
     (Pose ?p)
-    (Conf ?q)
+    (Kin ?q ?p)
     (AtPose ?p ?q)
     (AtConf ?q)
     (Holding ?b)
@@ -18,19 +19,22 @@ DOMAIN_PDDL = """
   )
   (:action move
     :parameters (?q1 ?a2)
-    :precondition (and (Conf ?q1) (Conf ?q2) (AtConf ?q1))
+    :precondition (and (Conf ?q1) (Conf ?q2) 
+                       (AtConf ?q1))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)))
   )
   (:action pick
-    :parameters (?b ?p)
-    :precondition (and (AtPose ?b ?p) (HandEmpty))
+    :parameters (?q ?b ?p)
+    :precondition (and (Block ?b) (Kin ?q ?p)
+                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
     :effect (and (Holding ?b)
                  (not (AtPose ?b ?p)) (not (HandEmpty)))
   )
   (:action place
-    :parameters (?b ?p)
-    :precondition (Holding ?b)
+    :parameters (?q ?b ?p)
+    :precondition (and (Block ?b) (Kin ?q ?p) 
+                       (AtConf ?q) (Holding ?b))
     :effect (and (AtPose ?b ?p) (HandEmpty)
                  (not (Holding ?b)))
   )
@@ -58,10 +62,34 @@ Stream(inp='?p', domain='(Pose ?p)',
        fn=lambda p: (p,),
        out='?q', certifed='(Kin ?q ?p)'),
 
-def get_problem1(n_blocks=1, n_poses=2):
-    assert(n_blocks <= n_poses)
+def from_list_gen_fn(list_gen_fn):
+    return list_gen_fn
+
+def from_gen_fn(gen_fn):
+    return lambda *args: ([output_values] for output_values in gen_fn(*args))
+
+def from_list_fn(list_fn):
+    return lambda *args: iter([list_fn(*args)])
+
+def from_fn(fn):
+    def list_fn(*args):
+        outputs = fn(*args)
+        if outputs is None:
+            return []
+        return [outputs]
+    return from_list_fn(list_fn)
+
+def from_test(test):
+    return from_fn(lambda *args: tuple() if test(*args) else None)
+
+# TODO: denote rule by just treu
+
+def get_problem1(n_blocks=1, n_poses=5):
+    assert(n_blocks + 1 <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
-    poses = [(x, 0) for x in range(n_poses)]
+    #poses = [(x, 0) for x in range(n_blocks)]
+    poses = [(x, 0) for x in range(n_blocks+1)]
+    #poses = [(x, 0) for x in range(n_poses)]
     conf = (5, 0)
 
     #objects = []
@@ -85,8 +113,11 @@ def get_problem1(n_blocks=1, n_poses=2):
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
     streams = {
-        'sample-pose': (lambda: (((x, 0),) for x in range(n_blocks, n_poses))),
-        'inverse-kinematics': (lambda p: [((p[0], p[1]+1),)]),
+        #'sample-pose': (lambda: (((x, 0),) for x in range(n_blocks, n_poses))),
+        'sample-pose': from_gen_fn(lambda: (((x, 0),) for x in range(len(poses), n_poses))),
+        #'inverse-kinematics': (lambda p: iter([((p[0], p[1]+1),)])),
+        'inverse-kinematics':  from_fn(lambda p: ((p[0], p[1]+1),)),
+
     }
     constants = {}
 
@@ -94,7 +125,12 @@ def get_problem1(n_blocks=1, n_poses=2):
 
 def main():
     problem = get_problem1()
-    print(solve_finite(problem))
+    #plan, init = solve_finite(problem)
+    plan, init = solve_exhaustive(problem)
+    print(plan)
+    print(init)
+
+
 
     return
 

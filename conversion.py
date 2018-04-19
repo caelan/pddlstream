@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from collections import namedtuple, defaultdict, deque
 from itertools import product
 from fast_downward import parse_lisp, parse_domain, run_fast_downward
@@ -24,6 +26,52 @@ Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
 Stream = namedtuple('Stream', ['name', 'gen_fn', 'inputs', 'domain', 'outputs', 'certified'])
+
+class Stream(object):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
+        self.name = name
+        self.gen_fn = gen_fn
+        self.inputs = tuple(inputs)
+        self.domain = tuple(domain)
+        self.outputs = tuple(outputs)
+        self.certified = tuple(certified)
+        self.instances = {}
+    def get_instance(self, input_values):
+        input_values = tuple(input_values)
+        if input_values not in self.instances:
+            self.instances[input_values] = StreamInstance(self, input_values)
+        return self.instances[input_values]
+    def __repr__(self):
+        return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+
+
+class StreamInstance(object):
+    def __init__(self, stream, input_values):
+        self.stream = stream
+        self.input_values = tuple(input_values)
+        self._generator = None
+        self.enumerated = False
+        self.calls = 0
+    def mapping(self, output_values=None):
+        pairs = zip(self.stream.inputs, self.input_values)
+        if output_values is not None:
+            assert(len(self.stream.outputs) == len(output_values))
+            pairs += zip(self.stream.outputs, output_values)
+        return dict(pairs)
+    def next_outputs(self):
+        assert not self.enumerated
+        if self._generator is None:
+            self._generator = self.stream.gen_fn(*(iv.value for iv in self.input_values))
+        self.calls += 1
+        #if self.stream.max_calls <= self.calls:
+        #    self.enumerated = True
+        try:
+            return next(self._generator)
+        except StopIteration:
+            self.enumerated = True
+        return []
+    def __repr__(self):
+        return '{}:{}->{}'.format(self.stream.name, self.input_values, self.stream.outputs)
 
 
 #CONSTANTS = ':constants'
@@ -56,6 +104,11 @@ def is_head(expression):
     return prefix not in OPERATORS
 
 
+def substitute_expression(parent, mapping):
+    if isinstance(parent, str) or isinstance(parent, Object):
+        return mapping.get(parent, parent)
+    return tuple(substitute_expression(child, mapping) for child in parent)
+
 def convert_expression(expression):
     prefix = expression[0]
     if prefix in CONNECTIVES:
@@ -83,9 +136,9 @@ def pddl_from_expression(tree):
 
 def pddl_from_evaluation(evaluation):
     head = (evaluation.head.function,) + tuple(evaluation.head.args)
-    if evaluation.value is True:
+    if is_atom(evaluation):
         return pddl_from_expression(head)
-    if evaluation.value is False:
+    if is_negated_atom(evaluation):
         return None
     expression = (EQ, head, str(evaluation.value))
     return pddl_from_expression(expression)
@@ -123,8 +176,29 @@ def evaluations_from_init(init):
         evaluations.append(Evaluation(head, value))
     return evaluations
 
+def values_from_objects(objects):
+    return tuple(obj.value for obj in objects)
+
+def init_from_evaluations(evaluations):
+    init = []
+    for evaluation in evaluations:
+        head = (evaluation.head.function, values_from_objects(evaluation.head.args))
+        if is_atom(evaluation):
+            init.append(head)
+        elif is_negated_atom(evaluation):
+            init.append((NOT, head))
+        else:
+            init.append((EQ, head, evaluation.value))
+    return init
+
+def is_atom(evaluation):
+    return evaluation.value is True
+
+def is_negated_atom(evaluation):
+    return evaluation.value is False
+
 def atoms_from_evaluations(evaluations):
-    return map(lambda e: e.head, filter(lambda e: e.value is True, evaluations))
+    return map(lambda e: e.head, filter(is_atom, evaluations))
 
 def objects_from_evaluations(evaluations):
     # TODO: assumes object predicates
@@ -160,7 +234,7 @@ def obj_from_pddl_plan(pddl_plan):
 def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
-    return [(action, [a.value for a in args]) for action, args in obj_plan]
+    return [(action, values_from_objects(args)) for action, args in obj_plan]
 
 
 def list_from_conjunction(expression):
@@ -193,24 +267,6 @@ def parse_stream(stream_pddl, stream_map):
                      tuple(outputs), list_from_conjunction(certified)))
     return streams
 
-
-def solve_finite(problem, **kwargs):
-    init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
-    evaluations = evaluations_from_init(init)
-    goal_expression = convert_expression(goal)
-    domain = parse_domain(domain_pddl)
-    problem_pddl = get_pddl_problem(evaluations, goal_expression,
-                                    domain_name=domain.name)
-    streams = list(parse_stream(stream_pddl, stream_map))
-
-    print(atoms_from_evaluations(evaluations))
-
-    instantiator = Instantiator(evaluations, streams)
-
-    return value_from_obj_plan(obj_from_pddl_plan(
-        run_fast_downward(domain_pddl, problem_pddl)))
-
-
 def get_mapping(atoms1, atoms2, initial={}):
     # TODO unify this stuff
     assert len(atoms1) == len(atoms2)
@@ -228,41 +284,39 @@ class Instantiator(object): # Dynamic Stream Instantiator
     def __init__(self, evaluations, streams):
         # TODO: filter eager
         #self.streams_from_atom = defaultdict(list)
-        self.stream_queue = deque()
-        #self.stream_instances = set()
         self.streams = streams
+        self.stream_instances = set()
+        self.stream_queue = deque()
         self.atoms = set()
         self.atoms_from_domain = defaultdict(list)
         for stream in self.streams:
             if not stream.inputs:
-                self._add_instance(stream, {})
+                self._add_instance(stream.get_instance(tuple()))
         for atom in atoms_from_evaluations(evaluations):
             self.add_atom(atom)
 
-    def _add_instance(self, stream, input_mapping):
-        # TODO shouldn't be any constants
-        input_values = [input_mapping[c].value for c in stream.inputs]
-        print(stream.inputs)
-        print(input_mapping)
-        print(stream.name, input_values)
-        gen = stream.gen_fn(*input_values)
-        for output_values in gen:
-            print(output_values)
-            output_mapping = {}
+    #def __next__(self):
+    #    pass
 
+    def __iter__(self):
+        while self.stream_queue:
+            stream_instance = self.stream_queue.popleft()
+            # TODO: remove from set?
+            yield stream_instance
 
-
-
-
-
-
-        pass
+    def _add_instance(self, stream_instance):
+        if stream_instance in self.stream_instances:
+            return False
+        self.stream_instances.add(stream_instance)
+        self.stream_queue.append(stream_instance)
+        return True
 
     def add_atom(self, atom):
         if atom in self.atoms:
             return False
         self.atoms.add(atom)
         # TODO: doing this in a way that will eventually allow constants
+
         for i, stream in enumerate(self.streams):
             for j, domain_atom in enumerate(stream.domain):
                 if get_prefix(atom) != get_prefix(domain_atom):
@@ -275,12 +329,65 @@ class Instantiator(object): # Dynamic Stream Instantiator
                 values = [self.atoms_from_domain[(i, k)] if j != k else [atom]
                           for k, a in enumerate(stream.domain)]
                 for combo in product(*values):
-                    print(combo)
-                    raw_input('awef')
                     mapping = get_mapping(stream.domain, combo)
-                    if mapping is not None:
-                        self._add_instance(stream, mapping)
+                    if mapping is None:
+                        continue
+                    input_values = tuple(mapping[p] for p in stream.inputs)
+                    self._add_instance(stream.get_instance(input_values))
+        return True
 
+##################################################
+
+def solve_finite(problem, **kwargs):
+    init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
+    evaluations = evaluations_from_init(init)
+    goal_expression = convert_expression(goal)
+    domain = parse_domain(domain_pddl)
+    assert(len(domain.types) == 1)
+    assert(not domain.constants)
+
+    problem_pddl = get_pddl_problem(evaluations, goal_expression,
+                                    domain_name=domain.name)
+    plan = value_from_obj_plan(obj_from_pddl_plan(
+        run_fast_downward(domain_pddl, problem_pddl)))
+    return plan, init
+
+##################################################
+
+def solve_exhaustive(problem, **kwargs):
+    init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
+    domain = parse_domain(domain_pddl)
+    assert (len(domain.types) == 1)
+    assert (not domain.constants)
+
+    evaluations = evaluations_from_init(init)
+    streams = parse_stream(stream_pddl, stream_map)
+    print(streams)
+
+    instantiator = Instantiator(evaluations, streams)
+    for stream_instance in instantiator:
+        output_values_list = stream_instance.next_outputs()
+        print('{}:{}->{}'.format(stream_instance.stream.name,
+                                 stream_instance.input_values, output_values_list))
+        for output_values in output_values_list:
+            converted_values = map(Object.from_value, output_values)
+            certified_atoms = substitute_expression(stream_instance.stream.certified,
+                                                    stream_instance.mapping(converted_values))
+            for atom in certified_atoms:
+                head = Head(get_prefix(atom), get_args(atom))
+                # TODO: use an existing method here?
+                evaluation = Evaluation(head, True)
+                instantiator.add_atom(head)
+                evaluations.append(evaluation)
+        if not stream_instance.enumerated:
+            instantiator.stream_queue.append(stream_instance)
+
+    goal_expression = convert_expression(goal)
+    problem_pddl = get_pddl_problem(evaluations, goal_expression,
+                                    domain_name=domain.name)
+    plan = value_from_obj_plan(obj_from_pddl_plan(
+        run_fast_downward(domain_pddl, problem_pddl)))
+    return plan, init_from_evaluations(evaluations)
 
 
 # Basic functions for parsing PDDL (Lisp) files.
