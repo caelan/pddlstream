@@ -86,3 +86,10 @@ class TmpCWD(object):
         return self
     def __exit__(self, type, value, traceback):
         os.chdir(self.old_cwd)
+
+
+def find(test, sequence):
+    for item in sequence:
+        if test(item):
+            return item
+    return None

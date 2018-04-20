@@ -1,15 +1,14 @@
 import time
 
-from pddlstream.conversion import get_pddl_problem, value_from_obj_plan, \
-    obj_from_pddl_plan, substitute_expression, Head, get_prefix, get_args, Evaluation, Atom, \
-    init_from_evaluations, evaluations_from_init, convert_expression, values_from_objects, \
-    objects_from_values, evaluation_from_fact
-from pddlstream.fast_downward import solve_from_pddl, solve_from_task, parse_domain, get_problem, \
+from pddlstream.conversion import value_from_obj_plan, \
+    obj_from_pddl_plan, init_from_evaluations, evaluations_from_init, convert_expression, values_from_objects, \
+    evaluation_from_fact
+from pddlstream.fast_downward import solve_from_task, parse_domain, get_problem, \
     task_from_domain_problem
 from pddlstream.instantiation import Instantiator
-from pddlstream.object import Object
 from pddlstream.stream import parse_stream, StreamResult, StreamInstance
 from pddlstream.utils import INF, elapsed_time
+
 
 def parse_problem(problem):
     init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
@@ -62,7 +61,6 @@ def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True
 
 def solve_current(problem, **kwargs):
     evaluations, goal_expression, domain, streams = parse_problem(problem)
-    #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -72,7 +70,6 @@ def solve_exhaustive(problem, max_time=INF, verbose=True, **kwargs):
     instantiator = Instantiator(evaluations, streams)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, StreamInstance.next_outputs, verbose=verbose)
-    #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -86,7 +83,6 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, verbose=True, **kwarg
         num_iterations += 1
         print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
-        #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
         plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
         if cost < best_cost:
             best_plan = plan; best_cost = cost
