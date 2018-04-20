@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import run_fast_downward, translate_task, write_pddl
+from pddlstream.fast_downward import run_fast_downward, translate_pddl, write_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -63,7 +63,7 @@ PROBLEM_PDDL = """
 
 def brainstorm():
     domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
-    task = translate_task(domain_path, problem_path) # TODO: might need to make these wrt temp
+    task = translate_pddl(domain_path, problem_path) # TODO: might need to make these wrt temp
     print(task.objects)
     print(task.axioms) # Separated but not negated
     task.dump()

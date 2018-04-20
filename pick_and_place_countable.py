@@ -26,7 +26,8 @@ DOMAIN_PDDL = """
     :precondition (and (Conf ?q1) (Conf ?q2) 
                        (AtConf ?q1))
     :effect (and (AtConf ?q2)
-                 (not (AtConf ?q1)))
+                 (not (AtConf ?q1))
+             (increase (total-cost) 1))
   )
   (:action pick
     :parameters (?b ?p ?q)

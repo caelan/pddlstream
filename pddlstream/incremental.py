@@ -13,7 +13,7 @@ def parse_problem(problem):
     init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
     evaluations = set(evaluations_from_init(init))
     goal_expression = convert_expression(goal)
-    domain = parse_domain(domain_pddl)
+    domain = parse_domain(domain_pddl) # TODO: store PDDL here
     assert(len(domain.types) == 1)
     assert(not domain.constants)
     streams = parse_stream(stream_pddl, stream_map)

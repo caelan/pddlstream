@@ -8,28 +8,40 @@ from collections import namedtuple
 from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF
 import re
 
-TEMP_DIR = 'temp/'
+FD_BIN = os.path.join(os.environ['FD_PATH'], 'bin')
+TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
+
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
+TRANSLATE_FLAGS = [] # '--negative-axioms'
+sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
+sys.path.append(TRANSLATE_PATH)
+
+import translate
+import pddl
+from pddl_parser.lisp_parser import parse_nested_list, tokenize
+from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, check_for_duplicates
+import normalize
+import pddl_parser
+
+TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
 SEARCH_OUTPUT = 'sas_plan'
-
-ENV_VAR = 'FD_PATH'
-FD_BIN = 'bin'
-TRANSLATE_DIR = 'translate'
 SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: use goal_serialization / hierarchy on the inside loop of these algorithms
 
 SEARCH_OPTIONS = {
+    # Optimal
     'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
     'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
                  ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+
+    # Suboptimal
     'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-
     'ff-wastar1': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w=1,'
                   'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"',
@@ -61,78 +73,83 @@ SEARCH_OPTIONS = {
 
 ##################################################
 
+from pddlstream.conversion import objects_from_evaluations
 
-def get_fd_root():
-    if ENV_VAR not in os.environ:
-        raise RuntimeError('Environment variable %s is not defined.' % ENV_VAR)
-    return os.environ[ENV_VAR]
+def get_problem(init_evaluations, goal_expression, domain, metric=False):
+    objects = objects_from_evaluations(init_evaluations)
+    s = '(define (problem {})\n' \
+           '\t(:domain {})\n' \
+           '\t(:objects {})\n' \
+           '\t(:init {})\n' \
+           '\t(:goal {})'.format(problem_name, domain_name,
+                                 pddl_from_objects(objects),
+                                 pddl_from_evaluations(init_evaluations),
+                                 pddl_from_expression(goal_expression))
+    #objective = None # minimizes length
+    if objective is not None:
+        s += '\n\t(:metric minimize {})'.format(
+            pddl_from_expression(objective))
+    return s + ')\n'
 
-def add_translate_path():
-    translate_path = os.path.join(get_fd_root(), FD_BIN, TRANSLATE_DIR)
-    if translate_path not in sys.path:
-        sys.path.append(translate_path)
+def parse_lisp(lisp):
+    return parse_nested_list(lisp.split())
 
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
-def parse_lisp(lisp):
-    add_translate_path()
-    temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    from pddl_parser.lisp_parser import parse_nested_list, tokenize
-    sys.argv = temp_argv
-    lines = lisp.split()
-    return parse_nested_list(lines)
-
-#def parse_domain(domain_path):
 def parse_domain(domain_pddl):
-    add_translate_path()
-    temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    from pddl_parser.pddl_file import parse_pddl_file
-    from pddl_parser.parsing_functions import parse_domain_pddl
-    sys.argv = temp_argv
-    #return Domain(*parse_domain_pddl(parse_pddl_file('domain', domain_path) ))
-    #domain_pddl = read(domain_path)
     return Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
 
-def parse_problem(domain_path, problem_path):
-    # TODO: requires domain_path
-    raise NotImplementedError()
+Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements', 'objects', 'init',
+                               'goal', 'use_metric'])
 
-def translate_task(domain_path, problem_path):
-    add_translate_path()
+def parse_problem(domain, problem_pddl):
+    return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
 
-    temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + [DOMAIN_INPUT, PROBLEM_INPUT] # Arguments aren't used here
-    #import pddl_parser
-    #from pddl_parser import open
-    import normalize
-    from pddl_parser.pddl_file import open
-    from pddl_parser.pddl_file import parse_pddl_file
-    sys.argv = temp_argv
+def task_from_domain_problem(domain, problem):
+    domain_name, domain_requirements, types, type_dict, constants, predicates, predicate_dict, functions, actions, axioms \
+                 = domain
+    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
 
-    for line in parse_pddl_file('domain', domain_path):
-        print(line)
+    assert domain_name == task_domain_name
+    requirements = pddl.Requirements(sorted(set(
+                domain_requirements.requirements +
+                task_requirements.requirements)))
+    objects = constants + objects
+    check_for_duplicates(
+        [o.name for o in objects],
+        errmsg="error: duplicate object %r",
+        finalmsg="please check :constants and :objects definitions")
+    init += [pddl.Atom("=", (obj.name, obj.name)) for obj in objects]
 
-    task = open(domain_filename=domain_path, task_filename=problem_path)
-    #task = pddl_parser.open(
-    #    domain_filename=domain_path, task_filename=problem_path)
+    return pddl.Task(
+        domain_name, task_name, requirements, types, objects,
+        predicates, functions, init, goal, actions, axioms, use_metric)
+
+def translate_task(task, temp_dir):
+    normalize.normalize(task)
+    sas_task = translate.pddl_to_sas(task)
+    translate.dump_statistics(sas_task)
+    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
+        sas_task.output(output_file)
+    return sas_task
+
+def translate_pddl(domain_path, problem_path):
+    #pddl_parser.parse_pddl_file('domain', domain_path)
+    #pddl_parser.parse_pddl_file('task', problem_path)
+    task = pddl_parser.open(
+        domain_filename=domain_path, task_filename=problem_path)
     normalize.normalize(task)
     return task
 
-def run_translate(temp_dir, verbose, use_negative=False):
+def run_translate2(domain_pddl, problem_pddl, temp_dir):
+    domain = parse_domain(domain_pddl)
+    problem = parse_problem(domain, problem_pddl)
+    task = task_from_domain_problem(domain, problem)
+    translate_task(task, temp_dir)
+
+def run_translate(temp_dir, verbose):
     t0 = time()
-    add_translate_path()
-    translate_flags = []  # '--keep-unreachable-facts'
-    if use_negative:
-        translate_flags += ['--negative-axioms']
-
-    temp_argv = sys.argv[:]
-    sys.argv = sys.argv[:1] + translate_flags + [DOMAIN_INPUT, PROBLEM_INPUT]
-    import translate
-    sys.argv = temp_argv
-
     old_cwd = os.getcwd()
     tmp_cwd = os.path.join(old_cwd, temp_dir)
     if verbose:
@@ -165,7 +182,7 @@ def run_search(temp_dir, planner, max_time, max_cost, verbose):
         max_cost = int(max_cost)
 
     t0 = time()
-    search = os.path.join(get_fd_root(), FD_BIN, SEARCH_COMMAND)
+    search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search % (temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if verbose:
@@ -212,8 +229,9 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
 def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
                       max_time=INF, max_cost=INF, verbose=False, clean=False, temp_dir=TEMP_DIR):
     start_time = time()
-    write_pddl(domain_pddl, problem_pddl, temp_dir)
-    run_translate(temp_dir, verbose)
+    domain_path, problem_path = write_pddl(domain_pddl, problem_pddl, temp_dir)
+    #run_translate(temp_dir, verbose)
+    run_translate2(domain_pddl, problem_pddl, temp_dir)
     solution = run_search(temp_dir, planner, max_time, max_cost, verbose)
     if clean:
         safe_rm_dir(temp_dir)

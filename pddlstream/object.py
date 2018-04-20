@@ -46,21 +46,28 @@ class Object(object):
         return self.pddl
 
 class OptimisticObject(object):
-    _prefix = '$'
+    _prefix = '#' # $ % #
     _obj_from_inputs = {}
-    def __init__(self, stream_instance, output_index):
+    _obj_from_name= {}
+    def __init__(self, *inputs):
+        stream_instance, output_index = inputs
         self.stream_instance = stream_instance
         self.output_index = output_index
         self.index = len(OptimisticObject._obj_from_inputs)
         self.name = '{}{}{}'.format(self._prefix, self.parameter[1:], self.index)
+        OptimisticObject._obj_from_inputs[inputs] = self
+        OptimisticObject._obj_from_name[self.name] = self
     @property
     def parameter(self):
         return self.stream_instance.stream.outputs[self.output_index]
     @staticmethod
     def from_inputs(*inputs):
         if inputs not in OptimisticObject._obj_from_inputs:
-            OptimisticObject._obj_from_inputs[inputs] = OptimisticObject(*inputs)
+            return OptimisticObject(*inputs)
         return OptimisticObject._obj_from_inputs[inputs]
+    @staticmethod
+    def from_name(name):
+        return OptimisticObject._obj_from_name[name]
     @property
     def pddl(self):
         return self.name

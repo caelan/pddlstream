@@ -196,11 +196,19 @@ def state_from_evaluations(evaluations):
 
 ##################################################
 
-# TODO: would be better just to
+def obj_from_pddl(pddl):
+    if pddl in Object._obj_from_name:
+        return Object.from_name(pddl)
+    elif pddl in OptimisticObject._obj_from_name:
+        return OptimisticObject.from_name(pddl)
+    else:
+        raise ValueError(pddl)
+
+# TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
         return None
-    return [(action, map(Object.from_name, args)) for action, args in pddl_plan]
+    return [(action, map(obj_from_pddl, args)) for action, args in pddl_plan]
 
 
 def value_from_obj_plan(obj_plan):
