@@ -73,7 +73,7 @@ def brainstorm():
     # TODO: could even directly convert and mutate the task
 
 def main():
-    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, verbose=False)
+    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, debug=False)
     print('Plan:', plan)
     print('Cost:', cost)
 

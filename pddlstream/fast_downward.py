@@ -232,21 +232,21 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
 
 ##################################################
 
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, verbose=False, **kwargs):
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
     start_time = time()
     write_pddl(domain_pddl, problem_pddl, temp_dir)
     #run_translate(temp_dir, verbose)
-    run_translate2(domain_pddl, problem_pddl, temp_dir, verbose)
-    solution = run_search(temp_dir, verbose=verbose, **kwargs)
+    run_translate2(domain_pddl, problem_pddl, temp_dir, debug)
+    solution = run_search(temp_dir, verbose=debug, **kwargs)
     if clean:
         safe_rm_dir(temp_dir)
-    if verbose:
+    if debug:
         print('Total runtime:', time() - start_time)
     return parse_solution(solution)
 
-def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, verbose=False, **kwargs):
+def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
     start_time = time()
-    with Verbose(verbose):
+    with Verbose(debug):
         translate_task(task, temp_dir)
         solution = run_search(temp_dir, verbose=True, **kwargs)
         if clean:
