@@ -65,7 +65,7 @@ class StreamInstance(object):
     def get_mapping(self):
         return dict(zip(self.stream.inputs, self.input_values))
     def get_domain(self):
-        return substitute_expression(self.stream.certified, self.get_mapping())
+        return substitute_expression(self.stream.domain, self.get_mapping())
     def next_outputs(self):
         assert not self.enumerated
         if self._generator is None:

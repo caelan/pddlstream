@@ -13,7 +13,6 @@ def parse_problem(problem):
     init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
     evaluations = set(evaluations_from_init(init))
     goal_expression = convert_expression(goal)
-    print(goal_expression)
     domain = parse_domain(domain_pddl) # TODO: store PDDL here
     assert(len(domain.types) == 1)
     assert(not domain.constants)
@@ -52,7 +51,8 @@ def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True
             head = Head(get_prefix(fact), get_args(fact))
             # TODO: use an existing method here?
             instantiator.add_atom(head)
-            evaluations.add(Atom(head))
+            if evaluations is not None:
+                evaluations.add(Atom(head))
     if revisit and not stream_instance.enumerated:
         instantiator.stream_queue.append(stream_instance)
     return stream_results

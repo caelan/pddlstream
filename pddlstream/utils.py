@@ -37,6 +37,9 @@ def safe_rm_dir(d):
     if os.path.exists(d):
         shutil.rmtree(d)
 
+def clear_dir(d):
+    safe_rm_dir(d)
+    ensure_dir(d)
 
 def elapsed_time(start_time):
     return time.time() - start_time

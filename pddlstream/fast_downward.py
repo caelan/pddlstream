@@ -6,7 +6,7 @@ import sys
 from collections import namedtuple
 from time import time
 
-from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF, Verbose, TmpCWD
+from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir
 from pddlstream.conversion import is_atom, is_negated_atom, get_prefix, get_args, \
     objects_from_evaluations, pddl_from_objects, pddl_from_object, pddl_list_from_expression
 
@@ -153,6 +153,7 @@ def translate_task(task, temp_dir):
     normalize.normalize(task)
     sas_task = translate.pddl_to_sas(task)
     translate.dump_statistics(sas_task)
+    clear_dir(temp_dir)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return sas_task
@@ -218,9 +219,9 @@ def parse_solution(solution):
         plan.append((entries[0], list(entries[1:])))
     return plan, cost
 
+
 def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
-    safe_rm_dir(temp_dir)
-    ensure_dir(temp_dir)
+    clear_dir(temp_dir)
     domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
     if domain_pddl is not None:
         write(domain_path, domain_pddl)

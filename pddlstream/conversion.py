@@ -213,7 +213,7 @@ def obj_from_pddl(pddl):
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
         return None
-    return [(action, map(Object.from_name, args)) for action, args in pddl_plan]
+    return [(action, map(obj_from_pddl, args)) for action, args in pddl_plan]
 
 
 def value_from_obj_plan(obj_plan):
