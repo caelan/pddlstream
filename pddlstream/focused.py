@@ -1,15 +1,16 @@
 from pddlstream.conversion import get_pddl_problem, value_from_obj_plan, \
     obj_from_pddl_plan, substitute_expression, Head, get_prefix, get_args, Evaluation, \
     init_from_evaluations, evaluations_from_init, convert_expression, values_from_objects, \
-    objects_from_values, TOTAL_COST, pddl_from_object, Atom
+    objects_from_values, TOTAL_COST, pddl_from_object, Atom, evaluation_from_fact
 from pddlstream.fast_downward import solve_from_pddl, parse_domain, Domain, OBJECT
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
-from pddlstream.stream import parse_stream, StreamInstance
+from pddlstream.stream import parse_stream, StreamInstance, StreamResult
 from pddlstream.utils import INF, elapsed_time
 import time
 
-from pddlstream.incremental import parse_problem, solve_finite2, revert_solution, process_stream_queue
+from pddlstream.incremental import parse_problem, solve_finite, revert_solution, \
+    process_stream_queue, print_output_values_list
 
 # ('move', [<TypedObject ?q1: object>, <TypedObject ?q2: object>],
 # <pddl.conditions.Conjunction object at 0x10c3369d0>,
@@ -67,10 +68,25 @@ def add_stream_actions(domain, stream_results):
                         domain.predicates, domain.predicate_dict, domain.functions, new_actions, domain.axioms)
     return new_domain, stream_result_from_name
 
+def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    if stream_results:
+        return stream_results, []
+    plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
+    if plan is None:
+        return None, plan
+    return [], plan
 
-def stream_plan_1(evaluations, goal_expression, domain, stream_results, **kwargs):
+def incremental_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
+    if plan is not None:
+        return [], plan
+    if stream_results:
+        return stream_results, plan
+    return None, plan
+
+def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
-    combined_plan, combined_cost = solve_finite2(evaluations, goal_expression, new_domain, **kwargs)
+    combined_plan, combined_cost = solve_finite(evaluations, goal_expression, new_domain, **kwargs)
     if combined_plan is None:
         return None, None
     stream_plan = []
@@ -82,22 +98,53 @@ def stream_plan_1(evaluations, goal_expression, domain, stream_results, **kwargs
             action_plan.append((action, args))
     return stream_plan, action_plan
 
-def stream_plan_2(evaluations, goal_expression, domain, stream_results, **kwargs):
+def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     opt_evaluations = set(evaluations)
     for stream_result in stream_results:
         for fact in stream_result.get_certified():
             opt_evaluations.add(Atom(Head(get_prefix(fact), get_args(fact))))
-    action_plan, action_cost = solve_finite2(opt_evaluations, goal_expression, domain, **kwargs)
+    action_plan, action_cost = solve_finite(opt_evaluations, goal_expression, domain, **kwargs)
     stream_plan = []
+
+
+
+
     return stream_plan, action_plan
 
+def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True):
+    new_evaluations = []
+    for opt_stream_result in stream_plan:
+        stream_instance = opt_stream_result.stream_instance
+        domain = set(map(evaluation_from_fact, stream_instance.get_domain()))
+        if not (domain <= evaluations):
+            continue
+        disabled.append(stream_instance)
+        stream_instance.disabled = True
+        # TODO: assert something about the arguments
+        output_values_list = stream_instance.next_outputs()
+        if verbose:
+            print_output_values_list(stream_instance, output_values_list)
+        if quick_fail and (not output_values_list):
+            break
+        for output_values in output_values_list:
+            stream_result = StreamResult(stream_instance, output_values)
+            for fact in stream_result.get_certified():
+                evaluation = evaluation_from_fact(fact)
+                evaluations.add(evaluation) # To be used on next iteration
+                new_evaluations.append(evaluation)
+    return new_evaluations
 
-def solve_focused(problem, max_time=INF, **kwargs):
+def reset_disabled(disabled):
+    for stream_instance in disabled:
+        stream_instance.disabled = False
+    disabled[:] = []
+
+def solve_focused(problem, max_time=INF, verbose=False, **kwargs):
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
-
+    disabled = []
     while elapsed_time(start_time) < max_time:
         # TODO: version that just calls one of the incremental algorithms
         num_iterations += 1
@@ -109,19 +156,20 @@ def solve_focused(problem, max_time=INF, **kwargs):
             stream_results += process_stream_queue(instantiator, None,
                                                    StreamInstance.next_optimistic,
                                                    revisit=False, verbose=False)
+        # exhaustive_stream_plan | incremental_stream_plan | incremental | simultaneous_stream_plan | sequential_stream_plan
+        solve_stream_plan = sequential_stream_plan
+        stream_plan, action_plan = solve_stream_plan(evaluations, goal_expression,
+                                                     domain, stream_results, **kwargs)
+        print('Stream plan: {}\n'
+              'Action plan: {}'.format(stream_plan, action_plan))
+        if stream_plan is None:
+            if not disabled:
+                break
+            reset_disabled(disabled)
+        elif len(stream_plan) == 0:
+            best_plan = action_plan
+            break
+        else:
+            process_stream_plan(evaluations, stream_plan, disabled, verbose)
 
-        stream_plan, action_plan = stream_plan_1(evaluations, goal_expression, domain, stream_results, **kwargs)
-        stream_plan, action_plan = stream_plan_2(evaluations, goal_expression, domain, stream_results, **kwargs)
-
-        new_domain, stream_result_from_name = add_stream_actions(domain,stream_results)
-        print(new_domain)
-
-        opt_plan, opt_cost = solve_finite2(evaluations, goal_expression, new_domain, verbose=True, **kwargs)
-        #opt_plan, opt_cost = solve_finite2(opt_evaluations, goal_expression, domain, **kwargs)
-        print(opt_plan)
-        break
-
-    print(evaluations)
-    plan, cost = solve_finite2(evaluations, goal_expression, domain, **kwargs)
-    print(plan)
-    return revert_solution(plan, cost, evaluations)
+    return revert_solution(best_plan, best_cost, evaluations)

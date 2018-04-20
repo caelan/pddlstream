@@ -1,7 +1,7 @@
 from collections import deque, defaultdict
 from itertools import product
 
-from pddlstream.conversion import get_prefix, get_args, atoms_from_evaluations
+from pddlstream.conversion import get_prefix, get_args, atoms_from_evaluations, is_atom
 from pddlstream.object import Object
 
 
@@ -31,7 +31,7 @@ class Instantiator(object): # Dynamic Stream Instsantiator
         for stream in self.streams:
             if not stream.inputs:
                 self._add_instance(stream.get_instance(tuple()))
-        for atom in atoms_from_evaluations(evaluations):
+        for atom in evaluations:
             self.add_atom(atom)
 
     #def __next__(self):
@@ -51,21 +51,24 @@ class Instantiator(object): # Dynamic Stream Instsantiator
         return True
 
     def add_atom(self, atom):
-        if atom in self.atoms:
+        if not is_atom(atom):
             return False
-        self.atoms.add(atom)
+        head = atom.head
+        if head in self.atoms:
+            return False
+        self.atoms.add(head)
         # TODO: doing this in a way that will eventually allow constants
 
         for i, stream in enumerate(self.streams):
             for j, domain_atom in enumerate(stream.domain):
-                if get_prefix(atom) != get_prefix(domain_atom):
+                if get_prefix(head) != get_prefix(domain_atom):
                     continue
-                assert(len(get_args(atom)) == len(get_args(domain_atom)))
+                assert(len(get_args(head)) == len(get_args(domain_atom)))
                 if any(isinstance(b, Object) and (a != b) for (a, b) in
-                       zip(get_args(atom), get_args(domain_atom))):
+                       zip(get_args(head), get_args(domain_atom))):
                     continue
                 self.atoms_from_domain[(i, j)].append((stream, i))
-                values = [self.atoms_from_domain[(i, k)] if j != k else [atom]
+                values = [self.atoms_from_domain[(i, k)] if j != k else [head]
                           for k, a in enumerate(stream.domain)]
                 for combo in product(*values):
                     mapping = get_mapping(stream.domain, combo)

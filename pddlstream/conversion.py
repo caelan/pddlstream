@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 from collections import namedtuple
-
 from pddlstream.object import Object, OptimisticObject
+import collections
 
 EQ = '=' # xnor
 AND = 'and'
@@ -12,7 +12,7 @@ EXISTS = 'exists'
 FORALL = 'forall'
 WHEN = 'when'
 IMPLIES = 'implies'
-CONNECTIVES = (EQ, AND, OR, NOT)
+CONNECTIVES = (AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS
 
@@ -34,12 +34,6 @@ NegatedAtom = lambda head: Evaluation(head, False)
 #def partition(array, i):
 #    return array[:i], array[i:]
 
-def convert_head(atom):
-    name, args = atom[0], atom[1:]
-    return tuple([name.lower()] + map(Object.from_value, args))
-
-convert_atom = convert_head
-
 def get_prefix(expression):
     return expression[0]
 
@@ -49,6 +43,8 @@ def get_args(head):
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
+def convert_head(head):
+    return tuple([get_prefix(head).lower()] + map(Object.from_value, get_args(head)))
 
 def substitute_expression(parent, mapping):
     if isinstance(parent, str) or isinstance(parent, Object):
@@ -56,8 +52,14 @@ def substitute_expression(parent, mapping):
     return tuple(substitute_expression(child, mapping) for child in parent)
 
 def convert_expression(expression):
-    prefix = expression[0]
-    if prefix in CONNECTIVES:
+    prefix = get_prefix(expression)
+    if prefix == EQ:
+        assert(len(expression) == 3)
+        value = expression[2]
+        if isinstance(expression[2], collections.Sequence):
+            value = convert_expression(value)
+        return prefix, convert_expression(expression[1]), value
+    elif prefix in CONNECTIVES:
         children = expression[1:]
         return tuple([prefix] + map(convert_expression, children))
     elif prefix in QUANTIFIERS:
@@ -160,22 +162,21 @@ def objects_from_evaluations(evaluations):
 
 ##################################################
 
+def evaluation_from_fact(fact):
+    prefix = get_prefix(fact)
+    if prefix == EQ:
+        head, value = fact[1:]
+    elif prefix == NOT:
+        head = fact[1]
+        value = False
+    else:
+        head = fact
+        value = True
+    head = Head(get_prefix(head), get_args(head))
+    return Evaluation(head, value)
+
 def evaluations_from_init(init):
-    evaluations = []
-    for fact in init:
-        prefix = get_prefix(fact)
-        if prefix == EQ:
-            head, value = fact[1:]
-        elif prefix == NOT:
-            head = fact[1]
-            value = False
-        else:
-            head = fact
-            value = True
-        func, args = get_prefix(head), get_args(head)
-        head = Head(func.lower(), tuple(map(Object.from_value, args)))
-        evaluations.append(Evaluation(head, value))
-    return evaluations
+    return [evaluation_from_fact(convert_expression(fact)) for fact in init]
 
 def init_from_evaluations(evaluations):
     init = []
@@ -220,3 +221,6 @@ def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
     return [(action, values_from_objects(args)) for action, args in obj_plan]
+
+#def expression_holds(expresion, evaluations):
+#    pass

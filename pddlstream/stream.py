@@ -62,6 +62,7 @@ class StreamInstance(object):
         self._generator = None
         self.enumerated = False
         self.calls = 0
+        self.disabled = False
     def get_mapping(self):
         return dict(zip(self.stream.inputs, self.input_values))
     def get_domain(self):
@@ -79,7 +80,7 @@ class StreamInstance(object):
             self.enumerated = True
         return []
     def next_optimistic(self):
-        if self.enumerated:
+        if self.enumerated or self.disabled:
             return []
         opt_values = tuple(OptimisticObject.from_inputs(self, i) for i in
                            range(len(self.stream.outputs)))
