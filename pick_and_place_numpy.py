@@ -2,7 +2,8 @@
 
 from __future__ import print_function
 
-from pddlstream.conversion import AND, EQ, TOTAL_COST
+from pddlstream.conversion import AND, EQ
+from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
 from pddlstream.stream import from_gen_fn, from_fn
 from pick_and_place_countable import DOMAIN_PDDL, STREAM_PDDL

@@ -1,6 +1,7 @@
-from pddlstream.conversion import get_prefix, pddl_from_object, get_args, TOTAL_COST, Atom, Head, obj_from_pddl, \
+from pddlstream.conversion import get_prefix, pddl_from_object, get_args, Atom, Head, obj_from_pddl, \
     obj_from_pddl_plan
-from pddlstream.fast_downward import OBJECT, Domain, get_problem, task_from_domain_problem, solve_from_task, get_init
+from pddlstream.fast_downward import OBJECT, Domain, get_problem, task_from_domain_problem, solve_from_task, get_init, \
+    TOTAL_COST
 from pddlstream.incremental import solve_finite
 from pddlstream.utils import Verbose, find, INF
 

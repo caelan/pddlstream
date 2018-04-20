@@ -1,13 +1,13 @@
-from pddlstream.conversion import evaluation_from_fact
-from pddlstream.incremental import parse_problem, solve_finite, revert_solution, \
-    process_stream_queue, print_output_values_list
+import time
+
+from focused import reset_disabled, process_stream_plan
+from pddlstream.incremental import parse_problem, revert_solution, \
+    process_stream_queue
 from pddlstream.instantiation import Instantiator
-from pddlstream.stream import StreamInstance, StreamResult
+from pddlstream.stream import StreamInstance
 from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
-from focused import reset_disabled, process_stream_plan
 
-import time
 
 def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
     # TODO: constrain plan skeleton
@@ -18,7 +18,6 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     disabled = []
 
-    # TOD:
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
@@ -36,15 +35,19 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
-            if not disabled:
+            if instantiator.stream_instances:
+                instantiator.stream_instances.clear()
+            elif disabled:
+                reset_disabled(disabled)
+            else:
                 break
-            reset_disabled(disabled)
         elif len(stream_plan) == 0:
             best_plan = action_plan
             break
         else:
-            # TODO: break if no new evaluations?
-            for evaluation in process_stream_plan(evaluations, stream_plan, disabled, verbose):
+            new_evaluations = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            for evaluation in new_evaluations:
                 instantiator.add_atom(evaluation)
-
+            if not new_evaluations:
+                instantiator.stream_instances.clear()
     return revert_solution(best_plan, best_cost, evaluations)

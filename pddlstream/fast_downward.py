@@ -35,6 +35,7 @@ SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 # TODO: use goal_serialization / hierarchy on the inside loop of these algorithms
 
 OBJECT = 'object'
+TOTAL_COST = 'total-cost' # TotalCost
 
 SEARCH_OPTIONS = {
     # Optimal
