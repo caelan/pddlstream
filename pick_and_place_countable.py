@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from pddlstream.conversion import AND
 from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
+from pddlstream.focused import solve_focused
 # TODO: each action would be associated with a control primitive anyways
 from pddlstream.stream import from_gen_fn, from_fn
 
@@ -28,14 +29,14 @@ DOMAIN_PDDL = """
                  (not (AtConf ?q1)))
   )
   (:action pick
-    :parameters (?q ?b ?p)
+    :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p)
                        (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
     :effect (and (Holding ?b)
                  (not (AtPose ?b ?p)) (not (HandEmpty)))
   )
   (:action place
-    :parameters (?q ?b ?p)
+    :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p) 
                        (AtConf ?q) (Holding ?b))
     :effect (and (AtPose ?b ?p) (HandEmpty)
@@ -61,6 +62,16 @@ STREAM_PDDL = """
 )
 """
 
+# TODO: axiom syntax
+# TODO: why should you name a function if no use
+"""
+  (:rule
+    :inputs (?q ?p)
+    :domain (Pose ?p)
+    :outputs (?q)
+    :certified (and (Conf ?q) (Kin ?q ?p))
+  )
+"""
 
 def get_problem1(n_blocks=1, n_poses=5):
     assert(n_blocks + 1 <= n_poses)
@@ -111,7 +122,8 @@ def main():
     problem = get_problem1()
     #plan, cost, init = solve_no_streams(problem)
     #plan, cost, init = solve_exhaustive(problem)
-    plan, cost, init = solve_incremental(problem)
+    #plan, cost, init = solve_incremental(problem)
+    plan, cost, init = solve_focused(problem)
     print('\n'
           'Cost: {}\n'
           'Plan: {}\n'

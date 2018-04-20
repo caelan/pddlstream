@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import shutil
 import time
@@ -46,6 +48,7 @@ def get_length(sequence):
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = plan is not None
+    print()
     print('Solved: {}'.format(solved))
     print('Cost: {}'.format(cost))
     print('Length: {}'.format(get_length(plan)))

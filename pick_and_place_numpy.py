@@ -42,7 +42,8 @@ def get_problem1(n_blocks=1, n_poses=5):
 
 def main():
     problem = get_problem1()
-    solution = solve_incremental(problem)
+    solution = solve_exhaustive(problem)
+    #solution = solve_incremental(problem)
     print_solution(solution)
 
 if __name__ == '__main__':

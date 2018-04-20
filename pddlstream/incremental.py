@@ -36,11 +36,9 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
     if verbose:
         print('{}:{}->[{}]'.format(stream_instance.stream.name,
                                 str_from_tuple(values_from_objects(stream_instance.input_values)),
-                                 ', '.join(map(str_from_tuple, output_values_list))))
+                                 ', '.join(map(str_from_tuple, map(values_from_objects, output_values_list)))))
     for output_values in output_values_list:
-        certified_atoms = substitute_expression(stream_instance.stream.certified,
-                                                stream_instance.mapping(objects_from_values(output_values)))
-        for atom in certified_atoms:
+        for atom in stream_instance.get_certified(output_values):
             head = Head(get_prefix(atom), get_args(atom))
             # TODO: use an existing method here?
             evaluation = Evaluation(head, True)

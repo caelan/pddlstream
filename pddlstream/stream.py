@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from pddlstream.conversion import list_from_conjunction
+from pddlstream.conversion import list_from_conjunction, objects_from_values, substitute_expression
 from pddlstream.fast_downward import parse_lisp
 
 
@@ -28,7 +28,10 @@ def from_fn(fn):
 def from_test(test):
     return from_fn(lambda *args: tuple() if test(*args) else None)
 
-# TODO: denote rule by just treu
+def from_rule():
+    return True
+
+
 STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 Stream = namedtuple('Stream', ['name', 'gen_fn', 'inputs', 'domain', 'outputs', 'certified'])
 
@@ -58,12 +61,16 @@ class StreamInstance(object):
         self._generator = None
         self.enumerated = False
         self.calls = 0
-    def mapping(self, output_values=None):
+    def get_mapping(self, output_values=None):
         pairs = zip(self.stream.inputs, self.input_values)
         if output_values is not None:
             assert(len(self.stream.outputs) == len(output_values))
             pairs += zip(self.stream.outputs, output_values)
         return dict(pairs)
+    def get_domain(self):
+        return substitute_expression(self.stream.certified, self.get_mapping())
+    def get_certified(self, output_values):
+        return substitute_expression(self.stream.certified, self.get_mapping(output_values))
     def next_outputs(self):
         assert not self.enumerated
         if self._generator is None:
@@ -72,7 +79,7 @@ class StreamInstance(object):
         #if self.stream.max_calls <= self.calls:
         #    self.enumerated = True
         try:
-            return next(self._generator)
+            return map(objects_from_values, next(self._generator))
         except StopIteration:
             self.enumerated = True
         return []
@@ -100,10 +107,21 @@ def parse_stream(stream_pddl, stream_map):
                      tuple(outputs), list_from_conjunction(certified)))
     return streams
 
+# class Generator(object):
+#     # TODO: could also do one that doesn't have state
+#     # TODO: could make a function that returns a generator as well
+#     def __init__(self, *inputs):
+#         self.inputs = tuple(inputs)
+#         self.calls = 0
+#         self.enumerated = False
+#     #def __iter__(self):
+#     #def __call__(self, *args, **kwargs):
+#     def generate(self, context=None):
+#         # TODO: could replace with current values for things
+#         raise NotImplementedError()
+#         #raise StopIteration()
+#     # TODO: count calls and max_calls?
 
-# class Stream(object):
-#     # TODO: could even parse a stream like an action to some degree
-#     # TODO: constant map?
-#     def __init__(self, inp, domain, fn, out, certifed, name=None):
-#         # TODO: should each be a list or a string
-#         pass
+# TODO: could even parse a stream like an action to some degree
+# TODO: constant map?
+# TODO: should each be a list or a string

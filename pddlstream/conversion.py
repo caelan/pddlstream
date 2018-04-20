@@ -23,35 +23,31 @@ PROBLEM_NAME = DOMAIN_NAME
 Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
+Atom = lambda head: Evaluation(head, True)
+NegatedAtom = lambda head: Evaluation(head, False)
 
 #CONSTANTS = ':constants'
-# = ':objects'
+#OBJECTS = ':objects'
 
-
-#def constant(name):
-#    return '{{{}}}'.format(name)
-#    #return '{{{}}}'.format(name)
-
-
-#class Atom(object):
-#    pass
-
+##################################################
 
 #def partition(array, i):
 #    return array[:i], array[i:]
-
 
 def convert_head(atom):
     name, args = atom[0], atom[1:]
     return tuple([name] + map(Object.from_value, args))
 
-
 convert_atom = convert_head
 
+def get_prefix(expression):
+    return expression[0]
+
+def get_args(head):
+    return head[1:]
 
 def is_head(expression):
-    prefix = expression[0]
-    return prefix not in OPERATORS
+    return get_prefix(expression) not in OPERATORS
 
 
 def substitute_expression(parent, mapping):
@@ -71,10 +67,25 @@ def convert_expression(expression):
         return prefix, parameters, convert_expression(child)
     return convert_atom(expression)
 
+def list_from_conjunction(expression):
+    if not expression:
+        return []
+    prefix = get_prefix(expression)
+    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
+    if prefix == AND:
+        children = []
+        for child in expression[1:]:
+            children += list_from_conjunction(child)
+        return children
+    return [tuple(expression)]
+
+##################################################
 
 def pddl_from_object(obj):
     return obj.pddl
 
+def pddl_from_objects(objects):
+    return ' '.join(sorted(map(pddl_from_object, objects)))
 
 def pddl_from_expression(tree):
     if isinstance(tree, Object):
@@ -99,15 +110,50 @@ def pddl_from_evaluations(evaluations):
                                        map(pddl_from_evaluation, evaluations))))
 
 
-def pddl_from_objects(objects):
-    return ' '.join(sorted(map(pddl_from_object, objects)))
+def get_pddl_problem(init_evaluations, goal_expression,
+                     problem_name=DOMAIN_NAME, domain_name=PROBLEM_NAME,
+                     objective=(TOTAL_COST,)):
+    # TODO: mako or some more elegant way of creating this
+    objects = objects_from_evaluations(init_evaluations)
+    s = '(define (problem {})\n' \
+           '\t(:domain {})\n' \
+           '\t(:objects {})\n' \
+           '\t(:init {})\n' \
+           '\t(:goal {})'.format(problem_name, domain_name,
+                                 pddl_from_objects(objects),
+                                 pddl_from_evaluations(init_evaluations),
+                                 pddl_from_expression(goal_expression))
+    #objective = None # minimizes length
+    if objective is not None:
+        s += '\n\t(:metric minimize {})'.format(
+            pddl_from_expression(objective))
+    return s + ')\n'
 
+##################################################
 
-def get_prefix(expression):
-    return expression[0]
+def values_from_objects(objects):
+    return tuple(obj.value for obj in objects)
 
-def get_args(head):
-    return head[1:]
+def objects_from_values(values):
+    return tuple(map(Object.from_value, values))
+
+def is_atom(evaluation):
+    return evaluation.value is True
+
+def is_negated_atom(evaluation):
+    return evaluation.value is False
+
+def atoms_from_evaluations(evaluations):
+    return map(lambda e: e.head, filter(is_atom, evaluations))
+
+def objects_from_evaluations(evaluations):
+    # TODO: assumes object predicates
+    objects = set()
+    for evaluation in evaluations:
+        objects.update(evaluation.head.args)
+    return objects
+
+##################################################
 
 def evaluations_from_init(init):
     evaluations = []
@@ -125,12 +171,6 @@ def evaluations_from_init(init):
         head = Head(func.lower(), tuple(map(Object.from_value, args)))
         evaluations.append(Evaluation(head, value))
     return evaluations
-
-def values_from_objects(objects):
-    return tuple(obj.value for obj in objects)
-
-def objects_from_values(values):
-    return tuple(map(Object.from_value, values))
 
 def init_from_evaluations(evaluations):
     init = []
@@ -154,41 +194,7 @@ def state_from_evaluations(evaluations):
         state[evaluation.head] = evaluation.value
     return state
 
-def is_atom(evaluation):
-    return evaluation.value is True
-
-def is_negated_atom(evaluation):
-    return evaluation.value is False
-
-def atoms_from_evaluations(evaluations):
-    return map(lambda e: e.head, filter(is_atom, evaluations))
-
-def objects_from_evaluations(evaluations):
-    # TODO: assumes object predicates
-    objects = set()
-    for evaluation in evaluations:
-        objects.update(evaluation.head.args)
-    return objects
-
-def get_pddl_problem(init_evaluations, goal_expression,
-                     problem_name=DOMAIN_NAME, domain_name=PROBLEM_NAME,
-                     objective=(TOTAL_COST,)):
-    # TODO: mako or some more elegant way of creating this
-    objects = objects_from_evaluations(init_evaluations)
-    s = '(define (problem {})\n' \
-           '\t(:domain {})\n' \
-           '\t(:objects {})\n' \
-           '\t(:init {})\n' \
-           '\t(:goal {})'.format(problem_name, domain_name,
-                                 pddl_from_objects(objects),
-                                 pddl_from_evaluations(init_evaluations),
-                                 pddl_from_expression(goal_expression))
-    #objective = None # minimizes length
-    if objective is not None:
-        s += '\n\t(:metric minimize {})'.format(
-            pddl_from_expression(objective))
-    return s + ')\n'
-
+##################################################
 
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
@@ -200,39 +206,3 @@ def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
     return [(action, values_from_objects(args)) for action, args in obj_plan]
-
-
-def list_from_conjunction(expression):
-    if not expression:
-        return []
-    prefix = get_prefix(expression)
-    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
-    if prefix == AND:
-        children = []
-        for child in expression[1:]:
-            children += list_from_conjunction(child)
-        return children
-    return [tuple(expression)]
-
-##################################################
-
-# Basic functions for parsing PDDL (Lisp) files.
-
-# @ # $ % [] {} <> || \/
-# What if we have #p1 and #p11
-
-# https://docs.python.org/3.4/library/string.html
-# mako/templating?
-
-#class Not(object):
-
-# TODO: start by requiring that all objects have a substituion
-
-
-#def pddl_from_head(head):
-#    return pddl_from_expression((head.name,) + head.args)
-
-#def And(*expressions):
-#    return (AND,) + expressions
-
-# TODO: I think we do want everything to be an object at the end of the day
