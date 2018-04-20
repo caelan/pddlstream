@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from collections import namedtuple
 
-from pddlstream.problem import Object
+from pddlstream.object import Object, OptimisticObject
 
 EQ = '=' # xnor
 AND = 'and'
@@ -88,7 +88,7 @@ def pddl_from_objects(objects):
     return ' '.join(sorted(map(pddl_from_object, objects)))
 
 def pddl_from_expression(tree):
-    if isinstance(tree, Object):
+    if isinstance(tree, Object) or isinstance(tree, OptimisticObject):
         return pddl_from_object(tree)
     if isinstance(tree, str):
         return tree
@@ -196,6 +196,7 @@ def state_from_evaluations(evaluations):
 
 ##################################################
 
+# TODO: would be better just to
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
         return None

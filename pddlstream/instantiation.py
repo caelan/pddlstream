@@ -2,7 +2,7 @@ from collections import deque, defaultdict
 from itertools import product
 
 from pddlstream.conversion import get_prefix, get_args, atoms_from_evaluations
-from pddlstream.problem import Object
+from pddlstream.object import Object
 
 
 def get_mapping(atoms1, atoms2, initial={}):

@@ -2,6 +2,7 @@ from collections import namedtuple
 
 from pddlstream.conversion import list_from_conjunction, objects_from_values, substitute_expression
 from pddlstream.fast_downward import parse_lisp
+from pddlstream.object import OptimisticObject
 
 
 def from_list_gen_fn(list_gen_fn):
@@ -61,16 +62,10 @@ class StreamInstance(object):
         self._generator = None
         self.enumerated = False
         self.calls = 0
-    def get_mapping(self, output_values=None):
-        pairs = zip(self.stream.inputs, self.input_values)
-        if output_values is not None:
-            assert(len(self.stream.outputs) == len(output_values))
-            pairs += zip(self.stream.outputs, output_values)
-        return dict(pairs)
+    def get_mapping(self):
+        return dict(zip(self.stream.inputs, self.input_values))
     def get_domain(self):
         return substitute_expression(self.stream.certified, self.get_mapping())
-    def get_certified(self, output_values):
-        return substitute_expression(self.stream.certified, self.get_mapping(output_values))
     def next_outputs(self):
         assert not self.enumerated
         if self._generator is None:
@@ -83,9 +78,28 @@ class StreamInstance(object):
         except StopIteration:
             self.enumerated = True
         return []
+    def next_optimistic(self):
+        if self.enumerated:
+            return []
+        opt_values = tuple(OptimisticObject.from_inputs(self, i) for i in
+                           range(len(self.stream.outputs)))
+        return [opt_values]
     def __repr__(self):
         return '{}:{}->{}'.format(self.stream.name, self.input_values, self.stream.outputs)
 
+class StreamResult(object):
+    def __init__(self, stream_instance, output_values):
+        self.stream_instance = stream_instance
+        self.output_values = output_values
+    def get_mapping(self):
+        return dict(zip(self.stream_instance.stream.inputs, self.stream_instance.input_values) +
+                    zip(self.stream_instance.stream.outputs, self.output_values))
+    def get_certified(self):
+        return substitute_expression(self.stream_instance.stream.certified,
+                                     self.get_mapping())
+    def __repr__(self):
+        return '{}:{}->{}'.format(self.stream_instance.stream.name,
+                                  self.stream_instance.input_values, self.output_values)
 
 def parse_stream(stream_pddl, stream_map):
     streams = []
