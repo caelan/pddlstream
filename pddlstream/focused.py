@@ -57,16 +57,17 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
     return new_evaluations
 
 def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
+    # TODO: eager, negative, context, costs
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     disabled = []
     while elapsed_time(start_time) < max_time:
-        # TODO: version that just calls one of the incremental algorithms
         num_iterations += 1
         print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
+        # TODO: version that just calls one of the incremental algorithms
         instantiator = Instantiator(evaluations, streams)
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
@@ -87,6 +88,10 @@ def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kw
             best_plan = action_plan
             break
         else:
-            process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            new_evaluations = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            print(instantiator.stream_queue)
+            for evaluation in new_evaluations:
+                instantiator.add_atom(evaluation)
+            print(instantiator.stream_queue)
 
     return revert_solution(best_plan, best_cost, evaluations)

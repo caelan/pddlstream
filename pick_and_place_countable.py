@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.conversion import AND
+from pddlstream.conversion import AND, NOT
 from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
 from pddlstream.focused import solve_focused
 # TODO: each action would be associated with a control primitive anyways
@@ -88,7 +88,9 @@ def get_problem1(n_blocks=1, n_poses=5):
         ('Conf', conf),
         ('Conf', goal_conf),
         ('AtConf', conf),
-        ('HandEmpty',),
+        #('HandEmpty',),
+        ('Holding', blocks[0]),
+
         #(NOT, ('Holding', blocks[0])),  # Confirms that not
         #(EQ, (TOTAL_COST,), 0),
     ]
@@ -102,9 +104,10 @@ def get_problem1(n_blocks=1, n_poses=5):
     #goal = (AND,
     #        ('Holding', blocks[0]),
     #        (NOT, ('HandEmpty',)))
-    goal = (AND,
-            ('AtPose', blocks[0], poses[1]),
-            ('AtConf', conf))
+    goal = ('HandEmpty',)
+    #goal = (AND,
+    #        ('AtPose', blocks[0], poses[1]),
+    #        ('AtConf', conf))
 
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
@@ -124,7 +127,7 @@ def main():
     #plan, cost, init = solve_no_streams(problem)
     #plan, cost, init = solve_exhaustive(problem)
     #plan, cost, init = solve_incremental(problem)
-    plan, cost, init = solve_focused(problem, effort_weight=1, verbose=True)
+    plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
     print('\n'
           'Cost: {}\n'
           'Plan: {}\n'

@@ -2,7 +2,7 @@ from pddlstream.conversion import get_prefix, pddl_from_object, get_args, TOTAL_
     obj_from_pddl_plan
 from pddlstream.fast_downward import OBJECT, Domain, get_problem, task_from_domain_problem, solve_from_task, get_init
 from pddlstream.incremental import solve_finite
-from pddlstream.utils import Verbose, find
+from pddlstream.utils import Verbose, find, INF
 
 
 def get_stream_action(stream_result, name, effect_scale=1):
@@ -25,6 +25,8 @@ def get_stream_action(stream_result, name, effect_scale=1):
                                    literal=pddl.Atom(predicate, args)))
 
     effort = effect_scale
+    if effort == INF:
+        return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
     expression = pddl.NumericConstant(effort) # Integer
     increase = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
@@ -39,8 +41,11 @@ def get_stream_actions(stream_results):
     stream_actions = []
     for i, stream_result in enumerate(stream_results):
         name = '{}-{}'.format(stream_result.stream_instance.stream.name, i)
+        stream_action = get_stream_action(stream_result, name)
+        if stream_action is None:
+            continue
         stream_result_from_name[name] = stream_result
-        stream_actions.append(get_stream_action(stream_result, name))
+        stream_actions.append(stream_action)
     return stream_actions, stream_result_from_name
 
 
@@ -81,30 +86,29 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     for stream_result in stream_results:
         for fact in stream_result.get_certified():
             opt_evaluations.add(Atom(Head(get_prefix(fact), get_args(fact))))
-    #action_plan, action_cost = solve_finite(opt_evaluations, goal_expression, domain, **kwargs)
-    problem = get_problem(opt_evaluations, goal_expression, domain)
-    task = task_from_domain_problem(domain, problem)
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     action_plan, _ = solve_from_task(task, **kwargs)
     if action_plan is None:
         return None, None
     real_init = get_init(evaluations)
+    opt_facts = set(task.init) - set(real_init)
 
     import pddl_to_prolog
     import build_model
     import instantiate
     with Verbose(False):
         model = build_model.compute_model(pddl_to_prolog.translate(task))
-    opt_facts = set(task.init) - set(real_init)
-    fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
     task.init = real_init
-    task.actions, stream_result_from_name = get_stream_actions(stream_results)
     init_facts = set(task.init)
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    task.actions, stream_result_from_name = get_stream_actions(stream_results)
 
     # TODO: add ordering constraints to simplify the optimization
     action_from_name = {}
     for i, (name, args) in enumerate(action_plan):
         action = find(lambda a: a.name == name, domain.actions)
+        assert(len(action.parameters) == len(args))
         #parameters = action.parameters[:action.num_external_parameters]
         var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         new_name = '{}-{}'.format(name, i)
