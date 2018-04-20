@@ -26,6 +26,9 @@ NegatedAtom = lambda head: Evaluation(head, False)
 
 ##################################################
 
+def objects_from_values(values):
+    return tuple(map(Object.from_value, values))
+
 def get_prefix(expression):
     return expression[0]
 
@@ -35,51 +38,50 @@ def get_args(head):
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
-def convert_head(head):
+def obj_from_value_head(head):
     return tuple([get_prefix(head).lower()] + map(Object.from_value, get_args(head)))
+
+def obj_from_value_expression(parent):
+    prefix = get_prefix(parent)
+    if prefix == EQ:
+        assert(len(parent) == 3)
+        value = parent[2]
+        if isinstance(parent[2], collections.Sequence):
+            value = obj_from_value_expression(value)
+        return prefix, obj_from_value_expression(parent[1]), value
+    elif prefix in CONNECTIVES:
+        children = parent[1:]
+        return tuple([prefix] + map(obj_from_value_expression, children))
+    elif prefix in QUANTIFIERS:
+        assert(len(parent) == 3)
+        parameters = parent[1]
+        child = parent[2]
+        return prefix, parameters, obj_from_value_expression(child)
+    return obj_from_value_head(parent)
+
+##################################################
+
+def list_from_conjunction(parent):
+    if not parent:
+        return []
+    prefix = get_prefix(parent)
+    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
+    if prefix == AND:
+        children = []
+        for child in parent[1:]:
+            children += list_from_conjunction(child)
+        return children
+    return [tuple(parent)]
 
 def substitute_expression(parent, mapping):
     if isinstance(parent, str) or isinstance(parent, Object):
         return mapping.get(parent, parent)
     return tuple(substitute_expression(child, mapping) for child in parent)
 
-def convert_expression(expression):
-    prefix = get_prefix(expression)
-    if prefix == EQ:
-        assert(len(expression) == 3)
-        value = expression[2]
-        if isinstance(expression[2], collections.Sequence):
-            value = convert_expression(value)
-        return prefix, convert_expression(expression[1]), value
-    elif prefix in CONNECTIVES:
-        children = expression[1:]
-        return tuple([prefix] + map(convert_expression, children))
-    elif prefix in QUANTIFIERS:
-        assert(len(expression) == 3)
-        parameters = expression[1]
-        child = expression[2]
-        return prefix, parameters, convert_expression(child)
-    return convert_head(expression)
-
-def list_from_conjunction(expression):
-    if not expression:
-        return []
-    prefix = get_prefix(expression)
-    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
-    if prefix == AND:
-        children = []
-        for child in expression[1:]:
-            children += list_from_conjunction(child)
-        return children
-    return [tuple(expression)]
-
 ##################################################
 
 def pddl_from_object(obj):
     return obj.pddl
-
-def pddl_from_objects(objects):
-    return ' '.join(sorted(map(pddl_from_object, objects)))
 
 def pddl_list_from_expression(tree):
     if isinstance(tree, Object) or isinstance(tree, OptimisticObject):
@@ -89,12 +91,6 @@ def pddl_list_from_expression(tree):
     return tuple(map(pddl_list_from_expression, tree))
 
 ##################################################
-
-def values_from_objects(objects):
-    return tuple(obj.value for obj in objects)
-
-def objects_from_values(values):
-    return tuple(map(Object.from_value, values))
 
 def is_atom(evaluation):
     return evaluation.value is True
@@ -125,7 +121,9 @@ def evaluation_from_fact(fact):
     return Evaluation(head, value)
 
 def evaluations_from_init(init):
-    return [evaluation_from_fact(convert_expression(fact)) for fact in init]
+    return [evaluation_from_fact(obj_from_value_expression(fact)) for fact in init]
+
+##################################################
 
 def init_from_evaluations(evaluations):
     init = []
@@ -159,6 +157,9 @@ def obj_from_pddl(pddl):
     else:
         raise ValueError(pddl)
 
+def values_from_objects(objects):
+    return tuple(obj.value for obj in objects)
+
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
@@ -175,3 +176,6 @@ def value_from_obj_plan(obj_plan):
 
 #def expression_holds(expression, evaluations):
 #    pass
+
+def revert_solution(plan, cost, evaluations):
+    return value_from_obj_plan(plan), cost, init_from_evaluations(evaluations)

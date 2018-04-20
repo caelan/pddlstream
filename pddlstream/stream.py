@@ -1,5 +1,3 @@
-from collections import namedtuple
-
 from pddlstream.conversion import list_from_conjunction, objects_from_values, substitute_expression
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.object import OptimisticObject
@@ -32,9 +30,7 @@ def from_test(test):
 def from_rule():
     return True
 
-
-STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
-Stream = namedtuple('Stream', ['name', 'gen_fn', 'inputs', 'domain', 'outputs', 'certified'])
+##################################################
 
 
 class Stream(object):
@@ -61,7 +57,6 @@ class StreamInstance(object):
         self.input_values = tuple(input_values)
         self._generator = None
         self.enumerated = False
-        self.calls = 0
         self.disabled = False
     def get_mapping(self):
         return dict(zip(self.stream.inputs, self.input_values))
@@ -71,9 +66,6 @@ class StreamInstance(object):
         assert not self.enumerated
         if self._generator is None:
             self._generator = self.stream.gen_fn(*(iv.value for iv in self.input_values))
-        self.calls += 1
-        #if self.stream.max_calls <= self.calls:
-        #    self.enumerated = True
         try:
             return map(objects_from_values, next(self._generator))
         except StopIteration:
@@ -101,6 +93,10 @@ class StreamResult(object):
     def __repr__(self):
         return '{}:{}->{}'.format(self.stream_instance.stream.name,
                                   self.stream_instance.input_values, self.output_values)
+
+##################################################
+
+STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 
 def parse_stream(stream_pddl, stream_map):
     streams = []
@@ -136,6 +132,8 @@ def parse_stream(stream_pddl, stream_map):
 #         raise NotImplementedError()
 #         #raise StopIteration()
 #     # TODO: count calls and max_calls?
+# if self.stream.max_calls <= self.calls:
+#    self.enumerated = True
 
 # TODO: could even parse a stream like an action to some degree
 # TODO: constant map?

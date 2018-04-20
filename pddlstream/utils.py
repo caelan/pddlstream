@@ -93,3 +93,7 @@ def find(test, sequence):
         if test(item):
             return item
     return None
+
+
+def str_from_tuple(tup):
+    return '({})'.format(', '.join(map(str, tup)))

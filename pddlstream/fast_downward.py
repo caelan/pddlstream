@@ -6,9 +6,9 @@ import sys
 from collections import namedtuple
 from time import time
 
-from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir
-from pddlstream.conversion import is_atom, is_negated_atom, get_prefix, get_args, \
-    objects_from_evaluations, pddl_from_objects, pddl_from_object, pddl_list_from_expression
+from pddlstream.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
+    pddl_list_from_expression
+from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir
 
 FD_BIN = os.path.join(os.environ['FD_PATH'], 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')

@@ -1,8 +1,7 @@
 import time
 
-from pddlstream.conversion import evaluation_from_fact
-from pddlstream.incremental import parse_problem, solve_finite, revert_solution, \
-    process_stream_queue, print_output_values_list
+from pddlstream.conversion import evaluation_from_fact, revert_solution
+from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
 from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
@@ -25,6 +24,8 @@ def incremental_stream_plan(evaluations, goal_expression, domain, stream_results
         return stream_results, plan
     return None, plan
 
+##################################################
+
 def disable_stream_instance(stream_instance, disabled):
     disabled.append(stream_instance)
     stream_instance.disabled = True
@@ -33,6 +34,8 @@ def reset_disabled(disabled):
     for stream_instance in disabled:
         stream_instance.disabled = False
     disabled[:] = []
+
+##################################################
 
 def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True):
     new_evaluations = []
@@ -59,6 +62,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
                 evaluations.add(evaluation) # To be used on next iteration
                 new_evaluations.append(evaluation)
     return new_evaluations
+
+##################################################
 
 def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
     # TODO: eager, negative, context, costs, bindings

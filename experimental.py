@@ -1,6 +1,15 @@
 
+
+#def solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs):
+#    problem_pddl = get_pddl_problem(evaluations, goal_expression, domain_name=domain.name)
+#    plan_pddl, cost = solve_from_pddl(domain_pddl, problem_pddl, **kwargs)
+#    return obj_from_pddl_plan(plan_pddl), cost
+
 #CONSTANTS = ':constants'
 #OBJECTS = ':objects'
+
+#def pddl_from_objects(objects):
+#    return ' '.join(sorted(map(pddl_from_object, objects)))
 
 #def partition(array, i):
 #    return array[:i], array[i:]
