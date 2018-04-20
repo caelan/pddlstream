@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.conversion import AND
+from pddlstream.conversion import AND, EQ, TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
 from pddlstream.stream import from_gen_fn, from_fn
 from pick_and_place_countable import DOMAIN_PDDL, STREAM_PDDL
@@ -21,6 +21,7 @@ def get_problem1(n_blocks=1, n_poses=5):
         ('Conf', conf),
         ('AtConf', conf),
         ('HandEmpty',),
+        (EQ, (TOTAL_COST,), 0),
     ]
     init += [('Block', b) for b in blocks]
     init += [('Pose', p) for p in poses]

@@ -1,12 +1,14 @@
 from __future__ import print_function
 
 import os
-import sys
-from time import time
-from collections import namedtuple
-
-from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF
 import re
+import sys
+from collections import namedtuple
+from time import time
+
+from pddlstream.utils import read, write, ensure_dir, safe_rm_dir, INF, Verbose, TmpCWD
+from pddlstream.conversion import is_atom, is_negated_atom, get_prefix, get_args, \
+    objects_from_evaluations, pddl_from_objects, pddl_from_object, pddl_list_from_expression
 
 FD_BIN = os.path.join(os.environ['FD_PATH'], 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
@@ -19,8 +21,8 @@ sys.path.append(TRANSLATE_PATH)
 
 import translate
 import pddl
-from pddl_parser.lisp_parser import parse_nested_list, tokenize
-from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, check_for_duplicates
+from pddl_parser.lisp_parser import parse_nested_list
+from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, parse_condition, check_for_duplicates
 import normalize
 import pddl_parser
 
@@ -31,6 +33,8 @@ SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: use goal_serialization / hierarchy on the inside loop of these algorithms
+
+OBJECT = 'object'
 
 SEARCH_OPTIONS = {
     # Optimal
@@ -73,24 +77,6 @@ SEARCH_OPTIONS = {
 
 ##################################################
 
-from pddlstream.conversion import objects_from_evaluations
-
-def get_problem(init_evaluations, goal_expression, domain, metric=False):
-    objects = objects_from_evaluations(init_evaluations)
-    s = '(define (problem {})\n' \
-           '\t(:domain {})\n' \
-           '\t(:objects {})\n' \
-           '\t(:init {})\n' \
-           '\t(:goal {})'.format(problem_name, domain_name,
-                                 pddl_from_objects(objects),
-                                 pddl_from_evaluations(init_evaluations),
-                                 pddl_from_expression(goal_expression))
-    #objective = None # minimizes length
-    if objective is not None:
-        s += '\n\t(:metric minimize {})'.format(
-            pddl_from_expression(objective))
-    return s + ')\n'
-
 def parse_lisp(lisp):
     return parse_nested_list(lisp.split())
 
@@ -105,6 +91,33 @@ Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirem
 
 def parse_problem(domain, problem_pddl):
     return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
+
+##################################################
+
+def get_init(init_evaluations):
+    init = []
+    for evaluation in init_evaluations:
+        name = evaluation.head.function
+        args = map(pddl_from_object, evaluation.head.args)
+        if is_atom(evaluation):
+            init.append(pddl.Atom(name, args))
+        elif is_negated_atom(evaluation):
+            init.append(pddl.NegatedAtom(name, args))
+        else:
+            fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
+            expression = pddl.f_expression.NumericConstant(evaluation.value) # Integer
+            init.append(pddl.f_expression.Assign(fluent, expression))
+    return init
+
+def get_problem(init_evaluations, goal_expression, domain, use_metric=False):
+    objects = objects_from_evaluations(init_evaluations)
+    typed_objects = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects]
+    init = get_init(init_evaluations)
+    goal = parse_condition(pddl_list_from_expression(goal_expression),
+                           domain.type_dict, domain.predicate_dict)
+    return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
+            task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=use_metric)
+
 
 def task_from_domain_problem(domain, problem):
     domain_name, domain_requirements, types, type_dict, constants, predicates, predicate_dict, functions, actions, axioms \
@@ -126,13 +139,7 @@ def task_from_domain_problem(domain, problem):
         domain_name, task_name, requirements, types, objects,
         predicates, functions, init, goal, actions, axioms, use_metric)
 
-def translate_task(task, temp_dir):
-    normalize.normalize(task)
-    sas_task = translate.pddl_to_sas(task)
-    translate.dump_statistics(sas_task)
-    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
-        sas_task.output(output_file)
-    return sas_task
+##################################################
 
 def translate_pddl(domain_path, problem_path):
     #pddl_parser.parse_pddl_file('domain', domain_path)
@@ -142,36 +149,32 @@ def translate_pddl(domain_path, problem_path):
     normalize.normalize(task)
     return task
 
-def run_translate2(domain_pddl, problem_pddl, temp_dir):
-    domain = parse_domain(domain_pddl)
-    problem = parse_problem(domain, problem_pddl)
-    task = task_from_domain_problem(domain, problem)
-    translate_task(task, temp_dir)
+def translate_task(task, temp_dir):
+    normalize.normalize(task)
+    sas_task = translate.pddl_to_sas(task)
+    translate.dump_statistics(sas_task)
+    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
+        sas_task.output(output_file)
+    return sas_task
 
 def run_translate(temp_dir, verbose):
     t0 = time()
-    old_cwd = os.getcwd()
-    tmp_cwd = os.path.join(old_cwd, temp_dir)
-    if verbose:
+    with Verbose(verbose):
         print('\nTranslate command: import translate; translate.main()')
-        os.chdir(tmp_cwd)
-        translate.main()
-        os.chdir(old_cwd)
-        print('Translate runtime:', time() - t0)
-        return
-
-    with open(os.devnull, 'w') as devnull:
-        old_stdout = sys.stdout
-        sys.stdout = devnull
-        os.chdir(tmp_cwd)
-        try:
+        with TmpCWD(os.path.join(os.getcwd(), temp_dir)):
             translate.main()
-        finally:
-            sys.stdout = old_stdout
-            os.chdir(old_cwd)
+        print('Translate runtime:', time() - t0)
 
+def run_translate2(domain_pddl, problem_pddl, temp_dir, verbose):
+    domain = parse_domain(domain_pddl)
+    problem = parse_problem(domain, problem_pddl)
+    task = task_from_domain_problem(domain, problem)
+    with Verbose(verbose):
+        translate_task(task, temp_dir)
 
-def run_search(temp_dir, planner, max_time, max_cost, verbose):
+##################################################
+
+def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, verbose=True):
     if max_time == INF:
         max_time = 'infinity'
     elif isinstance(max_time, float):
@@ -226,15 +229,26 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
         write(problem_path, problem_pddl)
     return domain_path, problem_path
 
-def run_fast_downward(domain_pddl, problem_pddl, planner='max-astar',
-                      max_time=INF, max_cost=INF, verbose=False, clean=False, temp_dir=TEMP_DIR):
+##################################################
+
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, verbose=False, **kwargs):
     start_time = time()
-    domain_path, problem_path = write_pddl(domain_pddl, problem_pddl, temp_dir)
+    write_pddl(domain_pddl, problem_pddl, temp_dir)
     #run_translate(temp_dir, verbose)
-    run_translate2(domain_pddl, problem_pddl, temp_dir)
-    solution = run_search(temp_dir, planner, max_time, max_cost, verbose)
+    run_translate2(domain_pddl, problem_pddl, temp_dir, verbose)
+    solution = run_search(temp_dir, verbose=verbose, **kwargs)
     if clean:
         safe_rm_dir(temp_dir)
     if verbose:
+        print('Total runtime:', time() - start_time)
+    return parse_solution(solution)
+
+def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, verbose=False, **kwargs):
+    start_time = time()
+    with Verbose(verbose):
+        translate_task(task, temp_dir)
+        solution = run_search(temp_dir, verbose=True, **kwargs)
+        if clean:
+            safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     return parse_solution(solution)

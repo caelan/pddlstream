@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import run_fast_downward, translate_pddl, write_pddl
+from pddlstream.fast_downward import solve_from_pddl, translate_pddl, write_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -73,7 +73,7 @@ def brainstorm():
     # TODO: could even directly convert and mutate the task
 
 def main():
-    plan, cost = run_fast_downward(DOMAIN_PDDL, PROBLEM_PDDL, verbose=False)
+    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, verbose=False)
     print('Plan:', plan)
     print('Cost:', cost)
 

@@ -1,7 +1,7 @@
 from pddlstream.conversion import get_pddl_problem, value_from_obj_plan, \
     obj_from_pddl_plan, substitute_expression, Head, get_prefix, get_args, Evaluation, \
     init_from_evaluations, evaluations_from_init, convert_expression, values_from_objects, objects_from_values
-from pddlstream.fast_downward import run_fast_downward, parse_domain
+from pddlstream.fast_downward import solve_from_pddl, parse_domain
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream, StreamInstance

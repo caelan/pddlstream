@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import shutil
+import sys
 import time
 
 INF = float('inf')
@@ -56,3 +57,29 @@ def print_solution(solution):
     if solved:
         for i, (action, args) in enumerate(plan):
             print('{}) {} {}'.format(i+1, action, ' '.join(map(str, args))))
+
+
+class Verbose(object):
+    def __init__(self, verbose):
+        self.verbose = verbose
+    def __enter__(self):
+        if not self.verbose:
+            self.stdout = sys.stdout
+            self.devnull = open(os.devnull, 'w')
+            sys.stdout = self.devnull
+        return self
+    def __exit__(self, type, value, traceback):
+        if not self.verbose:
+            sys.stdout = self.stdout
+            self.devnull.close()
+
+
+class TmpCWD(object):
+    def __init__(self, temp_cwd):
+        self.tmp_cwd = temp_cwd
+    def __enter__(self):
+        self.old_cwd = os.getcwd()
+        os.chdir(self.tmp_cwd)
+        return self
+    def __exit__(self, type, value, traceback):
+        os.chdir(self.old_cwd)

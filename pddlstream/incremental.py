@@ -3,7 +3,7 @@ import time
 from pddlstream.conversion import get_pddl_problem, value_from_obj_plan, \
     obj_from_pddl_plan, substitute_expression, Head, get_prefix, get_args, Evaluation, Atom, \
     init_from_evaluations, evaluations_from_init, convert_expression, values_from_objects, objects_from_values
-from pddlstream.fast_downward import run_fast_downward, parse_domain
+from pddlstream.fast_downward import solve_from_pddl, solve_from_task, parse_domain, get_problem, task_from_domain_problem
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream, StreamResult, StreamInstance
@@ -13,6 +13,7 @@ def parse_problem(problem):
     init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
     evaluations = set(evaluations_from_init(init))
     goal_expression = convert_expression(goal)
+    print(goal_expression)
     domain = parse_domain(domain_pddl) # TODO: store PDDL here
     assert(len(domain.types) == 1)
     assert(not domain.constants)
@@ -21,7 +22,13 @@ def parse_problem(problem):
 
 def solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs):
     problem_pddl = get_pddl_problem(evaluations, goal_expression, domain_name=domain.name)
-    plan_pddl, cost = run_fast_downward(domain_pddl, problem_pddl, **kwargs)
+    plan_pddl, cost = solve_from_pddl(domain_pddl, problem_pddl, **kwargs)
+    return obj_from_pddl_plan(plan_pddl), cost
+
+def solve_finite2(evaluations, goal_expression, domain, **kwargs):
+    problem = get_problem(evaluations, goal_expression, domain)
+    task = task_from_domain_problem(domain, problem)
+    plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
 def revert_solution(plan, cost, evaluations):
@@ -51,33 +58,33 @@ def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True
     return stream_results
 
 def solve_current(problem, **kwargs):
-    domain_pddl = problem[2]
     evaluations, goal_expression, domain, streams = parse_problem(problem)
-    plan, cost = solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs)
+    #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
+    plan, cost = solve_finite2(evaluations, goal_expression, domain, **kwargs)
     return revert_solution(plan, cost, evaluations)
 
 def solve_exhaustive(problem, max_time=INF, verbose=True, **kwargs):
     start_time = time.time()
-    domain_pddl = problem[2]
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     instantiator = Instantiator(evaluations, streams)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, StreamInstance.next_outputs, verbose=verbose)
-    plan, cost = solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs)
+    #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
+    plan, cost = solve_finite2(evaluations, goal_expression, domain, **kwargs)
     return revert_solution(plan, cost, evaluations)
 
 def solve_incremental(problem, max_time=INF, max_cost=INF, verbose=True, **kwargs):
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    domain_pddl = problem[2]
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
         print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
-        plan, cost = solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs)
+        #plan, cost = solve_finite(evaluations, goal_expression, domain, problem[2], **kwargs)
+        plan, cost = solve_finite2(evaluations, goal_expression, domain, **kwargs)
         if cost < best_cost:
             best_plan = plan; best_cost = cost
         if (best_cost < max_cost) or not instantiator.stream_queue:

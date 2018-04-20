@@ -36,7 +36,7 @@ NegatedAtom = lambda head: Evaluation(head, False)
 
 def convert_head(atom):
     name, args = atom[0], atom[1:]
-    return tuple([name] + map(Object.from_value, args))
+    return tuple([name.lower()] + map(Object.from_value, args))
 
 convert_atom = convert_head
 
@@ -65,7 +65,7 @@ def convert_expression(expression):
         parameters = expression[1]
         child = expression[2]
         return prefix, parameters, convert_expression(child)
-    return convert_atom(expression)
+    return convert_head(expression)
 
 def list_from_conjunction(expression):
     if not expression:
@@ -87,9 +87,14 @@ def pddl_from_object(obj):
 def pddl_from_objects(objects):
     return ' '.join(sorted(map(pddl_from_object, objects)))
 
-def pddl_from_expression(tree):
+def pddl_list_from_expression(tree):
     if isinstance(tree, Object) or isinstance(tree, OptimisticObject):
         return pddl_from_object(tree)
+    if isinstance(tree, str):
+        return tree
+    return tuple(map(pddl_list_from_expression, tree))
+
+def pddl_from_expression(tree):
     if isinstance(tree, str):
         return tree
     return '({})'.format(' '.join(map(pddl_from_expression, tree)))
@@ -98,11 +103,11 @@ def pddl_from_expression(tree):
 def pddl_from_evaluation(evaluation):
     head = (evaluation.head.function,) + tuple(evaluation.head.args)
     if is_atom(evaluation):
-        return pddl_from_expression(head)
+        return pddl_from_expression(pddl_list_from_expression(head))
     if is_negated_atom(evaluation):
         return None
     expression = (EQ, head, str(evaluation.value))
-    return pddl_from_expression(expression)
+    return pddl_from_expression(pddl_list_from_expression(expression))
 
 
 def pddl_from_evaluations(evaluations):
@@ -122,11 +127,11 @@ def get_pddl_problem(init_evaluations, goal_expression,
            '\t(:goal {})'.format(problem_name, domain_name,
                                  pddl_from_objects(objects),
                                  pddl_from_evaluations(init_evaluations),
-                                 pddl_from_expression(goal_expression))
+                                 pddl_from_expression(pddl_list_from_expression(goal_expression)))
     #objective = None # minimizes length
     if objective is not None:
         s += '\n\t(:metric minimize {})'.format(
-            pddl_from_expression(objective))
+            pddl_from_expression(pddl_list_from_expression(objective)))
     return s + ')\n'
 
 ##################################################
@@ -208,7 +213,7 @@ def obj_from_pddl(pddl):
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
         return None
-    return [(action, map(obj_from_pddl, args)) for action, args in pddl_plan]
+    return [(action, map(Object.from_name, args)) for action, args in pddl_plan]
 
 
 def value_from_obj_plan(obj_plan):
