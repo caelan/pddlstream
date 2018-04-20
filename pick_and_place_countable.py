@@ -5,6 +5,8 @@ from __future__ import print_function
 from pddlstream.conversion import AND, NOT
 from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
 from pddlstream.focused import solve_focused
+from pddlstream.committed import solve_committed
+
 # TODO: each action would be associated with a control primitive anyways
 from pddlstream.stream import from_gen_fn, from_fn
 
@@ -127,7 +129,8 @@ def main():
     #plan, cost, init = solve_no_streams(problem)
     #plan, cost, init = solve_exhaustive(problem)
     #plan, cost, init = solve_incremental(problem)
-    plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
+    #plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
+    plan, cost, init = solve_committed(problem, effort_weight=None, verbose=True)
     print('\n'
           'Cost: {}\n'
           'Plan: {}\n'

@@ -7,7 +7,7 @@ from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
 from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
-
+from collections import defaultdict
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     if stream_results:
@@ -36,6 +36,8 @@ def reset_disabled(disabled):
 
 def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True):
     new_evaluations = []
+    opt_bindings = defaultdict(list)
+    # TODO: bindings
     for opt_stream_result in stream_plan:
         stream_instance = opt_stream_result.stream_instance
         domain = set(map(evaluation_from_fact, stream_instance.get_domain()))
@@ -50,6 +52,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
             break
         for output_values in output_values_list:
             stream_result = StreamResult(stream_instance, output_values)
+            for opt, val in zip(opt_stream_result.output_values, stream_result.output_values):
+                opt_bindings[opt].append(val)
             for fact in stream_result.get_certified():
                 evaluation = evaluation_from_fact(fact)
                 evaluations.add(evaluation) # To be used on next iteration
@@ -57,7 +61,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
     return new_evaluations
 
 def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
-    # TODO: eager, negative, context, costs
+    # TODO: eager, negative, context, costs, bindings
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
@@ -88,10 +92,6 @@ def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kw
             best_plan = action_plan
             break
         else:
-            new_evaluations = process_stream_plan(evaluations, stream_plan, disabled, verbose)
-            print(instantiator.stream_queue)
-            for evaluation in new_evaluations:
-                instantiator.add_atom(evaluation)
-            print(instantiator.stream_queue)
+            process_stream_plan(evaluations, stream_plan, disabled, verbose)
 
     return revert_solution(best_plan, best_cost, evaluations)
