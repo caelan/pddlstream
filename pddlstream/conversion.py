@@ -74,7 +74,7 @@ def list_from_conjunction(parent):
     return [tuple(parent)]
 
 def substitute_expression(parent, mapping):
-    if isinstance(parent, str) or isinstance(parent, Object):
+    if isinstance(parent, str) or isinstance(parent, Object) or isinstance(parent, OptimisticObject):
         return mapping.get(parent, parent)
     return tuple(substitute_expression(child, mapping) for child in parent)
 
@@ -179,3 +179,5 @@ def value_from_obj_plan(obj_plan):
 
 def revert_solution(plan, cost, evaluations):
     return value_from_obj_plan(plan), cost, init_from_evaluations(evaluations)
+
+# TODO: apply actions to the state (only need to worry about effects)

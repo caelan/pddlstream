@@ -1,12 +1,14 @@
 import time
 
-from pddlstream.conversion import evaluation_from_fact, revert_solution
+from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
 from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
 from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
+from pddlstream.object import Object
 from collections import defaultdict
+from itertools import product
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     if stream_results:
@@ -37,30 +39,46 @@ def reset_disabled(disabled):
 
 ##################################################
 
-def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True):
+def ground_stream_instances(stream_instance, bindings, evaluations):
+    # TODO: combination for domain predicates
+    input_values = [[i] if isinstance(i, Object) else bindings[i]
+                    for i in stream_instance.input_values]
+    for combo in product(*input_values):
+        mapping = dict(zip(stream_instance.input_values, combo))
+        domain = set(map(evaluation_from_fact, substitute_expression(
+            stream_instance.get_domain(), mapping)))
+        if domain <= evaluations:
+            yield stream_instance.stream.get_instance(combo)
+
+def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True, max_values=1):
+    # TODO: return instance for the committed algorithm
     new_evaluations = []
     opt_bindings = defaultdict(list)
-    # TODO: bindings
+    unexplored_stream_instances = []
+    failure = False
     for opt_stream_result in stream_plan:
-        stream_instance = opt_stream_result.stream_instance
-        domain = set(map(evaluation_from_fact, stream_instance.get_domain()))
-        if not (domain <= evaluations):
-            continue
-        disable_stream_instance(stream_instance, disabled)
-        # TODO: assert something about the arguments
-        output_values_list = stream_instance.next_outputs()
-        if verbose:
-            print_output_values_list(stream_instance, output_values_list)
-        if quick_fail and (not output_values_list):
-            break
-        for output_values in output_values_list:
-            stream_result = StreamResult(stream_instance, output_values)
-            for opt, val in zip(opt_stream_result.output_values, stream_result.output_values):
-                opt_bindings[opt].append(val)
-            for fact in stream_result.get_certified():
-                evaluation = evaluation_from_fact(fact)
-                evaluations.add(evaluation) # To be used on next iteration
-                new_evaluations.append(evaluation)
+        stream_instances = list(ground_stream_instances(opt_stream_result.stream_instance,
+                                                        opt_bindings, evaluations))
+        unexplored_stream_instances += stream_instances[max_values:]
+        for stream_instance in stream_instances[:max_values]:
+            disable_stream_instance(stream_instance, disabled)
+            output_values_list = stream_instance.next_outputs()
+            if verbose:
+                print_output_values_list(stream_instance, output_values_list)
+            if not output_values_list:
+                failure = True
+                if quick_fail:
+                    break
+            for output_values in output_values_list:
+                stream_result = StreamResult(stream_instance, output_values)
+                for opt, val in zip(opt_stream_result.output_values, stream_result.output_values):
+                    opt_bindings[opt].append(val)
+                for fact in stream_result.get_certified():
+                    evaluation = evaluation_from_fact(fact)
+                    evaluations.add(evaluation) # To be used on next iteration
+                    new_evaluations.append(evaluation)
+    # TODO: return unexplored_stream_instances
+    # TODO: retrace successful argument path upon success
     return new_evaluations
 
 ##################################################

@@ -129,8 +129,8 @@ def main():
     #plan, cost, init = solve_no_streams(problem)
     #plan, cost, init = solve_exhaustive(problem)
     #plan, cost, init = solve_incremental(problem)
-    #plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
-    plan, cost, init = solve_committed(problem, effort_weight=None, verbose=True)
+    plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
+    #plan, cost, init = solve_committed(problem, effort_weight=None, verbose=True)
     print('\n'
           'Cost: {}\n'
           'Plan: {}\n'
