@@ -44,8 +44,7 @@ PROBLEM_PDDL = '''
    (:objects a b)
    (:init 
      (on-table a)
-     (on-table b)
-     (clear a)
+     (on b a)   
      (clear b)
      (arm-empty))
    (:goal (and (on a b))))

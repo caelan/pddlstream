@@ -10,7 +10,7 @@ from pick_and_place_countable import DOMAIN_PDDL, STREAM_PDDL
 from pddlstream.utils import print_solution
 import numpy as np
 
-def get_problem1(n_blocks=1, n_poses=5):
+def get_problem1(n_blocks=2, n_poses=5):
     assert(n_blocks + 1 <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_blocks+1)]
@@ -28,9 +28,10 @@ def get_problem1(n_blocks=1, n_poses=5):
     init += [('Pose', p) for p in poses]
     init += [('AtPose', b, p) for b, p in zip(blocks, poses)]
 
-    goal = (AND,
-            ('AtPose', blocks[0], poses[1]),
-            ('AtConf', conf))
+    #goal = (AND,
+    #        ('AtPose', blocks[0], poses[1]),
+    #        ('AtConf', conf))
+    goal = ('AtPose', blocks[0], poses[1])
 
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL

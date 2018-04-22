@@ -8,10 +8,13 @@ from pddlstream.stream import StreamInstance
 from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 
+# TODO: display a plan skeleton as a constraint graph
 
 def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
     # TODO: constrain plan skeleton
     # TODO: constrain ususable samples
+    # TODO: recursively consider previously exposed binding levels
+    # TODO: parameter for how many times to consider a plan skeleton
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF

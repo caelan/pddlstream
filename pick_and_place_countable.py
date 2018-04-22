@@ -22,6 +22,8 @@ DOMAIN_PDDL = """
     (AtConf ?q)
     (Holding ?b)
     (HandEmpty)
+    (Unsafe ?p)
+    (Placed ?b)
   )
   (:action move
     :parameters (?q1 ?q2)
@@ -41,10 +43,13 @@ DOMAIN_PDDL = """
   (:action place
     :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p) 
-                       (AtConf ?q) (Holding ?b))
+                       (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
     :effect (and (AtPose ?b ?p) (HandEmpty)
                  (not (Holding ?b)))
   )
+  (:derived (Unsafe ?p) 
+    (exists (?b) (and (Block ?b) (Pose ?p)
+                            (AtPose ?b ?p))))                   
 )
 """
 
@@ -76,7 +81,7 @@ STREAM_PDDL = """
   )
 """
 
-def get_problem1(n_blocks=1, n_poses=5):
+def get_problem1(n_blocks=2, n_poses=5):
     assert(n_blocks + 1 <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
     #poses = [(x, 0) for x in range(n_blocks)]
@@ -84,15 +89,15 @@ def get_problem1(n_blocks=1, n_poses=5):
     #poses = [(x, 0) for x in range(n_poses)]
     conf = (0, 5)
     goal_conf = (5, 5)
+    print(blocks, poses)
 
     #objects = []
     init = [
         ('Conf', conf),
-        ('Conf', goal_conf),
+        #('Conf', goal_conf),
         ('AtConf', conf),
-        #('HandEmpty',),
-        ('Holding', blocks[0]),
-
+        ('HandEmpty',),
+        #('Holding', blocks[0]),
         #(NOT, ('Holding', blocks[0])),  # Confirms that not
         #(EQ, (TOTAL_COST,), 0),
     ]
@@ -106,7 +111,9 @@ def get_problem1(n_blocks=1, n_poses=5):
     #goal = (AND,
     #        ('Holding', blocks[0]),
     #        (NOT, ('HandEmpty',)))
-    goal = ('HandEmpty',)
+    #goal = ('HandEmpty',)
+    #goal = ('Placed', blocks[0])
+    goal = ('AtPose', blocks[0], poses[1])
     #goal = (AND,
     #        ('AtPose', blocks[0], poses[1]),
     #        ('AtConf', conf))
@@ -126,10 +133,13 @@ def get_problem1(n_blocks=1, n_poses=5):
 
 def main():
     problem = get_problem1()
+    init, goal = problem[:2]
+    print(init)
+    print(goal)
     #plan, cost, init = solve_no_streams(problem)
-    #plan, cost, init = solve_exhaustive(problem)
+    plan, cost, init = solve_exhaustive(problem)
     #plan, cost, init = solve_incremental(problem)
-    plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
+    #plan, cost, init = solve_focused(problem, effort_weight=None, verbose=True)
     #plan, cost, init = solve_committed(problem, effort_weight=None, verbose=True)
     print('\n'
           'Cost: {}\n'

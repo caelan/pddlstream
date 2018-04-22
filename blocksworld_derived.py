@@ -7,38 +7,34 @@ from pddlstream.fast_downward import solve_from_pddl, translate_pddl, write_pddl
 DOMAIN_PDDL = """
 (define (domain blocksworld)
   (:requirements :strips :equality)
-  (:predicates (clear ?x)
-               (on-table ?x)
+  (:predicates (on-table ?x)
                (arm-empty)
                (holding ?x)
-               (on ?x ?y))
-
+               (on ?x ?y)
+               (unsafe ?y)
+  )
   (:action pickup
     :parameters (?ob)
-    :precondition (and (clear ?ob) (on-table ?ob) (arm-empty))
+    :precondition (and (on-table ?ob) (arm-empty) (not (unsafe ?ob)))
     :effect (and (holding ?ob) (not (on-table ?ob))
                  (not (arm-empty))))
-
   (:action putdown
     :parameters  (?ob)
     :precondition (and (holding ?ob))
     :effect (and (arm-empty) (on-table ?ob)
                  (not (holding ?ob))))
-
   (:action stack
     :parameters  (?ob ?underob)
-    :precondition (and  (clear ?underob) (holding ?ob))
+    :precondition (and (holding ?ob) (not (unsafe ?underob)))
     :effect (and (arm-empty) (on ?ob ?underob)
                  (not (holding ?ob))))
-
   (:action unstack
     :parameters  (?ob ?underob)
-    :precondition (and (on ?ob ?underob) (clear ?ob) (arm-empty))
+    :precondition (and (on ?ob ?underob) (arm-empty) (not (unsafe ?ob)))
     :effect (and (holding ?ob)
                  (not (on ?ob ?underob)) (not (arm-empty))))
-
-  (:derived (clear ?underob) 
-    (not (exists (?ob) (on ?ob ?underob))))
+  (:derived (unsafe ?underob) 
+    (exists (?ob) (on ?ob ?underob)))
 )
 """
 
@@ -47,8 +43,8 @@ PROBLEM_PDDL = """
    (:domain blocksworld)
    (:objects a b)
    (:init 
+     (on b a)
      (on-table a)
-     (on-table b)
      (arm-empty))
    (:goal (and (on a b))))
 """
