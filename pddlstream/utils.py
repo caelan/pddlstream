@@ -7,6 +7,11 @@ import time
 
 INF = float('inf')
 
+try:
+   input = raw_input
+except NameError:
+   pass
+
 def read(filename):
     with open(filename, 'r') as f:
         return f.read()
@@ -58,8 +63,8 @@ def print_solution(solution):
     print('Length: {}'.format(get_length(plan)))
     print('Evaluations: {}'.format(len(evaluations)))
     if solved:
-        for i, (action, args) in enumerate(plan):
-            print('{}) {} {}'.format(i+1, action, ' '.join(map(str, args))))
+        for i, action in enumerate(plan):
+            print('{}) {}'.format(i+1, ' '.join(map(str, action))))
 
 
 class Verbose(object):

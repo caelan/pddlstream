@@ -26,6 +26,17 @@ NegatedAtom = lambda head: Evaluation(head, False)
 
 ##################################################
 
+def And(*expressions):
+    return (AND,) + tuple(expressions)
+
+def Not(expression):
+    return (Not,) + tuple(expression)
+
+def Equal(expression1, expression2):
+    return (EQ,) + (expression1, expression2)
+
+##################################################
+
 def objects_from_values(values):
     return tuple(map(Object.from_value, values))
 
@@ -170,7 +181,7 @@ def obj_from_pddl_plan(pddl_plan):
 def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
-    return [(action, values_from_objects(args)) for action, args in obj_plan]
+    return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
 
 ##################################################
 

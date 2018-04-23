@@ -1,17 +1,19 @@
 import collections
 
+USE_HASH = True
+
 class Object(object):
-    _use_hash = True
     _prefix = 'o'
     _obj_from_id = {}
     _obj_from_value = {}
     #_obj_from_index = []
     _obj_from_name = {}
-    def __init__(self, value):
+    def __init__(self, value, stream_instance=None):
         # TODO: unique vs hash
         self.value = value
         self.index = len(Object._obj_from_name)
         self.name = '{}{}'.format(self._prefix, self.index)
+        self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self
         Object._obj_from_name[self.name] = self
         if isinstance(value, collections.Hashable):
@@ -28,7 +30,7 @@ class Object(object):
         return Object._obj_from_id[id(value)]
     @staticmethod
     def from_value(value):
-        if Object._use_hash and not isinstance(value, collections.Hashable):
+        if USE_HASH and not isinstance(value, collections.Hashable):
             return Object.from_id(value)
         if value not in Object._obj_from_value:
             return Object(value)
@@ -49,7 +51,7 @@ class OptimisticObject(object):
     _prefix = '#' # $ % #
     _obj_from_inputs = {}
     _obj_from_name= {}
-    def __init__(self, *inputs):
+    def __init__(self, inputs):
         stream_instance, output_index = inputs
         self.stream_instance = stream_instance
         self.output_index = output_index
@@ -63,7 +65,7 @@ class OptimisticObject(object):
     @staticmethod
     def from_inputs(*inputs):
         if inputs not in OptimisticObject._obj_from_inputs:
-            return OptimisticObject(*inputs)
+            return OptimisticObject(inputs)
         return OptimisticObject._obj_from_inputs[inputs]
     @staticmethod
     def from_name(name):
