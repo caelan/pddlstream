@@ -136,17 +136,28 @@ def evaluations_from_init(init):
 
 ##################################################
 
+# TODO: generic method for replacing args?
+
+def fact_from_evaluation(evaluation):
+    head = (evaluation.head.function,) + evaluation.head.args
+    if is_atom(evaluation):
+        return head
+    elif is_negated_atom(evaluation):
+        return (NOT, head)
+    else:
+        return (EQ, head, evaluation.value)
+
+def init_from_evaluation(evaluation):
+    head = (evaluation.head.function,) + values_from_objects(evaluation.head.args)
+    if is_atom(evaluation):
+        return head
+    elif is_negated_atom(evaluation):
+        return (NOT, head)
+    else:
+        return (EQ, head, evaluation.value)
+
 def init_from_evaluations(evaluations):
-    init = []
-    for evaluation in evaluations:
-        head = (evaluation.head.function, values_from_objects(evaluation.head.args))
-        if is_atom(evaluation):
-            init.append(head)
-        elif is_negated_atom(evaluation):
-            init.append((NOT, head))
-        else:
-            init.append((EQ, head, evaluation.value))
-    return init
+    return map(init_from_evaluation, evaluations)
 
 def state_from_evaluations(evaluations):
     # TODO: default value?

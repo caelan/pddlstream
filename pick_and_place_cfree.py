@@ -59,6 +59,17 @@ DOMAIN_PDDL = """
 
 STREAM_PDDL = """
 (define (stream pick-and-place)
+  (:rule 
+    :parameters (?q ?p)
+    :domain (Kin ?q ?p)
+    :certified (and (Conf ?q) (Pose ?p))
+  )
+  (:rule 
+    :parameters (?p1 ?p2)
+    :domain (AtPose ?b ?p)
+    :certified (and (Block ?b) (Pose ?p))
+  )
+
   (:stream sample-pose
     :inputs ()
     :domain ()
@@ -118,7 +129,19 @@ DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_p
 DiscreteTAMPProblem = namedtuple('DiscreteTAMPProblem', ['initial', 'poses', 'goal_poses'])
 GRASP = np.array([0, 0])
 
-def get_shift_problem(n_blocks=2, n_poses=9):
+def get_shift_one_problem(n_blocks=2, n_poses=9):
+    assert(2 <= n_blocks <= n_poses)
+    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    poses = [np.array([x, 0]) for x in range(n_poses)]
+    conf = np.array([0, -5])
+
+    block_poses = dict(zip(blocks, poses))
+    initial = DiscreteTAMPState(conf, None, block_poses)
+    goal_poses = {blocks[0]: poses[1]}
+
+    return DiscreteTAMPProblem(initial, poses[n_blocks:], goal_poses)
+
+def get_shift_all_problem(n_blocks=2, n_poses=9):
     assert(n_blocks + 1 <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_poses)]
@@ -128,7 +151,7 @@ def get_shift_problem(n_blocks=2, n_poses=9):
     initial = DiscreteTAMPState(conf, None, block_poses)
     goal_poses = dict(zip(blocks, poses[1:]))
 
-    return DiscreteTAMPProblem(initial, poses, goal_poses)
+    return DiscreteTAMPProblem(initial, poses[n_blocks+1:], goal_poses)
 
 def draw_state(viewer, state, colors):
     viewer.clear()
@@ -161,17 +184,20 @@ def apply_action(state, action):
     return DiscreteTAMPState(conf, holding, block_poses)
 
 def main():
-    tamp_problem = get_shift_problem()
+    problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
+    tamp_problem = problem_fn()
+    print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem)
     #solution = solve_incremental(pddlstream_problem)
-    #solution = solve_focused(pddlstream_problem)
-    solution = solve_committed(pddlstream_problem) # TODO: make sure this is right
+    solution = solve_focused(pddlstream_problem)
+    #solution = solve_committed(pddlstream_problem) # TODO: make sure this is right
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
         return
+    print(evaluations)
 
     colors = dict(zip(tamp_problem.initial.block_poses, COLORS))
     viewer = DiscreteTAMPViewer(1, len(tamp_problem.poses), title='Initial')

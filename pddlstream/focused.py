@@ -4,7 +4,7 @@ from pddlstream.conversion import evaluation_from_fact, revert_solution, substit
 from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
-from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan, stuff_stream_plan
+from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan, relaxed_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.object import Object
 from collections import defaultdict
@@ -103,7 +103,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kw
                                                    revisit=False, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan
         #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = stuff_stream_plan
+        solve_stream_plan = relaxed_stream_plan
         stream_plan, action_plan = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'

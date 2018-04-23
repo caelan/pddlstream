@@ -1,31 +1,43 @@
-from pddlstream.conversion import get_prefix, pddl_from_object, get_args, Atom, Head, obj_from_pddl, \
-    obj_from_pddl_plan, evaluation_from_fact
+import os
+from collections import defaultdict
+from collections import namedtuple
+from heapq import heappush, heappop
+
+from pddlstream.algorithm import solve_finite
+from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl, \
+    obj_from_pddl_plan, is_atom, evaluation_from_fact, fact_from_evaluation
 from pddlstream.fast_downward import OBJECT, Domain, get_problem, task_from_domain_problem, solve_from_task, get_init, \
     TOTAL_COST
-from pddlstream.algorithm import solve_finite
+from pddlstream.fast_downward import instantiate_task, run_search, safe_rm_dir, parse_solution, \
+    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT
 from pddlstream.utils import Verbose, find, INF
-from collections import defaultdict
-from pddlstream.visualization import visualize_constraints
+from pddlstream.visualization import visualize_constraints, visualize_stream_plan
 
+
+def fd_from_fact(evaluation):
+    import pddl
+    predicate = get_prefix(evaluation)
+    args = map(pddl_from_object, get_args(evaluation))
+    return pddl.Atom(predicate, args)
+
+#def evaluation_from_fd(fd):
+#    args = tuple(map(obj_from_pddl, fd.args))
+#    head = Head(fd.predicate, args)
+#    return Evaluation(head, not fd.negated)
+
+def fact_from_fd(fd):
+    assert(not fd.negated)
+    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def get_stream_action(stream_result, name, effect_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
 
     parameters = []
-    preconditions = []
-    for fact in stream_result.stream_instance.get_domain():
-        predicate = get_prefix(fact)
-        args = map(pddl_from_object, get_args(fact))
-        preconditions.append(pddl.Atom(predicate, args))
+    preconditions = [fd_from_fact(fact) for fact in stream_result.stream_instance.get_domain()]
     precondition = pddl.Conjunction(preconditions)
-
-    effects = []
-    for fact in stream_result.get_certified():
-        predicate = get_prefix(fact)
-        args = map(pddl_from_object, get_args(fact))
-        effects.append(pddl.Effect(parameters=[], condition=pddl.Truth(),
-                                   literal=pddl.Atom(predicate, args)))
+    effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
+               for fact in stream_result.get_certified()]
 
     effort = effect_scale
     if effort == INF:
@@ -83,11 +95,6 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             action_plan.append((name, args))
     return stream_plan, action_plan
 
-from pddlstream.fast_downward import translate_task, instantiate_task, run_search, safe_rm_dir, parse_solution, \
-    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, plan_cost, is_applicable
-import os
-import re
-
 def action_preimage(action, preimage):
     for conditions, effect in action.add_effects + action.del_effects:
         assert(not conditions)
@@ -95,21 +102,78 @@ def action_preimage(action, preimage):
             preimage.remove(effect)
     preimage.update(action.precondition)
 
-def stuff_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+
+Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
+
+def get_stream_effort(evaluations, stream_results, op=sum):
+    # TODO: could do this with bound_stream_instances instead
+    unprocessed_from_atom = defaultdict(list)
+    node_from_atom = {None: Node(0, None)}
+    conditions_from_stream = {}
+    remaining_from_stream = {}
+    for stream_result in stream_results:
+        conditions_from_stream[stream_result] = stream_result.stream_instance.get_domain() + (None,)
+        remaining_from_stream[stream_result] = len(conditions_from_stream[stream_result])
+        for atom in conditions_from_stream[stream_result]:
+            unprocessed_from_atom[atom].append(stream_result)
+    for atom in evaluations:
+        if is_atom(atom):
+            node_from_atom[fact_from_evaluation(atom)] = Node(0, None)
+
+    queue = [(node.effort, atom) for atom, node in node_from_atom.items()]
+    while queue:
+        _, atom = heappop(queue)
+        if atom not in unprocessed_from_atom:
+            continue
+        for stream_result in unprocessed_from_atom[atom]:
+            remaining_from_stream[stream_result] -= 1
+            if remaining_from_stream[stream_result]:
+                continue
+            effort = 1
+            total_effort = op(node_from_atom[cond].effort for cond in conditions_from_stream[stream_result]) + effort
+            for new_atom in stream_result.get_certified():
+                if (new_atom not in node_from_atom) or (total_effort < node_from_atom[new_atom].effort):
+                    node_from_atom[new_atom] = Node(total_effort, stream_result)
+                    heappush(queue, (total_effort, new_atom))
+        del unprocessed_from_atom[atom]
+    del node_from_atom[None]
+    return node_from_atom
+
+def extract_stream_plan(node_from_atom, facts, stream_plan):
+    for fact in facts:
+        stream_result = node_from_atom[fact].stream_result
+        if (stream_result is None) or (stream_result in stream_plan):
+            continue
+        extract_stream_plan(node_from_atom, stream_result.stream_instance.get_domain(), stream_plan)
+        stream_plan.append(stream_result)
+
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     opt_evaluations = set(evaluations)
     for stream_result in stream_results:
         for fact in stream_result.get_certified():
             opt_evaluations.add(evaluation_from_fact(fact))
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
 
-    ground_task = instantiate_task(task)
-    sas_task = pddl_to_sas(ground_task)
-    clear_dir(TEMP_DIR)
-    with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
-        sas_task.output(output_file)
+    with Verbose(False):
+        ground_task = instantiate_task(task)
+        sas_task = pddl_to_sas(ground_task)
+        clear_dir(TEMP_DIR)
+        with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
+            sas_task.output(output_file)
     solution = run_search(TEMP_DIR, verbose=False, **kwargs)
     safe_rm_dir(TEMP_DIR)
+    action_plan, _ = parse_solution(solution)
+    if action_plan is None:
+        return None, action_plan
 
+    for axiom in ground_task.axioms:
+        print(axiom.condition)
+        print(axiom.effect)
+    assert(not ground_task.axioms)
+
+    """
+    #regex = r'(\(\w+(?:\s\w+)*\))'
+    #print(re.findall(regex, solution))
     ground_from_name = defaultdict(list)
     for action in ground_task.actions:
         ground_from_name[action.name].append(action)
@@ -118,14 +182,7 @@ def stuff_stream_plan(evaluations, goal_expression, domain, stream_results, **kw
         assert(len(ground_from_name[name]) == 1)
         # TODO: later select a particular ground action that satisfies the conditions
         action_plan.append(ground_from_name[name][0])
-    #regex = r'(\(\w+(?:\s\w+)*\))'
-    #print(re.findall(regex, solution))
-    for axiom in ground_task.axioms:
-        print(axiom.condition)
-        print(axiom.effect)
-    assert(not ground_task.axioms)
-
-    """
+    
     print(plan_cost(action_plan))
     state = set(task.init)
     axiom_plan = []
@@ -151,31 +208,38 @@ def stuff_stream_plan(evaluations, goal_expression, domain, stream_results, **kw
     function_assignments = {fact.fluent: fact.expression for fact in init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    action_plan = []
-    for name, args in parse_solution(solution)[0]:
+    fd_plan = []
+    for name, args in action_plan:
         # TODO: use reachable params to instantiate (includes external)
         action = find(lambda a: a.name == name, domain.actions)
         assert(len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        action_plan.append(action.instantiate(variable_mapping, init_facts,
+        fd_plan.append(action.instantiate(variable_mapping, init_facts,
                                          fluent_facts, type_to_objects,
                                          task.use_min_cost_metric, function_assignments))
 
     preimage = set(ground_task.goal_list)
-    for action in reversed(action_plan):
+    for action in reversed(fd_plan):
         action_preimage(action, preimage)
     preimage -= init_facts
     preimage = filter(lambda l: not l.negated, preimage)
     # TODO: need to include all conditions
     # TODO: need to invert axioms back
-    print(preimage)
 
-    visualize_constraints(preimage)
-
+    # TODO: prune with rules
+    # TODO: linearization that takes into account satisfied goals at each level
     # TODO: backtrace streams and axioms
     # TODO: can optimize for streams & axioms all at once
+    visualize_constraints(preimage)
 
+    node_from_atom = get_stream_effort(evaluations, stream_results)
+    stream_plan = []
+    extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
+    visualize_stream_plan(stream_plan)
 
+    raw_input('continue?')
+
+    return stream_plan, obj_from_pddl_plan(action_plan)
 
 
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):

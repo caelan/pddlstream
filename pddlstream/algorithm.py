@@ -2,7 +2,7 @@ from pddlstream.conversion import evaluations_from_init, obj_from_value_expressi
     values_from_objects, evaluation_from_fact
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task, instantiate_task
-from pddlstream.stream import parse_stream, StreamResult
+from pddlstream.stream import parse_stream_pddl, StreamResult
 from pddlstream.utils import str_from_tuple
 
 
@@ -13,7 +13,7 @@ def parse_problem(problem):
     domain = parse_domain(domain_pddl)
     assert(len(domain.types) == 1)
     assert(not domain.constants)
-    streams = parse_stream(stream_pddl, stream_map)
+    streams = parse_stream_pddl(stream_pddl, stream_map)
     return evaluations, goal_expression, domain, streams
 
 

@@ -98,7 +98,7 @@ class StreamResult(object):
 
 STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 
-def parse_stream(stream_pddl, stream_map):
+def parse_stream_pddl(stream_pddl, stream_map):
     streams = []
     if stream_pddl is None:
         return streams
@@ -108,14 +108,21 @@ def parse_stream(stream_pddl, stream_map):
     assert('stream' == pddl_type)
 
     for stream in stream_iter:
-        attributes = [stream[i] for i in range(0, len(stream), 2)]
-        assert(STREAM_ATTRIBUTES == attributes)
-        name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
-        if name not in stream_map:
-            raise ValueError('Undefined stream conditional generator: {}'.format(name))
-        streams.append(Stream(name, stream_map[name],
-                     tuple(inputs), list_from_conjunction(domain),
-                     tuple(outputs), list_from_conjunction(certified)))
+        if stream[0] == ':stream':
+            attributes = [stream[i] for i in range(0, len(stream), 2)]
+            assert(STREAM_ATTRIBUTES == attributes)
+            name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
+            if name not in stream_map:
+                raise ValueError('Undefined stream conditional generator: {}'.format(name))
+            streams.append(Stream(name, stream_map[name],
+                         tuple(inputs), list_from_conjunction(domain),
+                         tuple(outputs), list_from_conjunction(certified)))
+        elif stream[0] == ':rule':
+            # TODO: implement rules
+            # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
+            pass
+        else:
+            raise ValueError(stream[0])
     return streams
 
 # class Generator(object):

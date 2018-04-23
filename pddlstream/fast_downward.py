@@ -103,20 +103,20 @@ def parse_problem(domain, problem_pddl):
 
 ##################################################
 
+def fd_from_evaluation(evaluation):
+    name = evaluation.head.function
+    args = map(pddl_from_object, evaluation.head.args)
+    if is_atom(evaluation):
+        return pddl.Atom(name, args)
+    elif is_negated_atom(evaluation):
+        return pddl.NegatedAtom(name, args)
+    else:
+        fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
+        expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
+        return pddl.f_expression.Assign(fluent, expression)
+
 def get_init(init_evaluations):
-    init = []
-    for evaluation in init_evaluations:
-        name = evaluation.head.function
-        args = map(pddl_from_object, evaluation.head.args)
-        if is_atom(evaluation):
-            init.append(pddl.Atom(name, args))
-        elif is_negated_atom(evaluation):
-            init.append(pddl.NegatedAtom(name, args))
-        else:
-            fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
-            expression = pddl.f_expression.NumericConstant(evaluation.value) # Integer
-            init.append(pddl.f_expression.Assign(fluent, expression))
-    return init
+    return map(fd_from_evaluation, init_evaluations)
 
 def get_problem(init_evaluations, goal_expression, domain, use_metric=False):
     objects = objects_from_evaluations(init_evaluations)
@@ -159,7 +159,7 @@ def translate_paths(domain_path, problem_path):
     return task
 
 def translate_task(task, temp_dir):
-    if True:
+    if False:
         ground_task = instantiate_task(task)
         sas_task = pddl_to_sas(ground_task)
     else:
