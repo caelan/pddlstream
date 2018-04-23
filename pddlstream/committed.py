@@ -5,7 +5,8 @@ from pddlstream.algorithm import parse_problem, process_stream_queue
 from pddlstream.conversion import revert_solution
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance
-from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan
+from pddlstream.relaxed_scheduling import sequential_stream_plan
+from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 
 # TODO: display a plan skeleton as a constraint graph

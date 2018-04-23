@@ -4,11 +4,17 @@ from pddlstream.conversion import evaluation_from_fact, revert_solution, substit
 from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
-from pddlstream.stream_scheduling import sequential_stream_plan, simultaneous_stream_plan, relaxed_stream_plan
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.stream_scheduling import relaxed_stream_plan
+from pddlstream.relaxed_scheduling import sequential_stream_plan
+from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
+from pddlstream.utils import INF, elapsed_time, clear_dir
 from pddlstream.object import Object
+from pddlstream.visualization import visualize_stream_plan
 from collections import defaultdict
 from itertools import product
+import os
+
+STREAM_PLAN_DIR = 'stream_plans/'
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     if stream_results:
@@ -83,13 +89,15 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
 
 ##################################################
 
-def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
+def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, verbose=False, **kwargs):
     # TODO: eager, negative, context, costs, bindings
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     disabled = []
+    if visualize:
+        clear_dir(STREAM_PLAN_DIR)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
         print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
@@ -116,6 +124,11 @@ def solve_focused(problem, max_time=INF, effort_weight=None, verbose=False, **kw
             best_plan = action_plan
             break
         else:
+            if visualize:
+                # TODO: place it in the temp_dir?
+                # TODO: can also obtain fake constraint network from outputs
+                filename = 'iteration_{}.pdf'.format(num_iterations)
+                visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
             process_stream_plan(evaluations, stream_plan, disabled, verbose)
 
     return revert_solution(best_plan, best_cost, evaluations)

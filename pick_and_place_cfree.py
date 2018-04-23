@@ -191,7 +191,7 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem)
     #solution = solve_incremental(pddlstream_problem)
-    solution = solve_focused(pddlstream_problem)
+    solution = solve_focused(pddlstream_problem, visualize=True)
     #solution = solve_committed(pddlstream_problem) # TODO: make sure this is right
     print_solution(solution)
     plan, cost, evaluations = solution
