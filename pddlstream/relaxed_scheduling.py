@@ -5,7 +5,7 @@ from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, evaluation_from_fact, fact_from_evaluation
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, parse_solution, \
-    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT
+    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
 from pddlstream.sequential_scheduling import real_from_optimistic, evaluations_from_stream_plan
 from pddlstream.simultaneous_scheduling import fact_from_fd
 from pddlstream.utils import Verbose
@@ -16,10 +16,21 @@ from pddlstream.utils import Verbose
 def action_preimage(action, preimage):
     for conditions, effect in action.add_effects + action.del_effects:
         assert(not conditions)
+        # TODO: can later select which conditional effects are used
+        # TODO: might need to truely decide whether one should hold or not for a preimage. Maybe I should do that here
         if effect in preimage:
             preimage.remove(effect)
     preimage.update(action.precondition)
 
+def clone_task(task, init=None, actions=None):
+    import pddl
+    if init is None:
+        init = task.init
+    if actions is None:
+        actions = task.init
+    return pddl.Task(
+        task.domain_name, task.task_name, task.requirements, task.types, task.objects,
+        task.predicates, task.functions, init, task.goal, actions, task.axioms, task.use_metric)
 
 Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
 
@@ -65,6 +76,19 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         extract_stream_plan(node_from_atom, stream_result.stream_instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
+def instantiate_axioms(model, init_facts, fluent_facts):
+    import pddl
+    instantiated_axioms = []
+    for atom in model:
+        if isinstance(atom.predicate, pddl.Axiom):
+            axiom = atom.predicate
+            variable_mapping = dict([(par.name, arg)
+                                     for par, arg in zip(axiom.parameters, atom.args)])
+            inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
+            # TODO: can do a custom instantiation to preserve conditions
+            if inst_axiom:
+                instantiated_axioms.append(inst_axiom)
+    return instantiated_axioms
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     # TODO: alternatively could translate with stream actions on real state and just discard them
@@ -97,33 +121,54 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
         for full_parameters in ground_task.reachable_action_params[action]:
             external_parameters = tuple(full_parameters[:action.num_external_parameters])
             action_from_parameters[(action.name, external_parameters)].append((action, full_parameters))
+    # TODO: handle the negative stream fact case which is different
 
+    # Two components here:
+    # - Axioms
+    # - Negative Axioms
+    # - Negative bounds on axioms
 
-    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+    #print(task.init)
+    #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(opt_evaluations, task)
+    #task.init = get_init(evaluations)
+    print(task.init)
+    # TODO: need to add cfree to limit the number of actions
+
+    # Precondition kept if in fluent_facts
+    # Dropped if in init_facts (static facts)
+    # Error if not in init_facts (not possible from binding)
 
     import pddl_to_prolog
     import build_model
     import pddl
     import axiom_rules
+    import instantiate
     instantiated_axioms = []
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(task))
-        for atom in model:
-            if isinstance(atom.predicate, pddl.Axiom):
-                axiom = atom.predicate
-                variable_mapping = dict([(par.name, arg)
-                                         for par, arg in zip(axiom.parameters, atom.args)])
-                inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
-                if inst_axiom:
-                    instantiated_axioms.append(inst_axiom)
+    num_atoms = 0
+    with Verbose(True):
+        model = build_model.compute_model(pddl_to_prolog.translate(task)) # Need to instantiate as normal
+        #fluent_facts = instantiate.get_fluent_facts(task, model)
+        #init_facts = set(task.init)
+        real_init = get_init(evaluations)
+        opt_facts = set(task.init) - set(real_init)
+        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+        #init_facts = real_init # Shouldn't matter
+
+
+    axiom_model = filter(lambda a: isinstance(a.predicate, pddl.Axiom), model)
+    print(len(axiom_model)) # 6 x 10 x 10
+    instantiated_axioms = instantiate_axioms(axiom_model, fluent_facts, init_facts)
 
     axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
         ground_task.actions, instantiated_axioms, ground_task.goal_list)
 
-    print(len(instantiated_axioms))
-    print(len(axioms))
-    # TODO: can instantiate in each state without axioms as well (multiple small model builds)
+    # TODO: can even build once, instantiate in each state, and then invert
 
+    print(len(instantiated_axioms), instantiated_axioms[:3])
+    print(len(axioms), axioms[:3])
+    # TODO: can instantiate in each state without axioms as well (multiple small model builds)
+    raw_input('awefawef')
 
     """    
     print(plan_cost(action_plan))
@@ -147,6 +192,13 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
         fd_plan.append(action.instantiate(variable_mapping, init_facts,
                                          fluent_facts, type_to_objects,
                                          task.use_min_cost_metric, function_assignments))
+
+
+    state = set(task.init)
+    for action in fd_plan:
+        apply_action(state, action)
+
+
 
     preimage = set(ground_task.goal_list)
     for action in reversed(fd_plan):

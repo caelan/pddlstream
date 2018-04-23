@@ -43,6 +43,8 @@ class Object(object):
         #index = int(name.split(Object._prefix)[1]) # TODO: match regex or strip prefix
         #return Object.from_index(index)
         return Object._obj_from_name[name]
+    def __lt__(self, other): # For heapq on python3
+        return self.index < other.index
     def __repr__(self):
         #return repr(self.value)
         return self.pddl
@@ -73,6 +75,8 @@ class OptimisticObject(object):
     @property
     def pddl(self):
         return self.name
+    def __lt__(self, other): # For heapq on python3
+        return self.index < other.index
     def __repr__(self):
         #return repr(self.value)
         return self.pddl

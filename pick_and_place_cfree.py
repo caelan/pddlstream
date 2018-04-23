@@ -105,7 +105,7 @@ def pddlstream_from_tamp(tamp_problem):
         ('HandEmpty',),
         Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
-           [('Pose', p) for p in known_poses] + \
+           [('Pose', p) for p in known_poses + tamp_problem.poses] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()]
 
     goal = And(*[
@@ -130,7 +130,7 @@ DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_p
 DiscreteTAMPProblem = namedtuple('DiscreteTAMPProblem', ['initial', 'poses', 'goal_poses'])
 GRASP = np.array([0, 0])
 
-def get_shift_one_problem(n_blocks=2, n_poses=9):
+def get_shift_one_problem(n_blocks=6, n_poses=9):
     assert(2 <= n_blocks <= n_poses)
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_poses)]
@@ -140,7 +140,8 @@ def get_shift_one_problem(n_blocks=2, n_poses=9):
     initial = DiscreteTAMPState(conf, None, block_poses)
     goal_poses = {blocks[0]: poses[1]}
 
-    return DiscreteTAMPProblem(initial, poses[n_blocks:], goal_poses)
+    #return DiscreteTAMPProblem(initial, poses[n_blocks:], goal_poses)
+    return DiscreteTAMPProblem(initial, poses, goal_poses)
 
 def get_shift_all_problem(n_blocks=2, n_poses=9):
     assert(n_blocks + 1 <= n_poses)
@@ -192,8 +193,8 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem)
     #solution = solve_incremental(pddlstream_problem)
-    #solution = solve_focused(pddlstream_problem, visualize=False)
-    solution = solve_committed(pddlstream_problem)
+    solution = solve_focused(pddlstream_problem, visualize=False)
+    #solution = solve_committed(pddlstream_problem)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
