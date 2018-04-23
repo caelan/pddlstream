@@ -1,9 +1,11 @@
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, Atom, Head, obj_from_pddl, \
-    obj_from_pddl_plan
+    obj_from_pddl_plan, evaluation_from_fact
 from pddlstream.fast_downward import OBJECT, Domain, get_problem, task_from_domain_problem, solve_from_task, get_init, \
     TOTAL_COST
 from pddlstream.algorithm import solve_finite
 from pddlstream.utils import Verbose, find, INF
+from collections import defaultdict
+from pddlstream.visualization import visualize_constraints
 
 
 def get_stream_action(stream_result, name, effect_scale=1):
@@ -65,6 +67,7 @@ def add_stream_actions(domain, stream_results):
                         domain.actions[:] + stream_actions, domain.axioms)
     return new_domain, stream_result_from_name
 
+# TODO: reuse the ground problem when solving for sequential subgoals
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
@@ -80,13 +83,105 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             action_plan.append((name, args))
     return stream_plan, action_plan
 
+from pddlstream.fast_downward import translate_task, instantiate_task, run_search, safe_rm_dir, parse_solution, \
+    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, plan_cost, is_applicable
+import os
+import re
 
-def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    import pddl
+def action_preimage(action, preimage):
+    for conditions, effect in action.add_effects + action.del_effects:
+        assert(not conditions)
+        if effect in preimage:
+            preimage.remove(effect)
+    preimage.update(action.precondition)
+
+def stuff_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     opt_evaluations = set(evaluations)
     for stream_result in stream_results:
         for fact in stream_result.get_certified():
-            opt_evaluations.add(Atom(Head(get_prefix(fact), get_args(fact))))
+            opt_evaluations.add(evaluation_from_fact(fact))
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
+
+    ground_task = instantiate_task(task)
+    sas_task = pddl_to_sas(ground_task)
+    clear_dir(TEMP_DIR)
+    with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
+        sas_task.output(output_file)
+    solution = run_search(TEMP_DIR, verbose=False, **kwargs)
+    safe_rm_dir(TEMP_DIR)
+
+    ground_from_name = defaultdict(list)
+    for action in ground_task.actions:
+        ground_from_name[action.name].append(action)
+    action_plan = []
+    for name in solution.split('\n')[:-2]:
+        assert(len(ground_from_name[name]) == 1)
+        # TODO: later select a particular ground action that satisfies the conditions
+        action_plan.append(ground_from_name[name][0])
+    #regex = r'(\(\w+(?:\s\w+)*\))'
+    #print(re.findall(regex, solution))
+    for axiom in ground_task.axioms:
+        print(axiom.condition)
+        print(axiom.effect)
+    assert(not ground_task.axioms)
+
+    """
+    print(plan_cost(action_plan))
+    state = set(task.init)
+    axiom_plan = []
+    # TODO: remove conditional effects
+    for action in action_plan:
+        axiom_plan.append([])
+        assert(is_applicable(state, action))
+        apply_action(state, action)
+        print(state)
+    """
+
+    import pddl
+    import pddl_to_prolog
+    import build_model
+    import instantiate
+    real_init = get_init(evaluations)
+    opt_facts = set(task.init) - set(real_init)
+    with Verbose(False):
+        model = build_model.compute_model(pddl_to_prolog.translate(task))
+        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+    task.init = real_init
+    init_facts = set(task.init)
+    function_assignments = {fact.fluent: fact.expression for fact in init_facts
+                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    action_plan = []
+    for name, args in parse_solution(solution)[0]:
+        # TODO: use reachable params to instantiate (includes external)
+        action = find(lambda a: a.name == name, domain.actions)
+        assert(len(action.parameters) == len(args))
+        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+        action_plan.append(action.instantiate(variable_mapping, init_facts,
+                                         fluent_facts, type_to_objects,
+                                         task.use_min_cost_metric, function_assignments))
+
+    preimage = set(ground_task.goal_list)
+    for action in reversed(action_plan):
+        action_preimage(action, preimage)
+    preimage -= init_facts
+    preimage = filter(lambda l: not l.negated, preimage)
+    # TODO: need to include all conditions
+    # TODO: need to invert axioms back
+    print(preimage)
+
+    visualize_constraints(preimage)
+
+    # TODO: backtrace streams and axioms
+
+
+
+
+def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    opt_evaluations = set(evaluations)
+    for stream_result in stream_results:
+        for fact in stream_result.get_certified():
+            opt_evaluations.add(evaluation_from_fact(fact))
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     action_plan, _ = solve_from_task(task, **kwargs)
     if action_plan is None:
@@ -94,6 +189,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     real_init = get_init(evaluations)
     opt_facts = set(task.init) - set(real_init)
 
+    import pddl
     import pddl_to_prolog
     import build_model
     import instantiate

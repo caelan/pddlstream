@@ -4,7 +4,9 @@ from __future__ import print_function
 
 from pddlstream.conversion import AND, EQ
 from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.incremental import solve_exhaustive, solve_current, solve_incremental
+from pddlstream.incremental import solve_exhaustive, solve_incremental
+from pddlstream.committed import solve_committed
+from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution
 import numpy as np
@@ -110,8 +112,10 @@ def get_problem1(n_blocks=2, n_poses=5):
 
 def main():
     problem = get_problem1()
-    solution = solve_exhaustive(problem)
+    #solution = solve_exhaustive(problem)
     #solution = solve_incremental(problem)
+    solution = solve_focused(problem)
+    #solution = solve_committed(problem) # TODO: make sure this is right
     print_solution(solution)
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import solve_from_pddl, translate_pddl, write_pddl, parse_domain
+from pddlstream.fast_downward import solve_from_pddl, translate_paths, write_pddl, parse_domain
 
 DOMAIN_PDDL = '''
 (define (domain blocksworld)
@@ -75,7 +75,7 @@ def brainstorm():
     domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
     print(parse_domain(domain_path))
 
-    task = translate_pddl(domain_path, problem_path) # TODO: might need to make these wrt temp
+    task = translate_paths(domain_path, problem_path) # TODO: might need to make these wrt temp
     print(task.objects)
     task.dump()
     #print(task.__dict__)

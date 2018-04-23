@@ -30,6 +30,7 @@ import fact_groups
 import timers
 import options
 import simplify
+import variable_order
 from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, parse_condition, check_for_duplicates
 
 
@@ -149,7 +150,7 @@ def task_from_domain_problem(domain, problem):
 
 ##################################################
 
-def translate_pddl(domain_path, problem_path):
+def translate_paths(domain_path, problem_path):
     #pddl_parser.parse_pddl_file('domain', domain_path)
     #pddl_parser.parse_pddl_file('task', problem_path)
     task = pddl_parser.open(
@@ -158,23 +159,27 @@ def translate_pddl(domain_path, problem_path):
     return task
 
 def translate_task(task, temp_dir):
-    normalize.normalize(task)
-    sas_task = translate.pddl_to_sas(task)
+    if True:
+        ground_task = instantiate_task(task)
+        sas_task = pddl_to_sas(ground_task)
+    else:
+        normalize.normalize(task)
+        sas_task = translate.pddl_to_sas(task)
     translate.dump_statistics(sas_task)
     clear_dir(temp_dir)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return sas_task
 
-def run_translate(temp_dir, verbose):
-    t0 = time()
-    with Verbose(verbose):
-        print('\nTranslate command: import translate; translate.main()')
-        with TmpCWD(os.path.join(os.getcwd(), temp_dir)):
-            translate.main()
-        print('Translate runtime:', time() - t0)
+# def run_translate(temp_dir, verbose):
+#     t0 = time()
+#     with Verbose(verbose):
+#         print('\nTranslate command: import translate; translate.main()')
+#         with TmpCWD(os.path.join(os.getcwd(), temp_dir)):
+#             translate.main()
+#         print('Translate runtime:', time() - t0)
 
-def run_translate2(domain_pddl, problem_pddl, temp_dir, verbose):
+def translate_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     domain = parse_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
@@ -244,7 +249,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
     start_time = time()
     write_pddl(domain_pddl, problem_pddl, temp_dir)
     #run_translate(temp_dir, verbose)
-    run_translate2(domain_pddl, problem_pddl, temp_dir, debug)
+    translate_pddl(domain_pddl, problem_pddl, temp_dir, debug)
     solution = run_search(temp_dir, verbose=debug, **kwargs)
     if clean:
         safe_rm_dir(temp_dir)
@@ -264,26 +269,41 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
 
 ##################################################
 
-GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params',
+GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params', 'original_axioms',
                                        'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
 
 def instantiate_task(task):
     # TODO: map parameters to actions and then select which list of atomic supports it
     normalize.normalize(task)
-    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
+    relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
     if not relaxed_reachable:
        return None
     goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
-    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
-    return GroundTask(task, atoms, actions, reachable_action_params,
+    # TODO: this removes the axioms for some reason
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
+    #axiom_init, axiom_layer_dict = [], {}
+    return GroundTask(task, atoms, actions, reachable_action_params, original_axioms,
                       axioms, axiom_init, axiom_layer_dict, goal_list)
+
+def conditions_hold(state, conditions):
+    return all((cond in state) != cond.negated for cond in conditions)
+
+def is_applicable(state, action):
+    if isinstance(action, pddl.PropositionalAction):
+        return conditions_hold(state, action.precondition)
+    elif isinstance(action, pddl.PropositionalAxiom):
+        return conditions_hold(state, action.condition)
+    else:
+        raise ValueError(action)
 
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
-    new_state = set(state)
-    # TODO: cost
-    # TODO: add_effects is a pair. Need to check if holds
-    return (new_state - set(action.del_effects)) | set(action.add_effects)
+    for conditions, effect in action.del_effects:
+        if conditions_hold(state, conditions):
+            state.remove(effect)
+    for conditions, effect in action.add_effects:
+        if conditions_hold(state, conditions):
+            state.add(effect)
 
 def apply_axiom(state, axiom):
     assert(isinstance(state, pddl.PropositionalAxiom))
@@ -330,7 +350,7 @@ def pddl_to_sas(ground_task):
         sas_task = translate.translate_task(
             strips_to_sas, ranges, translation_key,
             mutex_dict, mutex_ranges, mutex_key,
-            ground_task.task.init, ground_task.goal_list, ground_task.actions, ground_task.axioms,
+            ground_task.task.init, ground_task.goal_list, ground_task.actions, ground_task.original_axioms,
             ground_task.task.use_min_cost_metric,
             implied_facts)
 
@@ -350,7 +370,7 @@ def pddl_to_sas(ground_task):
 
     if options.reorder_variables or options.filter_unimportant_vars:
         with timers.timing("Reordering and filtering variables", block=True):
-            ground_task.variable_order.find_and_apply_variable_order(
+            variable_order.find_and_apply_variable_order(
                 sas_task, options.reorder_variables,
                 options.filter_unimportant_vars)
 

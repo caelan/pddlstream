@@ -20,7 +20,6 @@ def parse_problem(problem):
 def solve_finite(evaluations, goal_expression, domain, **kwargs):
     problem = get_problem(evaluations, goal_expression, domain)
     task = task_from_domain_problem(domain, problem)
-    instantiate_task(task)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
