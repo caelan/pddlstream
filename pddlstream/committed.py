@@ -21,6 +21,7 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     disabled = []
 
+    committed = False
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
@@ -38,8 +39,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
-            if instantiator.stream_instances:
-                instantiator.stream_instances.clear()
+            #if instantiator.stream_instances:
+            #if len(instantiator.stream_instances) < len(instantiator.stream_queue):
+            if committed:
+                instantiator = Instantiator(evaluations, streams)
+                #instantiator.stream_instances.clear()
             elif disabled:
                 reset_disabled(disabled)
             else:
@@ -48,9 +52,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
             best_plan = action_plan
             break
         else:
+            # TODO: use set of intended stream instances here instead
+            committed = True
             new_evaluations = process_stream_plan(evaluations, stream_plan, disabled, verbose)
             for evaluation in new_evaluations:
                 instantiator.add_atom(evaluation)
-            if not new_evaluations:
-                instantiator.stream_instances.clear()
+            #if not new_evaluations:
+            #    instantiator.stream_instances.clear()
     return revert_solution(best_plan, best_cost, evaluations)

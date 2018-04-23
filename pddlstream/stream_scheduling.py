@@ -173,6 +173,7 @@ def stuff_stream_plan(evaluations, goal_expression, domain, stream_results, **kw
     visualize_constraints(preimage)
 
     # TODO: backtrace streams and axioms
+    # TODO: can optimize for streams & axioms all at once
 
 
 

@@ -114,8 +114,8 @@ def main():
     problem = get_problem1()
     #solution = solve_exhaustive(problem)
     #solution = solve_incremental(problem)
-    solution = solve_focused(problem)
-    #solution = solve_committed(problem) # TODO: make sure this is right
+    #solution = solve_focused(problem)
+    solution = solve_committed(problem) # TODO: make sure this is right
     print_solution(solution)
 
 if __name__ == '__main__':

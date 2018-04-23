@@ -43,11 +43,9 @@ def visualize_constraints(constraints, filename='graph.pdf'):
     for constant in optimistic:
         graph.add_node(str(constant), shape='circle', color='LightGreen')
 
+    # TODO: print string for the value
     for constraint in constraints:
         # TODO: assert that is atom?
-
-
-
         #name = '\n'.join(str(arg) for arg in [constraints.predicate] + list(constraints.args))
         name = str(constraint)
         graph.add_node(name, shape='box', color='LightBlue')
