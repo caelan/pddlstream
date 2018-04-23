@@ -1,6 +1,7 @@
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     values_from_objects, evaluation_from_fact
-from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, solve_from_task
+from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
+    solve_from_task, instantiate_task
 from pddlstream.stream import parse_stream, StreamResult
 from pddlstream.utils import str_from_tuple
 
@@ -19,6 +20,7 @@ def parse_problem(problem):
 def solve_finite(evaluations, goal_expression, domain, **kwargs):
     problem = get_problem(evaluations, goal_expression, domain)
     task = task_from_domain_problem(domain, problem)
+    instantiate_task(task)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 

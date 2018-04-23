@@ -23,7 +23,6 @@ DOMAIN_PDDL = """
     (Holding ?b)
     (HandEmpty)
     (Unsafe ?p)
-    (Placed ?b)
   )
   (:action move
     :parameters (?q1 ?q2)

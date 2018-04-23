@@ -67,9 +67,9 @@ class Instantiator(object): # Dynamic Stream Instsantiator
                 if any(isinstance(b, Object) and (a != b) for (a, b) in
                        zip(get_args(head), get_args(domain_atom))):
                     continue
-                self.atoms_from_domain[(i, j)].append((stream, i))
+                self.atoms_from_domain[(i, j)].append(head)
                 values = [self.atoms_from_domain[(i, k)] if j != k else [head]
-                          for k, a in enumerate(stream.domain)]
+                          for k in range(len(stream.domain))]
                 for combo in product(*values):
                     mapping = get_mapping(stream.domain, combo)
                     if mapping is None:

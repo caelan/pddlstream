@@ -21,10 +21,17 @@ sys.path.append(TRANSLATE_PATH)
 
 import translate
 import pddl
-from pddl_parser.lisp_parser import parse_nested_list
-from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, parse_condition, check_for_duplicates
+import pddl_parser.lisp_parser
 import normalize
 import pddl_parser
+import axiom_rules
+import instantiate
+import fact_groups
+import timers
+import options
+import simplify
+from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, parse_condition, check_for_duplicates
+
 
 TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
@@ -79,7 +86,7 @@ SEARCH_OPTIONS = {
 ##################################################
 
 def parse_lisp(lisp):
-    return parse_nested_list(lisp.split())
+    return pddl_parser.lisp_parser.parse_nested_list(lisp.split())
 
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
@@ -254,3 +261,97 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     return parse_solution(solution)
+
+##################################################
+
+GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params',
+                                       'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
+
+def instantiate_task(task):
+    # TODO: map parameters to actions and then select which list of atomic supports it
+    normalize.normalize(task)
+    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
+    if not relaxed_reachable:
+       return None
+    goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
+    return GroundTask(task, atoms, actions, reachable_action_params,
+                      axioms, axiom_init, axiom_layer_dict, goal_list)
+
+def apply_action(state, action):
+    assert(isinstance(action, pddl.PropositionalAction))
+    new_state = set(state)
+    # TODO: cost
+    # TODO: add_effects is a pair. Need to check if holds
+    return (new_state - set(action.del_effects)) | set(action.add_effects)
+
+def apply_axiom(state, axiom):
+    assert(isinstance(state, pddl.PropositionalAxiom))
+    state.add(axiom.effect)
+
+def apply_lifted_action(state, action):
+    assert(isinstance(state, pddl.Action))
+    assert(not action.parameters)
+    for effect in state.effects:
+        assert(not effect.parameters)
+
+def plan_cost(plan):
+    cost = 0
+    for action in plan:
+        cost += action.cost
+    return cost
+
+##################################################
+
+def pddl_to_sas(ground_task):
+    with timers.timing("Computing fact groups", block=True):
+        groups, mutex_groups, translation_key = fact_groups.compute_groups(
+            ground_task.task, ground_task.atoms, ground_task.reachable_action_params)
+
+    with timers.timing("Building STRIPS to SAS dictionary"):
+        ranges, strips_to_sas = translate.strips_to_sas_dictionary(
+            groups, assert_partial=options.use_partial_encoding)
+
+    with timers.timing("Building dictionary for full mutex groups"):
+        mutex_ranges, mutex_dict = translate.strips_to_sas_dictionary(
+            mutex_groups, assert_partial=False)
+
+    if options.add_implied_preconditions:
+        with timers.timing("Building implied facts dictionary..."):
+            implied_facts = translate.build_implied_facts(strips_to_sas, groups,
+                                                mutex_groups)
+    else:
+        implied_facts = {}
+
+    with timers.timing("Building mutex information", block=True):
+        mutex_key = translate.build_mutex_key(strips_to_sas, mutex_groups)
+
+    with timers.timing("Translating task", block=True):
+        sas_task = translate.translate_task(
+            strips_to_sas, ranges, translation_key,
+            mutex_dict, mutex_ranges, mutex_key,
+            ground_task.task.init, ground_task.goal_list, ground_task.actions, ground_task.axioms,
+            ground_task.task.use_min_cost_metric,
+            implied_facts)
+
+    print("%d effect conditions simplified" %
+          translate.simplified_effect_condition_counter)
+    print("%d implied preconditions added" %
+          translate.added_implied_precondition_counter)
+
+    if options.filter_unreachable_facts:
+        with timers.timing("Detecting unreachable propositions", block=True):
+            try:
+                simplify.filter_unreachable_propositions(sas_task)
+            except simplify.Impossible:
+                return ground_task.unsolvable_sas_task("Simplified to trivially false goal")
+            except simplify.TriviallySolvable:
+                return ground_task.solvable_sas_task("Simplified to empty goal")
+
+    if options.reorder_variables or options.filter_unimportant_vars:
+        with timers.timing("Reordering and filtering variables", block=True):
+            ground_task.variable_order.find_and_apply_variable_order(
+                sas_task, options.reorder_variables,
+                options.filter_unimportant_vars)
+
+    return sas_task
