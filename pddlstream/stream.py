@@ -1,6 +1,7 @@
 from pddlstream.conversion import list_from_conjunction, objects_from_values, substitute_expression
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.object import OptimisticObject
+from pddlstream.utils import str_from_tuple
 
 
 def from_list_gen_fn(list_gen_fn):
@@ -92,7 +93,8 @@ class StreamResult(object):
                                      self.get_mapping())
     def __repr__(self):
         return '{}:{}->{}'.format(self.stream_instance.stream.name,
-                                  self.stream_instance.input_values, self.output_values)
+                                  str_from_tuple(self.stream_instance.input_values),
+                                  str_from_tuple(self.output_values))
 
 ##################################################
 

@@ -1,15 +1,7 @@
+from pddlstream.algorithm import get_partial_orders
+from pddlstream.conversion import get_args
 from pddlstream.object import OptimisticObject
-from pddlstream.conversion import obj_from_pddl
-from pddlstream.utils import input
-
-def get_partial_orders(stream_plan):
-    # TODO: only show the first atom achieved?
-    partial_orders = set()
-    for i, stream1 in enumerate(stream_plan):
-        for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.get_certified()):
-                partial_orders.add((stream1, stream2))
-    return partial_orders
+from pddlstream.utils import str_from_tuple
 
 def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     from pygraphviz import AGraph
@@ -22,21 +14,60 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
         graph.add_node(str(stream))
     for stream1, stream2 in get_partial_orders(stream_plan):
         graph.add_edge(str(stream1), str(stream2))
+    # TODO: could also print the raw values (or a lookup table)
 
     graph.draw(filename, prog='dot')
     return graph
 
+def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
+    from pygraphviz import AGraph
+    graph = AGraph(strict=True, directed=True)
+    graph.node_attr['style'] = 'filled'
+    graph.node_attr['shape'] = 'box'
+    graph.node_attr['color'] = 'LightSalmon'
 
-def open_pdf(filename):
-    import subprocess
-    # import os
-    # import webbrowser
-    subprocess.Popen('open {}'.format(filename), shell=True)
-    # os.system(filename)
-    # webbrowser.open(filename)
-    input('Display?')
-    # safe_remove(filename)
+    achieved_facts = set()
+    for stream in stream_plan:
+        graph.add_node(str(stream), shape='oval', color='LightSalmon')
+        for fact in stream.stream_instance.get_domain():
+            graph.add_node(str_from_tuple(fact), shape='box', color='LightBlue')
+            graph.add_edge(str_from_tuple(fact), str(stream)) # Add initial facts?
+        for fact in stream.get_certified():
+            if fact not in achieved_facts: # Ensures DAG
+                graph.add_node(str_from_tuple(fact), shape='box', color='LightBlue')
+                graph.add_edge(str(stream), str_from_tuple(fact))
+                achieved_facts.add(fact)
+    graph.draw(filename, prog='dot')
+    return graph
 
+def visualize_constraints(constraints, filename='constraint_network.pdf'):
+    from pygraphviz import AGraph
+
+    graph = AGraph(strict=True, directed=False)
+    graph.node_attr['style'] = 'filled'
+    graph.node_attr['shape'] = 'circle'
+    graph.node_attr['fontcolor'] = 'black'
+    graph.node_attr['colorscheme'] = 'SVG'
+    graph.edge_attr['colorscheme'] = 'SVG'
+
+    objects = set()
+    for constraint in constraints:
+        objects.update(get_args(constraint))
+    optimistic_objects = filter(lambda o: isinstance(o, OptimisticObject), objects)
+    for opt_obj in optimistic_objects:
+        graph.add_node(str(opt_obj), shape='circle', color='LightGreen')
+
+    for constraint in constraints:
+        # TODO: assert that is atom?
+        name = str_from_tuple(constraint)
+        graph.add_node(name, shape='box', color='LightBlue')
+        for arg in get_args(constraint):
+            if arg in optimistic_objects:
+                graph.add_edge(name, str(arg))
+    graph.draw(filename, prog='dot')
+    return graph
+
+"""
 def visualize_constraints(constraints, filename='constraint_network.pdf'):
     from pygraphviz import AGraph
 
@@ -65,3 +96,4 @@ def visualize_constraints(constraints, filename='constraint_network.pdf'):
                 graph.add_edge(name, str(arg))
     graph.draw(filename, prog='dot')
     return graph
+"""

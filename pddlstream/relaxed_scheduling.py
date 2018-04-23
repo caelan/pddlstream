@@ -149,7 +149,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: backtrace streams and axioms
     # TODO: can optimize for streams & axioms all at once
-    #visualize_constraints(preimage)
+    #visualize_constraints(map(fact_from_fd, preimage))
 
     node_from_atom = get_stream_effort(evaluations, stream_results)
     stream_plan = []

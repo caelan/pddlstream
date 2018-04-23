@@ -1,5 +1,5 @@
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    values_from_objects, evaluation_from_fact
+    values_from_objects, evaluation_from_fact, fact_from_evaluation
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task, instantiate_task
 from pddlstream.stream import parse_stream_pddl, StreamResult
@@ -11,8 +11,13 @@ def parse_problem(problem):
     evaluations = set(evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
     domain = parse_domain(domain_pddl)
-    assert(len(domain.types) == 1)
-    assert(not domain.constants)
+    if len(domain.types) != 1:
+        raise NotImplementedError('Types are not currently supported')
+    if domain.constants:
+        raise NotImplementedError('Constants are not currently supported')
+    if constant_map:
+        raise NotImplementedError('A constant map is not currently supported')
+    # TODO: instantiate to rename here
     streams = parse_stream_pddl(stream_pddl, stream_map)
     return evaluations, goal_expression, domain, streams
 
@@ -46,3 +51,21 @@ def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True
     if revisit and not stream_instance.enumerated:
         instantiator.stream_queue.append(stream_instance)
     return stream_results
+
+
+def get_partial_orders(stream_plan):
+    # TODO: only show the first atom achieved?
+    partial_orders = set()
+    for i, stream1 in enumerate(stream_plan):
+        for stream2 in stream_plan[i+1:]: # Prevents circular
+            if set(stream1.get_certified()) & set(stream2.get_certified()):
+                partial_orders.add((stream1, stream2))
+    return partial_orders
+
+
+def get_optimistic_constraints(evaluations, stream_plan):
+    # TODO: approximates needed facts using produced ones
+    constraints = set()
+    for stream in stream_plan:
+        constraints.update(stream.get_certified())
+    return constraints - set(map(fact_from_evaluation, evaluations))

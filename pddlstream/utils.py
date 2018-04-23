@@ -102,3 +102,14 @@ def find(test, sequence):
 
 def str_from_tuple(tup):
     return '({})'.format(', '.join(map(str, tup)))
+
+
+def open_pdf(filename):
+    import subprocess
+    # import os
+    # import webbrowser
+    subprocess.Popen('open {}'.format(filename), shell=True)
+    # os.system(filename)
+    # webbrowser.open(filename)
+    input('Display?')
+    # safe_remove(filename)

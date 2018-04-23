@@ -1,7 +1,8 @@
 import time
 
 from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
-from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue
+from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue, \
+    get_optimistic_constraints
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
 from pddlstream.relaxed_scheduling import relaxed_stream_plan
@@ -9,11 +10,13 @@ from pddlstream.sequential_scheduling import sequential_stream_plan
 from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time, clear_dir
 from pddlstream.object import Object
-from pddlstream.visualization import visualize_stream_plan
+from pddlstream.visualization import visualize_stream_plan, visualize_stream_plan_bipartite, \
+    visualize_constraints
 from collections import defaultdict
 from itertools import product
 import os
 
+CONSTRAINT_NETWORK_DIR = 'constraint_networks/'
 STREAM_PLAN_DIR = 'stream_plans/'
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
@@ -97,6 +100,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     disabled = []
     if visualize:
+        clear_dir(CONSTRAINT_NETWORK_DIR)
         clear_dir(STREAM_PLAN_DIR)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
@@ -126,9 +130,12 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
         else:
             if visualize:
                 # TODO: place it in the temp_dir?
-                # TODO: can also obtain fake constraint network from outputs
                 filename = 'iteration_{}.pdf'.format(num_iterations)
-                visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
+                #visualize_stream_plan(stream_plan, path)
+                visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
+                                      os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+                visualize_stream_plan_bipartite(stream_plan,
+                                                os.path.join(STREAM_PLAN_DIR, filename))
             process_stream_plan(evaluations, stream_plan, disabled, verbose)
 
     return revert_solution(best_plan, best_cost, evaluations)
