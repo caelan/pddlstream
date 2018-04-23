@@ -18,6 +18,7 @@ import os
 
 CONSTRAINT_NETWORK_DIR = 'constraint_networks/'
 STREAM_PLAN_DIR = 'stream_plans/'
+ITERATION_TEMPLATE = 'iteration_{}.pdf'
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     if stream_results:
@@ -130,7 +131,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
         else:
             if visualize:
                 # TODO: place it in the temp_dir?
-                filename = 'iteration_{}.pdf'.format(num_iterations)
+                filename = ITERATION_TEMPLATE.format(num_iterations)
                 #visualize_stream_plan(stream_plan, path)
                 visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
                                       os.path.join(CONSTRAINT_NETWORK_DIR, filename))

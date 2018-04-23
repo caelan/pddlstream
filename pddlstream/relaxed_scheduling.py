@@ -4,12 +4,11 @@ from collections import namedtuple
 from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, evaluation_from_fact, fact_from_evaluation
-from pddlstream.fast_downward import get_problem, task_from_domain_problem, get_init
-from pddlstream.fast_downward import instantiate_task, run_search, safe_rm_dir, parse_solution, \
+from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, parse_solution, \
     pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT
+from pddlstream.sequential_scheduling import real_from_optimistic, evaluations_from_stream_plan
 from pddlstream.simultaneous_scheduling import fact_from_fd
-from pddlstream.utils import Verbose, find
-from pddlstream.visualization import visualize_constraints, visualize_stream_plan
+from pddlstream.utils import Verbose
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -66,11 +65,9 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         extract_stream_plan(node_from_atom, stream_result.stream_instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
+
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    opt_evaluations = set(evaluations)
-    for stream_result in stream_results:
-        for fact in stream_result.get_certified():
-            opt_evaluations.add(evaluation_from_fact(fact))
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
 
     with Verbose(False):
@@ -85,23 +82,22 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
     if action_plan is None:
         return None, action_plan
 
+    print(task.axioms, ground_task.original_axioms, ground_task.axioms)
+    for axiom in ground_task.original_axioms:
+        print(axiom)
+
     for axiom in ground_task.axioms:
         print(axiom.condition)
         print(axiom.effect)
     assert(not ground_task.axioms)
 
-    """
-    #regex = r'(\(\w+(?:\s\w+)*\))'
-    #print(re.findall(regex, solution))
-    ground_from_name = defaultdict(list)
-    for action in ground_task.actions:
-        ground_from_name[action.name].append(action)
-    action_plan = []
-    for name in solution.split('\n')[:-2]:
-        assert(len(ground_from_name[name]) == 1)
-        # TODO: later select a particular ground action that satisfies the conditions
-        action_plan.append(ground_from_name[name][0])
-    
+    action_from_parameters = defaultdict(list)
+    for action in ground_task.reachable_action_params:
+        for full_parameters in ground_task.reachable_action_params[action]:
+            external_parameters = tuple(full_parameters[:action.num_external_parameters])
+            action_from_parameters[(action.name, external_parameters)].append((action, full_parameters))
+
+    """    
     print(plan_cost(action_plan))
     state = set(task.init)
     axiom_plan = []
@@ -113,26 +109,13 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
         print(state)
     """
 
-    import pddl
-    import pddl_to_prolog
-    import build_model
-    import instantiate
-    real_init = get_init(evaluations)
-    opt_facts = set(task.init) - set(real_init)
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(task))
-        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
-    task.init = real_init
-    init_facts = set(task.init)
-    function_assignments = {fact.fluent: fact.expression for fact in init_facts
-                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
     fd_plan = []
-    for name, args in action_plan:
-        # TODO: use reachable params to instantiate (includes external)
-        action = find(lambda a: a.name == name, domain.actions)
-        assert(len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+    for pair in action_plan:
+        candidates = action_from_parameters[pair]
+        assert(len(candidates) == 1)
+        action, parameters = candidates[0]
+        variable_mapping = {p.name: a for p, a in zip(action.parameters, parameters)}
         fd_plan.append(action.instantiate(variable_mapping, init_facts,
                                          fluent_facts, type_to_objects,
                                          task.use_min_cost_metric, function_assignments))

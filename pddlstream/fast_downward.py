@@ -229,7 +229,7 @@ def parse_solution(solution):
     plan = []
     for line in lines:
         entries = line.strip('( )').split(' ')
-        plan.append((entries[0], list(entries[1:])))
+        plan.append((entries[0], tuple(entries[1:])))
     return plan, cost
 
 

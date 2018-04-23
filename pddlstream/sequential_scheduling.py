@@ -3,32 +3,26 @@ from pddlstream.fast_downward import task_from_domain_problem, get_problem, solv
 from pddlstream.simultaneous_scheduling import get_stream_actions
 from pddlstream.utils import Verbose, find
 
-
-def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+def evaluations_from_stream_plan(evaluations, stream_plan):
     opt_evaluations = set(evaluations)
-    for stream_result in stream_results:
+    for stream_result in stream_plan:
         for fact in stream_result.get_certified():
             opt_evaluations.add(evaluation_from_fact(fact))
+    return opt_evaluations
+
+
+def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     action_plan, _ = solve_from_task(task, **kwargs)
     if action_plan is None:
         return None, None
-    real_init = get_init(evaluations)
-    opt_facts = set(task.init) - set(real_init)
 
-    import pddl
-    import pddl_to_prolog
-    import build_model
-    import instantiate
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(task))
-        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
-    task.init = real_init
-    init_facts = set(task.init)
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
     task.actions, stream_result_from_name = get_stream_actions(stream_results)
 
     # TODO: add ordering constraints to simplify the optimization
+    import pddl
     action_from_name = {}
     for i, (name, args) in enumerate(action_plan):
         action = find(lambda a: a.name == name, domain.actions)
@@ -59,3 +53,21 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
         else:
             action_plan.append(action_from_name[name])
     return stream_plan, action_plan
+
+
+def real_from_optimistic(evaluations, opt_task):
+    import pddl
+    import pddl_to_prolog
+    import build_model
+    import instantiate
+    real_init = get_init(evaluations)
+    opt_facts = set(opt_task.init) - set(real_init)
+    with Verbose(False):
+        model = build_model.compute_model(pddl_to_prolog.translate(opt_task))
+        fluent_facts = instantiate.get_fluent_facts(opt_task, model) | opt_facts
+    opt_task.init = real_init
+    init_facts = set(opt_task.init)
+    function_assignments = {fact.fluent: fact.expression for fact in init_facts
+                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
+    return fluent_facts, init_facts, function_assignments, type_to_objects

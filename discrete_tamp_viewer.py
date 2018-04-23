@@ -10,7 +10,7 @@ COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'violet']
 
 class DiscreteTAMPViewer(object):
     def __init__(self, rows, cols, width=500, height=500, side=25,
-                 block_buffer=10, title='Grid', background='tan'):
+                 block_buffer=10, title='Grid', background='tan', draw_fingers=False):
         assert (rows <= MAX_ROWS)
         assert (cols <= MAX_COLS)
 
@@ -28,6 +28,7 @@ class DiscreteTAMPViewer(object):
         self.canvas.pack()
         self.side = side
         self.block_buffer = block_buffer
+        self.draw_fingers = draw_fingers
         self.cells = {}
         self.robot = []
         self.draw_environment()
@@ -91,12 +92,6 @@ class DiscreteTAMPViewer(object):
         y = self.transform_r(r) - self.side / 2 - gripper_length / 2 - grasp_buffer
         finger_x = gripper_width / 2 - finger_width / 2
         self.robot = [
-            self.canvas.create_rectangle(x + finger_x - finger_width / 2., y,
-                                         x + finger_x + finger_width / 2., y + finger_length,
-                                         fill=color, outline='black', width=2),
-            self.canvas.create_rectangle(x - finger_x - finger_width / 2., y,
-                                         x - finger_x + finger_width / 2., y + finger_length,
-                                         fill=color, outline='black', width=2),
             self.canvas.create_rectangle(x - stem_width / 2., y - stem_length,
                                          x + stem_width / 2., y,
                                          fill=color, outline='black', width=2),
@@ -104,6 +99,16 @@ class DiscreteTAMPViewer(object):
                                          x + gripper_width / 2., y + gripper_length / 2.,
                                          fill=color, outline='black', width=2),
         ]
+        if self.draw_fingers:
+            self.robot += [
+                self.canvas.create_rectangle(x + finger_x - finger_width / 2., y,
+                                             x + finger_x + finger_width / 2., y + finger_length,
+                                             fill=color, outline='black', width=2),
+                self.canvas.create_rectangle(x - finger_x - finger_width / 2., y,
+                                             x - finger_x + finger_width / 2., y + finger_length,
+                                             fill=color, outline='black', width=2),
+            ]
+
 
     def draw_block(self, r, c, color='red'):
         x = self.transform_c(c)

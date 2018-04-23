@@ -1,4 +1,15 @@
-
+"""
+# regex = r'(\(\w+(?:\s\w+)*\))'
+# print(re.findall(regex, solution))
+ground_from_name = defaultdict(list)
+for action in ground_task.actions:
+    ground_from_name[action.name].append(action)
+action_plan = []
+for name in solution.split('\n')[:-2]:
+    assert (len(ground_from_name[name]) == 1)
+    # TODO: later select a particular ground action that satisfies the conditions
+    action_plan.append(ground_from_name[name][0])
+"""
 
 #def solve_finite(evaluations, goal_expression, domain, domain_pddl, **kwargs):
 #    problem_pddl = get_pddl_problem(evaluations, goal_expression, domain_name=domain.name)
