@@ -67,6 +67,7 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
 
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    # TODO: alternatively could translate with stream actions on real state and just discard them
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
 
@@ -97,6 +98,33 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
             external_parameters = tuple(full_parameters[:action.num_external_parameters])
             action_from_parameters[(action.name, external_parameters)].append((action, full_parameters))
 
+
+    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+
+    import pddl_to_prolog
+    import build_model
+    import pddl
+    import axiom_rules
+    instantiated_axioms = []
+    with Verbose(False):
+        model = build_model.compute_model(pddl_to_prolog.translate(task))
+        for atom in model:
+            if isinstance(atom.predicate, pddl.Axiom):
+                axiom = atom.predicate
+                variable_mapping = dict([(par.name, arg)
+                                         for par, arg in zip(axiom.parameters, atom.args)])
+                inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
+                if inst_axiom:
+                    instantiated_axioms.append(inst_axiom)
+
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+        ground_task.actions, instantiated_axioms, ground_task.goal_list)
+
+    print(len(instantiated_axioms))
+    print(len(axioms))
+    # TODO: can instantiate in each state without axioms as well (multiple small model builds)
+
+
     """    
     print(plan_cost(action_plan))
     state = set(task.init)
@@ -109,7 +137,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
         print(state)
     """
 
-    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+
     fd_plan = []
     for pair in action_plan:
         candidates = action_from_parameters[pair]

@@ -50,7 +50,7 @@ def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
 def obj_from_value_head(head):
-    return tuple([get_prefix(head).lower()] + map(Object.from_value, get_args(head)))
+    return (get_prefix(head).lower(),) + tuple(map(Object.from_value, get_args(head)))
 
 def obj_from_value_expression(parent):
     prefix = get_prefix(parent)
@@ -62,7 +62,7 @@ def obj_from_value_expression(parent):
         return prefix, obj_from_value_expression(parent[1]), value
     elif prefix in CONNECTIVES:
         children = parent[1:]
-        return tuple([prefix] + map(obj_from_value_expression, children))
+        return (prefix,) + tuple(map(obj_from_value_expression, children))
     elif prefix in QUANTIFIERS:
         assert(len(parent) == 3)
         parameters = parent[1]
@@ -157,7 +157,7 @@ def init_from_evaluation(evaluation):
         return (EQ, head, evaluation.value)
 
 def init_from_evaluations(evaluations):
-    return map(init_from_evaluation, evaluations)
+    return list(map(init_from_evaluation, evaluations))
 
 def state_from_evaluations(evaluations):
     # TODO: default value?
@@ -186,7 +186,7 @@ def values_from_objects(objects):
 def obj_from_pddl_plan(pddl_plan):
     if pddl_plan is None:
         return None
-    return [(action, map(obj_from_pddl, args)) for action, args in pddl_plan]
+    return [(action, tuple(map(obj_from_pddl, args))) for action, args in pddl_plan]
 
 
 def value_from_obj_plan(obj_plan):

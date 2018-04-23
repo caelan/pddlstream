@@ -9,7 +9,7 @@ from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test
-from pddlstream.utils import print_solution, input
+from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
 
@@ -95,7 +95,8 @@ def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
-    known_poses = initial.block_poses.values() + tamp_problem.goal_poses.values()
+    known_poses = list(initial.block_poses.values()) + \
+                  list(tamp_problem.goal_poses.values())
 
     #objects = []
     init = [
@@ -191,8 +192,8 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem)
     #solution = solve_incremental(pddlstream_problem)
-    solution = solve_focused(pddlstream_problem, visualize=False)
-    #solution = solve_committed(pddlstream_problem)
+    #solution = solve_focused(pddlstream_problem, visualize=False)
+    solution = solve_committed(pddlstream_problem)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
@@ -205,11 +206,11 @@ def main():
     print(state)
     draw_state(viewer, state, colors)
     for action in plan:
-        input('Continue?')
+        user_input('Continue?')
         state = apply_action(state, action)
         print(state)
         draw_state(viewer, state, colors)
-    input('Finish?')
+    user_input('Finish?')
 
 
 if __name__ == '__main__':

@@ -37,7 +37,7 @@ def print_output_values_list(stream_instance, output_values_list):
 
 def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True, verbose=True):
     stream_instance = instantiator.stream_queue.popleft()
-    output_values_list = next_values_fn(stream_instance)
+    output_values_list = list(next_values_fn(stream_instance))
     if verbose:
         print_output_values_list(stream_instance, output_values_list)
     stream_results = []

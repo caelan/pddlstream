@@ -1,4 +1,8 @@
-from Tkinter import Tk, Canvas, Toplevel
+try:
+    from Tkinter import Tk, Canvas, Toplevel
+except ModuleNotFoundError:
+    from tkinter import Tk, Canvas, Toplevel
+
 
 # NOTE - this will overwrite (but remember) existing drawings
 # TODO - try PyGame, PyCairo, or Pyglet

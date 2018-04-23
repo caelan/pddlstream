@@ -61,29 +61,6 @@ PROBLEM_PDDL = '''
 # TODO: could extract the FD parser by itself
 # TODO: include my version of FD as a submodule
 
-
-def brainstorm():
-    #print(DOMAIN_PDDL)
-    #print(PROBLEM_PDDL)
-    #print(parse_lisp(DOMAIN_PDDL.encode('latin-1')))
-    #print(parse_lisp(DOMAIN_PDDL.encode('ISO-8859-1')))
-    #print(parse_lisp(PROBLEM_PDDL))
-    #print(parse_domain(DOMAIN_PDDL))
-    #print(parse_domain(parse_lisp(DOMAIN_PDDL)))
-    #return
-
-    domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
-    print(parse_domain(domain_path))
-
-    task = translate_paths(domain_path, problem_path) # TODO: might need to make these wrt temp
-    print(task.objects)
-    task.dump()
-    #print(task.__dict__)
-    #return
-    import sys
-    # TODO: could even directly convert and mutate the task
-    return
-
 def main():
     plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, debug=False)
     print('Plan:', plan)

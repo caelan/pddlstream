@@ -68,7 +68,7 @@ class StreamInstance(object):
         if self._generator is None:
             self._generator = self.stream.gen_fn(*(iv.value for iv in self.input_values))
         try:
-            return map(objects_from_values, next(self._generator))
+            return list(map(objects_from_values, next(self._generator)))
         except StopIteration:
             self.enumerated = True
         return []
@@ -86,8 +86,8 @@ class StreamResult(object):
         self.stream_instance = stream_instance
         self.output_values = output_values
     def get_mapping(self):
-        return dict(zip(self.stream_instance.stream.inputs, self.stream_instance.input_values) +
-                    zip(self.stream_instance.stream.outputs, self.output_values))
+        return dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_values)) +
+                    list(zip(self.stream_instance.stream.outputs, self.output_values)))
     def get_certified(self):
         return substitute_expression(self.stream_instance.stream.certified,
                                      self.get_mapping())

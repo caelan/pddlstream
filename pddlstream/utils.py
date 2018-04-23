@@ -8,9 +8,9 @@ import time
 INF = float('inf')
 
 try:
-   input = raw_input
+   user_input = raw_input
 except NameError:
-   pass
+   user_input = input
 
 def read(filename):
     with open(filename, 'r') as f:
@@ -111,5 +111,5 @@ def open_pdf(filename):
     subprocess.Popen('open {}'.format(filename), shell=True)
     # os.system(filename)
     # webbrowser.open(filename)
-    input('Display?')
+    user_input('Display?')
     # safe_remove(filename)

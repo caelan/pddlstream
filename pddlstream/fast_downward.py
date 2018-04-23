@@ -105,7 +105,7 @@ def parse_problem(domain, problem_pddl):
 
 def fd_from_evaluation(evaluation):
     name = evaluation.head.function
-    args = map(pddl_from_object, evaluation.head.args)
+    args = tuple(map(pddl_from_object, evaluation.head.args))
     if is_atom(evaluation):
         return pddl.Atom(name, args)
     elif is_negated_atom(evaluation):
@@ -116,7 +116,7 @@ def fd_from_evaluation(evaluation):
         return pddl.f_expression.Assign(fluent, expression)
 
 def get_init(init_evaluations):
-    return map(fd_from_evaluation, init_evaluations)
+    return list(map(fd_from_evaluation, init_evaluations))
 
 def get_problem(init_evaluations, goal_expression, domain, use_metric=False):
     objects = objects_from_evaluations(init_evaluations)

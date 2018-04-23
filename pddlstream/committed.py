@@ -1,6 +1,6 @@
 import time
 
-from focused import reset_disabled, process_stream_plan
+from pddlstream.focused import reset_disabled, process_stream_plan
 from pddlstream.algorithm import parse_problem, process_stream_queue
 from pddlstream.conversion import revert_solution
 from pddlstream.instantiation import Instantiator

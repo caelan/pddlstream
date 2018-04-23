@@ -45,7 +45,7 @@ def get_problem1(n_blocks=2, n_poses=5):
 
 def main():
     problem = get_problem1()
-    solution = solve_exhaustive(problem)
+    solution = solve_exhaustive(problem, verbose=True, debug=False)
     #solution = solve_incremental(problem)
     print_solution(solution)
 

@@ -1,3 +1,26 @@
+def brainstorm():
+    #print(DOMAIN_PDDL)
+    #print(PROBLEM_PDDL)
+    #print(parse_lisp(DOMAIN_PDDL.encode('latin-1')))
+    #print(parse_lisp(DOMAIN_PDDL.encode('ISO-8859-1')))
+    #print(parse_lisp(PROBLEM_PDDL))
+    #print(parse_domain(DOMAIN_PDDL))
+    #print(parse_domain(parse_lisp(DOMAIN_PDDL)))
+    #return
+
+    domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
+    print(parse_domain(domain_path))
+
+    task = translate_paths(domain_path, problem_path) # TODO: might need to make these wrt temp
+    print(task.objects)
+    task.dump()
+    #print(task.__dict__)
+    #return
+    import sys
+    # TODO: could even directly convert and mutate the task
+    return
+
+
 """
 # regex = r'(\(\w+(?:\s\w+)*\))'
 # print(re.findall(regex, solution))
