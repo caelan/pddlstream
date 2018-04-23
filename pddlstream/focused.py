@@ -5,8 +5,8 @@ from pddlstream.algorithm import parse_problem, solve_finite, print_output_value
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
 from pddlstream.stream_scheduling import relaxed_stream_plan
-from pddlstream.relaxed_scheduling import sequential_stream_plan
-from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
+from pddlstream.simultaneous_scheduling import sequential_stream_plan
+from pddlstream.relaxed_scheduling import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time, clear_dir
 from pddlstream.object import Object
 from pddlstream.visualization import visualize_stream_plan

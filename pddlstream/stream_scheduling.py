@@ -7,7 +7,7 @@ from pddlstream.conversion import obj_from_pddl_plan, is_atom, evaluation_from_f
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, get_init
 from pddlstream.fast_downward import instantiate_task, run_search, safe_rm_dir, parse_solution, \
     pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT
-from pddlstream.simultaneous_scheduling import fact_from_fd
+from pddlstream.relaxed_scheduling import fact_from_fd
 from pddlstream.utils import Verbose, find
 from pddlstream.visualization import visualize_constraints, visualize_stream_plan
 
