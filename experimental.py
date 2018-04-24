@@ -1,3 +1,39 @@
+# Two components here:
+# - Axioms
+# - Negative Axioms
+# - Negative bounds on axioms
+#
+# Precondition kept if in fluent_facts
+# Dropped if in init_facts (static facts)
+# Error if not in init_facts (not possible from binding)
+
+"""
+ with Verbose(True):
+     model = build_model.compute_model(pddl_to_prolog.translate(task)) # Need to instantiate as normal
+     #fluent_facts = instantiate.get_fluent_facts(task, model)
+     #init_facts = set(task.init)
+     real_init = get_init(evaluations)
+     opt_facts = set(task.init) - set(real_init)
+     task.init = real_init
+     fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+     print(fluent_facts)
+
+     init_facts = set(real_init) # Shouldn't matter
+
+ axiom_model = filter(lambda a: isinstance(a.predicate, pddl.Axiom), model)
+ print(len(axiom_model)) # 6 x 10 x 10
+ instantiated_axioms = instantiate_axioms(axiom_model, fluent_facts, init_facts)
+ print(len(instantiated_axioms), instantiated_axioms[:3])
+
+ axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+     ground_task.actions, instantiated_axioms, ground_task.goal_list)
+
+ # TODO: can even build once, instantiate in each state, and then invert
+
+ print(len(axioms), axioms[:3])
+ # TODO: can instantiate in each state without axioms as well (multiple small model builds)
+ """
+
 def brainstorm():
     #print(DOMAIN_PDDL)
     #print(PROBLEM_PDDL)
