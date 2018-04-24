@@ -88,6 +88,8 @@ def instantiate_axioms(model, init_facts, fluent_facts):
             # TODO: can do a custom instantiation to preserve conditions
             if inst_axiom:
                 instantiated_axioms.append(inst_axiom)
+            # TODO: try catch for if precondition not included
+            # TODO: capture how derived could be fluent
     return instantiated_axioms
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
@@ -130,9 +132,9 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
 
     #print(task.init)
     #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
-    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(opt_evaluations, task)
+    #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(opt_evaluations, task)
     #task.init = get_init(evaluations)
-    print(task.init)
+    #print(task.init)
     # TODO: need to add cfree to limit the number of actions
 
     # Precondition kept if in fluent_facts
@@ -144,44 +146,47 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
     import pddl
     import axiom_rules
     import instantiate
-    instantiated_axioms = []
-    num_atoms = 0
+
+    """
     with Verbose(True):
         model = build_model.compute_model(pddl_to_prolog.translate(task)) # Need to instantiate as normal
         #fluent_facts = instantiate.get_fluent_facts(task, model)
         #init_facts = set(task.init)
         real_init = get_init(evaluations)
         opt_facts = set(task.init) - set(real_init)
+        task.init = real_init
         fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
-        #init_facts = real_init # Shouldn't matter
+        print(fluent_facts)
+
+        init_facts = set(real_init) # Shouldn't matter
 
 
     axiom_model = filter(lambda a: isinstance(a.predicate, pddl.Axiom), model)
     print(len(axiom_model)) # 6 x 10 x 10
     instantiated_axioms = instantiate_axioms(axiom_model, fluent_facts, init_facts)
+    print(len(instantiated_axioms), instantiated_axioms[:3])
+
 
     axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
         ground_task.actions, instantiated_axioms, ground_task.goal_list)
 
     # TODO: can even build once, instantiate in each state, and then invert
 
-    print(len(instantiated_axioms), instantiated_axioms[:3])
     print(len(axioms), axioms[:3])
     # TODO: can instantiate in each state without axioms as well (multiple small model builds)
-    raw_input('awefawef')
-
-    """    
-    print(plan_cost(action_plan))
-    state = set(task.init)
-    axiom_plan = []
-    # TODO: remove conditional effects
-    for action in action_plan:
-        axiom_plan.append([])
-        assert(is_applicable(state, action))
-        apply_action(state, action)
-        print(state)
     """
 
+    real_init = get_init(evaluations)
+    opt_facts = set(task.init) - set(real_init)
+    with Verbose(False):
+        model = build_model.compute_model(pddl_to_prolog.translate(task))
+        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+    init_facts = set(real_init)
+    function_assignments = {fact.fluent: fact.expression for fact in init_facts
+                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+
+    #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
 
     fd_plan = []
     for pair in action_plan:
@@ -194,16 +199,43 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **
                                          task.use_min_cost_metric, function_assignments))
 
 
+    task.actions = [] # Results in more axioms? I guess a reasonable number aren't reachable
     state = set(task.init)
-    for action in fd_plan:
-        apply_action(state, action)
+    for i in range(len(fd_plan)+1):
+        task.init = state # TODO: there are actually fewer fluents
+        model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
+        axiom_model = filter(lambda a: isinstance(a.predicate, pddl.Axiom), model)
+        print(instantiate.get_fluent_facts(task, model))
+        fluent_facts = instantiate.get_fluent_facts(task, model) | opt_facts
+        init_facts = set(task.init)
+        instantiated_axioms = instantiate_axioms(axiom_model, init_facts, fluent_facts)
 
+        actions = [fd_plan[i]] if i != len(fd_plan) else []
+        goal_list = ground_task.goal_list if i == len(fd_plan) else []
+        print(actions)
+        print(goal_list)
+        # TODO: maybe this is correct?
+
+        # TODO: just pass the next action/goal?
+        axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+            actions, instantiated_axioms, goal_list)
+        print(len(model), len(axiom_model), len(instantiated_axioms), len(axioms))
+        print(instantiated_axioms[:3])
+        print(axioms[:3])
+        # 50 axioms to interact with
+
+        if i != len(fd_plan):
+            fd_plan[i].dump()
+            apply_action(state, fd_plan[i])
+    # TODO: handle the goal state
+
+    raw_input('Continue?')
 
 
     preimage = set(ground_task.goal_list)
     for action in reversed(fd_plan):
         action_preimage(action, preimage)
-    preimage -= init_facts
+    preimage -= set(real_init)
     preimage = filter(lambda l: not l.negated, preimage)
     # TODO: need to include all conditions
     # TODO: need to invert axioms back

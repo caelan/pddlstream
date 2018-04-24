@@ -20,6 +20,17 @@ def brainstorm():
     # TODO: could even directly convert and mutate the task
     return
 
+"""    
+print(plan_cost(action_plan))
+state = set(task.init)
+axiom_plan = []
+# TODO: remove conditional effects
+for action in action_plan:
+    axiom_plan.append([])
+    assert(is_applicable(state, action))
+    apply_action(state, action)
+    print(state)
+"""
 
 """
 # regex = r'(\(\w+(?:\s\w+)*\))'
