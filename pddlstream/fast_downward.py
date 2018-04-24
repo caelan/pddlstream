@@ -160,8 +160,7 @@ def translate_paths(domain_path, problem_path):
 
 def translate_task(task, temp_dir):
     if False:
-        ground_task = instantiate_task(task)
-        sas_task = pddl_to_sas(ground_task)
+        sas_task = pddl_to_sas(instantiate_task(task))
     else:
         normalize.normalize(task)
         sas_task = translate.pddl_to_sas(task)
@@ -272,7 +271,7 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
 GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params', 'original_axioms',
                                        'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
 
-def instantiate_task(task):
+def instantiate_task(task, simplify_axioms=False):
     # TODO: map parameters to actions and then select which list of atomic supports it
     normalize.normalize(task)
     relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
@@ -280,8 +279,10 @@ def instantiate_task(task):
        return None
     goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
     # TODO: this removes the axioms for some reason
-    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
-    #axiom_init, axiom_layer_dict = [], {}
+    if simplify_axioms:
+        axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
+    else:
+        axioms, axiom_init, axiom_layer_dict = [], [], {}
     return GroundTask(task, atoms, actions, reachable_action_params, original_axioms,
                       axioms, axiom_init, axiom_layer_dict, goal_list)
 

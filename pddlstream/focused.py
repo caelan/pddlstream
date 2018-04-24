@@ -72,7 +72,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
         unexplored_stream_instances += stream_instances[max_values:]
         for stream_instance in stream_instances[:max_values]:
             disable_stream_instance(stream_instance, disabled)
-            output_values_list = stream_instance.next_outputs()
+            output_values_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
             if verbose:
                 print_output_values_list(stream_instance, output_values_list)
             if not output_values_list:
