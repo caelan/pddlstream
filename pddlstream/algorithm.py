@@ -23,13 +23,14 @@ def parse_problem(problem):
 
 
 def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs):
-    problem = get_problem(evaluations, goal_expression, domain, unit_costs=unit_costs)
+    problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
-def process_stream_queue(instantiator, evaluations, optimistic=False, verbose=True):
-    stream_instance = instantiator.stream_queue.popleft()
+def process_stream_queue(instantiator, evaluations, prioritized, optimistic=False, verbose=True):
+    stream_instance = instantiator.prioritized_stream_queue.popleft() \
+        if prioritized else instantiator.stream_queue.popleft()
     output_values_list = list(stream_instance.next_outputs() if not optimistic else
                               stream_instance.next_optimistic())
     if verbose:
@@ -44,7 +45,7 @@ def process_stream_queue(instantiator, evaluations, optimistic=False, verbose=Tr
             if evaluations is not None:
                 evaluations.add(evaluation)
     if not optimistic and not stream_instance.enumerated:
-        instantiator.stream_queue.append(stream_instance)
+        instantiator.queue_stream_instance(stream_instance)
     return stream_results
 
 

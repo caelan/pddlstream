@@ -132,9 +132,10 @@ class Stream(object):
         self.domain = tuple(domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        #self.opt_fn = get_unique_fn(self)
-        self.opt_fn = get_shared_fn(self)
+        self.opt_fn = get_unique_fn(self)
+        #self.opt_fn = get_shared_fn(self)
         self.instances = {}
+        self.prioritized = False
     def get_instance(self, input_values):
         input_values = tuple(input_values)
         if input_values not in self.instances:
@@ -150,11 +151,17 @@ class Stream(object):
 #class Head(StreamInstance):
 class FunctionInstance(StreamInstance):
     def next_outputs(self):
+        # TODO: store the value?
         assert not self.enumerated
         self.enumerated = True
         # TODO: check output and assert only one?
         value = self.stream.gen_fn(*self.get_input_values())
         #return [value]
+        return [(value,)]
+    def next_optimistic(self):
+        if self.enumerated or self.disabled:
+            return []
+        value = 0
         return [(value,)]
     def dump_output_list(self, output_list):
         #[value] = output_list
@@ -212,7 +219,6 @@ def parse_stream_pddl(stream_pddl, stream_map):
             if name not in stream_map:
                 raise ValueError('Undefined external function: {}'.format(name))
             streams.append(Function(head, stream_map[name], domain))
-            print(streams[-1])
             #streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
             #                      Equal(head, 1)))
             # TODO: this must be eager in the case of incremental

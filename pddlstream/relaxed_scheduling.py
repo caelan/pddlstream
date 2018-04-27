@@ -130,10 +130,11 @@ def instantiate_axioms(model, init_facts, fluent_facts):
                 instantiated_axioms.append(inst_axiom)
     return instantiated_axioms
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
+    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
+    task = task_from_domain_problem(domain, problem)
     #task = clone_task(task)
 
     with Verbose(False):

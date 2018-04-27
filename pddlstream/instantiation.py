@@ -26,11 +26,12 @@ class Instantiator(object): # Dynamic Stream Instsantiator
         self.streams = streams
         self.stream_instances = set()
         self.stream_queue = deque()
+        self.prioritized_stream_queue = deque()
         self.atoms = set()
         self.atoms_from_domain = defaultdict(list)
         for stream in self.streams:
             if not stream.inputs:
-                self._add_instance(stream.get_instance(tuple()))
+                self._add_instance(stream, tuple())
         for atom in evaluations:
             self.add_atom(atom)
 
@@ -43,11 +44,18 @@ class Instantiator(object): # Dynamic Stream Instsantiator
     #        # TODO: remove from set?
     #        yield stream_instance
 
-    def _add_instance(self, stream_instance):
+    def queue_stream_instance(self, stream_instance):
+        if stream_instance.stream.prioritized:
+            self.prioritized_stream_queue.append(stream_instance)
+        else:
+            self.stream_queue.append(stream_instance)
+
+    def _add_instance(self, stream, input_objects):
+        stream_instance = stream.get_instance(input_objects)
         if stream_instance in self.stream_instances:
             return False
         self.stream_instances.add(stream_instance)
-        self.stream_queue.append(stream_instance)
+        self.queue_stream_instance(stream_instance)
         return True
 
     def add_atom(self, atom):
@@ -75,6 +83,6 @@ class Instantiator(object): # Dynamic Stream Instsantiator
                     if mapping is None:
                         continue
                     input_objects = tuple(mapping[p] for p in stream.inputs)
-                    self._add_instance(stream.get_instance(input_objects))
+                    self._add_instance(stream, input_objects)
         return True
 

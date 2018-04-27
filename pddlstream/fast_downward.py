@@ -118,7 +118,7 @@ def fd_from_evaluation(evaluation):
 def get_init(init_evaluations):
     return list(map(fd_from_evaluation, init_evaluations))
 
-def get_problem(init_evaluations, goal_expression, domain, unit_costs=True):
+def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     objects = objects_from_evaluations(init_evaluations)
     typed_objects = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects]
     init = get_init(init_evaluations)
@@ -161,6 +161,7 @@ def translate_paths(domain_path, problem_path):
 def translate_task(task, temp_dir):
     #sas_task = pddl_to_sas(instantiate_task(task))
     normalize.normalize(task)
+    #sas_task = translate.pddl_to_sas(task)
     try:
         sas_task = translate.pddl_to_sas(task)
     except AssertionError:

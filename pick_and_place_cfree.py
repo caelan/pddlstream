@@ -54,7 +54,7 @@ DOMAIN_PDDL = """
                        (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
     :effect (and (AtPose ?b ?p) (HandEmpty)
                  (not (Holding ?b))
-                 (increase (total-cost) 4))
+                 (increase (total-cost) 2))
   )
   (:derived (Unsafe ?p1) 
     (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
@@ -205,10 +205,10 @@ def main():
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=True)
-    #solution = solve_focused(pddlstream_problem, visualize=False)
-    #solution = solve_committed(pddlstream_problem)
+    #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    #solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

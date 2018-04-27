@@ -2,7 +2,7 @@ from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF
-
+from pddlstream.stream import Function
 
 def fd_from_fact(evaluation):
     import pddl
@@ -47,6 +47,8 @@ def get_stream_actions(stream_results):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(stream_results):
+        if isinstance(stream_result.stream_instance.stream, Function):
+            continue
         name = '{}-{}'.format(stream_result.stream_instance.stream.name, i)
         stream_action = get_stream_action(stream_result, name)
         if stream_action is None:

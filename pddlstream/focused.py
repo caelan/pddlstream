@@ -25,13 +25,14 @@ def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results,
         return stream_results, []
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     if plan is None:
-        return None, plan
+        return None, plan, cost
     return [], plan
 
 def incremental_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    # TODO: need to apply all function evaluations
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     if plan is not None:
-        return [], plan
+        return [], plan, cost
     if stream_results:
         return stream_results, plan
     return None, plan
@@ -111,12 +112,12 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
         instantiator = Instantiator(evaluations, streams)
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            stream_results += process_stream_queue(instantiator, None,
+            stream_results += process_stream_queue(instantiator, None, prioritized=False,
                                                    optimistic=True, verbose=False)
-        # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan
+        # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = relaxed_stream_plan
-        stream_plan, action_plan = solve_stream_plan(evaluations, goal_expression,
+        solve_stream_plan = sequential_stream_plan
+        stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
@@ -124,8 +125,8 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
             if not disabled:
                 break
             reset_disabled(disabled)
-        elif len(stream_plan) == 0:
-            best_plan = action_plan
+        elif (len(stream_plan) == 0) and (cost < best_cost):
+            best_plan = action_plan; best_cost = cost
             break
         else:
             if visualize:
