@@ -118,14 +118,14 @@ def fd_from_evaluation(evaluation):
 def get_init(init_evaluations):
     return list(map(fd_from_evaluation, init_evaluations))
 
-def get_problem(init_evaluations, goal_expression, domain, use_metric=False):
+def get_problem(init_evaluations, goal_expression, domain, unit_costs=True):
     objects = objects_from_evaluations(init_evaluations)
     typed_objects = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects]
     init = get_init(init_evaluations)
     goal = parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
-            task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=use_metric)
+                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
 
 
 def task_from_domain_problem(domain, problem):
@@ -159,11 +159,12 @@ def translate_paths(domain_path, problem_path):
     return task
 
 def translate_task(task, temp_dir):
-    if False:
-        sas_task = pddl_to_sas(instantiate_task(task))
-    else:
-        normalize.normalize(task)
+    #sas_task = pddl_to_sas(instantiate_task(task))
+    normalize.normalize(task)
+    try:
         sas_task = translate.pddl_to_sas(task)
+    except AssertionError:
+        raise AssertionError('A function is not defined for some grounding of an action')
     translate.dump_statistics(sas_task)
     clear_dir(temp_dir)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:

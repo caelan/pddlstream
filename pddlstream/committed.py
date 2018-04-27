@@ -31,8 +31,7 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
             stream_results += process_stream_queue(instantiator, None,
-                                                   StreamInstance.next_optimistic,
-                                                   revisit=False, verbose=False)
+                                                   optimistic=True, verbose=False)
 
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         stream_plan, action_plan = solve_stream_plan(evaluations, goal_expression,

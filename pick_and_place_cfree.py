@@ -12,6 +12,7 @@ from pddlstream.stream import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
+import math
 
 DOMAIN_PDDL = """
 (define (domain pick-and-place)
@@ -28,27 +29,32 @@ DOMAIN_PDDL = """
     (CFree ?p1 ?p2)
     (Unsafe ?p)
   )
+  (:functions
+    (Distance ?q1 ?q2)
+  )
   (:action move
     :parameters (?q1 ?q2)
     :precondition (and (Conf ?q1) (Conf ?q2) 
                        (AtConf ?q1))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1))
-             (increase (total-cost) 1))
+             (increase (total-cost) (Distance ?q1 ?q2)))
   )
   (:action pick
     :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p)
                        (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
     :effect (and (Holding ?b)
-                 (not (AtPose ?b ?p)) (not (HandEmpty)))
+                 (not (AtPose ?b ?p)) (not (HandEmpty)) 
+                 (increase (total-cost) 1))
   )
   (:action place
     :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p) 
                        (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
     :effect (and (AtPose ?b ?p) (HandEmpty)
-                 (not (Holding ?b)))
+                 (not (Holding ?b))
+                 (increase (total-cost) 4))
   )
   (:derived (Unsafe ?p1) 
     (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
@@ -57,6 +63,7 @@ DOMAIN_PDDL = """
 )
 """
 
+# Can infer domain from usage or from specification
 STREAM_PDDL = """
 (define (stream pick-and-place)
   (:rule 
@@ -68,6 +75,10 @@ STREAM_PDDL = """
     :parameters (?p1 ?p2)
     :domain (AtPose ?b ?p)
     :certified (and (Block ?b) (Pose ?p))
+  )
+
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
   )
 
   (:stream sample-pose
@@ -116,11 +127,13 @@ def pddlstream_from_tamp(tamp_problem):
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
 
+    # TODO: convert to lower case
     stream_map = {
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
         'collision-free': from_test(lambda p1, p2: 1e-1 < np.linalg.norm(p2-p1)),
+        'distance': lambda q1, q2: int(math.ceil(np.linalg.norm(q2 - q1))),
     }
     constant_map = {}
 
@@ -192,9 +205,9 @@ def main():
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_exhaustive(pddlstream_problem)
-    #solution = solve_incremental(pddlstream_problem)
-    solution = solve_focused(pddlstream_problem, visualize=False)
+    solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+    #solution = solve_incremental(pddlstream_problem, unit_costs=True)
+    #solution = solve_focused(pddlstream_problem, visualize=False)
     #solution = solve_committed(pddlstream_problem)
     print_solution(solution)
     plan, cost, evaluations = solution

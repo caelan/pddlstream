@@ -22,24 +22,19 @@ def parse_problem(problem):
     return evaluations, goal_expression, domain, streams
 
 
-def solve_finite(evaluations, goal_expression, domain, **kwargs):
-    problem = get_problem(evaluations, goal_expression, domain)
+def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs):
+    problem = get_problem(evaluations, goal_expression, domain, unit_costs=unit_costs)
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
-
-def print_output_values_list(stream_instance, output_objects_list):
-    print('{}:{}->[{}]'.format(stream_instance.stream.name,
-                               str_from_tuple(values_from_objects(stream_instance.input_objects)),
-                               ', '.join(map(str_from_tuple, map(values_from_objects, output_objects_list)))))
-
-
-def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True, verbose=True):
+def process_stream_queue(instantiator, evaluations, optimistic=False, verbose=True):
     stream_instance = instantiator.stream_queue.popleft()
-    output_values_list = list(next_values_fn(stream_instance))
+    output_values_list = list(stream_instance.next_outputs() if not optimistic else
+                              stream_instance.next_optimistic())
     if verbose:
-        print_output_values_list(stream_instance, output_values_list)
+        # TODO: move verbose into next_values_fn?
+        stream_instance.dump_output_list(output_values_list)
     stream_results = []
     for output_values in output_values_list:
         stream_results.append(StreamResult(stream_instance, output_values))
@@ -48,7 +43,7 @@ def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True
             instantiator.add_atom(evaluation)
             if evaluations is not None:
                 evaluations.add(evaluation)
-    if revisit and not stream_instance.enumerated:
+    if not optimistic and not stream_instance.enumerated:
         instantiator.stream_queue.append(stream_instance)
     return stream_results
 

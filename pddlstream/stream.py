@@ -1,4 +1,5 @@
-from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, substitute_expression
+from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
+    substitute_expression, is_head, get_prefix, get_args, Equal, values_from_objects
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
@@ -67,25 +68,22 @@ def get_unique_fn(stream):
         return [output_values]
     return fn
 
-class Stream(object):
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
-        self.name = name
-        self.gen_fn = gen_fn
-        self.inputs = tuple(inputs)
-        self.domain = tuple(domain)
-        self.outputs = tuple(outputs)
-        self.certified = tuple(certified)
-        #self.opt_fn = get_unique_fn(self)
-        self.opt_fn = get_shared_fn(self)
-        self.instances = {}
-    def get_instance(self, input_values):
-        input_values = tuple(input_values)
-        if input_values not in self.instances:
-            self.instances[input_values] = StreamInstance(self, input_values)
-        return self.instances[input_values]
-    def __repr__(self):
-        return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+##################################################
 
+class StreamResult(object):
+    def __init__(self, stream_instance, output_objects):
+        self.stream_instance = stream_instance
+        self.output_objects = output_objects
+    def get_mapping(self):
+        return dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
+                    list(zip(self.stream_instance.stream.outputs, self.output_objects)))
+    def get_certified(self):
+        return substitute_expression(self.stream_instance.stream.certified,
+                                     self.get_mapping())
+    def __repr__(self):
+        return '{}:{}->{}'.format(self.stream_instance.stream.name,
+                                  str_from_tuple(self.stream_instance.input_objects),
+                                  str_from_tuple(self.output_objects))
 
 class StreamInstance(object):
     def __init__(self, stream, input_values):
@@ -95,7 +93,7 @@ class StreamInstance(object):
         self.enumerated = False
         self.disabled = False
     def get_input_values(self):
-        return tuple(iv.value for iv in self.input_objects)
+        return values_from_objects(self.input_objects)
     def get_mapping(self):
         return dict(zip(self.stream.inputs, self.input_objects))
     def get_domain(self):
@@ -120,21 +118,62 @@ class StreamInstance(object):
         return list(map(opt_from_values, output_values_list))
     def __repr__(self):
         return '{}:{}->{}'.format(self.stream.name, self.input_objects, self.stream.outputs)
+    def dump_output_list(self, output_list):
+        print('{}:{}->[{}]'.format(self.stream.name, str_from_tuple(self.get_input_values()),
+                                   ', '.join(map(str_from_tuple, map(values_from_objects, output_list)))))
 
-class StreamResult(object):
-    def __init__(self, stream_instance, output_objects):
-        self.stream_instance = stream_instance
-        self.output_objects = output_objects
-    def get_mapping(self):
-        return dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
-                    list(zip(self.stream_instance.stream.outputs, self.output_objects)))
-    def get_certified(self):
-        return substitute_expression(self.stream_instance.stream.certified,
-                                     self.get_mapping())
+class Stream(object):
+    _InstanceClass = StreamInstance
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
+        # Each stream could certify a stream-specific fact as well
+        self.name = name
+        self.gen_fn = gen_fn
+        self.inputs = tuple(inputs)
+        self.domain = tuple(domain)
+        self.outputs = tuple(outputs)
+        self.certified = tuple(certified)
+        #self.opt_fn = get_unique_fn(self)
+        self.opt_fn = get_shared_fn(self)
+        self.instances = {}
+    def get_instance(self, input_values):
+        input_values = tuple(input_values)
+        if input_values not in self.instances:
+            self.instances[input_values] = self._InstanceClass(self, input_values)
+        return self.instances[input_values]
     def __repr__(self):
-        return '{}:{}->{}'.format(self.stream_instance.stream.name,
-                                  str_from_tuple(self.stream_instance.input_objects),
-                                  str_from_tuple(self.output_objects))
+        return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+
+##################################################
+
+# Key distinction is that this value isn't treated as an object
+
+#class Head(StreamInstance):
+class FunctionInstance(StreamInstance):
+    def next_outputs(self):
+        assert not self.enumerated
+        self.enumerated = True
+        # TODO: check output and assert only one?
+        value = self.stream.gen_fn(*self.get_input_values())
+        #return [value]
+        return [(value,)]
+    def dump_output_list(self, output_list):
+        #[value] = output_list
+        [(value,)] = output_list
+        print('{}:{}->{}'.format(self.stream.name, str_from_tuple(self.get_input_values()), value))
+
+# TODO: have this extend Stream?
+#class Function(Stream):
+class Function(Stream):
+    _InstanceClass = FunctionInstance
+    def __init__(self, head, fn, domain):
+        name = get_prefix(head)
+        inputs = get_args(head)
+        outputs = ('?x',)
+        certified = [Equal(head, '?x')]
+        super(Function, self).__init__(name, fn, inputs, domain, outputs, certified)
+        #self.fn = fn
+    def __repr__(self):
+        return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 
 ##################################################
 
@@ -160,8 +199,24 @@ def parse_stream_pddl(stream_pddl, stream_map):
                          tuple(inputs), list_from_conjunction(domain),
                          tuple(outputs), list_from_conjunction(certified)))
         elif stream[0] == ':rule':
+            pass
             # TODO: implement rules
             # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
+        elif stream[0] == ':function':
+            assert(len(stream) == 3)
+            head = tuple(stream[1])
+            assert(is_head(head))
+            #inputs = get_args(head)
+            domain = list_from_conjunction(stream[2])
+            name = get_prefix(head)
+            if name not in stream_map:
+                raise ValueError('Undefined external function: {}'.format(name))
+            streams.append(Function(head, stream_map[name], domain))
+            print(streams[-1])
+            #streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
+            #                      Equal(head, 1)))
+            # TODO: this must be eager in the case of incremental
+        elif stream[0] == ':predicate': # Cannot just use args if want a bound
             pass
         else:
             raise ValueError(stream[0])

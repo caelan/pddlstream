@@ -1,7 +1,7 @@
 import time
 
 from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
-from pddlstream.algorithm import parse_problem, solve_finite, print_output_values_list, process_stream_queue, \
+from pddlstream.algorithm import parse_problem, solve_finite, process_stream_queue, \
     get_optimistic_constraints
 from pddlstream.instantiation import Instantiator
 from pddlstream.stream import StreamInstance, StreamResult
@@ -74,7 +74,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
             disable_stream_instance(stream_instance, disabled)
             output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
             if verbose:
-                print_output_values_list(stream_instance, output_objects_list)
+                stream_instance.dump_output_list(output_objects_list)
             if not output_objects_list:
                 failure = True
                 if quick_fail:
@@ -112,8 +112,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
             stream_results += process_stream_queue(instantiator, None,
-                                                   StreamInstance.next_optimistic,
-                                                   revisit=False, verbose=False)
+                                                   optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan
         #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         solve_stream_plan = relaxed_stream_plan
