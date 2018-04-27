@@ -1,4 +1,4 @@
-import collections
+from collections import Hashable, namedtuple
 
 USE_HASH = True
 
@@ -16,7 +16,7 @@ class Object(object):
         self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self
         Object._obj_from_name[self.name] = self
-        if isinstance(value, collections.Hashable):
+        if isinstance(value, Hashable):
             Object._obj_from_value[self.value] = self
     @property
     def pddl(self):
@@ -29,8 +29,13 @@ class Object(object):
             return Object(value)
         return Object._obj_from_id[id(value)]
     @staticmethod
+    def has_value(value):
+        if USE_HASH and not isinstance(value, Hashable):
+            return id(value) in Object._obj_from_id
+        return value in Object._obj_from_value
+    @staticmethod
     def from_value(value):
-        if USE_HASH and not isinstance(value, collections.Hashable):
+        if USE_HASH and not isinstance(value, Hashable):
             return Object.from_id(value)
         if value not in Object._obj_from_value:
             return Object(value)
@@ -49,26 +54,46 @@ class Object(object):
         #return repr(self.value)
         return self.pddl
 
+
+# TOOD: can also do named tuples
+class SharedObject(object):
+    def __init__(self, stream, output_index):
+        self.stream = stream
+        self.output_index = output_index
+
+class PartialObject(object):
+    pass
+
+class UniqueObject(namedtuple('UO', ['stream_instance', 'output_index'])):
+    @property
+    def parameter(self):
+        return self.stream_instance.stream.outputs[self.output_index]
+    def __repr__(self):
+        return '#{}{}'.format(self.parameter[1:], self.output_index)
+
 class OptimisticObject(object):
     _prefix = '#' # $ % #
     _obj_from_inputs = {}
     _obj_from_name= {}
-    def __init__(self, inputs):
-        stream_instance, output_index = inputs
+    def __init__(self, value):
+        # TODO: store first created instance
+        self.value = value
+        stream_instance, output_index = value
         self.stream_instance = stream_instance
         self.output_index = output_index
         self.index = len(OptimisticObject._obj_from_inputs)
-        self.name = '{}{}{}'.format(self._prefix, self.parameter[1:], self.index)
-        OptimisticObject._obj_from_inputs[inputs] = self
+        #self.name = '{}{}{}'.format(self._prefix, self.parameter[1:], self.index)
+        self.name = '{}{}'.format(self._prefix, self.index)
+        OptimisticObject._obj_from_inputs[value] = self
         OptimisticObject._obj_from_name[self.name] = self
     @property
     def parameter(self):
         return self.stream_instance.stream.outputs[self.output_index]
     @staticmethod
-    def from_inputs(*inputs):
-        if inputs not in OptimisticObject._obj_from_inputs:
-            return OptimisticObject(inputs)
-        return OptimisticObject._obj_from_inputs[inputs]
+    def from_opt(opt):
+        if opt not in OptimisticObject._obj_from_inputs:
+            return OptimisticObject(opt)
+        return OptimisticObject._obj_from_inputs[opt]
     @staticmethod
     def from_name(name):
         return OptimisticObject._obj_from_name[name]
@@ -80,3 +105,6 @@ class OptimisticObject(object):
     def __repr__(self):
         #return repr(self.value)
         return self.pddl
+
+# TODO: just one object class or have Optimistic extend Object
+# TODO: make a parameter class that has access to some underlying value

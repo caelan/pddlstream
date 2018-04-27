@@ -74,7 +74,7 @@ class Instantiator(object): # Dynamic Stream Instsantiator
                     mapping = get_mapping(stream.domain, combo)
                     if mapping is None:
                         continue
-                    input_values = tuple(mapping[p] for p in stream.inputs)
-                    self._add_instance(stream.get_instance(input_values))
+                    input_objects = tuple(mapping[p] for p in stream.inputs)
+                    self._add_instance(stream.get_instance(input_objects))
         return True
 

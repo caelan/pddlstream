@@ -51,10 +51,10 @@ def reset_disabled(disabled):
 
 def ground_stream_instances(stream_instance, bindings, evaluations):
     # TODO: combination for domain predicates
-    input_values = [[i] if isinstance(i, Object) else bindings[i]
-                    for i in stream_instance.input_values]
-    for combo in product(*input_values):
-        mapping = dict(zip(stream_instance.input_values, combo))
+    input_objects = [[i] if isinstance(i, Object) else bindings[i]
+                    for i in stream_instance.input_objects]
+    for combo in product(*input_objects):
+        mapping = dict(zip(stream_instance.input_objects, combo))
         domain = set(map(evaluation_from_fact, substitute_expression(
             stream_instance.get_domain(), mapping)))
         if domain <= evaluations:
@@ -72,16 +72,16 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
         unexplored_stream_instances += stream_instances[max_values:]
         for stream_instance in stream_instances[:max_values]:
             disable_stream_instance(stream_instance, disabled)
-            output_values_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
+            output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
             if verbose:
-                print_output_values_list(stream_instance, output_values_list)
-            if not output_values_list:
+                print_output_values_list(stream_instance, output_objects_list)
+            if not output_objects_list:
                 failure = True
                 if quick_fail:
                     break
-            for output_values in output_values_list:
-                stream_result = StreamResult(stream_instance, output_values)
-                for opt, val in zip(opt_stream_result.output_values, stream_result.output_values):
+            for output_objects in output_objects_list:
+                stream_result = StreamResult(stream_instance, output_objects)
+                for opt, val in zip(opt_stream_result.output_objects, stream_result.output_objects):
                     opt_bindings[opt].append(val)
                 for fact in stream_result.get_certified():
                     evaluation = evaluation_from_fact(fact)

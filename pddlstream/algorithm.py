@@ -29,10 +29,10 @@ def solve_finite(evaluations, goal_expression, domain, **kwargs):
     return obj_from_pddl_plan(plan_pddl), cost
 
 
-def print_output_values_list(stream_instance, output_values_list):
+def print_output_values_list(stream_instance, output_objects_list):
     print('{}:{}->[{}]'.format(stream_instance.stream.name,
-                               str_from_tuple(values_from_objects(stream_instance.input_values)),
-                               ', '.join(map(str_from_tuple, map(values_from_objects, output_values_list)))))
+                               str_from_tuple(values_from_objects(stream_instance.input_objects)),
+                               ', '.join(map(str_from_tuple, map(values_from_objects, output_objects_list)))))
 
 
 def process_stream_queue(instantiator, evaluations, next_values_fn, revisit=True, verbose=True):

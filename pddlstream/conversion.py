@@ -40,6 +40,9 @@ def Equal(expression1, expression2):
 def objects_from_values(values):
     return tuple(map(Object.from_value, values))
 
+def opt_from_values(values):
+    return tuple(map(OptimisticObject.from_opt, values))
+
 def get_prefix(expression):
     return expression[0]
 
