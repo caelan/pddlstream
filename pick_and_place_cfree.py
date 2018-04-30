@@ -8,7 +8,7 @@ from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_fn, from_test
+from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
@@ -118,6 +118,14 @@ STREAM_PDDL = """
 )
 """
 
+class IKGenerator(Generator):
+    def __init__(self, *inputs):
+        super(IKGenerator, self).__init__()
+        self.p, = inputs
+    def generate(self, context=None):
+        self.enumerated = True
+        return [(self.p + GRASP,)]
+
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
@@ -156,7 +164,8 @@ def pddlstream_from_tamp(tamp_problem):
     stream_map = {
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
-        'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
+        #'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
+        'inverse-kinematics': IKGenerator,
         'collision-free': from_test(lambda *args: not collision_test(*args)),
         'collision': collision_test,
         #'constraint-solver': None,
@@ -234,9 +243,9 @@ def main():
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+    solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
     #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    #solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
     #solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution

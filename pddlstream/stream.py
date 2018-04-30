@@ -2,19 +2,23 @@ from pddlstream.conversion import list_from_conjunction, objects_from_values, op
     substitute_expression, is_head, get_prefix, get_args, Equal, values_from_objects
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.object import Object, OptimisticObject
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_tuple, INF
 
 
 def from_list_gen_fn(list_gen_fn):
     return list_gen_fn
+    #return lambda *args: ListGenerator(list_gen_fn(*args))
 
 
 def from_gen_fn(gen_fn):
-    return lambda *args: ([output_values] for output_values in gen_fn(*args))
+    #return lambda *args: ([output_values] for output_values in gen_fn(*args))
+    list_gen_fn = lambda *args: ([output_values] for output_values in gen_fn(*args))
+    return from_list_gen_fn(list_gen_fn)
 
 
 def from_list_fn(list_fn):
-    return lambda *args: iter([list_fn(*args)])
+    #return lambda *args: iter([list_fn(*args)])
+    return lambda *args: ListGenerator(iter([list_fn(*args)]), max_calls=1)
 
 
 def from_fn(fn):
@@ -99,17 +103,22 @@ class StreamInstance(object):
         return dict(zip(self.stream.inputs, self.input_objects))
     def get_domain(self):
         return substitute_expression(self.stream.domain, self.get_mapping())
-    def next_outputs(self):
+    def next_outputs(self, context=None):
         assert not self.enumerated
         if self._generator is None:
             self._generator = self.stream.gen_fn(*self.get_input_values())
-        try:
-            new_outputs = list(map(objects_from_values, next(self._generator)))
-        except StopIteration:
-            self.enumerated = True
-            new_outputs = []
-        self.output_history.append(new_outputs)
-        return new_outputs
+        if isinstance(self._generator, Generator):
+            new_values = self._generator.generate(context=context)
+            self.enumerated = self._generator.enumerated
+        else:
+            try:
+                new_values = next(self._generator)
+            except StopIteration:
+                new_values = []
+                self.enumerated = True
+        new_objects = list(map(objects_from_values, new_values))
+        self.output_history.append(new_objects)
+        return new_objects
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -261,23 +270,36 @@ def parse_stream_pddl(stream_pddl, stream_map):
             raise ValueError(stream[0])
     return streams
 
+##################################################
+
 class Generator(object):
-    # TODO: could also do one that doesn't have state
-    # TODO: could make a function that returns a generator as well
-    def __init__(self, *inputs):
-        self.inputs = tuple(inputs)
-        self.calls = 0
+    # TODO: I could also include this in a
+    #def __init__(self, *inputs):
+    #    self.inputs = tuple(inputs)
+    def __init__(self):
         self.enumerated = False
     #def __iter__(self):
     #def __call__(self, *args, **kwargs):
     def generate(self, context=None):
-        # TODO: could replace with current values for things
         raise NotImplementedError()
-        #raise StopIteration()
-        # TODO: count calls and max_calls?
-        if self.stream.max_calls <= self.calls:
-           self.enumerated = True
 
-# TODO: could even parse a stream like an action to some degree
-# TODO: constant map?
-# TODO: should each be a list or a string
+class ListGenerator(Generator):
+    # TODO: could also pass gen_fn(*inputs)
+    # TODO: can test whether is instance for context
+    def __init__(self, generator, max_calls=INF):
+        super(ListGenerator, self).__init__()
+        #super(ListGeneratorFn, self).__init__(*inputs)
+        #self.generator = gen_fn(*inputs)
+        self.generator = generator
+        self.max_calls = max_calls
+        self.calls = 0
+        self.enumerated = (self.calls < self.max_calls)
+    def generate(self, context=None):
+        self.calls += 1
+        if self.max_calls <= self.calls:
+            self.enumerated = True
+        try:
+            return next(self.generator)
+        except StopIteration:
+            self.enumerated = True
+        return []
