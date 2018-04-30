@@ -75,6 +75,7 @@ def add_stream_actions(domain, stream_results):
 
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
+    # TODO: can't make stream_actions for functions
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
     combined_plan, combined_cost = solve_finite(evaluations, goal_expression, new_domain, **kwargs)
     if combined_plan is None:

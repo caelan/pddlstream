@@ -5,7 +5,8 @@ from heapq import heappush, heappop
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, evaluation_from_fact, fact_from_evaluation
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, parse_solution, \
     pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
-from pddlstream.sequential_scheduling import real_from_optimistic, evaluations_from_stream_plan
+from pddlstream.sequential_scheduling import real_from_optimistic, evaluations_from_stream_plan, \
+    extract_function_results, get_results_from_head
 from pddlstream.simultaneous_scheduling import fact_from_fd
 from pddlstream.utils import Verbose
 
@@ -25,15 +26,15 @@ def axiom_preimage(axiom, preimage):
     preimage.remove(axiom.effect)
     preimage.update(axiom.condition)
 
-def clone_task(task, init=None, actions=None):
-    import pddl
-    if init is None:
-        init = task.init
-    if actions is None:
-        actions = task.actions
-    return pddl.Task(
-        task.domain_name, task.task_name, task.requirements, task.types, task.objects,
-        task.predicates, task.functions, init, task.goal, actions, task.axioms, task.use_min_cost_metric)
+# def clone_task(task, init=None, actions=None):
+#     import pddl
+#     if init is None:
+#         init = task.init
+#     if actions is None:
+#         actions = task.actions
+#     return pddl.Task(
+#         task.domain_name, task.task_name, task.requirements, task.types, task.objects,
+#         task.predicates, task.functions, init, task.goal, actions, task.axioms, task.use_min_cost_metric)
 
 Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
 
@@ -145,9 +146,9 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
             sas_task.output(output_file)
     solution = run_search(TEMP_DIR, verbose=False, **kwargs)
     safe_rm_dir(TEMP_DIR)
-    action_plan, _ = parse_solution(solution)
+    action_plan, action_cost = parse_solution(solution)
     if action_plan is None:
-        return None, action_plan
+        return None, action_plan, action_cost
 
     action_from_parameters = defaultdict(list) # Could also obtain from below
     for action in ground_task.reachable_action_params:
@@ -167,20 +168,23 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
         model = build_model.compute_model(pddl_to_prolog.translate(task))
         fluent_facts = instantiate.get_fluent_facts(task, model) | (set(task.init) - set(real_init))
     init_facts = set(real_init)
-    function_assignments = {fact.fluent: fact.expression for fact in init_facts
+    function_assignments = {fact.fluent: fact.expression for fact in task.init # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+    results_from_head = get_results_from_head(opt_evaluations)
 
     fd_plan = []
+    function_plan = []
     for pair in action_plan:
         candidates = action_from_parameters[pair]
         assert(len(candidates) == 1)
-        action, parameters = candidates[0]
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, parameters)}
+        action, args = candidates[0]
+        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         fd_plan.append(action.instantiate(variable_mapping, init_facts,
                                          fluent_facts, type_to_objects,
                                          task.use_min_cost_metric, function_assignments))
+        function_plan += extract_function_results(results_from_head, action, args)
 
     task.actions = []
     opt_state = set(task.init)
@@ -231,4 +235,4 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     stream_plan = []
     extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
 
-    return stream_plan, obj_from_pddl_plan(action_plan)
+    return (stream_plan + function_plan), obj_from_pddl_plan(action_plan), action_cost

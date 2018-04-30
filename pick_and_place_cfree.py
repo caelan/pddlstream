@@ -54,7 +54,7 @@ DOMAIN_PDDL = """
                        (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
     :effect (and (AtPose ?b ?p) (HandEmpty)
                  (not (Holding ?b))
-                 (increase (total-cost) 2))
+                 (increase (total-cost) 1))
   )
   (:derived (Unsafe ?p1) 
     (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
@@ -127,13 +127,20 @@ def pddlstream_from_tamp(tamp_problem):
     domain_pddl = DOMAIN_PDDL
     stream_pddl = STREAM_PDDL
 
+    def collision_test(p1, p2):
+        return  np.linalg.norm(p2-p1) <= 1e-1
+
+    def distance_fn(q1, q2):
+        ord = 1 # 1 | 2
+        return int(math.ceil(np.linalg.norm(q2 - q1, ord=ord)))
+
     # TODO: convert to lower case
     stream_map = {
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
-        'collision-free': from_test(lambda p1, p2: 1e-1 < np.linalg.norm(p2-p1)),
-        'distance': lambda q1, q2: int(math.ceil(np.linalg.norm(q2 - q1))),
+        'collision-free': from_test(lambda *args: not collision_test(*args)),
+        'distance': distance_fn,
     }
     constant_map = {}
 

@@ -4,7 +4,7 @@ from pddlstream.conversion import evaluation_from_fact, revert_solution, substit
 from pddlstream.algorithm import parse_problem, solve_finite, process_stream_queue, \
     get_optimistic_constraints
 from pddlstream.instantiation import Instantiator
-from pddlstream.stream import StreamInstance, StreamResult
+from pddlstream.stream import StreamInstance, StreamResult, Function
 from pddlstream.relaxed_scheduling import relaxed_stream_plan
 from pddlstream.sequential_scheduling import sequential_stream_plan
 from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
@@ -22,20 +22,28 @@ ITERATION_TEMPLATE = 'iteration_{}.pdf'
 
 def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
     if stream_results:
-        return stream_results, []
+        return stream_results, None, INF
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     if plan is None:
         return None, plan, cost
-    return [], plan
+    return [], plan, cost
 
 def incremental_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    # TODO: need to apply all function evaluations
+    stream_plan = []
+    for opt_stream_result in stream_results:
+        instance = opt_stream_result.stream_instance
+        domain_evals = set(map(evaluation_from_fact, instance.get_domain()))
+        if isinstance(instance.stream, Function) and (domain_evals <= evaluations):
+            for stream_result in query_stream(instance, False):
+                evaluations.update(map(evaluation_from_fact, stream_result.get_certified()))
+        else:
+            stream_plan.append(opt_stream_result)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     if plan is not None:
         return [], plan, cost
-    if stream_results:
-        return stream_results, plan
-    return None, plan
+    if stream_plan:
+        return stream_plan, plan, cost
+    return None, plan, cost
 
 ##################################################
 
@@ -61,6 +69,12 @@ def ground_stream_instances(stream_instance, bindings, evaluations):
         if domain <= evaluations:
             yield stream_instance.stream.get_instance(combo)
 
+def query_stream(stream_instance, verbose):
+    output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
+    if verbose:
+        stream_instance.dump_output_list(output_objects_list)
+    return [StreamResult(stream_instance, output_objects) for output_objects in output_objects_list]
+
 def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True, max_values=1):
     # TODO: return instance for the committed algorithm
     new_evaluations = []
@@ -73,21 +87,18 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
         unexplored_stream_instances += stream_instances[max_values:]
         for stream_instance in stream_instances[:max_values]:
             disable_stream_instance(stream_instance, disabled)
-            output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
-            if verbose:
-                stream_instance.dump_output_list(output_objects_list)
-            if not output_objects_list:
-                failure = True
-                if quick_fail:
-                    break
-            for output_objects in output_objects_list:
-                stream_result = StreamResult(stream_instance, output_objects)
+            stream_results = query_stream(stream_instance, verbose)
+            for stream_result in stream_results:
                 for opt, val in zip(opt_stream_result.output_objects, stream_result.output_objects):
                     opt_bindings[opt].append(val)
                 for fact in stream_result.get_certified():
                     evaluation = evaluation_from_fact(fact)
                     evaluations.add(evaluation) # To be used on next iteration
                     new_evaluations.append(evaluation)
+            if not stream_results:
+                failure = True
+                if quick_fail:
+                    break
     # TODO: return unexplored_stream_instances
     # TODO: retrace successful argument path upon success
     return new_evaluations
@@ -116,7 +127,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
                                                    optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = sequential_stream_plan
+        solve_stream_plan = incremental_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'
