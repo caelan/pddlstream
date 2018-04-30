@@ -1,8 +1,12 @@
+from collections import defaultdict
+
 from pddlstream.conversion import evaluation_from_fact, obj_from_pddl, obj_from_pddl_plan, Head
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, solve_from_task, get_init, TOTAL_COST
-from pddlstream.simultaneous_scheduling import get_stream_actions
+from pddlstream.scheduling.simultaneous import get_stream_actions
 from pddlstream.utils import Verbose, find
-from collections import defaultdict
+
+# TODO: interpolate between all the scheduling options
+
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
     opt_evaluations = {e: None for e in evaluations}

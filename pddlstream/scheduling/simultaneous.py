@@ -2,7 +2,7 @@ from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF
-from pddlstream.stream import Function
+from pddlstream.stream import Function, Stream
 
 def fd_from_fact(evaluation):
     import pddl
@@ -47,7 +47,7 @@ def get_stream_actions(stream_results):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(stream_results):
-        if isinstance(stream_result.stream_instance.stream, Function):
+        if type(stream_result.stream_instance.stream) != Stream:
             continue
         name = '{}-{}'.format(stream_result.stream_instance.stream.name, i)
         stream_action = get_stream_action(stream_result, name)
@@ -63,7 +63,7 @@ def add_stream_actions(domain, stream_results):
     stream_actions, stream_result_from_name = get_stream_actions(stream_results)
     output_objects = []
     for stream_result in stream_result_from_name.values():
-        output_objects += stream_result.output_values
+        output_objects += stream_result.output_objects
     new_constants = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in set(output_objects)]
     # to_untyped_strips
     # free_variables
@@ -75,11 +75,11 @@ def add_stream_actions(domain, stream_results):
 
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    # TODO: can't make stream_actions for functions
+    # TODO: can't make stream_actions for functions. Apply functions then retrace
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
     combined_plan, combined_cost = solve_finite(evaluations, goal_expression, new_domain, **kwargs)
     if combined_plan is None:
-        return None, None
+        return None, None, combined_cost # TODO: return plan cost
     stream_plan = []
     action_plan = []
     for name, args in combined_plan:
@@ -87,4 +87,4 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append((name, args))
-    return stream_plan, action_plan
+    return stream_plan, action_plan, combined_cost

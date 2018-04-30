@@ -2,12 +2,14 @@ import os
 from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
-from pddlstream.conversion import obj_from_pddl_plan, is_atom, evaluation_from_fact, fact_from_evaluation
-from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, parse_solution, \
-    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
-from pddlstream.sequential_scheduling import real_from_optimistic, evaluations_from_stream_plan, \
+from pddlstream.sequential_scheduling import evaluations_from_stream_plan, \
     extract_function_results, get_results_from_head
-from pddlstream.simultaneous_scheduling import fact_from_fd
+
+from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation
+from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
+    parse_solution, \
+    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
+from pddlstream.scheduling.simultaneous import fact_from_fd
 from pddlstream.utils import Verbose
 
 

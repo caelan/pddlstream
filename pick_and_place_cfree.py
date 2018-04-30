@@ -27,6 +27,7 @@ DOMAIN_PDDL = """
     (Holding ?b)
     (HandEmpty)
     (CFree ?p1 ?p2)
+    (Collision ?p1 ?p2)
     (Unsafe ?p)
   )
   (:functions
@@ -59,8 +60,19 @@ DOMAIN_PDDL = """
   (:derived (Unsafe ?p1) 
     (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
                             (AtPose ?b ?p2)))
-  )                   
+  )               
 )
+"""
+
+"""
+  (:derived (Unsafe ?p1) 
+    (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (Collision ?p1 ?p2)
+                            (AtPose ?b ?p2)))
+  )           
+  (:derived (Unsafe ?p1) 
+    (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
+                            (AtPose ?b ?p2)))
+  )        
 """
 
 # Can infer domain from usage or from specification
@@ -79,6 +91,9 @@ STREAM_PDDL = """
 
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
+  )
+  (:predicate (Collision ?p1 ?p2)
+    (and (Pose ?p1) (Pose ?p2))
   )
 
   (:stream sample-pose
@@ -140,6 +155,8 @@ def pddlstream_from_tamp(tamp_problem):
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
+        'collision': collision_test,
+        #'constraint-solver': None,
         'distance': distance_fn,
     }
     constant_map = {}

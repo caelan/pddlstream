@@ -1,49 +1,22 @@
+import os
 import time
-
-from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
-from pddlstream.algorithm import parse_problem, solve_finite, process_stream_queue, \
-    get_optimistic_constraints
-from pddlstream.instantiation import Instantiator
-from pddlstream.stream import StreamInstance, StreamResult, Function
-from pddlstream.relaxed_scheduling import relaxed_stream_plan
-from pddlstream.sequential_scheduling import sequential_stream_plan
-from pddlstream.simultaneous_scheduling import simultaneous_stream_plan
-from pddlstream.utils import INF, elapsed_time, clear_dir
-from pddlstream.object import Object
-from pddlstream.visualization import visualize_stream_plan, visualize_stream_plan_bipartite, \
-    visualize_constraints
 from collections import defaultdict
 from itertools import product
-import os
+
+from pddlstream.algorithm import parse_problem, process_stream_queue, \
+    get_optimistic_constraints
+from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
+from pddlstream.instantiation import Instantiator
+from pddlstream.object import Object
+from pddlstream.scheduling.sequential import sequential_stream_plan
+from pddlstream.stream import StreamResult
+from pddlstream.utils import INF, elapsed_time, clear_dir
+from pddlstream.visualization import visualize_stream_plan_bipartite, \
+    visualize_constraints
 
 CONSTRAINT_NETWORK_DIR = 'constraint_networks/'
 STREAM_PLAN_DIR = 'stream_plans/'
 ITERATION_TEMPLATE = 'iteration_{}.pdf'
-
-def exhaustive_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    if stream_results:
-        return stream_results, None, INF
-    plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
-    if plan is None:
-        return None, plan, cost
-    return [], plan, cost
-
-def incremental_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    stream_plan = []
-    for opt_stream_result in stream_results:
-        instance = opt_stream_result.stream_instance
-        domain_evals = set(map(evaluation_from_fact, instance.get_domain()))
-        if isinstance(instance.stream, Function) and (domain_evals <= evaluations):
-            for stream_result in query_stream(instance, False):
-                evaluations.update(map(evaluation_from_fact, stream_result.get_certified()))
-        else:
-            stream_plan.append(opt_stream_result)
-    plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
-    if plan is not None:
-        return [], plan, cost
-    if stream_plan:
-        return stream_plan, plan, cost
-    return None, plan, cost
 
 ##################################################
 
@@ -127,7 +100,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
                                                    optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = incremental_stream_plan
+        solve_stream_plan = sequential_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'

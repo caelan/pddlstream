@@ -92,6 +92,7 @@ class StreamInstance(object):
         self._generator = None
         self.enumerated = False
         self.disabled = False
+        self.output_history = []
     def get_input_values(self):
         return values_from_objects(self.input_objects)
     def get_mapping(self):
@@ -103,10 +104,12 @@ class StreamInstance(object):
         if self._generator is None:
             self._generator = self.stream.gen_fn(*self.get_input_values())
         try:
-            return list(map(objects_from_values, next(self._generator)))
+            new_outputs = list(map(objects_from_values, next(self._generator)))
         except StopIteration:
             self.enumerated = True
-        return []
+            new_outputs = []
+        self.output_history.append(new_outputs)
+        return new_outputs
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -146,41 +149,65 @@ class Stream(object):
 
 ##################################################
 
-# Key distinction is that this value isn't treated as an object
-
-#class Head(StreamInstance):
-class FunctionInstance(StreamInstance):
+class FunctionInstance(StreamInstance): # Head(StreamInstance):
+    _opt_value = 0
     def next_outputs(self):
-        # TODO: store the value?
         assert not self.enumerated
         self.enumerated = True
         # TODO: check output and assert only one?
-        value = self.stream.gen_fn(*self.get_input_values())
+        self.value = self.stream.gen_fn(*self.get_input_values())
         #return [value]
-        return [(value,)]
+        return [(self.value,)]
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        value = 0
-        return [(value,)]
+        return [(self._opt_value,)]
     def dump_output_list(self, output_list):
         #[value] = output_list
         [(value,)] = output_list
         print('{}:{}->{}'.format(self.stream.name, str_from_tuple(self.get_input_values()), value))
 
-# TODO: have this extend Stream?
-#class Function(Stream):
 class Function(Stream):
+    """
+    The key difference from a stream is that the outputs aren't treated as objects
+    We also do not make the closed world assumption
+    """
     _InstanceClass = FunctionInstance
     def __init__(self, head, fn, domain):
         name = get_prefix(head)
         inputs = get_args(head)
-        outputs = ('?x',)
-        certified = [Equal(head, '?x')]
+        outputs = ('?r',)
+        certified = [Equal(head, '?r')]
         super(Function, self).__init__(name, fn, inputs, domain, outputs, certified)
-        #self.fn = fn
     def __repr__(self):
-        return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+        return '{}:{}->R'.format(self.name, self.inputs)
+
+##################################################
+
+class PredicateInstance(StreamInstance):
+    _opt_value = True
+    def next_outputs(self):
+        assert not self.enumerated
+        self.enumerated = True
+        self.value = self.stream.gen_fn(*self.get_input_values())
+        assert(self.value in (True, False))
+        return [(self.value,)]
+    def next_optimistic(self):
+        if self.enumerated or self.disabled:
+            return []
+        return [(self._opt_value,)]
+    def dump_output_list(self, output_list):
+        [(value,)] = output_list
+        print('{}:{}->{}'.format(self.stream.name, str_from_tuple(self.get_input_values()), value))
+
+class Predicate(Stream):
+    _InstanceClass = PredicateInstance
+    def __init__(self, literal, fn, domain):
+        name = get_prefix(literal)
+        inputs = get_args(literal)
+        super(Predicate, self).__init__(name, fn, inputs, domain, [], [literal])
+    def __repr__(self):
+        return '{}:{}->{T,F}'.format(self.name, self.inputs)
 
 ##################################################
 
@@ -223,7 +250,13 @@ def parse_stream_pddl(stream_pddl, stream_map):
             #                      Equal(head, 1)))
             # TODO: this must be eager in the case of incremental
         elif stream[0] == ':predicate': # Cannot just use args if want a bound
-            pass
+            assert(len(stream) == 3)
+            head = tuple(stream[1])
+            assert(is_head(head))
+            name = get_prefix(head)
+            if name not in stream_map:
+                raise ValueError('Undefined external function: {}'.format(name))
+            streams.append(Predicate(head, stream_map[name], list_from_conjunction(stream[2])))
         else:
             raise ValueError(stream[0])
     return streams
