@@ -9,6 +9,7 @@ from pddlstream.conversion import evaluation_from_fact, revert_solution, substit
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.scheduling.sequential import sequential_stream_plan
+from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time, clear_dir
 from pddlstream.visualization import visualize_stream_plan_bipartite, \
@@ -74,6 +75,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
                     break
     # TODO: return unexplored_stream_instances
     # TODO: retrace successful argument path upon success
+    # TODO: identify subset of the initial state that support the plan
     return new_evaluations
 
 ##################################################
@@ -99,8 +101,8 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
             stream_results += process_stream_queue(instantiator, None, prioritized=False,
                                                    optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
-        #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = sequential_stream_plan
+        solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
+        #solve_stream_plan = sequential_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'

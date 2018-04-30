@@ -8,11 +8,13 @@ class Object(object):
     _obj_from_value = {}
     #_obj_from_index = []
     _obj_from_name = {}
-    def __init__(self, value, stream_instance=None):
+    def __init__(self, value, stream_instance=None, name=None):
         # TODO: unique vs hash
         self.value = value
         self.index = len(Object._obj_from_name)
-        self.name = '{}{}'.format(self._prefix, self.index)
+        if name is None:
+            name = '{}{}'.format(self._prefix, self.index)
+        self.name = name
         self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self
         Object._obj_from_name[self.name] = self

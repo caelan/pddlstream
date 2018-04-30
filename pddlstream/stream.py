@@ -261,22 +261,22 @@ def parse_stream_pddl(stream_pddl, stream_map):
             raise ValueError(stream[0])
     return streams
 
-# class Generator(object):
-#     # TODO: could also do one that doesn't have state
-#     # TODO: could make a function that returns a generator as well
-#     def __init__(self, *inputs):
-#         self.inputs = tuple(inputs)
-#         self.calls = 0
-#         self.enumerated = False
-#     #def __iter__(self):
-#     #def __call__(self, *args, **kwargs):
-#     def generate(self, context=None):
-#         # TODO: could replace with current values for things
-#         raise NotImplementedError()
-#         #raise StopIteration()
-#     # TODO: count calls and max_calls?
-# if self.stream.max_calls <= self.calls:
-#    self.enumerated = True
+class Generator(object):
+    # TODO: could also do one that doesn't have state
+    # TODO: could make a function that returns a generator as well
+    def __init__(self, *inputs):
+        self.inputs = tuple(inputs)
+        self.calls = 0
+        self.enumerated = False
+    #def __iter__(self):
+    #def __call__(self, *args, **kwargs):
+    def generate(self, context=None):
+        # TODO: could replace with current values for things
+        raise NotImplementedError()
+        #raise StopIteration()
+        # TODO: count calls and max_calls?
+        if self.stream.max_calls <= self.calls:
+           self.enumerated = True
 
 # TODO: could even parse a stream like an action to some degree
 # TODO: constant map?

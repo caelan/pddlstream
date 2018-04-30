@@ -17,6 +17,7 @@ import math
 DOMAIN_PDDL = """
 (define (domain pick-and-place)
   (:requirements :strips :equality)
+  (:constants q100)
   (:predicates 
     (Conf ?q)
     (Block ?b)
@@ -124,7 +125,9 @@ def pddlstream_from_tamp(tamp_problem):
     known_poses = list(initial.block_poses.values()) + \
                   list(tamp_problem.goal_poses.values())
 
-    #objects = []
+    objects = [
+        np.array([200, 200]),
+    ]
     init = [
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
@@ -159,9 +162,11 @@ def pddlstream_from_tamp(tamp_problem):
         #'constraint-solver': None,
         'distance': distance_fn,
     }
-    constant_map = {}
+    constant_map = {
+        'q100': np.array([100, 100])
+    }
 
-    return init, goal, domain_pddl, stream_pddl, stream_map, constant_map
+    return domain_pddl, constant_map, stream_pddl, stream_map, objects, init, goal
 
 
 DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_poses'])

@@ -1,5 +1,6 @@
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     values_from_objects, evaluation_from_fact, fact_from_evaluation
+from pddlstream.object import Object
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task, instantiate_task
 from pddlstream.stream import parse_stream_pddl, StreamResult
@@ -7,17 +8,26 @@ from pddlstream.utils import str_from_tuple
 
 
 def parse_problem(problem):
-    init, goal, domain_pddl, stream_pddl, stream_map, constant_map = problem
+    domain_pddl, constant_map, stream_pddl, stream_map, objects, init, goal = problem
     evaluations = set(evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
-    if domain.constants:
-        raise NotImplementedError('Constants are not currently supported')
-    if constant_map:
-        raise NotImplementedError('A constant map is not currently supported')
-    # TODO: instantiate to rename here
+    #if domain.constants:
+    #    raise NotImplementedError('Constants are not currently supported')
+    #if constant_map:
+    #    raise NotImplementedError('A constant map is not currently supported')
+    for constant in domain.constants:
+        if constant.name.startswith(Object._prefix):
+            # TODO: remap names
+            raise NotImplementedError('Constants are not currently allowed to begin with {}'.format(Object._prefix))
+        if constant.name not in constant_map:
+            raise ValueError('Undefined constant {}'.format(constant.name))
+        obj = Object(constant_map[constant.name], name=constant.name)
+    for value in objects:
+        # TODO: add object predicate
+        obj = Object.from_value(value)
     streams = parse_stream_pddl(stream_pddl, stream_map)
     return evaluations, goal_expression, domain, streams
 
