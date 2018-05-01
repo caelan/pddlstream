@@ -2,9 +2,8 @@ import os
 from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
-from pddlstream.sequential_scheduling import evaluations_from_stream_plan, \
+from pddlstream.scheduling.sequential import evaluations_from_stream_plan, \
     extract_function_results, get_results_from_head
-
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
     parse_solution, \
@@ -47,7 +46,7 @@ def get_achieving_streams(evaluations, stream_results, op=sum):
     conditions_from_stream = {}
     remaining_from_stream = {}
     for stream_result in stream_results:
-        conditions_from_stream[stream_result] = stream_result.stream_instance.get_domain() + (None,)
+        conditions_from_stream[stream_result] = stream_result.instance.get_domain() + (None,)
         remaining_from_stream[stream_result] = len(conditions_from_stream[stream_result])
         for atom in conditions_from_stream[stream_result]:
             unprocessed_from_atom[atom].append(stream_result)
@@ -79,7 +78,7 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         stream_result = node_from_atom[fact].stream_result
         if (stream_result is None) or (stream_result in stream_plan):
             continue
-        extract_stream_plan(node_from_atom, stream_result.stream_instance.get_domain(), stream_plan)
+        extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
 def get_achieving_axioms(state, axioms):
@@ -177,7 +176,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     results_from_head = get_results_from_head(opt_evaluations)
 
     fd_plan = []
-    function_plan = []
+    function_plan = set()
     for pair in action_plan:
         candidates = action_from_parameters[pair]
         assert(len(candidates) == 1)
@@ -186,7 +185,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
         fd_plan.append(action.instantiate(variable_mapping, init_facts,
                                          fluent_facts, type_to_objects,
                                          task.use_min_cost_metric, function_assignments))
-        function_plan += extract_function_results(results_from_head, action, args)
+        if not unit_costs:
+            function_plan.update(extract_function_results(results_from_head, action, args))
 
     task.actions = []
     opt_state = set(task.init)
@@ -237,4 +237,4 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     stream_plan = []
     extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
 
-    return (stream_plan + function_plan), obj_from_pddl_plan(action_plan), action_cost
+    return (stream_plan + list(function_plan)), obj_from_pddl_plan(action_plan), action_cost

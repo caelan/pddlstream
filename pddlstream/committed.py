@@ -2,7 +2,7 @@ import time
 
 from pddlstream.scheduling.sequential import sequential_stream_plan
 
-from pddlstream.algorithm import parse_problem, process_stream_queue2
+from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
 from pddlstream.conversion import revert_solution
 from pddlstream.focused import reset_disabled, process_stream_plan, process_immediate_stream_plan
 from pddlstream.instantiation import Instantiator
@@ -12,7 +12,7 @@ from pddlstream.utils import INF, elapsed_time
 
 # TODO: display a plan skeleton as a constraint graph
 
-def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **kwargs):
+def solve_committed(problem, max_time=INF, effort_weight=None, verbose=True, **kwargs):
     # TODO: constrain plan skeleton
     # TODO: constrain ususable samples
     # TODO: recursively consider previously exposed binding levels
@@ -27,13 +27,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=False, **
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
-        print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+        print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            stream_results += process_stream_queue2(instantiator, None, prioritized=False,
-                                                   optimistic=True, verbose=False)
-
+            stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)

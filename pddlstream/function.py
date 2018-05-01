@@ -66,10 +66,10 @@ class FunctionInstance(Instance): # Head(Instance):
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
         return [self.external._Result(self, self.value)]
-    #def next_optimistic(self):
-    #    if self.enumerated or self.disabled:
-    #        return []
-    #    return [(self._opt_value,)]
+    def next_optimistic(self):
+       if self.enumerated or self.disabled:
+           return []
+       return [self.external._Result(self, self._opt_value)]
     def __repr__(self):
         #return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
         return '{}=?'.format(str_from_head(self.get_head()), self.external._codomain.__name__)
@@ -100,6 +100,7 @@ class PredicateResult(FunctionResult):
 
 
 class PredicateInstance(FunctionInstance):
+    _opt_value = True
     # assert(self.value in (True, False))
     pass
 

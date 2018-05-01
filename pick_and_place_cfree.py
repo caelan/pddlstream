@@ -8,7 +8,7 @@ from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_fn, from_test, FactGenerator, Generator
+from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
@@ -30,6 +30,7 @@ DOMAIN_PDDL = """
     (CFree ?p1 ?p2)
     (Collision ?p1 ?p2)
     (Unsafe ?p)
+    (CanMove)
   )
   (:functions
     (Distance ?q1 ?q2)
@@ -37,16 +38,16 @@ DOMAIN_PDDL = """
   (:action move
     :parameters (?q1 ?q2)
     :precondition (and (Conf ?q1) (Conf ?q2) 
-                       (AtConf ?q1))
+                       (AtConf ?q1) (CanMove))
     :effect (and (AtConf ?q2)
-                 (not (AtConf ?q1))
+                 (not (AtConf ?q1)) (not (CanMove))
              (increase (total-cost) (Distance ?q1 ?q2)))
   )
   (:action pick
     :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p)
                        (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
-    :effect (and (Holding ?b)
+    :effect (and (Holding ?b) (CanMove)
                  (not (AtPose ?b ?p)) (not (HandEmpty)) 
                  (increase (total-cost) 1))
   )
@@ -54,7 +55,7 @@ DOMAIN_PDDL = """
     :parameters (?b ?p ?q)
     :precondition (and (Block ?b) (Kin ?q ?p) 
                        (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
-    :effect (and (AtPose ?b ?p) (HandEmpty)
+    :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
                  (not (Holding ?b))
                  (increase (total-cost) 1))
   )
@@ -126,15 +127,15 @@ class IKGenerator(Generator):
         self.enumerated = True
         return [(self.p + GRASP,)]
 
-class IKFactGenerator(FactGenerator):
-    def __init__(self, *inputs):
-        super(IKFactGenerator, self).__init__()
-        self.p, = inputs
-    def generate(self, context=None):
-        self.enumerated = True
-        q = self.p + GRASP
-        # TODO: include a formula instead?
-        return [('conf', q), ('kin', q, self.p)]
+# class IKFactGenerator(FactGenerator):
+#     def __init__(self, *inputs):
+#         super(IKFactGenerator, self).__init__()
+#         self.p, = inputs
+#     def generate(self, context=None):
+#         self.enumerated = True
+#         q = self.p + GRASP
+#         # TODO: include a formula instead?
+#         return [('conf', q), ('kin', q, self.p)]
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -150,6 +151,7 @@ def pddlstream_from_tamp(tamp_problem):
 
     init = [
         #Type(q100, 'conf'),
+        ('CanMove',),
         ('Conf', q100),
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
@@ -253,8 +255,8 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
-    solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    #solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
     #solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution

@@ -6,6 +6,40 @@ from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF
 
 
+class Generator(object):
+    # TODO: I could also include this in a
+    #def __init__(self, *inputs):
+    #    self.inputs = tuple(inputs)
+    def __init__(self):
+        self.enumerated = False
+    #def __iter__(self):
+    #def __call__(self, *args, **kwargs):
+    def generate(self, context=None):
+        raise NotImplementedError()
+
+class ListGenerator(Generator):
+    # TODO: could also pass gen_fn(*inputs)
+    # TODO: can test whether is instance for context
+    def __init__(self, generator, max_calls=INF):
+        super(ListGenerator, self).__init__()
+        #super(ListGeneratorFn, self).__init__(*inputs)
+        #self.generator = gen_fn(*inputs)
+        self.generator = generator
+        self.max_calls = max_calls
+        self.calls = 0
+        self.enumerated = (self.calls < self.max_calls)
+    def generate(self, context=None):
+        self.calls += 1
+        if self.max_calls <= self.calls:
+            self.enumerated = True
+        try:
+            return next(self.generator)
+        except StopIteration:
+            self.enumerated = True
+        return []
+
+##################################################
+
 def from_list_gen_fn(list_gen_fn):
     return list_gen_fn
     #return lambda *args: ListGenerator(list_gen_fn(*args))
@@ -16,6 +50,7 @@ def from_gen_fn(gen_fn):
     list_gen_fn = lambda *args: ([output_values] for output_values in gen_fn(*args))
     return from_list_gen_fn(list_gen_fn)
 
+##################################################
 
 def from_list_fn(list_fn):
     #return lambda *args: iter([list_fn(*args)])
@@ -25,9 +60,7 @@ def from_list_fn(list_fn):
 def from_fn(fn):
     def list_fn(*args):
         outputs = fn(*args)
-        if outputs is None:
-            return []
-        return [outputs]
+        return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
 
@@ -35,7 +68,7 @@ def from_test(test):
     return from_fn(lambda *args: tuple() if test(*args) else None)
 
 def from_rule():
-    return True
+    return from_test(lambda *args: True)
 
 ##################################################
 
@@ -75,20 +108,6 @@ def get_unique_fn(stream):
 
 ##################################################
 
-# class WildResult(object):
-#     def __init__(self, stream_instance, output_objects):
-#         self.stream_instance = stream_instance
-#         #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
-#         #            list(zip(self.stream_instance.stream.outputs, output_objects)))
-#         #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
-#     def get_certified(self):
-#         #return self.certified
-#     def __repr__(self):
-#         #return '{}:{}->{}'.format(self.stream_instance.stream.name,
-#         #                          str_from_tuple(self.stream_instance.input_objects),
-#         #                          list(self.certified))
-
-
 class StreamResult(object):
     def __init__(self, instance, output_objects):
         self.instance = instance
@@ -102,20 +121,6 @@ class StreamResult(object):
         return '{}:{}->{}'.format(self.instance.external.name,
                                   str_from_tuple(self.instance.input_objects),
                                   str_from_tuple(self.output_objects))
-
-# def next_certified(self, **kwargs):
-#     if self._generator is None:
-#         self._generator = self.stream.gen_fn(*self.get_input_values())
-#     new_certified = []
-#     if isinstance(self._generator, FactGenerator):
-#         new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
-#         self.enumerated = self._generator.enumerated
-#     else:
-#         for output_objects in self.next_outputs(**kwargs):
-#             mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
-#                            list(zip(self.stream.outputs, output_objects)))
-#             new_certified += substitute_expression(self.stream.certified, mapping)
-#     return new_certified
 
 class StreamInstance(Instance):
     def __init__(self, stream, input_objects):
@@ -139,21 +144,20 @@ class StreamInstance(Instance):
         if verbose:
             print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, new_values))))
-        return [StreamResult(self, objects_from_values(output_values)) for output_values in new_values]
+        return [self.external._Result(self, objects_from_values(output_values)) for output_values in new_values]
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
-        output_values_list = self.stream.opt_fn(*self.get_input_values())
         # TODO: how do I distinguish between real not real verifications of things?
-        #output_values_list = [tuple((self, i) for i in range(len(self.stream.outputs)))]
-        #output_objects = tuple(map(OptimisticObject.from_opt, output_values))
-        return list(map(opt_from_values, output_values_list))
+        new_optimistic = self.external.opt_fn(*self.get_input_values())
+        return [self.external._Result(self, opt_from_values(output_opt)) for output_opt in new_optimistic]
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
 class Stream(External):
     _Instance = StreamInstance
+    _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
         super(Stream, self).__init__(inputs, domain)
         # Each stream could certify a stream-specific fact as well
@@ -164,6 +168,37 @@ class Stream(External):
         self.opt_fn = get_unique_fn(self) # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+
+##################################################
+
+# TODO: WildStream, FactStream
+
+# class WildResult(object):
+#     def __init__(self, stream_instance, output_objects):
+#         self.stream_instance = stream_instance
+#         #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
+#         #            list(zip(self.stream_instance.stream.outputs, output_objects)))
+#         #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
+#     def get_certified(self):
+#         #return self.certified
+#     def __repr__(self):
+#         #return '{}:{}->{}'.format(self.stream_instance.stream.name,
+#         #                          str_from_tuple(self.stream_instance.input_objects),
+#         #                          list(self.certified))
+#
+# def next_certified(self, **kwargs):
+#     if self._generator is None:
+#         self._generator = self.stream.gen_fn(*self.get_input_values())
+#     new_certified = []
+#     if isinstance(self._generator, FactGenerator):
+#         new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
+#         self.enumerated = self._generator.enumerated
+#     else:
+#         for output_objects in self.next_outputs(**kwargs):
+#             mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
+#                            list(zip(self.stream.outputs, output_objects)))
+#             new_certified += substitute_expression(self.stream.certified, mapping)
+#     return new_certified
 
 ##################################################
 
@@ -217,49 +252,3 @@ def parse_stream_pddl(stream_pddl, stream_map):
         else:
             raise ValueError(stream[0])
     return streams
-
-##################################################
-
-class Generator(object):
-    # TODO: I could also include this in a
-    #def __init__(self, *inputs):
-    #    self.inputs = tuple(inputs)
-    def __init__(self):
-        self.enumerated = False
-    #def __iter__(self):
-    #def __call__(self, *args, **kwargs):
-    def generate(self, context=None):
-        raise NotImplementedError()
-
-
-class ListGenerator(Generator):
-    # TODO: could also pass gen_fn(*inputs)
-    # TODO: can test whether is instance for context
-    def __init__(self, generator, max_calls=INF):
-        super(ListGenerator, self).__init__()
-        #super(ListGeneratorFn, self).__init__(*inputs)
-        #self.generator = gen_fn(*inputs)
-        self.generator = generator
-        self.max_calls = max_calls
-        self.calls = 0
-        self.enumerated = (self.calls < self.max_calls)
-    def generate(self, context=None):
-        self.calls += 1
-        if self.max_calls <= self.calls:
-            self.enumerated = True
-        try:
-            return next(self.generator)
-        except StopIteration:
-            self.enumerated = True
-        return []
-
-##################################################
-
-class FactGenerator(object):
-    """
-    Previously called a wild stream
-    """
-    def __init__(self):
-        self.enumerated = False
-    def generate(self, context=None):
-        raise NotImplementedError()

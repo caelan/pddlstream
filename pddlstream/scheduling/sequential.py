@@ -69,7 +69,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     # TODO: add ordering constraints to simplify the optimization
     import pddl
     action_from_name = {}
-    function_plan = []
+    function_plan = set()
     for i, (name, args) in enumerate(action_plan):
         action = find(lambda a: a.name == name, domain.actions)
         assert(len(action.parameters) == len(args))
@@ -90,7 +90,8 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
         task.actions.append(pddl.Action(new_name, new_parameters, 0,
                                    pddl.Conjunction(new_preconditions), new_effects, cost))
         action_from_name[new_name] = (name, map(obj_from_pddl, args))
-        function_plan += extract_function_results(results_from_head, action, args)
+        if not unit_costs:
+            function_plan.update(extract_function_results(results_from_head, action, args))
 
     combined_plan, _ = solve_from_task(task, **kwargs)
     if combined_plan is None:
@@ -102,4 +103,4 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append(action_from_name[name])
-    return (stream_plan + function_plan), action_plan, action_cost
+    return (stream_plan + list(function_plan)), action_plan, action_cost

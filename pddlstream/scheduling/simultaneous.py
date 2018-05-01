@@ -28,7 +28,7 @@ def get_stream_action(stream_result, name, effect_scale=1):
     import pddl
 
     parameters = []
-    preconditions = [fd_from_fact(fact) for fact in stream_result.stream_instance.get_domain()]
+    preconditions = [fd_from_fact(fact) for fact in stream_result.instance.get_domain()]
     precondition = pddl.Conjunction(preconditions)
     effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
                for fact in stream_result.get_certified()]
@@ -49,9 +49,9 @@ def get_stream_actions(stream_results):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(stream_results):
-        if type(stream_result.stream_instance.stream) != Stream:
+        if not isinstance(stream_result.instance.external, Stream):
             continue
-        name = '{}-{}'.format(stream_result.stream_instance.stream.name, i)
+        name = '{}-{}'.format(stream_result.instance.external.name, i)
         stream_action = get_stream_action(stream_result, name)
         if stream_action is None:
             continue
@@ -76,8 +76,10 @@ def add_stream_actions(domain, stream_results):
     return new_domain, stream_result_from_name
 
 
-def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, **kwargs):
-    # TODO: can't make stream_actions for functions. Apply functions then retrace
+def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
+    if not unit_costs:
+        # TODO: can't make stream_actions for functions. Apply functions then retrace. Or eagerly apply
+        raise NotImplementedError()
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
     combined_plan, combined_cost = solve_finite(evaluations, goal_expression, new_domain, **kwargs)
     if combined_plan is None:

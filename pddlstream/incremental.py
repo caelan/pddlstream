@@ -17,7 +17,7 @@ def solve_exhaustive(problem, max_time=INF, verbose=True, **kwargs):
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     instantiator = Instantiator(evaluations, streams)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-        process_stream_queue(instantiator, evaluations, prioritized=False, optimistic=False, verbose=verbose)
+        process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     return revert_solution(plan, cost, evaluations)
 

@@ -35,25 +35,17 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
-def process_stream_queue2(instantiator, evaluations, prioritized, optimistic=False, verbose=True):
+def optimistic_process_stream_queue(instantiator, prioritized):
     stream_instance = instantiator.prioritized_stream_queue.popleft() \
         if prioritized else instantiator.stream_queue.popleft()
-    output_values_list = list(stream_instance.next_outputs(verbose=verbose) if not optimistic else
-                              stream_instance.next_optimistic())
-    stream_results = []
-    for output_values in output_values_list:
-        stream_results.append(StreamResult(stream_instance, output_values))
-        for fact in stream_results[-1].get_certified():
-            evaluation = evaluation_from_fact(fact)
-            instantiator.add_atom(evaluation)
-            if evaluations is not None:
-                evaluations.add(evaluation)
-    if not optimistic and not stream_instance.enumerated:
-        instantiator.queue_stream_instance(stream_instance)
+    stream_results = stream_instance.next_optimistic()
+    for stream_result in stream_results:
+        for fact in stream_result.get_certified():
+            instantiator.add_atom(evaluation_from_fact(fact))
     return stream_results
 
 
-def process_stream_queue(instantiator, evaluations, prioritized, optimistic=False, verbose=True):
+def process_stream_queue(instantiator, evaluations, prioritized, verbose=True):
     stream_instance = instantiator.prioritized_stream_queue.popleft() \
         if prioritized else instantiator.stream_queue.popleft()
     for result in stream_instance.next_results(verbose=verbose):
