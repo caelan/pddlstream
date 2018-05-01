@@ -21,6 +21,17 @@ ITERATION_TEMPLATE = 'iteration_{}.pdf'
 
 ##################################################
 
+class StreamOptions(object):
+    # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
+    def __init__(self, bound_fn, effort_fn, prioritized=False):
+        # TODO: could change frequency/priority for the incremental algorithm
+        self.bound_fn = bound_fn
+        self.effort_fn = effort_fn
+        self.prioritized = prioritized
+        # TODO: context?
+
+##################################################
+
 def disable_stream_instance(stream_instance, disabled):
     disabled.append(stream_instance)
     stream_instance.disabled = True
@@ -80,7 +91,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
 
 ##################################################
 
-def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, verbose=False, **kwargs):
+def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
+                  visualize=False, verbose=False, **kwargs):
     # TODO: eager, negative, context, costs, bindings
     start_time = time.time()
     num_iterations = 0
@@ -91,13 +103,16 @@ def solve_focused(problem, max_time=INF, effort_weight=None, visualize=False, ve
         clear_dir(CONSTRAINT_NETWORK_DIR)
         clear_dir(STREAM_PLAN_DIR)
     while elapsed_time(start_time) < max_time:
+        # TODO: evaluate once at the beginning?
         num_iterations += 1
         print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
         # TODO: version that just calls one of the incremental algorithms
         instantiator = Instantiator(evaluations, streams)
         stream_results = []
+        # TODO: apply incremetnal algorithm for sum number of iterations
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
+            # TODO: could handle costs here
             stream_results += process_stream_queue(instantiator, None, prioritized=False,
                                                    optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan

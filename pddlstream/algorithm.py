@@ -9,15 +9,9 @@ from pddlstream.utils import str_from_tuple
 
 def parse_problem(problem):
     domain_pddl, constant_map, stream_pddl, stream_map, objects, init, goal = problem
-    evaluations = set(evaluations_from_init(init))
-    goal_expression = obj_from_value_expression(goal)
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
-    #if domain.constants:
-    #    raise NotImplementedError('Constants are not currently supported')
-    #if constant_map:
-    #    raise NotImplementedError('A constant map is not currently supported')
     for constant in domain.constants:
         if constant.name.startswith(Object._prefix):
             # TODO: remap names
@@ -25,10 +19,13 @@ def parse_problem(problem):
         if constant.name not in constant_map:
             raise ValueError('Undefined constant {}'.format(constant.name))
         obj = Object(constant_map[constant.name], name=constant.name)
+    del domain.constants[:] # So not set twice
+    streams = parse_stream_pddl(stream_pddl, stream_map)
+    evaluations = set(evaluations_from_init(init))
+    goal_expression = obj_from_value_expression(goal)
     for value in objects:
         # TODO: add object predicate
         obj = Object.from_value(value)
-    streams = parse_stream_pddl(stream_pddl, stream_map)
     return evaluations, goal_expression, domain, streams
 
 

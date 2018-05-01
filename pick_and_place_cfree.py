@@ -133,10 +133,19 @@ def pddlstream_from_tamp(tamp_problem):
     known_poses = list(initial.block_poses.values()) + \
                   list(tamp_problem.goal_poses.values())
 
-    objects = [
-        np.array([200, 200]),
+    q100 = np.array([100, 100])
+    constant_map = {
+        'q100': q100,
+    }
+
+    q200 = np.array([200, 200])
+
+    objects = [ # TODO: is it even worthwhile to have this?
+        q200,
     ]
     init = [
+        ('Conf', q100),
+        ('Conf', q200),
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
         ('HandEmpty',),
@@ -149,9 +158,6 @@ def pddlstream_from_tamp(tamp_problem):
     goal = And(*[
         ('AtPose', b, p) for b, p in tamp_problem.goal_poses.items()
     ])
-
-    domain_pddl = DOMAIN_PDDL
-    stream_pddl = STREAM_PDDL
 
     def collision_test(p1, p2):
         return  np.linalg.norm(p2-p1) <= 1e-1
@@ -171,11 +177,8 @@ def pddlstream_from_tamp(tamp_problem):
         #'constraint-solver': None,
         'distance': distance_fn,
     }
-    constant_map = {
-        'q100': np.array([100, 100])
-    }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, objects, init, goal
+    return DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, objects, init, goal
 
 
 DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_poses'])
@@ -243,9 +246,9 @@ def main():
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+    #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
     #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    #solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
     #solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution
