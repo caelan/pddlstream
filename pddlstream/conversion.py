@@ -127,6 +127,9 @@ def objects_from_evaluations(evaluations):
 
 ##################################################
 
+def head_from_fact(fact):
+    return Head(get_prefix(fact), get_args(fact))
+
 def evaluation_from_fact(fact):
     prefix = get_prefix(fact)
     if prefix == EQ:
@@ -137,8 +140,7 @@ def evaluation_from_fact(fact):
     else:
         head = fact
         value = True
-    head = Head(get_prefix(head), get_args(head))
-    return Evaluation(head, value)
+    return Evaluation(head_from_fact(head), value)
 
 def evaluations_from_init(init):
     return [evaluation_from_fact(obj_from_value_expression(fact)) for fact in init]

@@ -77,17 +77,24 @@ def get_unique_fn(stream):
 class StreamResult(object):
     def __init__(self, stream_instance, output_objects):
         self.stream_instance = stream_instance
+        #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
+        #            list(zip(self.stream_instance.stream.outputs, output_objects)))
+        #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
         self.output_objects = output_objects
     def get_mapping(self):
         return dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
                     list(zip(self.stream_instance.stream.outputs, self.output_objects)))
     def get_certified(self):
+        #return self.certified
         return substitute_expression(self.stream_instance.stream.certified,
                                      self.get_mapping())
     def __repr__(self):
         return '{}:{}->{}'.format(self.stream_instance.stream.name,
                                   str_from_tuple(self.stream_instance.input_objects),
                                   str_from_tuple(self.output_objects))
+        #return '{}:{}->{}'.format(self.stream_instance.stream.name,
+        #                          str_from_tuple(self.stream_instance.input_objects),
+        #                          list(self.certified))
 
 class StreamInstance(object):
     def __init__(self, stream, input_values):

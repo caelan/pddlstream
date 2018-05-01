@@ -99,8 +99,9 @@ def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
             disable_stream_instance(stream_instance, disabled)
             for fact in stream_instance.next_certified(verbose=verbose):
                 evaluation = evaluation_from_fact(fact)
-                evaluations.add(evaluation) # To be used on next iteration
+                #evaluations.add(evaluation) # To be used on next iteration
                 new_evaluations.append(evaluation)
+    evaluations.update(new_evaluations)
     return new_evaluations
 
 ##################################################
