@@ -1,7 +1,7 @@
 from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import evaluation_from_fact
 from pddlstream.focused import query_stream
-from pddlstream.stream import Function
+from pddlstream.function import Function
 from pddlstream.utils import INF
 
 

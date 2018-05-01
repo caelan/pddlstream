@@ -2,7 +2,9 @@ from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF
-from pddlstream.stream import Function, Stream
+from pddlstream.stream import Stream
+from pddlstream.function import Function
+
 
 def fd_from_fact(evaluation):
     import pddl

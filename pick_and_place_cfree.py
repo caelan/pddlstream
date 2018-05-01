@@ -8,7 +8,7 @@ from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_fn, from_test, ValueGenerator, FactGenerator
+from pddlstream.stream import from_gen_fn, from_fn, from_test, FactGenerator, Generator
 from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
@@ -118,7 +118,7 @@ STREAM_PDDL = """
 )
 """
 
-class IKGenerator(ValueGenerator):
+class IKGenerator(Generator):
     def __init__(self, *inputs):
         super(IKGenerator, self).__init__()
         self.p, = inputs
@@ -253,8 +253,8 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    #solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
     #solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution

@@ -1,6 +1,7 @@
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
-    substitute_expression, is_head, get_prefix, get_args, Equal, Not, values_from_objects, obj_from_value_expression
+    substitute_expression, is_head, get_prefix
 from pddlstream.fast_downward import parse_lisp
+from pddlstream.function import Instance, External, Function, Predicate
 from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF
 
@@ -74,73 +75,71 @@ def get_unique_fn(stream):
 
 ##################################################
 
+# class WildResult(object):
+#     def __init__(self, stream_instance, output_objects):
+#         self.stream_instance = stream_instance
+#         #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
+#         #            list(zip(self.stream_instance.stream.outputs, output_objects)))
+#         #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
+#     def get_certified(self):
+#         #return self.certified
+#     def __repr__(self):
+#         #return '{}:{}->{}'.format(self.stream_instance.stream.name,
+#         #                          str_from_tuple(self.stream_instance.input_objects),
+#         #                          list(self.certified))
+
+
 class StreamResult(object):
-    def __init__(self, stream_instance, output_objects):
-        self.stream_instance = stream_instance
-        #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
-        #            list(zip(self.stream_instance.stream.outputs, output_objects)))
-        #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
+    def __init__(self, instance, output_objects):
+        self.instance = instance
         self.output_objects = output_objects
     def get_mapping(self):
-        return dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
-                    list(zip(self.stream_instance.stream.outputs, self.output_objects)))
+        return dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
+                    list(zip(self.instance.external.outputs, self.output_objects)))
     def get_certified(self):
-        #return self.certified
-        return substitute_expression(self.stream_instance.stream.certified,
-                                     self.get_mapping())
+        return substitute_expression(self.instance.external.certified, self.get_mapping())
     def __repr__(self):
-        return '{}:{}->{}'.format(self.stream_instance.stream.name,
-                                  str_from_tuple(self.stream_instance.input_objects),
+        return '{}:{}->{}'.format(self.instance.external.name,
+                                  str_from_tuple(self.instance.input_objects),
                                   str_from_tuple(self.output_objects))
-        #return '{}:{}->{}'.format(self.stream_instance.stream.name,
-        #                          str_from_tuple(self.stream_instance.input_objects),
-        #                          list(self.certified))
 
-class StreamInstance(object):
-    def __init__(self, stream, input_values):
-        self.stream = stream
-        self.input_objects = tuple(input_values)
+# def next_certified(self, **kwargs):
+#     if self._generator is None:
+#         self._generator = self.stream.gen_fn(*self.get_input_values())
+#     new_certified = []
+#     if isinstance(self._generator, FactGenerator):
+#         new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
+#         self.enumerated = self._generator.enumerated
+#     else:
+#         for output_objects in self.next_outputs(**kwargs):
+#             mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
+#                            list(zip(self.stream.outputs, output_objects)))
+#             new_certified += substitute_expression(self.stream.certified, mapping)
+#     return new_certified
+
+class StreamInstance(Instance):
+    def __init__(self, stream, input_objects):
+        super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
-        self.enumerated = False
-        self.disabled = False
-        self.output_history = []
-    def get_input_values(self):
-        return values_from_objects(self.input_objects)
-    def get_mapping(self):
-        return dict(zip(self.stream.inputs, self.input_objects))
-    def get_domain(self):
-        return substitute_expression(self.stream.domain, self.get_mapping())
-    def next_outputs(self, verbose=False, context=None):
-        assert not self.enumerated
+    def _next_outputs(self, context):
         if self._generator is None:
-            self._generator = self.stream.gen_fn(*self.get_input_values())
-        if isinstance(self._generator, ValueGenerator):
+            self._generator = self.external.gen_fn(*self.get_input_values())
+        if isinstance(self._generator, Generator):
             new_values = self._generator.generate(context=context)
             self.enumerated = self._generator.enumerated
-        else:
-            try:
-                new_values = next(self._generator)
-            except StopIteration:
-                new_values = []
-                self.enumerated = True
-        new_objects = list(map(objects_from_values, new_values))
+            return new_values
+        try:
+            return next(self._generator)
+        except StopIteration:
+            self.enumerated = True
+        return []
+    def next_results(self, verbose=False, context=None):
+        assert not self.enumerated
+        new_values = self._next_outputs(context)
         if verbose:
-            self.dump_output_list(new_objects)
-        self.output_history.append(new_objects)
-        return new_objects
-    def next_certified(self, **kwargs):
-        if self._generator is None:
-            self._generator = self.stream.gen_fn(*self.get_input_values())
-        new_certified = []
-        if isinstance(self._generator, FactGenerator):
-            new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
-            self.enumerated = self._generator.enumerated
-        else:
-            for output_objects in self.next_outputs(**kwargs):
-                mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
-                               list(zip(self.stream.outputs, output_objects)))
-                new_certified += substitute_expression(self.stream.certified, mapping)
-        return new_certified
+            print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
+                                       ', '.join(map(str_from_tuple, new_values))))
+        return [StreamResult(self, objects_from_values(output_values)) for output_values in new_values]
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -151,109 +150,20 @@ class StreamInstance(object):
         #output_objects = tuple(map(OptimisticObject.from_opt, output_values))
         return list(map(opt_from_values, output_values_list))
     def __repr__(self):
-        return '{}:{}->{}'.format(self.stream.name, self.input_objects, self.stream.outputs)
-    def dump_output_list(self, output_list):
-        print('{}:{}->[{}]'.format(self.stream.name, str_from_tuple(self.get_input_values()),
-                                   ', '.join(map(str_from_tuple, map(values_from_objects, output_list)))))
+        return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
-class Stream(object):
-    _InstanceClass = StreamInstance
+class Stream(External):
+    _Instance = StreamInstance
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
+        super(Stream, self).__init__(inputs, domain)
         # Each stream could certify a stream-specific fact as well
         self.name = name
         self.gen_fn = gen_fn
-        self.inputs = tuple(inputs)
-        self.domain = tuple(domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        self.opt_fn = get_unique_fn(self)
-        #self.opt_fn = get_shared_fn(self)
-        self.instances = {}
-        self.prioritized = False
-    def get_instance(self, input_values):
-        input_values = tuple(input_values)
-        if input_values not in self.instances:
-            self.instances[input_values] = self._InstanceClass(self, input_values)
-        return self.instances[input_values]
+        self.opt_fn = get_unique_fn(self) # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
-
-##################################################
-
-class FunctionInstance(StreamInstance): # Head(StreamInstance):
-    _opt_value = 0
-    def next_outputs(self, verbose=False, context=None):
-        assert not self.enumerated
-        self.enumerated = True
-        # TODO: check output and assert only one?
-        self.value = self.stream.gen_fn(*self.get_input_values())
-        #return [value]
-        return [(self.value,)]
-    def next_certified(self, **kwargs):
-        self.enumerated = True
-        self.value = self.stream.gen_fn(*self.get_input_values())
-        expression = substitute_expression(self.stream.head, self.get_mapping())
-        return [Equal(expression, self.value)]
-    def next_optimistic(self):
-        if self.enumerated or self.disabled:
-            return []
-        return [(self._opt_value,)]
-    def dump_output_list(self, output_list):
-        #[value] = output_list
-        [(value,)] = output_list
-        print('{}:{}->{}'.format(self.stream.name, str_from_tuple(self.get_input_values()), value))
-
-class Function(Stream):
-    """
-    The key difference from a stream is that the outputs aren't treated as objects
-    We also do not make the closed world assumption
-    """
-    _InstanceClass = FunctionInstance
-    def __init__(self, head, fn, domain):
-        self.head = head
-        name = get_prefix(head)
-        inputs = get_args(head)
-        outputs = ('?r',)
-        certified = [Equal(head, '?r')]
-        super(Function, self).__init__(name, fn, inputs, domain, outputs, certified)
-    def __repr__(self):
-        return '{}:{}->R'.format(self.name, self.inputs)
-
-##################################################
-
-class PredicateInstance(StreamInstance):
-    _opt_value = True
-    def next_outputs(self, verbose=False, context=None):
-        assert not self.enumerated
-        self.enumerated = True
-        self.value = self.stream.gen_fn(*self.get_input_values())
-        assert(self.value in (True, False))
-        return [(self.value,)]
-    def next_certified(self, **kwargs):
-        self.enumerated = True
-        self.value = self.stream.gen_fn(*self.get_input_values())
-        assert(self.value in (True, False))
-        expression = substitute_expression(self.stream.literal, self.get_mapping())
-        if self.value:
-            return [expression]
-        return [Not(expression)] # TODO: simplify if inverted
-    def next_optimistic(self):
-        if self.enumerated or self.disabled:
-            return []
-        return [(self._opt_value,)]
-    def dump_output_list(self, output_list):
-        [(value,)] = output_list
-        print('{}:{}->{}'.format(self.stream.name, str_from_tuple(self.get_input_values()), value))
-
-class Predicate(Stream):
-    _InstanceClass = PredicateInstance
-    def __init__(self, literal, fn, domain):
-        self.literal = literal
-        name = get_prefix(literal)
-        inputs = get_args(literal)
-        super(Predicate, self).__init__(name, fn, inputs, domain, [], [literal])
-    def __repr__(self):
-        return '{}:{}->{T,F}'.format(self.name, self.inputs)
 
 ##################################################
 
@@ -310,7 +220,7 @@ def parse_stream_pddl(stream_pddl, stream_map):
 
 ##################################################
 
-class ValueGenerator(object):
+class Generator(object):
     # TODO: I could also include this in a
     #def __init__(self, *inputs):
     #    self.inputs = tuple(inputs)
@@ -321,7 +231,8 @@ class ValueGenerator(object):
     def generate(self, context=None):
         raise NotImplementedError()
 
-class ListGenerator(ValueGenerator):
+
+class ListGenerator(Generator):
     # TODO: could also pass gen_fn(*inputs)
     # TODO: can test whether is instance for context
     def __init__(self, generator, max_calls=INF):

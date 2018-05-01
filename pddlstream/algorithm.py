@@ -56,10 +56,10 @@ def process_stream_queue2(instantiator, evaluations, prioritized, optimistic=Fal
 def process_stream_queue(instantiator, evaluations, prioritized, optimistic=False, verbose=True):
     stream_instance = instantiator.prioritized_stream_queue.popleft() \
         if prioritized else instantiator.stream_queue.popleft()
-    for fact in stream_instance.next_certified(verbose=verbose):
-        evaluation = evaluation_from_fact(fact)
-        instantiator.add_atom(evaluation)
-        if evaluations is not None:
+    for result in stream_instance.next_results(verbose=verbose):
+        for fact in result.get_certified():
+            evaluation = evaluation_from_fact(fact)
+            instantiator.add_atom(evaluation)
             evaluations.add(evaluation)
     if not stream_instance.enumerated:
         instantiator.queue_stream_instance(stream_instance)

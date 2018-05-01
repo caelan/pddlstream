@@ -3,7 +3,7 @@ import time
 from pddlstream.algorithm import parse_problem, solve_finite, process_stream_queue
 from pddlstream.conversion import revert_solution
 from pddlstream.instantiation import Instantiator
-from pddlstream.stream import Function
+from pddlstream.function import Function
 from pddlstream.utils import INF, elapsed_time
 
 

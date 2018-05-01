@@ -45,7 +45,7 @@ class Instantiator(object): # Dynamic Stream Instsantiator
     #        yield stream_instance
 
     def queue_stream_instance(self, stream_instance):
-        if stream_instance.stream.prioritized:
+        if stream_instance.external.prioritized:
             self.prioritized_stream_queue.append(stream_instance)
         else:
             self.stream_queue.append(stream_instance)
