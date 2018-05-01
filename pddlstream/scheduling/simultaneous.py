@@ -1,9 +1,11 @@
+from collections import defaultdict
+
 from pddlstream.algorithm import solve_finite
-from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl
+from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl, evaluation_from_fact, Head
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
-from pddlstream.utils import INF
+from pddlstream.utils import INF, find
 from pddlstream.stream import Stream
-from pddlstream.function import Function
+from pddlstream.function import FunctionResult
 
 
 def fd_from_fact(evaluation):
@@ -22,6 +24,21 @@ def fact_from_fd(fd):
     assert(not fd.negated)
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
+def evaluations_from_stream_plan(evaluations, stream_plan):
+    opt_evaluations = {e: None for e in evaluations}
+    for stream_result in stream_plan:
+        for fact in stream_result.get_certified():
+            evaluation = evaluation_from_fact(fact)
+            if evaluation not in opt_evaluations:
+                opt_evaluations[evaluation] = stream_result
+    return opt_evaluations
+
+def get_results_from_head(evaluations):
+    results_from_head = defaultdict(list)
+    for evaluation, stream_result in evaluations.items():
+        results_from_head[evaluation.head].append((evaluation.value, stream_result))
+        #results_from_head[evaluation.head].append(stream_result)
+    return results_from_head
 
 def get_stream_action(stream_result, name, effect_scale=1):
     #from pddl_parser.parsing_functions import parse_action
@@ -65,25 +82,49 @@ def add_stream_actions(domain, stream_results):
     stream_actions, stream_result_from_name = get_stream_actions(stream_results)
     output_objects = []
     for stream_result in stream_result_from_name.values():
-        output_objects += stream_result.output_objects
-    new_constants = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in set(output_objects)]
+        output_objects += list(map(pddl_from_object, stream_result.output_objects))
+    new_constants = list({pddl.TypedObject(obj, OBJECT) for obj in output_objects} | set(domain.constants))
     # to_untyped_strips
     # free_variables
     new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict,
-                        domain.constants[:] + new_constants,
+                        new_constants,
                         domain.predicates, domain.predicate_dict, domain.functions,
                         domain.actions[:] + stream_actions, domain.axioms)
     return new_domain, stream_result_from_name
 
+def get_cost(domain, results_from_head, name, args):
+    import pddl
+    action = find(lambda a: a.name == name, domain.actions)
+    if action.cost is None:
+        return 0
+    if isinstance(action.cost.expression, pddl.NumericConstant):
+        return action.cost.expression.value
+    var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+    args = tuple(var_mapping[p] for p in action.cost.expression.args)
+    head = Head(action.cost.expression.symbol, args)
+    [(value, _)] = results_from_head[head]
+    return value
+
+def extract_function_results(results_from_head, action, pddl_args):
+    import pddl
+    if (action.cost is None) or not isinstance(action.cost.expression, pddl.PrimitiveNumericExpression):
+        return []
+    var_mapping = {p.name: a for p, a in zip(action.parameters, pddl_args)}
+    pddl_args = tuple(obj_from_pddl(var_mapping[p]) for p in action.cost.expression.args)
+    head = Head(action.cost.expression.symbol, pddl_args)
+    [(value, stream_result)] = results_from_head[head]
+    if stream_result is None:
+        return []
+    return [stream_result]
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
-    if not unit_costs:
-        # TODO: can't make stream_actions for functions. Apply functions then retrace. Or eagerly apply
-        raise NotImplementedError()
+    function_results = filter(lambda r: isinstance(r, FunctionResult), stream_results)
+    function_evaluations = evaluations_from_stream_plan(evaluations, function_results)
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
-    combined_plan, combined_cost = solve_finite(evaluations, goal_expression, new_domain, **kwargs)
+    combined_plan, _ = solve_finite(function_evaluations, goal_expression, new_domain,
+                                                unit_costs=unit_costs, **kwargs)
     if combined_plan is None:
-        return None, None, combined_cost # TODO: return plan cost
+        return None, None, INF # TODO: return plan cost
     stream_plan = []
     action_plan = []
     for name, args in combined_plan:
@@ -91,4 +132,15 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append((name, args))
-    return stream_plan, action_plan, combined_cost
+
+    action_cost = len(action_plan)
+    function_plan = set()
+    if not unit_costs:
+        action_cost = 0
+        results_from_head = get_results_from_head(function_evaluations)
+        for name, args in action_plan:
+            action = find(lambda a: a.name == name, domain.actions)
+            pddl_args = tuple(map(pddl_from_object, args))
+            function_plan.update(extract_function_results(results_from_head, action, pddl_args))
+            action_cost += get_cost(domain, results_from_head, name, args)
+    return (stream_plan + list(function_plan)), action_plan, action_cost

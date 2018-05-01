@@ -1,28 +1,12 @@
-from collections import defaultdict
-
-from pddlstream.conversion import evaluation_from_fact, obj_from_pddl, obj_from_pddl_plan, Head
+from pddlstream.conversion import obj_from_pddl, obj_from_pddl_plan
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, solve_from_task, get_init, TOTAL_COST
-from pddlstream.scheduling.simultaneous import get_stream_actions
+from pddlstream.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
+    extract_function_results, get_results_from_head
 from pddlstream.utils import Verbose, find
+
 
 # TODO: interpolate between all the scheduling options
 
-
-def evaluations_from_stream_plan(evaluations, stream_plan):
-    opt_evaluations = {e: None for e in evaluations}
-    for stream_result in stream_plan:
-        for fact in stream_result.get_certified():
-            evaluation = evaluation_from_fact(fact)
-            if evaluation not in opt_evaluations:
-                opt_evaluations[evaluation] = stream_result
-    return opt_evaluations
-
-def get_results_from_head(evaluations):
-    results_from_head = defaultdict(list)
-    for evaluation, stream_result in evaluations.items():
-        #results_from_head[evaluation.head].append((evaluation.value, stream_result))
-        results_from_head[evaluation.head].append(stream_result)
-    return results_from_head
 
 def real_from_optimistic(evaluations, opt_task):
     import pddl
@@ -41,18 +25,6 @@ def real_from_optimistic(evaluations, opt_task):
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     return fluent_facts, init_facts, function_assignments, type_to_objects
 
-def extract_function_results(results_from_head, action, args):
-    import pddl
-    if (action.cost is None) or not isinstance(action.cost.expression, pddl.PrimitiveNumericExpression):
-        return []
-    var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-    func = action.cost.expression.symbol
-    args = tuple(obj_from_pddl(var_mapping[p]) for p in action.cost.expression.args)
-    head = Head(func, args)
-    [stream_result] = results_from_head[head]
-    if stream_result is None:
-        return []
-    return [stream_result]
 
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)

@@ -120,8 +120,8 @@ def get_init(init_evaluations):
     return init
 
 def get_problem(init_evaluations, goal_expression, domain, unit_costs):
-    objects = objects_from_evaluations(init_evaluations)
-    typed_objects = [pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects]
+    objects = map(pddl_from_object, objects_from_evaluations(init_evaluations))
+    typed_objects = list({pddl.TypedObject(obj, OBJECT) for obj in objects} - set(domain.constants))
     init = get_init(init_evaluations)
     goal = parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict)

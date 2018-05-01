@@ -29,7 +29,7 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
     achieved_facts = set()
     for stream in stream_plan:
         graph.add_node(str(stream), shape='oval', color='LightSalmon')
-        for fact in stream.stream_instance.get_domain():
+        for fact in stream.instance.get_domain():
             graph.add_node(str_from_tuple(fact), shape='box', color='LightBlue')
             graph.add_edge(str_from_tuple(fact), str(stream)) # Add initial facts?
         for fact in stream.get_certified():
