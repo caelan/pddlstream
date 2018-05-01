@@ -133,8 +133,8 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
             # TODO: could handle costs here
             stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
-        #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        solve_stream_plan = simultaneous_stream_plan
+        solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
+        #solve_stream_plan = simultaneous_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'

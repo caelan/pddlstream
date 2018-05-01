@@ -72,7 +72,7 @@ class FunctionInstance(Instance): # Head(Instance):
        return [self.external._Result(self, self._opt_value)]
     def __repr__(self):
         #return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
-        return '{}=?'.format(str_from_head(self.get_head()), self.external._codomain.__name__)
+        return '{}=?{}'.format(str_from_head(self.get_head()), self.external._codomain.__name__)
 
 
 class Function(External):
