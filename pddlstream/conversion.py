@@ -14,6 +14,9 @@ FORALL = 'forall'
 WHEN = 'when'
 IMPLIES = 'implies'
 
+PARAMETER = '?'
+TYPE = '-'
+
 CONNECTIVES = (AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS
@@ -30,10 +33,13 @@ def And(*expressions):
     return (AND,) + tuple(expressions)
 
 def Not(expression):
-    return (Not,) + tuple(expression)
+    return (NOT, expression)
 
 def Equal(expression1, expression2):
     return (EQ,) + (expression1, expression2)
+
+def Type(param, ty):
+    return (param, TYPE, ty)
 
 ##################################################
 

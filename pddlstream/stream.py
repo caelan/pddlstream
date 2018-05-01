@@ -1,5 +1,5 @@
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
-    substitute_expression, is_head, get_prefix, get_args, Equal, values_from_objects
+    substitute_expression, is_head, get_prefix, get_args, Equal, Not, values_from_objects, obj_from_value_expression
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF
@@ -103,11 +103,11 @@ class StreamInstance(object):
         return dict(zip(self.stream.inputs, self.input_objects))
     def get_domain(self):
         return substitute_expression(self.stream.domain, self.get_mapping())
-    def next_outputs(self, context=None):
+    def next_outputs(self, verbose=False, context=None):
         assert not self.enumerated
         if self._generator is None:
             self._generator = self.stream.gen_fn(*self.get_input_values())
-        if isinstance(self._generator, Generator):
+        if isinstance(self._generator, ValueGenerator):
             new_values = self._generator.generate(context=context)
             self.enumerated = self._generator.enumerated
         else:
@@ -117,8 +117,23 @@ class StreamInstance(object):
                 new_values = []
                 self.enumerated = True
         new_objects = list(map(objects_from_values, new_values))
+        if verbose:
+            self.dump_output_list(new_objects)
         self.output_history.append(new_objects)
         return new_objects
+    def next_certified(self, **kwargs):
+        if self._generator is None:
+            self._generator = self.stream.gen_fn(*self.get_input_values())
+        new_certified = []
+        if isinstance(self._generator, FactGenerator):
+            new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
+            self.enumerated = self._generator.enumerated
+        else:
+            for output_objects in self.next_outputs(**kwargs):
+                mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
+                               list(zip(self.stream.outputs, output_objects)))
+                new_certified += substitute_expression(self.stream.certified, mapping)
+        return new_certified
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -160,13 +175,18 @@ class Stream(object):
 
 class FunctionInstance(StreamInstance): # Head(StreamInstance):
     _opt_value = 0
-    def next_outputs(self):
+    def next_outputs(self, verbose=False, context=None):
         assert not self.enumerated
         self.enumerated = True
         # TODO: check output and assert only one?
         self.value = self.stream.gen_fn(*self.get_input_values())
         #return [value]
         return [(self.value,)]
+    def next_certified(self, **kwargs):
+        self.enumerated = True
+        self.value = self.stream.gen_fn(*self.get_input_values())
+        expression = substitute_expression(self.stream.head, self.get_mapping())
+        return [Equal(expression, self.value)]
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -183,6 +203,7 @@ class Function(Stream):
     """
     _InstanceClass = FunctionInstance
     def __init__(self, head, fn, domain):
+        self.head = head
         name = get_prefix(head)
         inputs = get_args(head)
         outputs = ('?r',)
@@ -195,12 +216,20 @@ class Function(Stream):
 
 class PredicateInstance(StreamInstance):
     _opt_value = True
-    def next_outputs(self):
+    def next_outputs(self, verbose=False, context=None):
         assert not self.enumerated
         self.enumerated = True
         self.value = self.stream.gen_fn(*self.get_input_values())
         assert(self.value in (True, False))
         return [(self.value,)]
+    def next_certified(self, **kwargs):
+        self.enumerated = True
+        self.value = self.stream.gen_fn(*self.get_input_values())
+        assert(self.value in (True, False))
+        expression = substitute_expression(self.stream.literal, self.get_mapping())
+        if self.value:
+            return [expression]
+        return [Not(expression)] # TODO: simplify if inverted
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -212,6 +241,7 @@ class PredicateInstance(StreamInstance):
 class Predicate(Stream):
     _InstanceClass = PredicateInstance
     def __init__(self, literal, fn, domain):
+        self.literal = literal
         name = get_prefix(literal)
         inputs = get_args(literal)
         super(Predicate, self).__init__(name, fn, inputs, domain, [], [literal])
@@ -232,6 +262,7 @@ def parse_stream_pddl(stream_pddl, stream_map):
     assert('stream' == pddl_type)
 
     for stream in stream_iter:
+        # TODO: wild stream?
         if stream[0] == ':stream':
             attributes = [stream[i] for i in range(0, len(stream), 2)]
             assert(STREAM_ATTRIBUTES == attributes)
@@ -272,7 +303,7 @@ def parse_stream_pddl(stream_pddl, stream_map):
 
 ##################################################
 
-class Generator(object):
+class ValueGenerator(object):
     # TODO: I could also include this in a
     #def __init__(self, *inputs):
     #    self.inputs = tuple(inputs)
@@ -283,7 +314,7 @@ class Generator(object):
     def generate(self, context=None):
         raise NotImplementedError()
 
-class ListGenerator(Generator):
+class ListGenerator(ValueGenerator):
     # TODO: could also pass gen_fn(*inputs)
     # TODO: can test whether is instance for context
     def __init__(self, generator, max_calls=INF):
@@ -303,3 +334,14 @@ class ListGenerator(Generator):
         except StopIteration:
             self.enumerated = True
         return []
+
+##################################################
+
+class FactGenerator(object):
+    """
+    Previously called a wild stream
+    """
+    def __init__(self):
+        self.enumerated = False
+    def generate(self, context=None):
+        raise NotImplementedError()

@@ -103,20 +103,21 @@ def parse_problem(domain, problem_pddl):
 
 ##################################################
 
-def fd_from_evaluation(evaluation):
-    name = evaluation.head.function
-    args = tuple(map(pddl_from_object, evaluation.head.args))
-    if is_atom(evaluation):
-        return pddl.Atom(name, args)
-    elif is_negated_atom(evaluation):
-        return pddl.NegatedAtom(name, args)
-    else:
-        fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
-        expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
-        return pddl.f_expression.Assign(fluent, expression)
-
 def get_init(init_evaluations):
-    return list(map(fd_from_evaluation, init_evaluations))
+    init = []
+    for evaluation in init_evaluations:
+        name = evaluation.head.function
+        args = tuple(map(pddl_from_object, evaluation.head.args))
+        if is_atom(evaluation):
+            init.append(pddl.Atom(name, args))
+        elif is_negated_atom(evaluation):
+            #return pddl.NegatedAtom(name, args)
+            pass
+        else:
+            fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
+            expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
+            init.append(pddl.f_expression.Assign(fluent, expression))
+    return init
 
 def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     objects = objects_from_evaluations(init_evaluations)
@@ -161,11 +162,11 @@ def translate_paths(domain_path, problem_path):
 def translate_task(task, temp_dir):
     #sas_task = pddl_to_sas(instantiate_task(task))
     normalize.normalize(task)
-    #sas_task = translate.pddl_to_sas(task)
-    try:
-        sas_task = translate.pddl_to_sas(task)
-    except AssertionError:
-        raise AssertionError('A function is not defined for some grounding of an action')
+    sas_task = translate.pddl_to_sas(task)
+    #try:
+    #    sas_task = translate.pddl_to_sas(task)
+    #except AssertionError:
+    #    raise AssertionError('A function is not defined for some grounding of an action')
     translate.dump_statistics(sas_task)
     clear_dir(temp_dir)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:

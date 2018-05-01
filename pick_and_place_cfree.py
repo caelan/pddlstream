@@ -8,7 +8,7 @@ from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
+from pddlstream.stream import from_gen_fn, from_fn, from_test, ValueGenerator, FactGenerator
 from pddlstream.utils import print_solution, user_input
 from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
@@ -118,13 +118,23 @@ STREAM_PDDL = """
 )
 """
 
-class IKGenerator(Generator):
+class IKGenerator(ValueGenerator):
     def __init__(self, *inputs):
         super(IKGenerator, self).__init__()
         self.p, = inputs
     def generate(self, context=None):
         self.enumerated = True
         return [(self.p + GRASP,)]
+
+class IKFactGenerator(FactGenerator):
+    def __init__(self, *inputs):
+        super(IKFactGenerator, self).__init__()
+        self.p, = inputs
+    def generate(self, context=None):
+        self.enumerated = True
+        q = self.p + GRASP
+        # TODO: include a formula instead?
+        return [('conf', q), ('kin', q, self.p)]
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -138,14 +148,9 @@ def pddlstream_from_tamp(tamp_problem):
         'q100': q100,
     }
 
-    q200 = np.array([200, 200])
-
-    objects = [ # TODO: is it even worthwhile to have this?
-        q200,
-    ]
     init = [
+        #Type(q100, 'conf'),
         ('Conf', q100),
-        ('Conf', q200),
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
         ('HandEmpty',),
@@ -172,13 +177,14 @@ def pddlstream_from_tamp(tamp_problem):
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         #'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
         'inverse-kinematics': IKGenerator,
+        #'inverse-kinematics': IKFactGenerator,
         'collision-free': from_test(lambda *args: not collision_test(*args)),
         'collision': collision_test,
         #'constraint-solver': None,
         'distance': distance_fn,
     }
 
-    return DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, objects, init, goal
+    return DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, init, goal
 
 
 DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_poses'])
@@ -248,8 +254,8 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
     #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
-    #solution = solve_committed(pddlstream_problem, unit_costs=True)
+    #solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
+    solution = solve_committed(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

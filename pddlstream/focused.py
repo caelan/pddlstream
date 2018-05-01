@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from itertools import product
 
-from pddlstream.algorithm import parse_problem, process_stream_queue, \
+from pddlstream.algorithm import parse_problem, process_stream_queue2, \
     get_optimistic_constraints
 from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
 from pddlstream.instantiation import Instantiator
@@ -67,6 +67,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
     unexplored_stream_instances = []
     failure = False
     for opt_stream_result in stream_plan:
+        # TODO: could bind by just using new_evaluations
         stream_instances = list(ground_stream_instances(opt_stream_result.stream_instance,
                                                         opt_bindings, evaluations))
         unexplored_stream_instances += stream_instances[max_values:]
@@ -87,6 +88,19 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=
     # TODO: return unexplored_stream_instances
     # TODO: retrace successful argument path upon success
     # TODO: identify subset of the initial state that support the plan
+    return new_evaluations
+
+
+def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
+    new_evaluations = []
+    for opt_stream_result in stream_plan:
+        stream_instance = opt_stream_result.stream_instance
+        if set(map(evaluation_from_fact, stream_instance.get_domain())) <= evaluations:
+            disable_stream_instance(stream_instance, disabled)
+            for fact in stream_instance.next_certified(verbose=verbose):
+                evaluation = evaluation_from_fact(fact)
+                evaluations.add(evaluation) # To be used on next iteration
+                new_evaluations.append(evaluation)
     return new_evaluations
 
 ##################################################
@@ -113,7 +127,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
         # TODO: apply incremetnal algorithm for sum number of iterations
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
             # TODO: could handle costs here
-            stream_results += process_stream_queue(instantiator, None, prioritized=False,
+            stream_results += process_stream_queue2(instantiator, None, prioritized=False,
                                                    optimistic=True, verbose=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
@@ -138,6 +152,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
                                       os.path.join(CONSTRAINT_NETWORK_DIR, filename))
                 visualize_stream_plan_bipartite(stream_plan,
                                                 os.path.join(STREAM_PLAN_DIR, filename))
-            process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            #process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
 
     return revert_solution(best_plan, best_cost, evaluations)
