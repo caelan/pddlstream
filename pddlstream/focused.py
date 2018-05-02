@@ -5,7 +5,8 @@ from itertools import product
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
     get_optimistic_constraints
-from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
+from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression, \
+    init_from_evaluations, evaluations_from_init, value_from_obj_expression, obj_from_value_expression
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.scheduling.sequential import sequential_stream_plan
@@ -109,6 +110,21 @@ def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
 
 ##################################################
 
+class ConstraintSolver(object):
+    def __init__(self, stream_map):
+        self.fn = stream_map.get('constraint-solver', None)
+        self.problems = {}
+    def solve(self, constraints):
+        if self.fn is None:
+            return []
+        key = frozenset(constraints)
+        if key in self.problems:
+            return []
+        new_facts = self.fn(list(map(value_from_obj_expression, constraints)))
+        self.problems[key] = map(obj_from_value_expression, new_facts)
+        return self.problems[key]
+        # TODO: evaluate functions as well
+
 def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
                   visualize=False, verbose=True, **kwargs):
     # TODO: eager, negative, context, costs, bindings
@@ -148,10 +164,6 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
             best_plan = action_plan; best_cost = cost
             break
         else:
-            if constraint_solver is not None:
-                constraints = get_optimistic_constraints(evaluations, stream_plan)
-                constraint_solver(constraints)
-
             if visualize:
                 # TODO: place it in the temp_dir?
                 filename = ITERATION_TEMPLATE.format(num_iterations)
@@ -160,6 +172,15 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
                                       os.path.join(CONSTRAINT_NETWORK_DIR, filename))
                 visualize_stream_plan_bipartite(stream_plan,
                                                 os.path.join(STREAM_PLAN_DIR, filename))
+
+            if constraint_solver is not None:
+                constraints = frozenset(get_optimistic_constraints(evaluations, stream_plan))
+                new_evaluations = evaluations_from_init(constraint_solver(list(map(value_from_obj_expression, constraints))))
+                evaluations.update(new_evaluations)
+                for evaluation in new_evaluations:
+                    instantiator.add_atom(evaluation)
+                if new_evaluations:
+                    continue
             #process_stream_plan(evaluations, stream_plan, disabled, verbose)
             process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
 

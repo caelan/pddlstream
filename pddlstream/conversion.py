@@ -58,26 +58,31 @@ def get_args(head):
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
-def obj_from_value_head(head):
-    return (get_prefix(head).lower(),) + tuple(map(Object.from_value, get_args(head)))
-
-def obj_from_value_expression(parent):
+def replace_expression(parent, fn):
     prefix = get_prefix(parent)
     if prefix == EQ:
         assert(len(parent) == 3)
         value = parent[2]
         if isinstance(parent[2], collections.Sequence):
-            value = obj_from_value_expression(value)
-        return prefix, obj_from_value_expression(parent[1]), value
+            value = replace_expression(value, fn)
+        return prefix, replace_expression(parent[1], fn), value
     elif prefix in CONNECTIVES:
         children = parent[1:]
-        return (prefix,) + tuple(map(obj_from_value_expression, children))
+        return (prefix,) + tuple(replace_expression(child, fn) for child in children)
     elif prefix in QUANTIFIERS:
         assert(len(parent) == 3)
         parameters = parent[1]
         child = parent[2]
-        return prefix, parameters, obj_from_value_expression(child)
-    return obj_from_value_head(parent)
+        return prefix, parameters, replace_expression(child, fn)
+    name = get_prefix(parent).lower()
+    args = get_args(parent)
+    return (name,) + tuple(map(fn, args))
+
+def obj_from_value_expression(parent):
+    return replace_expression(parent, Object.from_value)
+
+def value_from_obj_expression(parent):
+    return replace_expression(parent, lambda o: o.value)
 
 ##################################################
 
@@ -190,8 +195,12 @@ def obj_from_pddl(pddl):
     else:
         raise ValueError(pddl)
 
+#def value_from_object(obj):
+#    return obj.value
+
 def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
+    #return tuple(map(value_from_object, objects))
 
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):

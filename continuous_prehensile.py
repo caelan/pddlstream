@@ -53,22 +53,110 @@ def get_pose_gen(regions):
             yield (p,)
     return gen_fn
 
-def get_constraint_solver(regions):
-    def constraint_solver(constraints):
-        #import cvxopt
-        #import scipy.optimize.linprog
-        #import mosek # https://www.mosek.com/
-        import gurobipy
+"""
+['CUTOFF', 'UNDEFINED', 'ERROR_INDEX_OUT_OF_RANGE', 'CONTINUOUS', 'Param', 'SUBOPTIMAL', 'SEMICONT', 
+    'ERROR_QCP_EQUALITY_CONSTRAINT', '__dict__', 'LOADED', 'INPROGRESS', 'ERROR_Q_NOT_PSD', '__weakref__', 
+    'Status', 'ERROR_NO_LICENSE', 'GREATER_EQUAL', 'UNBOUNDED', 'NODE_LIMIT', 'param', 'ERROR_CALLBACK', 
+    'SUPERBASIC', 'ERROR_DATA_NOT_AVAILABLE', 'ERROR_NOT_SUPPORTED', '__doc__', 'TIME_LIMIT', 
+    'ERROR_IIS_NOT_INFEASIBLE', 'ERROR_FILE_READ', 'Callback', 'ERROR_JOB_REJECTED', 'MAXIMIZE', 'Error', 
+    'LESS_EQUAL', 'OPTIMAL', 'ERROR_NETWORK', 'BINARY', 'ERROR_NULL_ARGUMENT', 'attr', 'NONBASIC_UPPER', 
+    '__qualname__', 'ERROR_NOT_IN_MODEL', 'error', 'DEFAULT_CS_PORT', 'ERROR_OUT_OF_MEMORY', 'ERROR_NUMERIC', 
+    '__module__', 'EQUAL', 'SOLUTION_LIMIT', 'ERROR_INTERNAL', 'ERROR_FILE_WRITE', 'NONBASIC_LOWER', 
+    'ERROR_UNKNOWN_PARAMETER', 'BASIC', 'ERROR_NODEFILE', 'SEMIINT', 'MINIMIZE', 'ERROR_EXCEED_2B_NONZEROS', 
+    'ITERATION_LIMIT', 'ERROR_INVALID_ARGUMENT', 'ERROR_UNKNOWN_ATTRIBUTE', 'INTEGER', 'status', 'INFINITY', 
+    'Attr', 'INTERRUPTED', 'INF_OR_UNBD', 'ERROR_FAILED_TO_CREATE_MODEL', 'SOS_TYPE1', 'ERROR_VALUE_OUT_OF_RANGE', 
+    'SOS_TYPE2', 'ERROR_INVALID_PIECEWISE_OBJ', 'ERROR_NOT_FOR_MIP', 'ERROR_SIZE_LIMIT_EXCEEDED', 
+    'ERROR_OPTIMIZATION_IN_PROGRESS', 'NUMERIC', 'ERROR_DUPLICATES', 'callback', 'INFEASIBLE']
+"""
+# ['_env', '_Model__sos', '_Model__constrs', '_cmodel', 'Params', '_Model__vars', 'params', '_Model__qconstrs']
 
-        for constraint in constraints:
-            if constraint[0] == '=':
-                continue
-            if constraint[0] in ('pose', 'conf'):
-                continue
+def get_constraint_solver(regions, max_time=5, verbose=False):
+    # import cvxopt
+    # import scipy.optimize.linprog
+    # import mosek # https://www.mosek.com/
+    from gurobipy import Model, GRB, quicksum
+    def constraint_solver(facts):
+        m = Model(name='TAMP')
+        m.setParam(GRB.Param.OutputFlag, verbose)
+        m.setParam(GRB.Param.TimeLimit, max_time)
 
-            print(constraint)
+        variable_from_id = {}
+        param_from_id = {}
+        for fact in facts:
+            name = fact[0]
+            args = fact[1:]
+            if name == 'conf':
+                param, = args
+                if param not in variable_from_id:
+                    index = len(variable_from_id)
+                    x = m.addVar(name='{}{}-x'.format(name, index), vtype=GRB.CONTINUOUS, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                    y = m.addVar(name='{}{}-y'.format(name, index), vtype=GRB.CONTINUOUS, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                    variable_from_id[id(param)] = (x, y)
+                    param_from_id[id(param)] = param
+            elif name == 'pose':
+                _, param = args
+                if param not in variable_from_id:
+                    index = len(variable_from_id)
+                    x = m.addVar(name='{}{}-x'.format(name, index), vtype=GRB.CONTINUOUS, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                    y = m.addVar(name='{}{}-y'.format(name, index), vtype=GRB.CONTINUOUS, lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                    variable_from_id[id(param)] = (x, y)
+                    param_from_id[id(param)] = param
 
-        raw_input('awefaewf')
+        objective_terms = []
+        for fact in facts:
+            name, args = fact[0], fact[1:]
+            if name == 'kin':
+                _, q, p = args
+                qx, qy = variable_from_id.get(id(q), q)
+                px, py = variable_from_id.get(id(p), p)
+                gx, gy = -GRASP
+                m.addConstr(qx + gx == px)
+                m.addConstr(qy + gy == py)
+            elif name == 'contained':
+                _, p, r = args
+                px, py = variable_from_id.get(id(p), p)
+                x1, x2 = regions[r]
+                m.addConstr(x1 <= px - BLOCK_WIDTH/2)
+                m.addConstr(px + BLOCK_WIDTH/2 <= x2)
+                m.addConstr(py == 0)
+            elif name == 'cfree':
+                p1, p2 = args
+                p1x, _ = variable_from_id.get(id(p1), p1)
+                p2x, _ = variable_from_id.get(id(p2), p2)
+                dist = m.addVar(lb=-GRB.INFINITY)
+                abs_dist = m.addVar(lb=-GRB.INFINITY)
+                m.addConstr(dist == p2x - p1x)
+                m.addGenConstrAbs(abs_dist, dist) # abs_
+                m.addConstr(BLOCK_WIDTH <= abs_dist)
+            elif name == '=':
+                fact = args[0]
+                name, args = fact[0], fact[1:]
+                if name == 'distance':
+                    q1, q2 = args
+                    q1x, q1y = variable_from_id.get(id(q1), q1)
+                    q2x, q2y = variable_from_id.get(id(q2), q2)
+                    dx = (q2x - q1x)
+                    dy = (q2y - q1y)
+                    objective_terms.append(dx*dx + dy*dy)
+
+        m.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+        m.optimize()
+        if m.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD):
+            # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
+            return []
+        value_from_id = {key: np.array([v.X for v in vars]) for key, vars in variable_from_id.items()}
+        #print('Objective:', m.objVal)
+
+        #for key, param in param_from_id.items():
+        #    print(param, value_from_id[key])
+        atoms = []
+        for fact in facts:
+            name, args = fact[0], fact[1:]
+            if name in ('conf', 'pose', 'kin', 'contained', 'cfree'):
+                new_fact = (name,) + tuple(value_from_id.get(id(a), a) for a in args)
+                atoms.append(new_fact)
+        # TODO: evaluate functions here?
+        return atoms
     return constraint_solver
 
 def pddlstream_from_tamp(tamp_problem):
@@ -102,7 +190,7 @@ def pddlstream_from_tamp(tamp_problem):
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #': from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
-        #'constraint-solver': get_constraint_solver(tamp_problem.regions),
+        'constraint-solver': get_constraint_solver(tamp_problem.regions),
         'distance': distance_fn,
     }
 

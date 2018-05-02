@@ -1,4 +1,7 @@
 (define (stream pick-and-place)
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
+  )
   (:stream sample-pose
     :inputs (?b ?r)
     :domain (and (Block ?b) (Region ?r))
