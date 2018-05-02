@@ -71,9 +71,10 @@ class Instantiator(object): # Dynamic Stream Instsantiator
             for j, domain_atom in enumerate(stream.domain):
                 if get_prefix(head) != get_prefix(domain_atom):
                     continue
-                assert(len(get_args(head)) == len(get_args(domain_atom)))
+                if len(head.args) != len(get_args(domain_atom)):
+                    raise ValueError(head, domain_atom)
                 if any(isinstance(b, Object) and (a != b) for (a, b) in
-                       zip(get_args(head), get_args(domain_atom))):
+                       zip(head.args, get_args(domain_atom))):
                     continue
                 self.atoms_from_domain[(i, j)].append(head)
                 values = [self.atoms_from_domain[(i, k)] if j != k else [head]

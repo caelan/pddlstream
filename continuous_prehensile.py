@@ -27,14 +27,14 @@ class PoseGenerator(Generator):
     def generate(self, context=None): # TODO: context
         raise NotImplementedError()
 
-def collision_test(p1, p2):
+def collision_test(b1, p1, b2, p2):
     return np.linalg.norm(p2 - p1) <= BLOCK_WIDTH
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
     return int(math.ceil(np.linalg.norm(q2 - q1, ord=ord)))
 
-def inverse_kin_fn(p):
+def inverse_kin_fn(b, p):
     return (p + GRASP,)
 
 def sample_pose(region):
@@ -45,7 +45,7 @@ def sample_pose(region):
     return np.array([x, 0])
 
 def get_pose_gen(regions):
-    def gen_fn(r):
+    def gen_fn(b, r):
         while True:
             p = sample_pose(regions[r])
             if p is None:
@@ -59,9 +59,6 @@ def get_constraint_solver(regions):
         #import scipy.optimize.linprog
         #import mosek # https://www.mosek.com/
         import gurobipy
-
-
-
 
         for constraint in constraints:
             if constraint[0] == '=':
@@ -91,7 +88,7 @@ def pddlstream_from_tamp(tamp_problem):
         ('HandEmpty',),
         Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
-           [('Pose', p) for p in initial.block_poses.values()] + \
+           [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('Region', r) for r in tamp_problem.regions.keys()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()]
 
@@ -105,7 +102,7 @@ def pddlstream_from_tamp(tamp_problem):
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #': from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
-        'constraint-solver': get_constraint_solver(tamp_problem.regions),
+        #'constraint-solver': get_constraint_solver(tamp_problem.regions),
         'distance': distance_fn,
     }
 
@@ -165,7 +162,7 @@ def main():
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    #solution = solve_incremental(pddlstream_problem, unit_costs=True)
     solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
     #solution = solve_committed(pddlstream_problem, unit_costs=True) # TODO: stream plan is None?
     print_solution(solution)
