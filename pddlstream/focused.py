@@ -123,7 +123,6 @@ class ConstraintSolver(object):
         key = frozenset(constraints)
         if key in self.problems:
             return []
-        print(key)
         new_facts = self.fn(list(map(value_from_obj_expression, constraints)))
         if verbose:
             print('{}: {}'.format(self.__class__.__name__, new_facts))

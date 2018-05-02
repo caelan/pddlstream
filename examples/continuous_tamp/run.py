@@ -13,6 +13,7 @@ from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
+from pddlstream.committed import solve_committed
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
 from pddlstream.utils import read
@@ -82,7 +83,6 @@ def pddlstream_from_tamp(tamp_problem):
     stream_map = {
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
-        #': from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
         'constraint-solver': get_constraint_solver(tamp_problem.regions),
         'distance': distance_fn,
@@ -150,8 +150,8 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_incremental(pddlstream_problem, unit_costs=True)
-    solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
-    #solution = solve_committed(pddlstream_problem, unit_costs=True) # TODO: stream plan is None?
+    #solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
+    solution = solve_committed(pddlstream_problem, unit_costs=True) # TODO: stream plan is None?
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
