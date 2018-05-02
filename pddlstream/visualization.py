@@ -1,7 +1,9 @@
-from pddlstream.algorithm import get_partial_orders
+import os
+
+from pddlstream.algorithm import get_partial_orders, get_optimistic_constraints
 from pddlstream.conversion import get_args, is_atom, EQ, get_prefix
 from pddlstream.object import OptimisticObject
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_tuple, clear_dir
 from pddlstream.function import FunctionResult, str_from_head
 
 # https://www.graphviz.org/doc/info/colors.html
@@ -11,6 +13,26 @@ CONSTRAINT_COLOR = 'LightBlue'
 COST_COLOR = 'LightSalmon'
 STREAM_COLOR = 'LightSteelBlue'
 FUNCTION_COLOR = 'LightCoral'
+
+VISUALIZATIONS_DIR = 'visualizations/'
+CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
+STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
+ITERATION_TEMPLATE = 'iteration_{}.pdf'
+
+
+def clear_visualizations():
+    clear_dir(CONSTRAINT_NETWORK_DIR)
+    clear_dir(STREAM_PLAN_DIR)
+
+
+def create_visualizations(evaluations, stream_plan, num_iterations):
+    # TODO: place it in the temp_dir?
+    filename = ITERATION_TEMPLATE.format(num_iterations)
+    # visualize_stream_plan(stream_plan, path)
+    visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
+                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan,
+                                    os.path.join(STREAM_PLAN_DIR, filename))
 
 def visualize_constraints(constraints, filename='constraint_network.pdf'):
     from pygraphviz import AGraph

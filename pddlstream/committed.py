@@ -6,15 +6,17 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
 from pddlstream.conversion import revert_solution, evaluation_from_fact
 from pddlstream.focused import reset_disabled, process_stream_plan, process_immediate_stream_plan, \
-    ConstraintSolver, get_optimistic_constraints
+    get_optimistic_constraints
+from pddlstream.context import ConstraintSolver
 from pddlstream.instantiation import Instantiator
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
+from pddlstream.visualization import clear_visualizations, create_visualizations
 
 
 # TODO: display a plan skeleton as a constraint graph
 
-def solve_committed(problem, max_time=INF, effort_weight=None, verbose=True, **kwargs):
+def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, verbose=True, **kwargs):
     # TODO: constrain plan skeleton
     # TODO: constrain ususable samples
     # TODO: recursively consider previously exposed binding levels
@@ -25,7 +27,8 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=True, **k
     evaluations, goal_expression, domain, streams = parse_problem(problem)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []
-
+    if visualize:
+        clear_visualizations()
     committed = False
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
@@ -53,10 +56,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=True, **k
             else:
                 break
         elif (len(stream_plan) == 0) and (cost < best_cost):
-                best_plan = action_plan;
-                best_cost = cost
-                break
+            best_plan = action_plan; best_cost = cost
+            break
         else:
+            if visualize:
+                create_visualizations(evaluations, stream_plan, num_iterations)
             # TODO: use set of intended stream instances here instead
             committed = True
             constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
@@ -74,6 +78,7 @@ def solve_committed(problem, max_time=INF, effort_weight=None, verbose=True, **k
                 # TODO: constrain to use previous plan skeleton
                 # TODO: only use stream instances on plan
                 # TODO: identify subset of state to include to further constrain (requires inverting axioms)
+                # TODO: recurse to previous problems
             #if not new_evaluations:
             #    instantiator.stream_instances.clear()
     return revert_solution(best_plan, best_cost, evaluations)

@@ -1,29 +1,19 @@
-import os
 import time
 from collections import defaultdict
 from itertools import product
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
     get_optimistic_constraints
-from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression, \
-    init_from_evaluations, evaluations_from_init, value_from_obj_expression, obj_from_value_expression
+from pddlstream.context import ConstraintSolver
+from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.scheduling.incremental import exhaustive_stream_plan, incremental_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF, elapsed_time, clear_dir
-from pddlstream.visualization import visualize_stream_plan_bipartite, \
-    visualize_constraints
+from pddlstream.utils import INF, elapsed_time
+from pddlstream.visualization import clear_visualizations, create_visualizations
 
-VISUALIZATIONS_DIR = 'visualizations/'
-CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
-STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
-ITERATION_TEMPLATE = 'iteration_{}.pdf'
-
-##################################################
 
 class StreamOptions(object):
     # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
@@ -111,40 +101,6 @@ def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
 
 ##################################################
 
-class ConstraintSolver(object):
-    def __init__(self, stream_map):
-        self.stream_map = stream_map
-        self.fn = stream_map.get('constraint-solver', None)
-        self.problems = {}
-    def solve(self, constraints, verbose=False):
-        if self.fn is None:
-            return []
-        # TODO: prune any fully constrained things
-        key = frozenset(constraints)
-        if key in self.problems:
-            return []
-        new_facts = self.fn(list(map(value_from_obj_expression, constraints)))
-        if verbose:
-            print('{}: {}'.format(self.__class__.__name__, new_facts))
-        self.problems[key] = map(obj_from_value_expression, new_facts)
-        return self.problems[key]
-        # TODO: evaluate functions as well
-        # TODO: certify if optimal
-    #def __repr__(self):
-    #    return self.__class__.__name__
-
-def clear_visualizations():
-    clear_dir(CONSTRAINT_NETWORK_DIR)
-    clear_dir(STREAM_PLAN_DIR)
-
-def create_visualizations(evaluations, stream_plan, num_iterations):
-    # TODO: place it in the temp_dir?
-    filename = ITERATION_TEMPLATE.format(num_iterations)
-    # visualize_stream_plan(stream_plan, path)
-    visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
-                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan,
-                                    os.path.join(STREAM_PLAN_DIR, filename))
 
 def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
                   visualize=False, verbose=True, **kwargs):

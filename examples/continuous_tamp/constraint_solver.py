@@ -18,6 +18,9 @@ def get_constraint_solver(regions, max_time=5, verbose=False):
         m.setParam(GRB.Param.TimeLimit, max_time)
 
         variable_from_id = {}
+        def get_var(param):
+            return variable_from_id.get(id(param), param)
+
         for fact in facts:
             name, args = fact[0], fact[1:]
             if name == 'conf':
@@ -33,11 +36,9 @@ def get_constraint_solver(regions, max_time=5, verbose=False):
         for fact in facts:
             name, args = fact[0], fact[1:]
             if name == 'kin':
-                _, q, p = args
-                conf = variable_from_id.get(id(q), q)
-                pose = variable_from_id.get(id(p), p)
-                for i in range(len(conf)):
-                    m.addConstr(conf[i] + GRASP[i] == pose[i])
+                _, q, p = map(get_var, args)
+                for i in range(len(q)):
+                    m.addConstr(q[i] + GRASP[i] == p[i])
             elif name == 'contained':
                 _, p, r = args
                 px, py = variable_from_id.get(id(p), p)
@@ -46,23 +47,19 @@ def get_constraint_solver(regions, max_time=5, verbose=False):
                 m.addConstr(px + BLOCK_WIDTH/2 <= x2)
                 m.addConstr(py == 0)
             elif name == 'cfree':
-                p1, p2 = args
-                p1x, _ = variable_from_id.get(id(p1), p1)
-                p2x, _ = variable_from_id.get(id(p2), p2)
+                p1, p2 = map(get_var, args)
                 dist = m.addVar(lb=-GRB.INFINITY)
                 abs_dist = m.addVar(lb=-GRB.INFINITY)
-                m.addConstr(dist == p2x - p1x)
+                m.addConstr(dist == p2[0] - p1[0])
                 m.addGenConstrAbs(abs_dist, dist) # abs_
                 m.addConstr(BLOCK_WIDTH <= abs_dist)
             elif name == '=':
                 fact = args[0]
                 name, args = fact[0], fact[1:]
                 if name == 'distance':
-                    q1, q2 = args
-                    conf1 = variable_from_id.get(id(q1), q1)
-                    conf2 = variable_from_id.get(id(q2), q2)
-                    for i in range(len(conf1)):
-                        delta = conf2[i] - conf1[i]
+                    q1, q2 = map(get_var, args)
+                    for i in range(len(q1)):
+                        delta = q2[i] - q1[i]
                         objective_terms.append(delta*delta)
 
         m.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
