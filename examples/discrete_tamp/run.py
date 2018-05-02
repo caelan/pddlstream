@@ -9,62 +9,11 @@ from pddlstream.incremental import solve_exhaustive, solve_incremental
 from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
-from pddlstream.utils import print_solution, user_input
+from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
 import math
-
-DOMAIN_PDDL = """
-(define (domain pick-and-place)
-  (:requirements :strips :equality)
-  (:constants q100)
-  (:predicates 
-    (Conf ?q)
-    (Block ?b)
-    (Pose ?p)
-    (Kin ?q ?p)
-    (AtPose ?p ?q)
-    (AtConf ?q)
-    (Holding ?b)
-    (HandEmpty)
-    (CFree ?p1 ?p2)
-    (Collision ?p1 ?p2)
-    (Unsafe ?p)
-    (CanMove)
-  )
-  (:functions
-    (Distance ?q1 ?q2)
-  )
-  (:action move
-    :parameters (?q1 ?q2)
-    :precondition (and (Conf ?q1) (Conf ?q2) 
-                       (AtConf ?q1) (CanMove))
-    :effect (and (AtConf ?q2)
-                 (not (AtConf ?q1)) (not (CanMove))
-             (increase (total-cost) (Distance ?q1 ?q2)))
-  )
-  (:action pick
-    :parameters (?b ?p ?q)
-    :precondition (and (Block ?b) (Kin ?q ?p)
-                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
-    :effect (and (Holding ?b) (CanMove)
-                 (not (AtPose ?b ?p)) (not (HandEmpty)) 
-                 (increase (total-cost) 1))
-  )
-  (:action place
-    :parameters (?b ?p ?q)
-    :precondition (and (Block ?b) (Kin ?q ?p) 
-                       (AtConf ?q) (Holding ?b) (not (Unsafe ?p)))
-    :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
-                 (not (Holding ?b))
-                 (increase (total-cost) 1))
-  )
-  (:derived (Unsafe ?p1) 
-    (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
-                            (AtPose ?b ?p2)))
-  )               
-)
-"""
+import os
 
 """
   (:derived (Unsafe ?p1) 
@@ -77,47 +26,9 @@ DOMAIN_PDDL = """
   )        
 """
 
-# Can infer domain from usage or from specification
-STREAM_PDDL = """
-(define (stream pick-and-place)
-  (:rule 
-    :parameters (?q ?p)
-    :domain (Kin ?q ?p)
-    :certified (and (Conf ?q) (Pose ?p))
-  )
-  (:rule 
-    :parameters (?p1 ?p2)
-    :domain (AtPose ?b ?p)
-    :certified (and (Block ?b) (Pose ?p))
-  )
+# TODO: Can infer domain from usage or from specification
 
-  (:function (Distance ?q1 ?q2)
-    (and (Conf ?q1) (Conf ?q2))
-  )
-  (:predicate (Collision ?p1 ?p2)
-    (and (Pose ?p1) (Pose ?p2))
-  )
-
-  (:stream sample-pose
-    :inputs ()
-    :domain ()
-    :outputs (?p)
-    :certified (and (Pose ?p))
-  )
-  (:stream inverse-kinematics
-    :inputs (?p)
-    :domain (Pose ?p)
-    :outputs (?q)
-    :certified (and (Conf ?q) (Kin ?q ?p))
-  )
-  (:stream collision-free
-    :inputs (?p1 ?p2)
-    :domain (and (Pose ?p1) (Pose ?p2))
-    :outputs ()
-    :certified (CFree ?p1 ?p2)
-  )
-)
-"""
+GRASP = np.array([0, 0])
 
 class IKGenerator(Generator):
     def __init__(self, *inputs):
@@ -143,6 +54,10 @@ def pddlstream_from_tamp(tamp_problem):
 
     known_poses = list(initial.block_poses.values()) + \
                   list(tamp_problem.goal_poses.values())
+
+    directory = os.path.dirname(os.path.abspath(__file__))
+    domain_pddl = read(os.path.join(directory, 'domain.pddl'))
+    stream_pddl = read(os.path.join(directory, 'stream.pddl'))
 
     q100 = np.array([100, 100])
     constant_map = {
@@ -186,12 +101,12 @@ def pddlstream_from_tamp(tamp_problem):
         'distance': distance_fn,
     }
 
-    return DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, init, goal
+    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
+##################################################
 
 DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_poses'])
 DiscreteTAMPProblem = namedtuple('DiscreteTAMPProblem', ['initial', 'poses', 'goal_poses'])
-GRASP = np.array([0, 0])
 
 def get_shift_one_problem(n_blocks=2, n_poses=9):
     assert(2 <= n_blocks <= n_poses)
@@ -217,6 +132,8 @@ def get_shift_all_problem(n_blocks=2, n_poses=9):
     goal_poses = dict(zip(blocks, poses[1:]))
 
     return DiscreteTAMPProblem(initial, poses[n_blocks+1:], goal_poses)
+
+##################################################
 
 def draw_state(viewer, state, colors):
     viewer.clear()
@@ -247,6 +164,8 @@ def apply_action(state, action):
     else:
         raise ValueError(name)
     return DiscreteTAMPState(conf, holding, block_poses)
+
+##################################################
 
 def main():
     problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
