@@ -10,11 +10,12 @@ from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
-from continuous_tamp_viewer import ContinuousTMPViewer, GROUND, SUCTION_HEIGHT
+from viewer import ContinuousTMPViewer, GROUND, SUCTION_HEIGHT
 from discrete_tamp_viewer import COLORS
 from pddlstream.utils import read
 import numpy as np
 import math
+import os
 
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
@@ -130,8 +131,9 @@ def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
-    domain_pddl = read('continuous_domain.pddl')
-    stream_pddl = read('continuous_stream.pddl')
+    directory = os.path.dirname(os.path.abspath(__file__))
+    domain_pddl = read(os.path.join(directory, 'domain.pddl'))
+    stream_pddl = read(os.path.join(directory, 'stream.pddl'))
     #print(domain_pddl)
     #print(stream_pddl)
     constant_map = {}
