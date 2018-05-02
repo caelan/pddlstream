@@ -112,18 +112,39 @@ def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
 
 class ConstraintSolver(object):
     def __init__(self, stream_map):
+        self.stream_map = stream_map
         self.fn = stream_map.get('constraint-solver', None)
         self.problems = {}
-    def solve(self, constraints):
+    def solve(self, constraints, verbose=False):
         if self.fn is None:
             return []
+        # TODO: prune any fully constrained things
         key = frozenset(constraints)
         if key in self.problems:
             return []
+        print(key)
         new_facts = self.fn(list(map(value_from_obj_expression, constraints)))
+        if verbose:
+            print('{}: {}'.format(self.__class__.__name__, new_facts))
         self.problems[key] = map(obj_from_value_expression, new_facts)
         return self.problems[key]
         # TODO: evaluate functions as well
+        # TODO: certify if optimal
+    #def __repr__(self):
+    #    return self.__class__.__name__
+
+def clear_visualizations():
+    clear_dir(CONSTRAINT_NETWORK_DIR)
+    clear_dir(STREAM_PLAN_DIR)
+
+def create_visualizations(evaluations, stream_plan, num_iterations):
+    # TODO: place it in the temp_dir?
+    filename = ITERATION_TEMPLATE.format(num_iterations)
+    # visualize_stream_plan(stream_plan, path)
+    visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
+                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan,
+                                    os.path.join(STREAM_PLAN_DIR, filename))
 
 def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
                   visualize=False, verbose=True, **kwargs):
@@ -132,11 +153,10 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
-    constraint_solver = problem[3].get('constraint-solver', None)
+    constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
-        clear_dir(CONSTRAINT_NETWORK_DIR)
-        clear_dir(STREAM_PLAN_DIR)
+        clear_visualizations()
     while elapsed_time(start_time) < max_time:
         # TODO: evaluate once at the beginning?
         num_iterations += 1
@@ -165,23 +185,12 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
             break
         else:
             if visualize:
-                # TODO: place it in the temp_dir?
-                filename = ITERATION_TEMPLATE.format(num_iterations)
-                #visualize_stream_plan(stream_plan, path)
-                visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
-                                      os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-                visualize_stream_plan_bipartite(stream_plan,
-                                                os.path.join(STREAM_PLAN_DIR, filename))
-
-            if constraint_solver is not None:
-                constraints = frozenset(get_optimistic_constraints(evaluations, stream_plan))
-                new_evaluations = evaluations_from_init(constraint_solver(list(map(value_from_obj_expression, constraints))))
-                evaluations.update(new_evaluations)
-                for evaluation in new_evaluations:
-                    instantiator.add_atom(evaluation)
-                if new_evaluations:
-                    continue
-            #process_stream_plan(evaluations, stream_plan, disabled, verbose)
-            process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
+                create_visualizations(evaluations, stream_plan, num_iterations)
+            constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
+            if constraint_facts:
+                evaluations.update(map(evaluation_from_fact, constraint_facts))
+            else:
+                #process_stream_plan(evaluations, stream_plan, disabled, verbose)
+                process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
 
     return revert_solution(best_plan, best_cost, evaluations)
