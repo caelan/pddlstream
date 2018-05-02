@@ -1,0 +1,23 @@
+(define (stream pick-and-place)
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
+  )
+  (:stream sample-pose
+    :inputs (?r)
+    :domain (Region ?r)
+    :outputs (?p)
+    :certified (and (Pose ?p) (Contained ?p ?r))
+  )
+  (:stream inverse-kinematics
+    :inputs (?p)
+    :domain (Pose ?p)
+    :outputs (?q)
+    :certified (and (Conf ?q) (Kin ?q ?p))
+  )
+  (:stream collision-free
+    :inputs (?p1 ?p2)
+    :domain (and (Pose ?p1) (Pose ?p2))
+    :outputs ()
+    :certified (CFree ?p1 ?p2)
+  )
+)
