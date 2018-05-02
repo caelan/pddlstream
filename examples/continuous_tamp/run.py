@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+
+import math
+import os
 from collections import namedtuple
 
-from pddlstream.conversion import AND, EQ, And, Equal
+import numpy as np
+
+from examples.discrete_tamp.viewer import COLORS
+from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.incremental import solve_exhaustive, solve_incremental
-from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
-from viewer import ContinuousTMPViewer, GROUND, SUCTION_HEIGHT
-from discrete_tamp_viewer import COLORS
 from pddlstream.utils import read
-import numpy as np
-import math
-import os
+from viewer import ContinuousTMPViewer, GROUND, SUCTION_HEIGHT
 
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH

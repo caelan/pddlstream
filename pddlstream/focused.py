@@ -18,8 +18,9 @@ from pddlstream.utils import INF, elapsed_time, clear_dir
 from pddlstream.visualization import visualize_stream_plan_bipartite, \
     visualize_constraints
 
-CONSTRAINT_NETWORK_DIR = 'constraint_networks/'
-STREAM_PLAN_DIR = 'stream_plans/'
+VISUALIZATIONS_DIR = 'visualizations/'
+CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
+STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 ITERATION_TEMPLATE = 'iteration_{}.pdf'
 
 ##################################################

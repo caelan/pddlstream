@@ -10,7 +10,7 @@ from pddlstream.committed import solve_committed
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
-from discrete_tamp_viewer import DiscreteTAMPViewer, COLORS
+from viewer import DiscreteTAMPViewer, COLORS
 import numpy as np
 import math
 
