@@ -116,6 +116,7 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
+    constraint_solver = problem[3].get('constraint-solver', None)
     disabled = []
     if visualize:
         clear_dir(CONSTRAINT_NETWORK_DIR)
@@ -147,6 +148,10 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
             best_plan = action_plan; best_cost = cost
             break
         else:
+            if constraint_solver is not None:
+                constraints = get_optimistic_constraints(evaluations, stream_plan)
+                constraint_solver(constraints)
+
             if visualize:
                 # TODO: place it in the temp_dir?
                 filename = ITERATION_TEMPLATE.format(num_iterations)

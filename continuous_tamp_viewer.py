@@ -78,12 +78,12 @@ class ContinuousTMPViewer(object):
                                                         self.scale_y(height),
                                                         fill=color, outline='black', width=2))
 
-    def draw_holding(self, x, color='blue'):
-        self.holding = self.canvas.create_rectangle(self.scale_x(x - BLOCK_WIDTH / 2.),
-                                                    self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2 - BLOCK_HEIGHT),
-                                                    self.scale_x(x + BLOCK_WIDTH / 2.),
-                                                    self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2),
-                                                    fill=color, outline='black', width=2)
+    # def draw_holding(self, x, width, height, color='blue'):
+    #     self.holding = self.canvas.create_rectangle(self.scale_x(x - width / 2.),
+    #                                                 self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2 - height),
+    #                                                 self.scale_x(x + width / 2.),
+    #                                                 self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2),
+    #                                                 fill=color, outline='black', width=2)
 
     def draw_region(self, region, color='red'):
         x1, x2 = map(self.scale_x, region)
