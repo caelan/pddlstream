@@ -25,13 +25,19 @@ def fact_from_fd(fd):
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
-    opt_evaluations = {e: None for e in evaluations}
-    for stream_result in stream_plan:
-        for fact in stream_result.get_certified():
+    result_from_evaluation = {e: None for e in evaluations}
+    opt_evaluations = set(evaluations)
+    for result in stream_plan:
+        # TODO: prune disabled/enumerated
+        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
+        if not (domain <= opt_evaluations):
+            continue
+        for fact in result.get_certified():
             evaluation = evaluation_from_fact(fact)
-            if evaluation not in opt_evaluations:
-                opt_evaluations[evaluation] = stream_result
-    return opt_evaluations
+            if evaluation not in result_from_evaluation:
+                result_from_evaluation[evaluation] = result
+                opt_evaluations.add(evaluation)
+    return result_from_evaluation
 
 def get_results_from_head(evaluations):
     results_from_head = defaultdict(list)
