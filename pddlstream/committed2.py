@@ -5,57 +5,68 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
 from pddlstream.conversion import revert_solution, evaluation_from_fact
-from pddlstream.focused import reset_disabled, process_stream_plan, process_immediate_stream_plan, \
-    get_optimistic_constraints
+from pddlstream.focused import reset_disabled, process_immediate_stream_plan, \
+    get_optimistic_constraints, disable_stream_instance, ground_stream_instances
 from pddlstream.context import ConstraintSolver
 from pddlstream.instantiation import Instantiator
+from pddlstream.object import OptimisticObject, Object
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
+from collections import defaultdict
+from pddlstream.stream import StreamResult
 
-# Next set of stream_results
-# 1) All non-disabled (focused)
-# 2) Previous stream plan (will fail if any composition)
-# 3) New stream results (some might not be performable). In some sense this is similar to the subtraction.
-# 4) All non-disabled - previously considered
-# 5) Stream results "useful" along the plan
-# 6) Subset of evaluations
+def populate_results(evaluations, streams, max_time):
+    start_time = time.time()
+    instantiator = Instantiator(evaluations, streams)
+    stream_results = []
+    while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
+        stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
+    return stream_results
 
-# TODO: maintain a FIFO/FILO queue of things you can try and pop until empty (can even avoid readding)
+def process_stream_plan(evaluations, stream_plan, disabled, verbose,
+                        quick_fail=True, layers=True, max_values=INF):
+    # TODO: can also use the instantiator and operate directly on the outputs
+    # TODO: could bind by just using new_evaluations
+    # TODO: return instance for the committed algorithm
+    opt_bindings = defaultdict(list)
+    next_results = []
+    for opt_result in stream_plan:
+        # Could check opt_bindings to see if new bindings
+        num_instances = max_values if (layers or all(isinstance(o, Object)
+                                                     for o in opt_result.instance.input_objects)) else 0
+        for i, instance in enumerate(ground_stream_instances(opt_result.instance, opt_bindings, evaluations)):
+            if i < num_instances:
+                results = instance.next_results(verbose=verbose)
+                disable_stream_instance(instance, disabled)
+            else:
+                results = instance.next_optimistic()
+                next_results += results
+            for result in results:
+                if i < num_instances:
+                    evaluations.update(map(evaluation_from_fact, result.get_certified()))
+                if isinstance(result, StreamResult): # Could not add if same value
+                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                        opt_bindings[opt].append(obj)
+            if quick_fail and not results: # TODO: check if satisfies target certified
+                return [] # TODO: return None to prevent reattempt
+    return next_results
 
 def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, verbose=True, **kwargs):
-    # TODO: constrain plan skeleton
-    # TODO: constrain ususable samples
-    # TODO: recursively consider previously exposed binding levels
-    # TODO: parameter for how many times to consider a plan skeleton
-
-    # TODO: constrain to use previous plan skeleton
-    # TODO: only use stream instances on plan
-    # TODO: identify subset of state to include to further constrain (requires inverting axioms)
-    # TODO: recurse to previous problems
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, streams = parse_problem(problem)
-    constraint_solver = ConstraintSolver(problem[3])
+    #constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
-    committed = False
-    instantiator = Instantiator(evaluations, streams)
-    #stream_results = []
-    #while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-    #    stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
-    # TODO: queue to always consider functions
-    # TODO: can always append functions
-    # Subproblems are which streams you can use
+    stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
+    base_problem = True
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
         print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
-        stream_results = []
-        while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         #solve_stream_plan = relaxed_stream_plan
         # TODO: constrain to use previous plan to some degree
@@ -64,11 +75,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
-            if committed or disabled:
-                if not committed:
+            if not base_problem or disabled:
+                if not base_problem:
                     reset_disabled(disabled)
-                committed = False
-                instantiator = Instantiator(evaluations, streams)
+                stream_results = populate_results(evaluations, streams, max_time - elapsed_time(start_time))
+                base_problem = True
             else:
                 break
         elif (len(stream_plan) == 0) and (cost < best_cost):
@@ -77,23 +88,6 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            # TODO: use set of intended stream instances here instead
-            #stream_results = []
-            committed = True
-            constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
-            if constraint_facts:
-                new_evaluations = map(evaluation_from_fact, constraint_facts)
-                evaluations.update(new_evaluations)
-            else:
-                #new_evaluations = process_stream_plan(evaluations, stream_plan, disabled, verbose)
-                new_evaluations = process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
-                for evaluation in new_evaluations:
-                    instantiator.add_atom(evaluation) # TODO: return things to try next
-                while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-                    stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
-                #stream_results = stream_plan # TODO: would need to prune disabled
-                # TODO: don't include streams that aren't performable?
-                # TODO: could also only include the previous stream plan
-                # TODO: need to be careful if I only instantiate one that I am not unable to find a plan
-                # TODO: need to always propagate this a little
+            stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            base_problem = False
     return revert_solution(best_plan, best_cost, evaluations)

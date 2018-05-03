@@ -46,43 +46,43 @@ def ground_stream_instances(stream_instance, bindings, evaluations):
         domain = set(map(evaluation_from_fact, substitute_expression(
             stream_instance.get_domain(), mapping)))
         if domain <= evaluations:
-            yield stream_instance.stream.get_instance(combo)
+            yield stream_instance.external.get_instance(combo)
 
-def query_stream(stream_instance, verbose):
-    output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
-    if verbose:
-        stream_instance.dump_output_list(output_objects_list)
-    return [StreamResult(stream_instance, output_objects) for output_objects in output_objects_list]
-
-def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True, max_values=1):
-    # TODO: return instance for the committed algorithm
-    new_evaluations = []
-    opt_bindings = defaultdict(list)
-    unexplored_stream_instances = []
-    failure = False
-    for opt_stream_result in stream_plan:
-        # TODO: could bind by just using new_evaluations
-        stream_instances = list(ground_stream_instances(opt_stream_result.instance,
-                                                        opt_bindings, evaluations))
-        unexplored_stream_instances += stream_instances[max_values:]
-        for stream_instance in stream_instances[:max_values]:
-            disable_stream_instance(stream_instance, disabled)
-            stream_results = query_stream(stream_instance, verbose)
-            for stream_result in stream_results:
-                for opt, val in zip(opt_stream_result.output_objects, stream_result.output_objects):
-                    opt_bindings[opt].append(val)
-                for fact in stream_result.get_certified():
-                    evaluation = evaluation_from_fact(fact)
-                    evaluations.add(evaluation) # To be used on next iteration
-                    new_evaluations.append(evaluation)
-            if not stream_results:
-                failure = True
-                if quick_fail:
-                    break
-    # TODO: return unexplored_stream_instances
-    # TODO: retrace successful argument path upon success
-    # TODO: identify subset of the initial state that support the plan
-    return new_evaluations
+#def query_stream(stream_instance, verbose):
+#    output_objects_list = stream_instance.next_outputs() if not stream_instance.enumerated else []
+#    if verbose:
+#        stream_instance.dump_output_list(output_objects_list)
+#    return [StreamResult(stream_instance, output_objects) for output_objects in output_objects_list]
+#
+# def process_stream_plan(evaluations, stream_plan, disabled, verbose, quick_fail=True, max_values=1):
+#     # TODO: return instance for the committed algorithm
+#     new_evaluations = []
+#     opt_bindings = defaultdict(list)
+#     unexplored_stream_instances = []
+#     failure = False
+#     for opt_stream_result in stream_plan:
+#         # TODO: could bind by just using new_evaluations
+#         stream_instances = list(ground_stream_instances(opt_stream_result.instance,
+#                                                         opt_bindings, evaluations))
+#         unexplored_stream_instances += stream_instances[max_values:]
+#         for stream_instance in stream_instances[:max_values]:
+#             disable_stream_instance(stream_instance, disabled)
+#             stream_results = query_stream(stream_instance, verbose)
+#             for stream_result in stream_results:
+#                 for opt, val in zip(opt_stream_result.output_objects, stream_result.output_objects):
+#                     opt_bindings[opt].append(val)
+#                 for fact in stream_result.get_certified():
+#                     evaluation = evaluation_from_fact(fact)
+#                     evaluations.add(evaluation) # To be used on next iteration
+#                     new_evaluations.append(evaluation)
+#             if not stream_results:
+#                 failure = True
+#                 if quick_fail:
+#                     break
+#     # TODO: return unexplored_stream_instances
+#     # TODO: retrace successful argument path upon success
+#     # TODO: identify subset of the initial state that support the plan
+#     return new_evaluations
 
 
 def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):

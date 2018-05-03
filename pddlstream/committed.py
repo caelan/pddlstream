@@ -5,7 +5,7 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
 from pddlstream.conversion import revert_solution, evaluation_from_fact
-from pddlstream.focused import reset_disabled, process_stream_plan, process_immediate_stream_plan, \
+from pddlstream.focused import reset_disabled, process_immediate_stream_plan, \
     get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
 from pddlstream.instantiation import Instantiator
@@ -89,8 +89,8 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
                 new_evaluations = process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose)
                 for evaluation in new_evaluations:
                     instantiator.add_atom(evaluation) # TODO: return things to try next
-                while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-                    stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
+                #while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
+                #    stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
                 #stream_results = stream_plan # TODO: would need to prune disabled
                 # TODO: don't include streams that aren't performable?
                 # TODO: could also only include the previous stream plan
