@@ -10,11 +10,12 @@ from pddlstream.focused import reset_disabled, process_immediate_stream_plan, \
 from pddlstream.context import ConstraintSolver
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import OptimisticObject, Object
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
+from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
 from collections import defaultdict
 from pddlstream.stream import StreamResult
+from pddlstream.function import Function
 
 def populate_results(evaluations, streams, max_time):
     start_time = time.time()
@@ -25,10 +26,9 @@ def populate_results(evaluations, streams, max_time):
     return stream_results
 
 def process_stream_plan(evaluations, stream_plan, disabled, verbose,
-                        quick_fail=True, layers=True, max_values=INF):
+                        quick_fail=False, layers=False, max_values=INF):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
-    # TODO: return instance for the committed algorithm
     opt_bindings = defaultdict(list)
     next_results = []
     for opt_result in stream_plan:
@@ -56,30 +56,33 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    evaluations, goal_expression, domain, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, external = parse_problem(problem)
     #constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
+    functions = filter(lambda s: isinstance(s, Function), external)
+    streams = filter(lambda s: s not in functions, external)
     stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
-    base_problem = True
+    depth = 0
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
-        print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
-        solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-        #solve_stream_plan = relaxed_stream_plan
+        print('\nIteration: {} | Depth: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+            num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
         # TODO: constrain to use previous plan to some degree
+        stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
+                                           functions, max_time-elapsed_time(start_time))
+        solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
         stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                      domain, stream_results, **kwargs)
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
-            if not base_problem or disabled:
-                if not base_problem:
+            if disabled or (depth != 0):
+                if depth == 0:
                     reset_disabled(disabled)
                 stream_results = populate_results(evaluations, streams, max_time - elapsed_time(start_time))
-                base_problem = True
+                depth = 0 # Recurse on problems
             else:
                 break
         elif (len(stream_plan) == 0) and (cost < best_cost):
@@ -89,5 +92,5 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
             stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
-            base_problem = False
+            depth += 1
     return revert_solution(best_plan, best_cost, evaluations)

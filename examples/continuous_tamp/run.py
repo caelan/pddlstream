@@ -152,7 +152,7 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_incremental(pddlstream_problem, unit_costs=True)
     #solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
-    solution = solve_committed(pddlstream_problem, unit_costs=True, visualize=False)
+    solution = solve_committed(pddlstream_problem, unit_costs=False, visualize=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
