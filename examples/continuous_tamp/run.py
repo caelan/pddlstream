@@ -15,12 +15,16 @@ from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.committed import solve_committed
 from pddlstream.incremental import solve_incremental
-from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
-from pddlstream.utils import print_solution, user_input
-from pddlstream.utils import read
+from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator, StreamInfo
+from pddlstream.utils import print_solution, user_input, read
 from viewer import ContinuousTMPViewer, GROUND
 
 SCALE_COST = 1.
+
+def scale_cost(cost):
+    return int(math.ceil(SCALE_COST*cost))
+
+##################################################
 
 def interval_contains(i1, i2):
     """
@@ -31,7 +35,12 @@ def interval_contains(i1, i2):
     return (i1[0] <= i2[0]) and (i2[1] <= i1[1])
 
 def interval_overlap(i1, i2):
-    return not ((i1[1] < i2[0]) or (i2[1] < i1[0]))
+    return (i1[1] >= i2[0]) and (i2[1] >= i1[0])
+
+def get_block_interval(b, p):
+    return p[0]*np.ones(2) + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
+
+##################################################
 
 class PoseGenerator(Generator):
     def __init__(self, *inputs):
@@ -41,10 +50,7 @@ class PoseGenerator(Generator):
         raise NotImplementedError()
 
 def collision_test(b1, p1, b2, p2):
-    return np.linalg.norm(p2 - p1) <= BLOCK_WIDTH
-
-def scale_cost(cost):
-    return int(math.ceil(SCALE_COST*cost))
+    return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
@@ -53,27 +59,22 @@ def distance_fn(q1, q2):
 def inverse_kin_fn(b, p):
     return (p - GRASP,)
 
-def get_boundary(b, p):
-    return p + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
+def get_region_test(regions):
+    def test(b, p, r):
+        return interval_contains(regions[r], get_block_interval(b, p))
+    return test
 
-def sample_pose(b, region):
-    x1, x2 = np.array(region, dtype=float) - get_boundary(b, np.zeros(2))
+def sample_region(b, region):
+    x1, x2 = np.array(region, dtype=float) - get_block_interval(b, np.zeros(2))
     if x2 < x1:
         return None
     x = np.random.uniform(x1, x2)
     return np.array([x, 0])
 
-def get_region_test(regions):
-    def test(b, p, r):
-        r1, r2 = regions[r]
-        p1, p2 = get_boundary(b, p)
-        return (r1 <= p1) and (p2 <= r2)
-    return test
-
 def get_pose_gen(regions):
     def gen_fn(b, r):
         while True:
-            p = sample_pose(b, regions[r])
+            p = sample_region(b, regions[r])
             if p is None:
                 break
             yield (p,)
@@ -179,12 +180,16 @@ def main(deterministic=False):
     tamp_problem = problem_fn()
     print(tamp_problem)
 
-    stream_info = {}
+    stream_info = {
+        'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
+    }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    #solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
-    #solution = solve_committed(pddlstream_problem, stream_info=stream_info, unit_costs=False, visualize=False)
+    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    #solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+    #                         effort_weight=1, unit_costs=False, visualize=False)
+    solution = solve_committed(pddlstream_problem, stream_info=stream_info,
+                               effort_weight=1, unit_costs=False, visualize=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

@@ -8,7 +8,7 @@ from pddlstream.fast_downward import get_problem, task_from_domain_problem, inst
     pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
 from pddlstream.scheduling.simultaneous import fact_from_fd, evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose
+from pddlstream.utils import Verbose, INF
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -140,6 +140,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
 
     with Verbose(False):
         ground_task = instantiate_task(task, simplify_axioms=False)
+        if ground_task is None:
+            return None, None, INF
         sas_task = pddl_to_sas(ground_task)
         clear_dir(TEMP_DIR)
         with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:

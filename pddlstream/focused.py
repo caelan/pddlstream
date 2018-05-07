@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import product
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
-    get_optimistic_constraints
+    get_optimistic_constraints, process_stream_queue
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import evaluation_from_fact, revert_solution, substitute_expression
 from pddlstream.instantiation import Instantiator
@@ -13,18 +13,6 @@ from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-
-
-class StreamOptions(object):
-    # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
-    def __init__(self, bound_fn, effort_fn, prioritized=False):
-        # TODO: could change frequency/priority for the incremental algorithm
-        self.bound_fn = bound_fn
-        self.effort_fn = effort_fn
-        self.prioritized = prioritized
-        # TODO: context?
-
-##################################################
 
 def disable_stream_instance(stream_instance, disabled):
     disabled.append(stream_instance)
@@ -102,13 +90,32 @@ def process_immediate_stream_plan(evaluations, stream_plan, disabled, verbose):
 ##################################################
 
 
-def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
+def update_info(externals, stream_info):
+    for external in externals:
+        if external.name in stream_info:
+            external.info = stream_info[external.name]
+
+
+def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
+    start_time = time.time()
+    instantiator = Instantiator(evaluations, externals)
+    for _ in range(num_iterations):
+        for _ in range(len(instantiator.stream_queue)):
+            if max_time <= elapsed_time(start_time):
+                break
+            process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
+
+##################################################
+
+def solve_focused(problem, max_time=INF, stream_info={}, effort_weight=None, eager_iterations=1,
                   visualize=False, verbose=True, **kwargs):
     # TODO: eager, negative, context, costs, bindings
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    evaluations, goal_expression, domain, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    update_info(externals, stream_info)
+    eager_externals = filter(lambda e: e.info.eager, externals)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
@@ -118,10 +125,11 @@ def solve_focused(problem, max_time=INF, effort_weight=None, num_incr_iters=0,
         num_iterations += 1
         print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
+        eagerly_evaluate(evaluations, eager_externals, eager_iterations, max_time - elapsed_time(start_time), verbose)
         # TODO: version that just calls one of the incremental algorithms
-        instantiator = Instantiator(evaluations, streams)
+        instantiator = Instantiator(evaluations, externals)
         stream_results = []
-        # TODO: apply incremetnal algorithm for sum number of iterations
+        # TODO: apply incremental algorithm for some number of iterations
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
             # TODO: could handle costs here
             stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)

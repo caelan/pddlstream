@@ -1,21 +1,20 @@
 import time
-
-from pddlstream.scheduling.sequential import sequential_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
+from collections import defaultdict
 
 from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
-from pddlstream.conversion import revert_solution, evaluation_from_fact
-from pddlstream.focused import reset_disabled, process_immediate_stream_plan, \
-    get_optimistic_constraints, disable_stream_instance, ground_stream_instances
 from pddlstream.context import ConstraintSolver
+from pddlstream.conversion import revert_solution, evaluation_from_fact
+from pddlstream.focused import reset_disabled, get_optimistic_constraints, disable_stream_instance, \
+    ground_stream_instances, update_info, eagerly_evaluate
+from pddlstream.function import Function
 from pddlstream.instantiation import Instantiator
-from pddlstream.object import OptimisticObject, Object
+from pddlstream.object import Object
+from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
+from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from collections import defaultdict
-from pddlstream.stream import StreamResult
-from pddlstream.function import Function
+
 
 def populate_results(evaluations, streams, max_time):
     start_time = time.time()
@@ -53,18 +52,14 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 return [] # TODO: return None to prevent reattempt
     return next_results
 
-def update_info(externals, stream_info):
-    for external in externals:
-        if external.name in stream_info:
-            external.info = stream_info[external.name]
-
-def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, visualize=False, verbose=True, **kwargs):
+def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, externals = parse_problem(problem)
     update_info(externals, stream_info)
+    eager_externals = filter(lambda e: e.info.eager, externals)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
@@ -78,6 +73,7 @@ def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, v
         print('\nIteration: {} | Depth: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
         # TODO: constrain to use previous plan to some degree
+        eagerly_evaluate(evaluations, eager_externals, eager_iterations, max_time-elapsed_time(start_time), verbose)
         stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
                                            functions, max_time-elapsed_time(start_time))
         solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan

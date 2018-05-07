@@ -47,6 +47,8 @@ def optimistic_process_stream_queue(instantiator, prioritized):
 def process_stream_queue(instantiator, evaluations, prioritized, verbose=True):
     stream_instance = instantiator.prioritized_stream_queue.popleft() \
         if prioritized else instantiator.stream_queue.popleft()
+    if stream_instance.enumerated:
+        return
     for result in stream_instance.next_results(verbose=verbose):
         for fact in result.get_certified():
             evaluation = evaluation_from_fact(fact)

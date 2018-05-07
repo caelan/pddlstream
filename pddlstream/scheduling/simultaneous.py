@@ -4,7 +4,7 @@ from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl, evaluation_from_fact, Head
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF, find
-from pddlstream.stream import Stream
+from pddlstream.stream import Stream, StreamResult
 from pddlstream.function import FunctionResult
 
 
@@ -14,12 +14,6 @@ def fd_from_fact(evaluation):
     args = map(pddl_from_object, get_args(evaluation))
     return pddl.Atom(predicate, args)
 
-#def evaluation_from_fd(fd):
-#    args = tuple(map(obj_from_pddl, fd.args))
-#    head = Head(fd.predicate, args)
-#    return Evaluation(head, not fd.negated)
-
-
 def fact_from_fd(fd):
     assert(not fd.negated)
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
@@ -28,7 +22,12 @@ def evaluations_from_stream_plan(evaluations, stream_plan):
     result_from_evaluation = {e: None for e in evaluations}
     opt_evaluations = set(evaluations)
     for result in stream_plan:
-        # TODO: prune disabled/enumerated
+        if isinstance(result, StreamResult):
+            effort = result.instance.external.info.effort
+            if effort == INF:
+                continue
+        assert(not result.instance.disabled)
+        assert(not result.instance.enumerated)
         domain = set(map(evaluation_from_fact, result.instance.get_domain()))
         if not (domain <= opt_evaluations):
             continue
@@ -46,21 +45,21 @@ def get_results_from_head(evaluations):
         #results_from_head[evaluation.head].append(stream_result)
     return results_from_head
 
-def get_stream_action(stream_result, name, effect_scale=1):
+def get_stream_action(result, name, effect_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
 
     parameters = []
-    preconditions = [fd_from_fact(fact) for fact in stream_result.instance.get_domain()]
+    preconditions = [fd_from_fact(fact) for fact in result.instance.get_domain()]
     precondition = pddl.Conjunction(preconditions)
     effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
-               for fact in stream_result.get_certified()]
+               for fact in result.get_certified()]
 
-    effort = effect_scale
+    effort = result.instance.external.info.effort
     if effort == INF:
         return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-    expression = pddl.NumericConstant(effort) # Integer
+    expression = pddl.NumericConstant(effect_scale*effort) # Integer
     increase = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
 
     return pddl.Action(name=name, parameters=parameters, num_external_parameters=len(parameters),
@@ -68,10 +67,10 @@ def get_stream_action(stream_result, name, effect_scale=1):
     # TODO: previous problem seemed to be new predicates
 
 
-def get_stream_actions(stream_results):
+def get_stream_actions(results):
     stream_result_from_name = {}
     stream_actions = []
-    for i, stream_result in enumerate(stream_results):
+    for i, stream_result in enumerate(results):
         if not isinstance(stream_result.instance.external, Stream):
             continue
         name = '{}-{}'.format(stream_result.instance.external.name, i)
@@ -124,8 +123,11 @@ def extract_function_results(results_from_head, action, pddl_args):
     return [stream_result]
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
-    function_results = filter(lambda r: isinstance(r, FunctionResult), stream_results)
-    function_evaluations = evaluations_from_stream_plan(evaluations, function_results)
+    function_evaluations = {e: None for e in evaluations}
+    for result in stream_results:
+        if isinstance(result, FunctionResult):
+            for fact in result.get_certified():
+                function_evaluations[evaluation_from_fact(fact)] = result
     new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
     combined_plan, _ = solve_finite(function_evaluations, goal_expression, new_domain,
                                                 unit_costs=unit_costs, **kwargs)

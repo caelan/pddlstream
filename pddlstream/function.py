@@ -1,5 +1,5 @@
 from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_tuple, INF
 
 
 def str_from_head(head):
@@ -106,7 +106,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), get_args(head), domain)
         self.head = head
         self.fn = fn
-
+        self.info = FunctionInfo()
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -134,3 +134,23 @@ class Predicate(Function):
     _Instance = PredicateInstance
     _Result = PredicateResult
     _codomain = bool
+
+##################################################
+
+class ExternalInfo(object):
+    pass
+
+
+def geometric_cost(cost, p):
+    if p == 0:
+        return INF
+    return cost/p
+
+
+class FunctionInfo(ExternalInfo):
+    def __init__(self, eager=False, bound_fn=0, overhead=0):
+        self.eager = eager
+        self.bound_fn = bound_fn
+        self.overhead = overhead
+        self.effort = geometric_cost(self.overhead, 1)
+        self.order = 0
