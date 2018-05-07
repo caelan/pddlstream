@@ -31,7 +31,10 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     # TODO: identify outputs bound to twice and don't sample for them
     opt_bindings = defaultdict(list)
     next_results = []
+    failed = False
     for opt_result in stream_plan:
+        if failed and quick_fail:  # TODO: check if satisfies target certified
+            break
         # Could check opt_bindings to see if new bindings
         num_instances = max_values if (layers or all(isinstance(o, Object)
                                                      for o in opt_result.instance.input_objects)) else 0
@@ -42,17 +45,19 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
             else:
                 results = instance.next_optimistic()
                 next_results += results
+            failed |= not results
             for result in results:
                 if i < num_instances:
                     evaluations.update(map(evaluation_from_fact, result.get_certified()))
                 if isinstance(result, StreamResult): # Could not add if same value
                     for opt, obj in zip(opt_result.output_objects, result.output_objects):
                         opt_bindings[opt].append(obj)
-            if quick_fail and not results: # TODO: check if satisfies target certified
-                return [] # TODO: return None to prevent reattempt
+    if failed:
+        return None
     return next_results
 
-def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
+def solve_committed(problem, max_time=INF, stream_info={},
+                    commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
@@ -69,18 +74,21 @@ def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, e
     stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
     depth = 0
     while elapsed_time(start_time) < max_time:
-        num_iterations += 1
-        print('\nIteration: {} | Depth: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
-        # TODO: constrain to use previous plan to some degree
-        eagerly_evaluate(evaluations, eager_externals, eager_iterations, max_time-elapsed_time(start_time), verbose)
-        stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
-                                           functions, max_time-elapsed_time(start_time))
-        solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
-        stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
-                                                     domain, stream_results, **kwargs)
-        print('Stream plan: {}\n'
-              'Action plan: {}'.format(stream_plan, action_plan))
+        if stream_results is None:
+            stream_plan, action_plan, cost = None, None, INF
+        else:
+            num_iterations += 1
+            print('\nIteration: {} | Depth: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+                num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
+            # TODO: constrain to use previous plan to some degree
+            eagerly_evaluate(evaluations, eager_externals, eager_iterations, max_time-elapsed_time(start_time), verbose)
+            stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
+                                               functions, max_time-elapsed_time(start_time))
+            solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+            stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
+                                                         domain, stream_results, **kwargs)
+            print('Stream plan: {}\n'
+                  'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
             if disabled or (depth != 0):
                 if depth == 0:
@@ -101,5 +109,7 @@ def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, e
                 stream_results = []
             else:
                 stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            if not commit:
+                stream_results = None
             depth += 1
     return revert_solution(best_plan, best_cost, evaluations)
