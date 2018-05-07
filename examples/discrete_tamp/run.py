@@ -8,9 +8,9 @@ from collections import namedtuple
 
 import numpy as np
 
-from experimental.focused import solve_focused
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
+from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
@@ -34,7 +34,7 @@ class IKGenerator(Generator):
     def __init__(self, *inputs):
         super(IKGenerator, self).__init__()
         self.p, = inputs
-    def generate(self, context=None):
+    def generate(self, *args):
         self.enumerated = True
         return [(self.p + GRASP,)]
 
@@ -175,8 +175,7 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
     #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, unit_costs=False, visualize=False)
-    #solution = solve_committed(pddlstream_problem, unit_costs=True)
+    solution = solve_focused(pddlstream_problem, unit_costs=True)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

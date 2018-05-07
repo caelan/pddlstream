@@ -190,14 +190,14 @@ def translate_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 ##################################################
 
-def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=True):
+def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=False):
     if max_time == INF:
         max_time = 'infinity'
-    else: #isinstance(max_time, float):
+    else:
         max_time = int(max_time)
     if max_cost == INF:
         max_cost = 'infinity'
-    else: # isinstance(max_cost, float):
+    else:
         max_cost = int(max_cost)
 
     t0 = time()

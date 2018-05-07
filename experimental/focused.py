@@ -8,7 +8,7 @@ from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from pddlstream.committed import disable_stream_instance, reset_disabled, update_info, eagerly_evaluate, \
+from pddlstream.focused import disable_stream_instance, reset_disabled, update_info, eagerly_evaluate, \
     optimistic_process_stream_queue
 
 

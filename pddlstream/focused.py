@@ -112,8 +112,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 
 ##################################################
 
-def solve_committed(problem, max_time=INF, max_cost=INF, stream_info={},
-                    commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
+def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
+                  commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0

@@ -11,8 +11,7 @@ import numpy as np
 from examples.continuous_tamp.constraint_solver import BLOCK_WIDTH, BLOCK_HEIGHT, GRASP
 from examples.discrete_tamp.viewer import COLORS
 from examples.continuous_tamp.constraint_solver import get_constraint_solver
-from experimental.focused import solve_focused
-from pddlstream.committed import solve_committed
+from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
@@ -256,9 +255,9 @@ def main(focused=True, deterministic=False):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_committed(pddlstream_problem, stream_info=stream_info,
-                                   max_time=10, max_cost=INF, debug=False,
-                                   commit=True, effort_weight=None, unit_costs=False, visualize=False)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+                                 max_time=10, max_cost=INF, debug=False,
+                                 commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)
     print_solution(solution)

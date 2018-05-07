@@ -3,7 +3,7 @@ import time
 from experimental.focused import reset_disabled, process_immediate_stream_plan, \
     get_optimistic_constraints
 from pddlstream.algorithm import parse_problem
-from pddlstream.committed import optimistic_process_stream_queue
+from pddlstream.focused import optimistic_process_stream_queue
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact
 from pddlstream.instantiation import Instantiator
