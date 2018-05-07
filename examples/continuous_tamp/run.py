@@ -14,7 +14,7 @@ from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 #from pddlstream.committed import solve_committed
-from pddlstream.committed2 import solve_committed
+from pddlstream.committed import solve_committed
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
 from pddlstream.utils import read
