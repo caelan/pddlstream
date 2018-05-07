@@ -49,6 +49,7 @@ def get_pose_generator(regions):
             super(PoseGenerator, self).__init__()
             self.b, self.r = inputs
         def generate(self, outputs=None, streams=tuple()):
+            # TODO: designate which streams can be handled
             placed = {}
             for stream in streams:
                 name, args = stream[0], stream[1:]
@@ -152,6 +153,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
         'sample-pose': get_pose_generator(tamp_problem.regions),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
+        #'collision-free': from_test(lambda *args: not collision_test(*args)),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
         'distance': distance_fn,
     }

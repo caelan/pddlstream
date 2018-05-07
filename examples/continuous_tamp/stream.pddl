@@ -14,7 +14,7 @@
     :outputs ()
     :certified (Contained ?b ?p ?r)
   )
-  (:stream inverse-kinematics
+  (:stream inverse-kinematics ;Comments?
     :inputs (?b ?p)
     :domain (Pose ?b ?p)
     :outputs (?q)
@@ -24,6 +24,6 @@
     :inputs (?b1 ?p1 ?b2 ?p2)
     :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
     :outputs ()
-    :certified (CFree ?p1 ?p2)
+    :certified (CFree ?b1 ?p1 ?b2 ?p2)
   )
 )
