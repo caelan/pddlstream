@@ -117,3 +117,7 @@ def open_pdf(filename):
     # webbrowser.open(filename)
     user_input('Display?')
     # safe_remove(filename)
+
+class MockSet(object):
+    def __contains__(self, item):
+        return True

@@ -303,7 +303,7 @@ def is_applicable(state, action):
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
     for conditions, effect in action.del_effects:
-        if conditions_hold(state, conditions):
+        if conditions_hold(state, conditions) and (effect in state):
             state.remove(effect)
     for conditions, effect in action.add_effects:
         if conditions_hold(state, conditions):

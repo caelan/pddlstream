@@ -256,7 +256,8 @@ def main(focused=True, deterministic=False):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_committed(pddlstream_problem, stream_info=stream_info, max_time=10, max_cost=INF, debug=False,
+        solution = solve_committed(pddlstream_problem, stream_info=stream_info,
+                                   max_time=10, max_cost=INF, debug=False,
                                    commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)

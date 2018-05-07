@@ -2,31 +2,13 @@ from pddlstream.conversion import obj_from_pddl, obj_from_pddl_plan
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, solve_from_task, get_init, TOTAL_COST
 from pddlstream.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
     extract_function_results, get_results_from_head
-from pddlstream.utils import Verbose, find
+from pddlstream.utils import find, INF, MockSet
 
 
 # TODO: interpolate between all the scheduling options
 
-
-def real_from_optimistic(evaluations, opt_task):
-    import pddl
-    import pddl_to_prolog
-    import build_model
-    import instantiate
-    real_init = get_init(evaluations)
-    opt_facts = set(opt_task.init) - set(real_init)
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(opt_task))
-        fluent_facts = instantiate.get_fluent_facts(opt_task, model) | opt_facts
-    opt_task.init = real_init
-    init_facts = set(opt_task.init)
-    function_assignments = {fact.fluent: fact.expression for fact in init_facts
-                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
-    return fluent_facts, init_facts, function_assignments, type_to_objects
-
-
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
+    # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
@@ -34,7 +16,12 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     if action_plan is None:
         return None, action_plan, action_cost
 
-    fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
+    import instantiate
+    fluent_facts = MockSet()
+    init_facts = set()
+    task.init = get_init(evaluations)
+
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     task.actions, stream_result_from_name = get_stream_actions(stream_results)
     results_from_head = get_results_from_head(opt_evaluations)
 
@@ -65,9 +52,10 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
         if not unit_costs:
             function_plan.update(extract_function_results(results_from_head, action, args))
 
-    combined_plan, _ = solve_from_task(task, **kwargs)
+    planner = kwargs.get('planner', 'ff-astar')
+    combined_plan, _ = solve_from_task(task, planner=planner, **kwargs)
     if combined_plan is None:
-        return None, obj_from_pddl_plan(action_plan)
+        return None, obj_from_pddl_plan(action_plan), INF
     stream_plan = []
     action_plan = []
     for name, args in combined_plan:

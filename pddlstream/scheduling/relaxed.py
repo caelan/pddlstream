@@ -8,7 +8,7 @@ from pddlstream.fast_downward import get_problem, task_from_domain_problem, inst
     pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
 from pddlstream.scheduling.simultaneous import fact_from_fd, evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF
+from pddlstream.utils import Verbose, INF, MockSet
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -23,18 +23,9 @@ def action_preimage(action, preimage):
     preimage.update(action.precondition)
 
 def axiom_preimage(axiom, preimage):
-    preimage.remove(axiom.effect)
+    if axiom.effect in preimage:
+        preimage.remove(axiom.effect)
     preimage.update(axiom.condition)
-
-# def clone_task(task, init=None, actions=None):
-#     import pddl
-#     if init is None:
-#         init = task.init
-#     if actions is None:
-#         actions = task.actions
-#     return pddl.Task(
-#         task.domain_name, task.task_name, task.requirements, task.types, task.objects,
-#         task.predicates, task.functions, init, task.goal, actions, task.axioms, task.use_min_cost_metric)
 
 Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
 
@@ -136,7 +127,6 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    #task = clone_task(task)
 
     with Verbose(False):
         ground_task = instantiate_task(task, simplify_axioms=False)
@@ -166,26 +156,25 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     import instantiate
 
     real_init = get_init(evaluations)
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(task))
-        fluent_facts = instantiate.get_fluent_facts(task, model) | (set(task.init) - set(real_init))
-    init_facts = set(real_init)
     function_assignments = {fact.fluent: fact.expression for fact in task.init # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    #fluent_facts, init_facts, function_assignments, type_to_objects = real_from_optimistic(evaluations, task)
     results_from_head = get_results_from_head(opt_evaluations)
+    fluent_facts = MockSet()
+    init_facts = set()
 
     fd_plan = []
     function_plan = set()
     for pair in action_plan:
         candidates = action_from_parameters[pair]
-        assert(len(candidates) == 1)
+        assert(len(candidates) == 1) # TODO: extend to consider additional candidates
         action, args = candidates[0]
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        fd_plan.append(action.instantiate(variable_mapping, init_facts,
-                                         fluent_facts, type_to_objects,
-                                         task.use_min_cost_metric, function_assignments))
+        instance = action.instantiate(variable_mapping, init_facts,
+                           fluent_facts, type_to_objects,
+                           task.use_min_cost_metric, function_assignments)
+        assert(instance is not None)
+        fd_plan.append(instance)
         if not unit_costs:
             function_plan.update(extract_function_results(results_from_head, action, args))
 

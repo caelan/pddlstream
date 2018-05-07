@@ -4,12 +4,13 @@ from itertools import product
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.incremental import process_stream_queue
-from pddlstream.context import ConstraintSolver, create_immediate_context
+from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
+from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
@@ -141,6 +142,7 @@ def solve_committed(problem, max_time=INF, max_cost=INF, stream_info={},
             stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
                                                functions, max_time-elapsed_time(start_time))
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+            #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
                                                          domain, stream_results, max_cost=best_cost, **kwargs)
             print('Stream plan: {}\n'
