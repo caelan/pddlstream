@@ -2,7 +2,8 @@ import time
 
 from experimental.focused import reset_disabled, process_immediate_stream_plan, \
     get_optimistic_constraints
-from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
+from pddlstream.algorithm import parse_problem
+from pddlstream.committed import optimistic_process_stream_queue
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact
 from pddlstream.instantiation import Instantiator
@@ -54,7 +55,7 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
+            stream_results += optimistic_process_stream_queue(instantiator)
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         #solve_stream_plan = relaxed_stream_plan
         # TODO: constrain to use previous plan to some degree

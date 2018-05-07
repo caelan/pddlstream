@@ -26,7 +26,6 @@ class Instantiator(object): # Dynamic Stream Instsantiator
         self.streams = streams
         self.stream_instances = set()
         self.stream_queue = deque()
-        self.prioritized_stream_queue = deque()
         self.atoms = set()
         self.atoms_from_domain = defaultdict(list)
         for stream in self.streams:
@@ -45,10 +44,7 @@ class Instantiator(object): # Dynamic Stream Instsantiator
     #        yield stream_instance
 
     def queue_stream_instance(self, stream_instance):
-        if stream_instance.external.prioritized:
-            self.prioritized_stream_queue.append(stream_instance)
-        else:
-            self.stream_queue.append(stream_instance)
+        self.stream_queue.append(stream_instance)
 
     def _add_instance(self, stream, input_objects):
         stream_instance = stream.get_instance(input_objects)

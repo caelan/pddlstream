@@ -1,7 +1,6 @@
 import time
 
-from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
-    get_optimistic_constraints
+from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import evaluation_from_fact, revert_solution
 from pddlstream.instantiation import Instantiator
@@ -9,7 +8,8 @@ from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from pddlstream.committed import disable_stream_instance, reset_disabled, update_info, eagerly_evaluate
+from pddlstream.committed import disable_stream_instance, reset_disabled, update_info, eagerly_evaluate, \
+    optimistic_process_stream_queue
 
 
 #def query_stream(stream_instance, verbose):
@@ -87,7 +87,7 @@ def solve_focused(problem, max_time=INF, stream_info={}, effort_weight=None, eag
         instantiator = Instantiator(evaluations, externals)
         stream_results = []
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
+            stream_results += optimistic_process_stream_queue(instantiator)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
         #solve_stream_plan = simultaneous_stream_plan

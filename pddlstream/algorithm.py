@@ -1,9 +1,10 @@
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact, fact_from_evaluation
-from pddlstream.object import Object
+    fact_from_evaluation
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task
+from pddlstream.object import Object
 from pddlstream.stream import parse_stream_pddl
+
 
 def parse_constants(domain, constant_map):
     for constant in domain.constants:
@@ -33,38 +34,6 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
-
-def optimistic_process_stream_queue(instantiator, prioritized):
-    stream_instance = instantiator.prioritized_stream_queue.popleft() \
-        if prioritized else instantiator.stream_queue.popleft()
-    stream_results = stream_instance.next_optimistic()
-    for stream_result in stream_results:
-        for fact in stream_result.get_certified():
-            instantiator.add_atom(evaluation_from_fact(fact))
-    return stream_results
-
-
-def process_stream_queue(instantiator, evaluations, prioritized, verbose=True):
-    stream_instance = instantiator.prioritized_stream_queue.popleft() \
-        if prioritized else instantiator.stream_queue.popleft()
-    if stream_instance.enumerated:
-        return
-    for result in stream_instance.next_results(verbose=verbose):
-        for fact in result.get_certified():
-            evaluation = evaluation_from_fact(fact)
-            instantiator.add_atom(evaluation)
-            evaluations.add(evaluation)
-    if not stream_instance.enumerated:
-        instantiator.queue_stream_instance(stream_instance)
-
-def get_partial_orders(stream_plan):
-    # TODO: only show the first atom achieved?
-    partial_orders = set()
-    for i, stream1 in enumerate(stream_plan):
-        for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.get_certified()):
-                partial_orders.add((stream1, stream2))
-    return partial_orders
 
 
 def get_optimistic_constraints(evaluations, stream_plan):

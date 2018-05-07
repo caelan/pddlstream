@@ -45,7 +45,6 @@ class External(object):
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         self.instances = {}
-        self.prioritized = False
 
     def get_instance(self, input_values):
         input_values = tuple(input_values)

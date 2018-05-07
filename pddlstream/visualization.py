@@ -1,6 +1,6 @@
 import os
 
-from pddlstream.algorithm import get_partial_orders, get_optimistic_constraints
+from pddlstream.algorithm import get_optimistic_constraints
 from pddlstream.conversion import get_args, is_atom, EQ, get_prefix
 from pddlstream.object import OptimisticObject
 from pddlstream.utils import str_from_tuple, clear_dir
@@ -19,6 +19,7 @@ CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/'
 STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 ITERATION_TEMPLATE = 'iteration_{}.pdf'
 
+##################################################
 
 def clear_visualizations():
     clear_dir(CONSTRAINT_NETWORK_DIR)
@@ -33,6 +34,8 @@ def create_visualizations(evaluations, stream_plan, num_iterations):
                           os.path.join(CONSTRAINT_NETWORK_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan,
                                     os.path.join(STREAM_PLAN_DIR, filename))
+
+##################################################
 
 def visualize_constraints(constraints, filename='constraint_network.pdf'):
     from pygraphviz import AGraph
@@ -69,6 +72,17 @@ def visualize_constraints(constraints, filename='constraint_network.pdf'):
     graph.draw(filename, prog='dot')
     return graph
 
+##################################################
+
+def get_partial_orders(stream_plan):
+    # TODO: only show the first atom achieved?
+    partial_orders = set()
+    for i, stream1 in enumerate(stream_plan):
+        for stream2 in stream_plan[i+1:]: # Prevents circular
+            if set(stream1.get_certified()) & set(stream2.get_certified()):
+                partial_orders.add((stream1, stream2))
+    return partial_orders
+
 def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
@@ -85,6 +99,8 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
 
     graph.draw(filename, prog='dot')
     return graph
+
+##################################################
 
 def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
     from pygraphviz import AGraph

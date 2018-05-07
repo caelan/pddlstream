@@ -190,7 +190,7 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(deterministic=False):
+def main(focused=True, deterministic=False):
     np.set_printoptions(precision=2)
     if deterministic:
         np.random.seed(0)
@@ -204,9 +204,11 @@ def main(deterministic=False):
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)
-    solution = solve_committed(pddlstream_problem, stream_info=stream_info, max_time=10, max_cost=0, debug=False,
-                               commit=True, effort_weight=None, unit_costs=False, visualize=False)
+    if focused:
+        solution = solve_committed(pddlstream_problem, stream_info=stream_info, max_time=10, max_cost=INF, debug=False,
+                                   commit=True, effort_weight=None, unit_costs=False, visualize=False)
+    else:
+        solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

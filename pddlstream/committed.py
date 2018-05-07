@@ -2,8 +2,8 @@ import time
 from collections import defaultdict
 from itertools import product
 
-from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
-    process_stream_queue, get_optimistic_constraints
+from pddlstream.algorithm import parse_problem, get_optimistic_constraints
+from pddlstream.incremental import process_stream_queue
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function
@@ -25,6 +25,14 @@ def reset_disabled(disabled):
     disabled[:] = []
 
 ##################################################
+
+def optimistic_process_stream_queue(instantiator):
+    stream_instance = instantiator.stream_queue.popleft()
+    stream_results = stream_instance.next_optimistic()
+    for stream_result in stream_results:
+        for fact in stream_result.get_certified():
+            instantiator.add_atom(evaluation_from_fact(fact))
+    return stream_results
 
 def ground_stream_instances(stream_instance, bindings, evaluations):
     # TODO: combination for domain predicates
@@ -52,16 +60,16 @@ def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
         for _ in range(len(instantiator.stream_queue)):
             if max_time <= elapsed_time(start_time):
                 break
-            process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
+            process_stream_queue(instantiator, evaluations, verbose=verbose)
 
 ##################################################
 
 def populate_results(evaluations, streams, max_time):
-    start_time = time.time()
+    #start_time = time.time()
     instantiator = Instantiator(evaluations, streams)
     stream_results = []
-    while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-        stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
+    while instantiator.stream_queue: # and (elapsed_time(start_time) < max_time):
+        stream_results += optimistic_process_stream_queue(instantiator)
     return stream_results
 
 ##################################################
@@ -99,6 +107,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     if failed:
         return None
     return next_results
+
+##################################################
 
 def solve_committed(problem, max_time=INF, max_cost=INF, stream_info={},
                     commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
