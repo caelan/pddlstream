@@ -62,9 +62,10 @@ def print_solution(solution):
     print('Cost: {}'.format(cost))
     print('Length: {}'.format(get_length(plan)))
     print('Evaluations: {}'.format(len(evaluations)))
-    if solved:
-        for i, action in enumerate(plan):
-            print('{}) {}'.format(i+1, ' '.join(map(str, action))))
+    if not solved:
+        return
+    for i, action in enumerate(plan):
+        print('{}) {}'.format(i+1, ' '.join(map(str, action))))
 
 
 class Verbose(object):

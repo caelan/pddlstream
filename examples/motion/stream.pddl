@@ -1,0 +1,17 @@
+(define (stream pick-and-place)
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
+  )
+  (:stream sample-region
+    :inputs (?r)
+    :domain (Region ?r)
+    :outputs (?q)
+    :certified (and (Conf ?q) (Contained ?q ?r))
+  )
+  (:stream connect
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :outputs ()
+    :certified (Connected ?q1 ?q2)
+  )
+)
