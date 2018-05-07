@@ -1,5 +1,23 @@
-from pddlstream.conversion import value_from_obj_expression, obj_from_value_expression
+from pddlstream.conversion import value_from_obj_expression, obj_from_value_expression, values_from_objects
+from pddlstream.object import Object
 
+
+# TODO: other streams?
+# TODO: could also put in plan skeleton, current fluent state, etc
+# TODO: could just be external functions
+# TODO: allow other parameters here
+# TODO: force the use of context to be a unique value
+# TODO: revisit a stream with and without context automatically
+# TODO: could hash to avoid revisiting period
+
+def create_immediate_context(stream_result, stream_plan):
+    # TODO: consider previous bindings and choose one value
+    streams = []
+    for result in stream_plan:
+        if set(stream_result.output_objects) & set(result.instance.input_objects):
+            if all(isinstance(o, Object) for o in set(result.instance.input_objects) - set(stream_result.output_objects)):
+                streams.append((result.instance.external.name,) + values_from_objects(result.instance.input_objects))
+    return values_from_objects(stream_result.output_objects), streams
 
 class ConstraintSolver(object):
     def __init__(self, stream_map):

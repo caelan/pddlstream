@@ -43,12 +43,26 @@ def get_block_interval(b, p):
 
 ##################################################
 
-class PoseGenerator(Generator):
-    def __init__(self, *inputs):
-        super(PoseGenerator, self).__init__()
-        self.p, = inputs
-    def generate(self, context=None): # TODO: context
-        raise NotImplementedError()
+def get_pose_generator(regions):
+    class PoseGenerator(Generator):
+        def __init__(self, *inputs):
+            super(PoseGenerator, self).__init__()
+            self.b, self.r = inputs
+        def generate(self, outputs=None, streams=tuple()):
+            placed = {}
+            for stream in streams:
+                name, args = stream[0], stream[1:]
+                if name == 'collision-free':
+                    for i in range(0, len(args), 2):
+                        b, p = args[i:i+2]
+                        if self.b != b:
+                            placed[b] = p
+            #p = sample_region(self.b, regions[self.r])
+            p = rejection_sample_region(self.b, regions[self.r], placed=placed)
+            if p is None:
+                return []
+            return [(p,)]
+    return PoseGenerator
 
 def collision_test(b1, p1, b2, p2):
     return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
@@ -71,6 +85,31 @@ def sample_region(b, region):
         return None
     x = np.random.uniform(x1, x2)
     return np.array([x, 0])
+
+def rejection_sample_region(b, region, placed={}, max_attempts=10):
+    for _ in range(max_attempts):
+        p = sample_region(b, region)
+        if p is None:
+            break
+        if not any(collision_test(b, p, b2, p2) for b2, p2 in placed.items()):
+            return p
+    return None
+
+
+def rejection_sample_placed(block_poses={}, block_regions={}, regions={}, max_attempts=10):
+    assert(not set(block_poses.keys()) & set(block_regions.keys()))
+    for _ in range(max_attempts):
+        placed = block_poses.copy()
+        remaining = block_regions.items()
+        np.random.shuffle(remaining)
+        for b, r in remaining:
+            p = rejection_sample_region(b, regions[r], placed)
+            if p is None:
+                break
+            placed[b] = p
+        else:
+            return placed
+    return None
 
 def get_pose_gen(regions):
     def gen_fn(b, r):
@@ -109,7 +148,8 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     goal = And(*goal_literals)
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        #'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        'sample-pose': get_pose_generator(tamp_problem.regions),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
@@ -145,16 +185,24 @@ def get_tight_problem(n_blocks=2, n_goals=1):
 ##################################################
 
 def get_blocked_problem():
+    goal = 'red'
     regions = {
         GROUND: (-15, 15),
-        'red': (5, 10)
+        goal: (5, 10)
     }
 
     conf = np.array([0, 5])
     blocks = ['block{}'.format(i) for i in range(2)]
-    poses = [np.zeros(2), np.array([7.5, 0])]
+    #poses = [np.zeros(2), np.array([7.5, 0])]
+    #block_poses = dict(zip(blocks, poses))
 
-    initial = TAMPState(conf, None, dict(zip(blocks, poses)))
+    block_regions = {
+        blocks[0]: GROUND,
+        blocks[1]: goal,
+    }
+    block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+
+    initial = TAMPState(conf, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
     return TAMPProblem(initial, regions, conf, goal_regions)

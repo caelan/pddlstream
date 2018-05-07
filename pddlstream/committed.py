@@ -4,7 +4,7 @@ from itertools import product
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.incremental import process_stream_queue
-from pddlstream.context import ConstraintSolver
+from pddlstream.context import ConstraintSolver, create_immediate_context
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function
 from pddlstream.instantiation import Instantiator
@@ -82,15 +82,16 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     opt_bindings = defaultdict(list)
     next_results = []
     failed = False
-    for opt_result in stream_plan:
+    for step, opt_result in enumerate(stream_plan):
         if failed and quick_fail:  # TODO: check if satisfies target certified
             break
+        # TODO: could update all at once here
         # Could check opt_bindings to see if new bindings
         num_instances = max_values if (layers or all(isinstance(o, Object)
                                                      for o in opt_result.instance.input_objects)) else 0
         for i, instance in enumerate(ground_stream_instances(opt_result.instance, opt_bindings, evaluations)):
             if i < num_instances:
-                results = instance.next_results(verbose=verbose)
+                results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
                 disable_stream_instance(instance, disabled)
             else:
                 results = instance.next_optimistic()

@@ -3,6 +3,7 @@ from pddlstream.conversion import list_from_conjunction, objects_from_values, op
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.function import Instance, External, Function, Predicate, ExternalInfo, geometric_cost
 from pddlstream.utils import str_from_tuple, INF
+from pddlstream.context import create_immediate_context
 
 
 class Generator(object):
@@ -10,10 +11,12 @@ class Generator(object):
     #def __init__(self, *inputs):
     #    self.inputs = tuple(inputs)
     def __init__(self):
+        # TODO: store attempted contexts?
         self.enumerated = False
+        self.uses_context = True
     #def __iter__(self):
     #def __call__(self, *args, **kwargs):
-    def generate(self, context=None):
+    def generate(self, outputs=None, streams=tuple()):
         raise NotImplementedError()
 
 class ListGenerator(Generator):
@@ -27,7 +30,8 @@ class ListGenerator(Generator):
         self.max_calls = max_calls
         self.calls = 0
         self.enumerated = (self.calls < self.max_calls)
-    def generate(self, context=None):
+        self.uses_context = False
+    def generate(self, **kwargs):
         self.calls += 1
         if self.max_calls <= self.calls:
             self.enumerated = True
@@ -133,21 +137,28 @@ class StreamInstance(Instance):
     def __init__(self, stream, input_objects):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
-    def _next_outputs(self, context):
+    def _next_outputs(self, stream_plan):
         if self._generator is None:
             self._generator = self.external.gen_fn(*self.get_input_values())
         if isinstance(self._generator, Generator):
-            new_values = self._generator.generate(context=context)
-            self.enumerated = self._generator.enumerated
+            new_values = []
+            if self._generator.uses_context:
+                # TODO: enumerated for just context?
+                target_values, target_streams = create_immediate_context(stream_plan[0], stream_plan[1:])
+                new_values += self._generator.generate(target_values, target_streams)
+                self.enumerated = self._generator.enumerated
+            if not new_values and not self.enumerated:
+                new_values += self._generator.generate()
+                self.enumerated = self._generator.enumerated
             return new_values
         try:
             return next(self._generator)
         except StopIteration:
             self.enumerated = True
         return []
-    def next_results(self, verbose=False, context=None):
+    def next_results(self, stream_plan=None, verbose=False):
         assert not self.enumerated
-        new_values = self._next_outputs(context)
+        new_values = self._next_outputs(stream_plan)
         if verbose:
             print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, new_values))))
