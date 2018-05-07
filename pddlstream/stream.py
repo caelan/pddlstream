@@ -142,7 +142,7 @@ class StreamInstance(Instance):
             self._generator = self.external.gen_fn(*self.get_input_values())
         if isinstance(self._generator, Generator):
             new_values = []
-            if self._generator.uses_context:
+            if self._generator.uses_context and (stream_plan is not None):
                 # TODO: enumerated for just context?
                 target_values, target_streams = create_immediate_context(stream_plan[0], stream_plan[1:])
                 new_values += self._generator.generate(target_values, target_streams)

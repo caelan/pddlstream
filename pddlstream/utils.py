@@ -54,6 +54,9 @@ def get_length(sequence):
         return INF
     return len(sequence)
 
+def invert_test(test):
+    return lambda *args: not test(*args)
+
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = plan is not None

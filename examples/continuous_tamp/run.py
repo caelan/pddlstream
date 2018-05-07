@@ -53,7 +53,7 @@ def get_pose_generator(regions):
             placed = {}
             for stream in streams:
                 name, args = stream[0], stream[1:]
-                if name == 'collision-free':
+                if name in ['collision-free', 'cfree']:
                     for i in range(0, len(args), 2):
                         b, p = args[i:i+2]
                         if self.b != b:
@@ -154,7 +154,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #'collision-free': from_test(lambda *args: not collision_test(*args)),
-        'collision-free': from_test(lambda *args: not collision_test(*args)),
+        'cfree': lambda *args: not collision_test(*args),
         'distance': distance_fn,
     }
     if constraint_solver:
@@ -251,6 +251,7 @@ def main(focused=True, deterministic=False):
 
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
+        #'cfree': StreamInfo(eager=True),
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)

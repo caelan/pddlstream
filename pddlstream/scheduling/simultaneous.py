@@ -4,7 +4,7 @@ from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl, evaluation_from_fact, Head
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF, find
-from pddlstream.stream import Stream, StreamResult
+from pddlstream.stream import StreamResult
 from pddlstream.function import FunctionResult
 
 
@@ -71,7 +71,8 @@ def get_stream_actions(results):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(results):
-        if not isinstance(stream_result.instance.external, Stream):
+        #if not isinstance(stream_result, StreamResult):
+        if type(stream_result) == FunctionResult:
             continue
         name = '{}-{}'.format(stream_result.instance.external.name, i)
         stream_action = get_stream_action(stream_result, name)
@@ -87,7 +88,8 @@ def add_stream_actions(domain, stream_results):
     stream_actions, stream_result_from_name = get_stream_actions(stream_results)
     output_objects = []
     for stream_result in stream_result_from_name.values():
-        output_objects += list(map(pddl_from_object, stream_result.output_objects))
+        if isinstance(stream_result, StreamResult):
+            output_objects += list(map(pddl_from_object, stream_result.output_objects))
     new_constants = list({pddl.TypedObject(obj, OBJECT) for obj in output_objects} | set(domain.constants))
     # to_untyped_strips
     # free_variables

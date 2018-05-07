@@ -124,7 +124,8 @@ def solve_committed(problem, max_time=INF, max_cost=INF, stream_info={},
     disabled = []
     if visualize:
         clear_visualizations()
-    functions = filter(lambda s: isinstance(s, Function), externals)
+    #functions = filter(lambda s: isinstance(s, Function), externals)
+    functions = filter(lambda s: type(s) is Function, externals)
     streams = filter(lambda s: s not in functions, externals)
     stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
     depth = 0

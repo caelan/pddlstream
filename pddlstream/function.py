@@ -121,7 +121,7 @@ class PredicateResult(FunctionResult):
 
 
 class PredicateInstance(FunctionInstance):
-    _opt_value = True
+    _opt_value = True # TODO: make this False to be consistent with Function?
     # assert(self.value in (True, False))
     pass
 
