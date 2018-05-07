@@ -190,25 +190,25 @@ def translate_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 ##################################################
 
-def run_search(temp_dir, planner='ff-astar', max_time=INF, max_cost=INF, verbose=True):
+def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=True):
     if max_time == INF:
         max_time = 'infinity'
-    elif isinstance(max_time, float):
+    else: #isinstance(max_time, float):
         max_time = int(max_time)
     if max_cost == INF:
         max_cost = 'infinity'
-    elif isinstance(max_cost, float):
+    else: # isinstance(max_cost, float):
         max_cost = int(max_cost)
 
     t0 = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search % (temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
-    if verbose:
+    if debug:
         print('\nSearch command:', command)
     p = os.popen(command)  # NOTE - cannot pipe input easily with subprocess
     output = p.read()
-    if verbose:
+    if debug:
         print(output[:-1])
         print('Search runtime:', time() - t0)
     if not os.path.exists(temp_dir + SEARCH_OUTPUT):
@@ -252,7 +252,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
     write_pddl(domain_pddl, problem_pddl, temp_dir)
     #run_translate(temp_dir, verbose)
     translate_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-    solution = run_search(temp_dir, verbose=debug, **kwargs)
+    solution = run_search(temp_dir, debug=debug, **kwargs)
     if clean:
         safe_rm_dir(temp_dir)
     if debug:
@@ -263,7 +263,7 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
     start_time = time()
     with Verbose(debug):
         translate_task(task, temp_dir)
-        solution = run_search(temp_dir, verbose=True, **kwargs)
+        solution = run_search(temp_dir, debug=True, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)

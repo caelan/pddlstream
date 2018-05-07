@@ -26,7 +26,7 @@ def prioritize_functions(streams):
         if isinstance(stream, Function):
             stream.prioritized = True
 
-def solve_incremental(problem, max_time=INF, max_cost=INF, verbose=True, **kwargs):
+def solve_incremental(problem, max_time=INF, max_cost=INF, iterations=1, verbose=True, **kwargs):
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
@@ -44,8 +44,9 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, verbose=True, **kwarg
             best_plan = plan; best_cost = cost
         if (best_cost < max_cost) or not instantiator.stream_queue:
             break
-        for _ in range(len(instantiator.stream_queue)):
-            if max_time <= elapsed_time(start_time):
-                break
-            process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
+        for _ in range(iterations):
+            for _ in range(len(instantiator.stream_queue)):
+                if max_time <= elapsed_time(start_time):
+                    break
+                process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
     return revert_solution(best_plan, best_cost, evaluations)

@@ -88,6 +88,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 results = instance.next_optimistic()
                 next_results += results
             failed |= not results
+            #if verbose and (not results):
+            #    print('Stream failure')
             for result in results:
                 if i < num_instances:
                     evaluations.update(map(evaluation_from_fact, result.get_certified()))
@@ -98,7 +100,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         return None
     return next_results
 
-def solve_committed(problem, max_time=INF, stream_info={},
+def solve_committed(problem, max_time=INF, max_cost=INF, stream_info={},
                     commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
@@ -128,7 +130,7 @@ def solve_committed(problem, max_time=INF, stream_info={},
                                                functions, max_time-elapsed_time(start_time))
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
-                                                         domain, stream_results, **kwargs)
+                                                         domain, stream_results, max_cost=best_cost, **kwargs)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
@@ -139,9 +141,12 @@ def solve_committed(problem, max_time=INF, stream_info={},
                 depth = 0 # Recurse on problems
             else:
                 break
-        elif (len(stream_plan) == 0) and (cost < best_cost):
-            best_plan = action_plan; best_cost = cost
-            break
+        elif len(stream_plan) == 0:
+            if cost < best_cost:
+                best_plan = action_plan; best_cost = cost
+                if best_cost < max_cost:
+                    break
+            stream_results = None
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)

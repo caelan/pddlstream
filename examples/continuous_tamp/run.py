@@ -8,15 +8,16 @@ from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import BLOCK_WIDTH, BLOCK_HEIGHT, GRASP, get_constraint_solver
+from examples.continuous_tamp.constraint_solver import BLOCK_WIDTH, BLOCK_HEIGHT, GRASP
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.conversion import And, Equal
-from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.focused import solve_focused
+from examples.continuous_tamp.constraint_solver import get_constraint_solver
+from experimental.focused import solve_focused
 from pddlstream.committed import solve_committed
 from pddlstream.incremental import solve_incremental
+from pddlstream.conversion import And, Equal
+from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator, StreamInfo
-from pddlstream.utils import print_solution, user_input, read
+from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
 SCALE_COST = 1.
@@ -35,7 +36,7 @@ def interval_contains(i1, i2):
     return (i1[0] <= i2[0]) and (i2[1] <= i1[1])
 
 def interval_overlap(i1, i2):
-    return (i1[1] >= i2[0]) and (i2[1] >= i1[0])
+    return (i2[0] <= i1[1]) and (i1[0] <= i2[1])
 
 def get_block_interval(b, p):
     return p[0]*np.ones(2) + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
@@ -82,7 +83,7 @@ def get_pose_gen(regions):
 
 ##################################################
 
-def pddlstream_from_tamp(tamp_problem):
+def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -112,9 +113,10 @@ def pddlstream_from_tamp(tamp_problem):
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
-        #'constraint-solver': get_constraint_solver(tamp_problem.regions),
         'distance': distance_fn,
     }
+    if constraint_solver:
+        stream_map['constraint-solver'] = get_constraint_solver(tamp_problem.regions)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
@@ -123,7 +125,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_red_problem(n_blocks=1):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -136,7 +138,24 @@ def get_red_problem(n_blocks=1):
     #poses = [sample_pose(regions[GROUND]) for _ in range(n_blocks)]
 
     initial = TAMPState(conf, None, dict(zip(blocks, poses)))
-    goal_regions = {block: 'red' for block in blocks}
+    goal_regions = {block: 'red' for block in blocks[:n_goals]}
+
+    return TAMPProblem(initial, regions, conf, goal_regions)
+
+##################################################
+
+def get_blocked_problem():
+    regions = {
+        GROUND: (-15, 15),
+        'red': (5, 10)
+    }
+
+    conf = np.array([0, 5])
+    blocks = ['block{}'.format(i) for i in range(2)]
+    poses = [np.zeros(2), np.array([7.5, 0])]
+
+    initial = TAMPState(conf, None, dict(zip(blocks, poses)))
+    goal_regions = {blocks[0]: 'red'}
 
     return TAMPProblem(initial, regions, conf, goal_regions)
 
@@ -176,7 +195,7 @@ def main(deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_red_problem
+    problem_fn = get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -185,17 +204,15 @@ def main(deterministic=False):
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                             effort_weight=1, unit_costs=False, visualize=False)
-    #solution = solve_committed(pddlstream_problem, stream_info=stream_info,
-    #                           commit=True, effort_weight=None, unit_costs=False, visualize=False)
+    #solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)
+    solution = solve_committed(pddlstream_problem, stream_info=stream_info, max_time=10, max_cost=0, debug=False,
+                               commit=True, effort_weight=None, unit_costs=False, visualize=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
         return
 
-    colors = dict(zip(tamp_problem.initial.block_poses, COLORS))
+    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
     state = tamp_problem.initial
     print(state)

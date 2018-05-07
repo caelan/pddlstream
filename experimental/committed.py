@@ -1,17 +1,16 @@
 import time
 
-from pddlstream.scheduling.sequential import sequential_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
-
-from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
-from pddlstream.conversion import revert_solution, evaluation_from_fact
-from pddlstream.focused import reset_disabled, process_immediate_stream_plan, \
+from experimental.focused import reset_disabled, process_immediate_stream_plan, \
     get_optimistic_constraints
+from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
 from pddlstream.context import ConstraintSolver
+from pddlstream.conversion import revert_solution, evaluation_from_fact
 from pddlstream.instantiation import Instantiator
+from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
+
 
 # Next set of stream_results
 # 1) All non-disabled (focused)

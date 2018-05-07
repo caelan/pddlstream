@@ -146,7 +146,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
         clear_dir(TEMP_DIR)
         with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
             sas_task.output(output_file)
-    solution = run_search(TEMP_DIR, verbose=False, **kwargs)
+    solution = run_search(TEMP_DIR, **kwargs)
     safe_rm_dir(TEMP_DIR)
     action_plan, action_cost = parse_solution(solution)
     if action_plan is None:

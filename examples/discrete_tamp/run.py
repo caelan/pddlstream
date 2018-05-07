@@ -8,9 +8,9 @@ from collections import namedtuple
 
 import numpy as np
 
+from experimental.focused import solve_focused
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
