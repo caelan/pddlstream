@@ -29,6 +29,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                         quick_fail=False, layers=False, max_values=INF):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
+    # TODO: identify outputs bound to twice and don't sample for them
     opt_bindings = defaultdict(list)
     next_results = []
     for opt_result in stream_plan:
@@ -53,11 +54,12 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     return next_results
 
 def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, verbose=True, **kwargs):
+    # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, external = parse_problem(problem)
-    #constraint_solver = ConstraintSolver(problem[3])
+    constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
@@ -91,6 +93,11 @@ def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, 
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
+            evaluations.update(map(evaluation_from_fact, constraint_facts))
+            if constraint_facts:
+                stream_results = []
+            else:
+                stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
             depth += 1
     return revert_solution(best_plan, best_cost, evaluations)
