@@ -1,11 +1,11 @@
 import time
 from collections import defaultdict
+from itertools import product
 
-from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue
+from pddlstream.algorithm import parse_problem, optimistic_process_stream_queue, \
+    process_stream_queue, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
-from pddlstream.conversion import revert_solution, evaluation_from_fact
-from pddlstream.focused import reset_disabled, get_optimistic_constraints, disable_stream_instance, \
-    ground_stream_instances, update_info, eagerly_evaluate
+from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
@@ -15,6 +15,46 @@ from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
+def disable_stream_instance(stream_instance, disabled):
+    disabled.append(stream_instance)
+    stream_instance.disabled = True
+
+def reset_disabled(disabled):
+    for stream_instance in disabled:
+        stream_instance.disabled = False
+    disabled[:] = []
+
+##################################################
+
+def ground_stream_instances(stream_instance, bindings, evaluations):
+    # TODO: combination for domain predicates
+    input_objects = [[i] if isinstance(i, Object) else bindings[i]
+                    for i in stream_instance.input_objects]
+    for combo in product(*input_objects):
+        mapping = dict(zip(stream_instance.input_objects, combo))
+        domain = set(map(evaluation_from_fact, substitute_expression(
+            stream_instance.get_domain(), mapping)))
+        if domain <= evaluations:
+            yield stream_instance.external.get_instance(combo)
+
+##################################################
+
+def update_info(externals, stream_info):
+    for external in externals:
+        if external.name in stream_info:
+            external.info = stream_info[external.name]
+
+
+def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
+    start_time = time.time()
+    instantiator = Instantiator(evaluations, externals)
+    for _ in range(num_iterations):
+        for _ in range(len(instantiator.stream_queue)):
+            if max_time <= elapsed_time(start_time):
+                break
+            process_stream_queue(instantiator, evaluations, prioritized=False, verbose=verbose)
+
+##################################################
 
 def populate_results(evaluations, streams, max_time):
     start_time = time.time()
@@ -23,6 +63,8 @@ def populate_results(evaluations, streams, max_time):
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
     return stream_results
+
+##################################################
 
 def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                         quick_fail=False, layers=False, max_values=INF):

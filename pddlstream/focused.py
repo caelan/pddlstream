@@ -121,7 +121,6 @@ def solve_focused(problem, max_time=INF, stream_info={}, effort_weight=None, eag
     if visualize:
         clear_visualizations()
     while elapsed_time(start_time) < max_time:
-        # TODO: evaluate once at the beginning?
         num_iterations += 1
         print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
@@ -129,9 +128,7 @@ def solve_focused(problem, max_time=INF, stream_info={}, effort_weight=None, eag
         # TODO: version that just calls one of the incremental algorithms
         instantiator = Instantiator(evaluations, externals)
         stream_results = []
-        # TODO: apply incremental algorithm for some number of iterations
         while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-            # TODO: could handle costs here
             stream_results += optimistic_process_stream_queue(instantiator, prioritized=False)
         # exhaustive_stream_plan | incremental_stream_plan | simultaneous_stream_plan | sequential_stream_plan | relaxed_stream_plan
         solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan

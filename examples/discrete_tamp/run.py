@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-from collections import namedtuple
 
-from pddlstream.conversion import AND, EQ, And, Equal
-from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.incremental import solve_exhaustive, solve_incremental
-from pddlstream.committed_experimental import solve_committed
-from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
-from pddlstream.utils import print_solution, user_input, read
-from viewer import DiscreteTAMPViewer, COLORS
-import numpy as np
 import math
 import os
+from collections import namedtuple
+
+import numpy as np
+
+from pddlstream.conversion import And, Equal
+from pddlstream.fast_downward import TOTAL_COST
+from pddlstream.focused import solve_focused
+from pddlstream.stream import from_gen_fn, from_test, Generator
+from pddlstream.utils import print_solution, user_input, read
+from viewer import DiscreteTAMPViewer, COLORS
 
 """
   (:derived (Unsafe ?p1) 

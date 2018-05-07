@@ -189,7 +189,7 @@ def main(deterministic=False):
     #solution = solve_focused(pddlstream_problem, stream_info=stream_info,
     #                         effort_weight=1, unit_costs=False, visualize=False)
     solution = solve_committed(pddlstream_problem, stream_info=stream_info,
-                               commit=False, effort_weight=None, unit_costs=False, visualize=False)
+                               commit=True, effort_weight=None, unit_costs=False, visualize=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
