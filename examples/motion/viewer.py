@@ -1,7 +1,5 @@
 from Tkinter import Tk, Toplevel, Canvas, LAST
 import numpy as np
-from numpy.core.multiarray import array
-import random
 
 
 class PRMViewer(object):

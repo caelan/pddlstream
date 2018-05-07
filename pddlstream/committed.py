@@ -53,18 +53,24 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 return [] # TODO: return None to prevent reattempt
     return next_results
 
-def solve_committed(problem, max_time=INF, effort_weight=None, visualize=False, verbose=True, **kwargs):
+def update_info(externals, stream_info):
+    for external in externals:
+        if external.name in stream_info:
+            external.info = stream_info[external.name]
+
+def solve_committed(problem, max_time=INF, stream_info={}, effort_weight=None, visualize=False, verbose=True, **kwargs):
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    evaluations, goal_expression, domain, external = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    update_info(externals, stream_info)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
-    functions = filter(lambda s: isinstance(s, Function), external)
-    streams = filter(lambda s: s not in functions, external)
+    functions = filter(lambda s: isinstance(s, Function), externals)
+    streams = filter(lambda s: s not in functions, externals)
     stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
     depth = 0
     while elapsed_time(start_time) < max_time:

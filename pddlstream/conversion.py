@@ -223,3 +223,11 @@ def revert_solution(plan, cost, evaluations):
     return value_from_obj_plan(plan), cost, init_from_evaluations(evaluations)
 
 # TODO: apply actions to the state (only need to worry about effects)
+
+
+def opt_obj_from_value(value):
+    if Object.has_value(value):
+        return Object.from_value(value)
+    return OptimisticObject.from_opt(value)
+    # TODO: better way of doing this?
+    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))

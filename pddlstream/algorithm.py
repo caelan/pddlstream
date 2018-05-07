@@ -1,17 +1,11 @@
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    values_from_objects, evaluation_from_fact, fact_from_evaluation
+    evaluation_from_fact, fact_from_evaluation
 from pddlstream.object import Object
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
-    solve_from_task, instantiate_task
-from pddlstream.stream import parse_stream_pddl, StreamResult
-from pddlstream.utils import str_from_tuple
+    solve_from_task
+from pddlstream.stream import parse_stream_pddl
 
-
-def parse_problem(problem):
-    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
-    domain = parse_domain(domain_pddl)
-    if len(domain.types) != 1:
-        raise NotImplementedError('Types are not currently supported')
+def parse_constants(domain, constant_map):
     for constant in domain.constants:
         if constant.name.startswith(Object._prefix):
             # TODO: remap names
@@ -21,11 +15,16 @@ def parse_problem(problem):
         obj = Object(constant_map[constant.name], name=constant.name)
         # TODO: add object predicate
     del domain.constants[:] # So not set twice
+
+def parse_problem(problem):
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    domain = parse_domain(domain_pddl)
+    if len(domain.types) != 1:
+        raise NotImplementedError('Types are not currently supported')
+    parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map)
     evaluations = set(evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
-    #for value in objects:
-    #    obj = Object.from_value(value)
     return evaluations, goal_expression, domain, streams
 
 

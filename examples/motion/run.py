@@ -98,7 +98,7 @@ def main(max_time=20):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_incremental(problem, unit_costs=False, max_cost=0,
-        max_time=10, verbose=False)
+        max_time=max_time, verbose=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
@@ -109,6 +109,7 @@ def main(max_time=20):
     if plan is None:
         return
 
+    # TODO: use the same viewer here
     draw_roadmap(roadmap, obstacles, regions) # TODO: do this in realtime
     user_input('Continue?')
 

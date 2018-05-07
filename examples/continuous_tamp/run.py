@@ -13,13 +13,25 @@ from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
-#from pddlstream.committed import solve_committed
 from pddlstream.committed import solve_committed
+from pddlstream.incremental import solve_incremental
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator
 from pddlstream.utils import print_solution, user_input
 from pddlstream.utils import read
 from viewer import ContinuousTMPViewer, GROUND
 
+SCALE_COST = 1.
+
+def interval_contains(i1, i2):
+    """
+    :param i1: The container interval
+    :param i2: The possibly contained interval
+    :return:
+    """
+    return (i1[0] <= i2[0]) and (i2[1] <= i1[1])
+
+def interval_overlap(i1, i2):
+    return not ((i1[1] < i2[0]) or (i2[1] < i1[0]))
 
 class PoseGenerator(Generator):
     def __init__(self, *inputs):
@@ -31,24 +43,37 @@ class PoseGenerator(Generator):
 def collision_test(b1, p1, b2, p2):
     return np.linalg.norm(p2 - p1) <= BLOCK_WIDTH
 
+def scale_cost(cost):
+    return int(math.ceil(SCALE_COST*cost))
+
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
-    return int(math.ceil(np.linalg.norm(q2 - q1, ord=ord)))
+    return scale_cost(np.linalg.norm(q2 - q1, ord=ord))
 
 def inverse_kin_fn(b, p):
     return (p - GRASP,)
 
-def sample_pose(region):
-    x1, x2 = np.array(region, dtype=float) + np.array([BLOCK_WIDTH, -BLOCK_WIDTH]) / 2.
+def get_boundary(b, p):
+    return p + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
+
+def sample_pose(b, region):
+    x1, x2 = np.array(region, dtype=float) - get_boundary(b, np.zeros(2))
     if x2 < x1:
         return None
     x = np.random.uniform(x1, x2)
     return np.array([x, 0])
 
+def get_region_test(regions):
+    def test(b, p, r):
+        r1, r2 = regions[r]
+        p1, p2 = get_boundary(b, p)
+        return (r1 <= p1) and (p2 <= r2)
+    return test
+
 def get_pose_gen(regions):
     def gen_fn(b, r):
         while True:
-            p = sample_pose(regions[r])
+            p = sample_pose(b, regions[r])
             if p is None:
                 break
             yield (p,)
@@ -83,9 +108,10 @@ def pddlstream_from_tamp(tamp_problem):
 
     stream_map = {
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         'collision-free': from_test(lambda *args: not collision_test(*args)),
-        'constraint-solver': get_constraint_solver(tamp_problem.regions),
+        #'constraint-solver': get_constraint_solver(tamp_problem.regions),
         'distance': distance_fn,
     }
 
@@ -96,7 +122,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_red_problem(n_blocks=2):
+def get_red_problem(n_blocks=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -144,15 +170,21 @@ def apply_action(state, action):
 
 ##################################################
 
-def main():
+def main(deterministic=False):
+    np.set_printoptions(precision=2)
+    if deterministic:
+        np.random.seed(0)
+
     problem_fn = get_red_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
+    stream_info = {}
+
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=True)
+    solution = solve_incremental(pddlstream_problem, unit_costs=False)
     #solution = solve_focused(pddlstream_problem, unit_costs=True, visualize=False)
-    solution = solve_committed(pddlstream_problem, unit_costs=False, visualize=True)
+    #solution = solve_committed(pddlstream_problem, stream_info=stream_info, unit_costs=False, visualize=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

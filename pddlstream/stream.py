@@ -1,8 +1,7 @@
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
-    substitute_expression, is_head, get_prefix
+    substitute_expression, is_head, get_prefix, opt_obj_from_value
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.function import Instance, External, Function, Predicate
-from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF
 
 
@@ -72,13 +71,6 @@ def from_rule():
 
 ##################################################
 
-def opt_obj_from_value(value):
-    if Object.has_value(value):
-        return Object.from_value(value)
-    return OptimisticObject.from_opt(value)
-    # TODO: better way of doing this?
-    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
-
 def get_empty_fn(stream):
     # TODO: also use None to designate this
     return lambda *input_values: []
@@ -105,6 +97,23 @@ def get_unique_fn(stream):
         output_values = tuple((stream_instance, i) for i in range(len(stream.outputs)))
         return [output_values]
     return fn
+
+
+##################################################
+
+def geometric_cost(cost, p):
+    if p == 0:
+        return INF
+    return cost/p
+
+class StreamInfo(object):
+    def __init__(self, eager=False, bound_fn=get_unique_fn, p_success=1, overhead=0):
+        self.eager = eager
+        self.bound_fn = bound_fn
+        self.p_success = p_success
+        self.overhead = overhead
+        self.effort = geometric_cost(self.overhead, self.p_success)
+        self.order = 0
 
 ##################################################
 
@@ -159,13 +168,13 @@ class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
-        super(Stream, self).__init__(inputs, domain)
+        super(Stream, self).__init__(name, inputs, domain)
         # Each stream could certify a stream-specific fact as well
-        self.name = name
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
         self.opt_fn = get_unique_fn(self) # get_unique_fn | get_shared_fn
+        self.info = StreamInfo()
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 
@@ -204,6 +213,39 @@ class Stream(External):
 
 STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 
+def parse_stream(lisp_list, stream_map):
+    attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
+    assert (STREAM_ATTRIBUTES == attributes)
+    name, inputs, domain, outputs, certified = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
+    if name not in stream_map:
+        raise ValueError('Undefined stream conditional generator: {}'.format(name))
+    return Stream(name, stream_map[name],
+                          tuple(inputs), list_from_conjunction(domain),
+                          tuple(outputs), list_from_conjunction(certified))
+
+def parse_function(lisp_list, stream_map):
+    assert (len(lisp_list) == 3)
+    head = tuple(lisp_list[1])
+    assert (is_head(head))
+    # inputs = get_args(head)
+    domain = list_from_conjunction(lisp_list[2])
+    name = get_prefix(head)
+    if name not in stream_map:
+        raise ValueError('Undefined external function: {}'.format(name))
+    return Function(head, stream_map[name], domain)
+    # streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
+    #                      Equal(head, 1)))
+    # TODO: this must be eager in the case of incremental
+
+def parse_predicate(lisp_list, stream_map):
+    assert (len(lisp_list) == 3)
+    head = tuple(lisp_list[1])
+    assert (is_head(head))
+    name = get_prefix(head)
+    if name not in stream_map:
+        raise ValueError('Undefined external function: {}'.format(name))
+    return Predicate(head, stream_map[name], list_from_conjunction(lisp_list[2]))
+
 def parse_stream_pddl(stream_pddl, stream_map):
     streams = []
     if stream_pddl is None:
@@ -213,42 +255,20 @@ def parse_stream_pddl(stream_pddl, stream_map):
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
 
-    for stream in stream_iter:
-        # TODO: wild stream?
-        if stream[0] == ':stream':
-            attributes = [stream[i] for i in range(0, len(stream), 2)]
-            assert(STREAM_ATTRIBUTES == attributes)
-            name, inputs, domain, outputs, certified = [stream[i] for i in range(1, len(stream), 2)]
-            if name not in stream_map:
-                raise ValueError('Undefined stream conditional generator: {}'.format(name))
-            streams.append(Stream(name, stream_map[name],
-                         tuple(inputs), list_from_conjunction(domain),
-                         tuple(outputs), list_from_conjunction(certified)))
-        elif stream[0] == ':rule':
+    for lisp_list in stream_iter:
+        name = lisp_list[0]
+        if name == ':stream':
+            streams.append(parse_stream(lisp_list, stream_map))
+        elif name == ':wild':
+            raise NotImplementedError(name)
+        elif name == ':rule':
             pass
             # TODO: implement rules
             # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
-        elif stream[0] == ':function':
-            assert(len(stream) == 3)
-            head = tuple(stream[1])
-            assert(is_head(head))
-            #inputs = get_args(head)
-            domain = list_from_conjunction(stream[2])
-            name = get_prefix(head)
-            if name not in stream_map:
-                raise ValueError('Undefined external function: {}'.format(name))
-            streams.append(Function(head, stream_map[name], domain))
-            #streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
-            #                      Equal(head, 1)))
-            # TODO: this must be eager in the case of incremental
-        elif stream[0] == ':predicate': # Cannot just use args if want a bound
-            assert(len(stream) == 3)
-            head = tuple(stream[1])
-            assert(is_head(head))
-            name = get_prefix(head)
-            if name not in stream_map:
-                raise ValueError('Undefined external function: {}'.format(name))
-            streams.append(Predicate(head, stream_map[name], list_from_conjunction(stream[2])))
+        elif name == ':function':
+            streams.append(parse_function(lisp_list, stream_map))
+        elif name == ':predicate': # Cannot just use args if want a bound
+            streams.append(parse_predicate(lisp_list, stream_map))
         else:
-            raise ValueError(stream[0])
+            raise ValueError(name)
     return streams

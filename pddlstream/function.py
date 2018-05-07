@@ -40,7 +40,8 @@ class Instance(object):
 class External(object):
     _Instance = None
 
-    def __init__(self, inputs, domain):
+    def __init__(self, name, inputs, domain):
+        self.name = name.lower()
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         self.instances = {}
@@ -102,7 +103,7 @@ class Function(External):
     _codomain = int
 
     def __init__(self, head, fn, domain):
-        super(Function, self).__init__(get_args(head), domain)
+        super(Function, self).__init__(get_prefix(head), get_args(head), domain)
         self.head = head
         self.fn = fn
 
