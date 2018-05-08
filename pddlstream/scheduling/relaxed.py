@@ -2,13 +2,13 @@ import os
 from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
-from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation
+from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
-    parse_solution, \
-    pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
+    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
 from pddlstream.scheduling.simultaneous import fact_from_fd, evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF, MockSet
+from pddlstream.utils import Verbose, INF, MockSet, find, implies
+from pddlstream.function import PredicateResult
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -71,7 +71,7 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
-def get_achieving_axioms(state, axioms):
+def get_achieving_axioms(state, axioms, axiom_init, negated_from_name):
     unprocessed_from_atom = defaultdict(list)
     axiom_from_atom = {}
     remaining_from_stream = {}
@@ -81,13 +81,15 @@ def get_achieving_axioms(state, axioms):
             axiom_from_atom[axiom.effect] = axiom
             queue.append(axiom.effect)
 
-    for atom in state:
+    for atom in list(state) + axiom_init:
         axiom_from_atom[atom] = None
     queue = deque(axiom_from_atom.keys())
     for axiom in axioms:
-        for atom in axiom.condition:
+        conditions = filter(lambda a: a.predicate not in negated_from_name, axiom.condition)
+        for atom in conditions:
+            #if atom.negate() not in axiom_init:
             unprocessed_from_atom[atom].append(axiom)
-        remaining_from_stream[id(axiom)] = len(axiom.condition)
+        remaining_from_stream[id(axiom)] = len(conditions)
         process_axiom(axiom)
 
     while queue:
@@ -107,12 +109,13 @@ def extract_axioms(axiom_from_atom, facts, axiom_plan):
         extract_axioms(axiom_from_atom, axiom.condition, axiom_plan)
         axiom_plan.append(axiom)
 
-def instantiate_axioms(model, init_facts, fluent_facts):
+def instantiate_axioms(task, model, init_facts, fluent_facts):
     import pddl
     instantiated_axioms = []
     for atom in model:
         if isinstance(atom.predicate, pddl.Axiom):
-            axiom = atom.predicate
+            #axiom = atom.predicate
+            axiom = find(lambda ax: ax.name == atom.predicate.name, task.axioms)
             variable_mapping = dict([(par.name, arg)
                                      for par, arg in zip(axiom.parameters, atom.args)])
             inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
@@ -122,11 +125,12 @@ def instantiate_axioms(model, init_facts, fluent_facts):
                 instantiated_axioms.append(inst_axiom)
     return instantiated_axioms
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs=True, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
+    negative_from_name = {n.name: n for n in negative}
 
     with Verbose(False):
         ground_task = instantiate_task(task, simplify_axioms=False)
@@ -177,6 +181,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
         fd_plan.append(instance)
         if not unit_costs:
             function_plan.update(extract_function_results(results_from_head, action, args))
+        # TODO: negative atoms in actions
 
     task.actions = []
     opt_state = set(task.init)
@@ -184,20 +189,31 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
     preimage_plan = []
     for i in range(len(fd_plan)+1):
         task.init = opt_state
+        original_axioms = task.axioms
+        if negative_from_name:
+            task.axioms = []
+            for axiom in original_axioms:
+                assert(isinstance(axiom.condition, pddl.Conjunction))
+                parts = filter(lambda a: a.predicate not in negative_from_name, axiom.condition.parts)
+                task.axioms.append(pddl.Axiom(axiom.name, axiom.parameters,
+                                               axiom.num_external_parameters, pddl.Conjunction(parts)))
         with Verbose(False):
             model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
-        axiom_model = filter(lambda a: isinstance(a.predicate, pddl.Axiom), model)
+        task.axioms = original_axioms
+
         fluent_facts = instantiate.get_fluent_facts(task, model) | (opt_state - real_state)
-        instantiated_axioms = instantiate_axioms(axiom_model, real_state, fluent_facts)
+        mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
+                                           (item in fluent_facts))
+        instantiated_axioms = instantiate_axioms(task, model, real_state, mock_fluent)
 
         action = fd_plan[i] if i != len(fd_plan) else None
         goal_list = ground_task.goal_list if i == len(fd_plan) else []
         preconditions = goal_list if action is None else action.precondition
         with Verbose(False):
-            axioms, axiom_init, _ = axiom_rules.handle_axioms(
+            helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
                 [] if action is None else [action], instantiated_axioms, goal_list)
 
-        axiom_from_atom = get_achieving_axioms(opt_state, axioms) # TODO: add axiom_init here
+        axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
         axiom_plan = []  # Could always add all conditions
         extract_axioms(axiom_from_atom, preconditions, axiom_plan)
         # TODO: add axiom init to reset state?
@@ -217,11 +233,22 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, un
         else:
             raise ValueError(action)
     preimage -= set(real_init)
+    negative_preimage = filter(lambda a: a.predicate in negative_from_name, preimage)
+    preimage -= set(negative_preimage)
     preimage = filter(lambda l: not l.negated, preimage)
     #visualize_constraints(map(fact_from_fd, preimage))
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: can optimize for all streams & axioms all at once
+
+    for literal in negative_preimage:
+        negative = negative_from_name[literal.predicate]
+        instance = negative.get_instance(map(obj_from_pddl, literal.args))
+        value = not literal.negated
+        if instance.enumerated:
+            assert(instance.value == value)
+        else:
+            function_plan.add(PredicateResult(instance, value))
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     stream_plan = []

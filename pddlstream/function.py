@@ -78,13 +78,14 @@ class FunctionInstance(Instance):  # Head(Instance):
         assert not self.enumerated
         self.enumerated = True
         self.value = self.external.fn(*self.get_input_values())
-        if type(self.value) is not self.external._codomain:
-            raise ValueError('Function {} produced a nonintegral value. '
-                             'FastDownward only supports integral costs. '
-                             'To "use" real costs, scale each cost by a large factor, '
-                             'capturing the most significant bits.')
+        #if not (type(self.value) is self.external._codomain):
+        #if not isinstance(self.value, self.external._codomain):
+        #    raise ValueError('Function [{}] produced a nonintegral value [{}]. '
+        #                     'FastDownward only supports integral costs. '
+        #                     'To "use" real costs, scale each cost by a large factor, '
+        #                     'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
-            raise ValueError('Function {} produced a negative value')
+            raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if verbose:
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
@@ -129,8 +130,9 @@ class PredicateResult(FunctionResult):
 
 
 class PredicateInstance(FunctionInstance):
-    _opt_value = True # TODO: make this False to be consistent with Function?
-    # assert(self.value in (True, False))
+    #_opt_value = True # TODO: make this False to be consistent with Function?
+    #_opt_value = Predicate._codomain()
+    _opt_value = False
     pass
 
 
@@ -142,6 +144,8 @@ class Predicate(Function):
     _Instance = PredicateInstance
     _Result = PredicateResult
     _codomain = bool
+    def is_negative(self):
+        return self._Instance._opt_value is False
 
 ##################################################
 
@@ -174,10 +178,6 @@ def parse_function(lisp_list, stream_map):
     if name not in stream_map:
         raise ValueError('Undefined external function: {}'.format(name))
     return Function(head, stream_map[name], domain)
-    # streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
-    #                      Equal(head, 1)))
-    # TODO: this must be eager in the case of incremental
-
 
 def parse_predicate(lisp_list, stream_map):
     assert (len(lisp_list) == 3)

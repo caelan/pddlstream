@@ -7,7 +7,9 @@ from pddlstream.utils import find, INF, MockSet
 
 # TODO: interpolate between all the scheduling options
 
-def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
+def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, negated, unit_costs=True, **kwargs):
+    if negated:
+        raise NotImplementedError()
     # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)

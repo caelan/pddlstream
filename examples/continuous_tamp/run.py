@@ -154,6 +154,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #'collision-free': from_test(lambda *args: not collision_test(*args)),
         'cfree': lambda *args: not collision_test(*args),
+        'collision': collision_test,
         'distance': distance_fn,
     }
     if constraint_solver:

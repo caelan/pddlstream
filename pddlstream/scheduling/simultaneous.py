@@ -5,7 +5,7 @@ from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_fr
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
 from pddlstream.utils import INF, find
 from pddlstream.stream import StreamResult
-from pddlstream.function import FunctionResult
+from pddlstream.function import FunctionResult, PredicateResult
 
 
 def fd_from_fact(evaluation):
@@ -124,7 +124,9 @@ def extract_function_results(results_from_head, action, pddl_args):
         return []
     return [stream_result]
 
-def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, unit_costs=True, **kwargs):
+def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, negated, unit_costs=True, **kwargs):
+    if negated:
+        raise NotImplementedError()
     function_evaluations = {e: None for e in evaluations}
     for result in stream_results:
         if isinstance(result, FunctionResult):

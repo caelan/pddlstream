@@ -185,7 +185,7 @@ class Stream(External):
         for p in set(inputs) & set(outputs):
             raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
         for p in {a for i in certified for a in get_args(i) if is_parameter(a)} - set(inputs + outputs):
-            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs or outputs'.format(p, name))
+            raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, inputs, domain)
         # Each stream could certify a stream-specific fact as well
         self.gen_fn = gen_fn

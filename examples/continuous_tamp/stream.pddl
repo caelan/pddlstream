@@ -20,7 +20,7 @@
     :outputs (?q)
     :certified (and (Conf ?q) (Kin ?b ?q ?p))
   )
-  (:predicate (CFree ?b1 ?p1 ?b2 ?p2)
+  (:predicate (Collision ?b1 ?p1 ?b2 ?p2)
     (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
   )
 )

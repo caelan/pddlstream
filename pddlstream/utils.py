@@ -119,5 +119,10 @@ def open_pdf(filename):
     # safe_remove(filename)
 
 class MockSet(object):
+    def __init__(self, test=lambda item: True):
+        self.test = test
     def __contains__(self, item):
-        return True
+        return self.test(item)
+
+def implies(a, b):
+    return not a or b
