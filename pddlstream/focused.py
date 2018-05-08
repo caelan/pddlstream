@@ -38,11 +38,12 @@ def optimistic_process_stream_queue(instantiator):
     return stream_results
 
 def cmp(v1, v2):
-    # TODO: dynamic programming solution to this?
     i1 = v1.instance.external.info
     i2 = v2.instance.external.info
     if ((i1.p_success <= i2.p_success) and (i1.overhead < i2.overhead)) or \
             ((i1.p_success < i2.p_success) and (i1.overhead <= i2.overhead)):
+        return -1
+    if (i1.p_success <= i2.p_success) and (i1.overhead <= i2.overhead):
         return -1
     if ((i2.p_success <= i1.p_success) and (i2.overhead < i1.overhead)) or \
             ((i2.p_success < i1.p_success) and (i2.overhead <= i1.overhead)):
@@ -63,16 +64,11 @@ def get_stream_dag(stream_plan):
     return incoming_edges, outgoing_edges
 
 def forward_topological_sort(stream_plan):
-    # TODO: order streams with streams
     if stream_plan is None:
         return None
     incoming_edges, outgoing_edges = get_stream_dag(stream_plan)
     # TODO: factor other streams depending on these (i.e. if eval enables something that is likely to fail)
     key = cmp_to_key(cmp)
-    #key = lambda r: r.instance.external.info.effort
-
-    # Each thing has a evaluation cost and a probability of continuing vs moving to a terminal state
-    # TODO: maybe combine these by pruning using the expected cost of the future
     ordering = []
     queue = []
     for v in stream_plan:
@@ -85,7 +81,6 @@ def forward_topological_sort(stream_plan):
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
                 heappush(queue, (key(v2), v2))
-    print(compute_expected_cost(ordering))
     return ordering
 
 def backward_topological_sort(stream_plan):
@@ -111,9 +106,7 @@ def backward_topological_sort(stream_plan):
                 key = (-info.p_success, -info.overhead)
                 # TODO: could factor in outgoing_edges[v2]
                 heappush(queue, (key, v2))
-    ordering = list(reversed(reversed_ordering))
-    print(compute_expected_cost(ordering))
-    return ordering
+    return list(reversed(reversed_ordering))
 
 
 def compute_expected_cost(stream_plan):
@@ -123,30 +116,42 @@ def compute_expected_cost(stream_plan):
     for result in reversed(stream_plan):
         info = result.instance.external.info
         expected_cost = info.overhead + info.p_success * expected_cost
-        print(result, expected_cost)
     return expected_cost
 
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
-# 2^N rather than N!
 def dynamic_programming(stream_plan):
+    # 2^N rather than N!
     if stream_plan is None:
         return None
+
     incoming_edges, outgoing_edges = get_stream_dag(stream_plan)
     def valid_combine(v, subset):
-        return outgoing_edges[v] <= subset
-        #return not (incoming_edges[v] & subset) # These are equivalent
+        return (v not in subset) and (outgoing_edges[v] <= subset)
+        #return (v not in subset) and not (incoming_edges[v] & subset) # These are equivalent
+
+    # Used to prune dominated choices. Equality is pruned as well.
+    key_fn = cmp_to_key(cmp)
+    layers = []
+    layer = []
+    for v in sorted(stream_plan, key=key_fn):
+        if not layer or (key_fn(layer[-1]) == key_fn(v)):
+            layer.append(v)
+        else:
+            layers.append(layer)
+            layer = [v]
+    layers.append(layer)
 
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
     expected_cost = {subset: Subproblem(0, None, None)}
+    iterations = 0
     while queue:
+        iterations += 1
         subset = queue.popleft()
-        #for v in set(stream_plan) - subset: # TODO: this is where I can prune things
-        #    if valid_combine(v, subset):
-        candidates = filter(lambda v: valid_combine(v, subset), set(stream_plan) - subset)
-
-        for v in candidates:
+        for layer in reversed(layers):
+            valid = filter(lambda v: valid_combine(v, subset), layer)
+            for v in valid:
                 new_subset = frozenset([v]) | subset
                 info = v.instance.external.info
                 new_cost = info.overhead + info.p_success*expected_cost[subset].cost # Add new element to front
@@ -156,18 +161,17 @@ def dynamic_programming(stream_plan):
                     expected_cost[new_subset] = subproblem
                 elif new_cost < expected_cost[new_subset].cost:
                     expected_cost[new_subset] = subproblem
+            if valid:
+                break
 
-    subset = frozenset(stream_plan)
-    print(expected_cost[subset].cost)
     ordering = []
+    subset = frozenset(stream_plan)
     while True:
         subproblem = expected_cost[subset]
         if subproblem.head is None:
             break
         ordering.append(subproblem.head)
         subset = subproblem.subset
-    print(ordering)
-    print(compute_expected_cost(ordering))
     return ordering
 
 ##################################################
@@ -325,11 +329,8 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
                                                                negative, max_cost=best_cost, **search_kwargs)
-            print(compute_expected_cost(stream_plan))
-            print(forward_topological_sort(stream_plan))
-            print(backward_topological_sort(stream_plan))
-            #stream_plan = topological_sort(stream_plan)
-            dynamic_programming(stream_plan)
+            reorder_streams = dynamic_programming # forward_topological_sort | backward_topological_sort | dynamic_programming
+            stream_plan = reorder_streams(stream_plan)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
