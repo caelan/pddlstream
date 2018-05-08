@@ -135,6 +135,82 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 
 ##################################################
 
+from collections import defaultdict
+from pddlstream.conversion import pddl_from_object
+from pddlstream.fast_downward import get_problem, task_from_domain_problem, apply_action, is_applicable
+from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.utils import Verbose, INF, MockSet, find
+from pddlstream.function import PredicateResult
+from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
+
+def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain):
+    if action_plan is None:
+        return None
+    # TODO: could just do this within relaxed
+    # TODO: propositional stream instances
+    negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
+    for result in negative_results:
+        result.value = not result.value
+    evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
+
+    import pddl_to_prolog
+    import build_model
+    import axiom_rules
+    import pddl
+    import instantiate
+
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
+    actions = task.actions
+    task.actions = []
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    function_assignments = {f.fluent: f.expression for f in task.init
+                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+    task.init = set(task.init) - set(function_assignments)
+    for name, objects in action_plan:
+        # TODO: just instantiate task?
+        with Verbose(False):
+            model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
+        #fluent_facts = instantiate.get_fluent_facts(task, model)
+        fluent_facts = MockSet()
+        init_facts = task.init
+        instantiated_axioms = instantiate_axioms(task, model, init_facts, fluent_facts)
+
+        # TODO: what if more than one action of the same name due to normalization?
+        action = find(lambda a: a.name == name, actions)
+        args = map(pddl_from_object, objects)
+        assert(len(action.parameters) == len(args))
+        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+        instance = action.instantiate(variable_mapping, init_facts,
+                           fluent_facts, type_to_objects,
+                           task.use_min_cost_metric, function_assignments)
+        assert(instance is not None)
+        print()
+        print(instance)
+
+
+        goal_list = []
+        with Verbose(False):
+            helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
+        print(instantiated_axioms)
+        print(helpful_axioms)
+        print(axiom_init)
+        axiom_from_atom = get_achieving_axioms(task.init, helpful_axioms, axiom_init)
+        axiom_plan = []
+        extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
+        # TODO: what the propositional axiom has conditional derived
+        # TODO: there won't be anything here if no way to create these
+
+        print(axiom_plan)
+        axiom_pre = {p for ax in axiom_plan for p in ax.conditions}
+        axiom_eff = {ax.effect for ax in axiom_plan}
+        instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
+
+        assert(is_applicable(task.init, instance))
+        apply_action(task.init, instance)
+        #instance.dump()
+
+##################################################
+
 def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
                   commit=True, effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, **search_kwargs):
@@ -191,6 +267,9 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             stream_plan = reorder_streams(stream_plan)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
+            instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
+            raw_input('Continue?')
+
         if stream_plan is None:
             if disabled or (depth != 0):
                 if depth == 0:

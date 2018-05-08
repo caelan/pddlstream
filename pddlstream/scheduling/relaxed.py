@@ -71,7 +71,7 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
-def get_achieving_axioms(state, axioms, axiom_init, negated_from_name):
+def get_achieving_axioms(state, axioms, axiom_init, negated_from_name={}):
     unprocessed_from_atom = defaultdict(list)
     axiom_from_atom = {}
     remaining_from_stream = {}

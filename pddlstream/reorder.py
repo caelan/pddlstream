@@ -1,5 +1,4 @@
 from collections import defaultdict, namedtuple, deque
-from functools import cmp_to_key
 from heapq import heappush, heappop
 
 from pddlstream.utils import INF
@@ -76,7 +75,7 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
 
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
-    expected_cost = {subset: Subproblem(0, None, None)}
+    subproblems = {subset: Subproblem(0, None, None)}
     iterations = 0
     while queue:
         iterations += 1
@@ -89,18 +88,18 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
                 applied.add(v)
                 new_subset = frozenset([v]) | subset
                 info = v.instance.external.info
-                new_cost = info.overhead + info.p_success*expected_cost[subset].cost # Add new element to front
+                new_cost = info.overhead + info.p_success*subproblems[subset].cost # Add new element to front
                 subproblem = Subproblem(new_cost, v, subset)
-                if new_subset not in expected_cost:
+                if new_subset not in subproblems:
                     queue.append(new_subset)
-                    expected_cost[new_subset] = subproblem
-                elif new_cost < expected_cost[new_subset].cost:
-                    expected_cost[new_subset] = subproblem
+                    subproblems[new_subset] = subproblem
+                elif new_cost < subproblems[new_subset].cost:
+                    subproblems[new_subset] = subproblem
 
     ordering = []
     subset = frozenset(stream_plan)
     while True:
-        subproblem = expected_cost[subset]
+        subproblem = subproblems[subset]
         if subproblem.head is None:
             break
         ordering.append(subproblem.head)
