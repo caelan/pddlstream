@@ -4,6 +4,31 @@ from pddlstream.conversion import values_from_objects, substitute_expression, ge
     list_from_conjunction, is_parameter, str_from_head
 from pddlstream.utils import str_from_tuple, INF
 
+DEFAULT_P_SUCCESS = 0.75
+DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
+
+
+class ExternalInfo(object):
+    pass
+
+
+def geometric_cost(cost, p):
+    if p == 0:
+        return INF
+    return cost/p
+
+class FunctionInfo(ExternalInfo):
+    def __init__(self, eager=False, bound_fn=0, p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
+        self.eager = eager
+        self.bound_fn = bound_fn
+        self.p_success = p_success
+        self.overhead = overhead
+        self.effort = geometric_cost(self.overhead, self.p_success)
+        #self.order = 0
+
+##################################################
+
+
 class Result(object):
     def __init__(self, instance):
         self.instance = instance
@@ -109,12 +134,13 @@ class Function(External):
     _Instance = FunctionInstance
     _Result = FunctionResult
     _codomain = int
-
+    _default_p_success = 1
+    _default_overhead = DEFAULT_OVERHEAD
     def __init__(self, head, fn, domain):
         super(Function, self).__init__(get_prefix(head), get_args(head), domain)
         self.head = head
         self.fn = fn
-        self.info = FunctionInfo(p_success=1)
+        self.info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -144,32 +170,12 @@ class Predicate(Function):
     _Instance = PredicateInstance
     _Result = PredicateResult
     _codomain = bool
+    _default_p_success = 0.5
+    _default_overhead = DEFAULT_OVERHEAD
     def is_negative(self):
         return self._Instance._opt_value is False
 
 ##################################################
-
-class ExternalInfo(object):
-    pass
-
-
-def geometric_cost(cost, p):
-    if p == 0:
-        return INF
-    return cost/p
-
-DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
-DEFAULT_P_SUCCESS = 0.5
-
-
-class FunctionInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=0, p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
-        self.eager = eager
-        self.bound_fn = bound_fn
-        self.p_success = p_success
-        self.overhead = overhead
-        self.effort = geometric_cost(self.overhead, self.p_success)
-        #self.order = 0
 
 
 def parse_function(lisp_list, stream_map):
