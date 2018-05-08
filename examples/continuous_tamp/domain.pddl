@@ -16,6 +16,7 @@
     (CanMove)
     (Contained ?b ?p ?r)
     (In ?b ?r)
+    (Placeable ?b ?r)
   )
   (:functions
     (Distance ?q1 ?q2)

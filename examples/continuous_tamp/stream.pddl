@@ -4,7 +4,7 @@
   )
   (:stream sample-pose
     :inputs (?b ?r)
-    :domain (and (Block ?b) (Region ?r))
+    :domain (Placeable ?b ?r)
     :outputs (?p)
     :certified (and (Pose ?b ?p) (Contained ?b ?p ?r))
   )

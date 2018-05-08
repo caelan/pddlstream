@@ -19,6 +19,7 @@ def create_immediate_context(stream_result, stream_plan):
                 streams.append((result.instance.external.name,) + values_from_objects(result.instance.input_objects))
     return values_from_objects(stream_result.output_objects), streams
 
+# TODO: local optimization for this
 class ConstraintSolver(object):
     def __init__(self, stream_map):
         self.stream_map = stream_map

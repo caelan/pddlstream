@@ -140,7 +140,9 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('Region', r) for r in tamp_problem.regions.keys()] + \
-           [('AtPose', b, p) for b, p in initial.block_poses.items()]
+           [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
+           [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
+           [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
 
     goal_literals = [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
     if tamp_problem.goal_conf is not None:
@@ -257,7 +259,7 @@ def main(focused=True, deterministic=False):
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
         solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 max_time=10, max_cost=INF, debug=False,
+                                 max_time=10, max_cost=0, debug=False,
                                  commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=False)
