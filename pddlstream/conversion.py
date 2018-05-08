@@ -19,7 +19,7 @@ TYPE = '-'
 
 CONNECTIVES = (AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
-OPERATORS = CONNECTIVES + QUANTIFIERS
+OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN, IMPLIES)
 
 Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
 Head = namedtuple('Head', ['function', 'args'])
@@ -54,6 +54,9 @@ def get_prefix(expression):
 
 def get_args(head):
     return head[1:]
+
+def is_parameter(expression):
+    return isinstance(expression, str) and expression.startswith(PARAMETER)
 
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS

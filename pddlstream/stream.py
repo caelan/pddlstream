@@ -1,9 +1,11 @@
-from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
-    substitute_expression, is_head, get_prefix, opt_obj_from_value
-from pddlstream.fast_downward import parse_lisp
-from pddlstream.function import Instance, External, Function, Predicate, ExternalInfo, geometric_cost
-from pddlstream.utils import str_from_tuple, INF
 from pddlstream.context import create_immediate_context
+from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
+    substitute_expression, opt_obj_from_value, get_args, is_parameter
+from pddlstream.fast_downward import parse_lisp
+from pddlstream.function import Instance, External, ExternalInfo, geometric_cost, parse_function, \
+    parse_predicate
+from pddlstream.utils import str_from_tuple, INF
+from collections import Counter
 
 
 class Generator(object):
@@ -177,6 +179,13 @@ class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified):
+        for p, c in Counter(outputs).items():
+            if c != 1:
+                raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
+        for p in set(inputs) & set(outputs):
+            raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
+        for p in {a for i in certified for a in get_args(i) if is_parameter(a)} - set(inputs + outputs):
+            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs or outputs'.format(p, name))
         super(Stream, self).__init__(name, inputs, domain)
         # Each stream could certify a stream-specific fact as well
         self.gen_fn = gen_fn
@@ -225,35 +234,14 @@ STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 def parse_stream(lisp_list, stream_map):
     attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
     assert (STREAM_ATTRIBUTES == attributes)
-    name, inputs, domain, outputs, certified = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
+    values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
+    name, inputs, domain, outputs, certified = values
     if name not in stream_map:
         raise ValueError('Undefined stream conditional generator: {}'.format(name))
     return Stream(name, stream_map[name],
                           tuple(inputs), list_from_conjunction(domain),
                           tuple(outputs), list_from_conjunction(certified))
 
-def parse_function(lisp_list, stream_map):
-    assert (len(lisp_list) == 3)
-    head = tuple(lisp_list[1])
-    assert (is_head(head))
-    # inputs = get_args(head)
-    domain = list_from_conjunction(lisp_list[2])
-    name = get_prefix(head)
-    if name not in stream_map:
-        raise ValueError('Undefined external function: {}'.format(name))
-    return Function(head, stream_map[name], domain)
-    # streams.append(Stream(name, stream_map[name], tuple(inputs), domain, tuple(),
-    #                      Equal(head, 1)))
-    # TODO: this must be eager in the case of incremental
-
-def parse_predicate(lisp_list, stream_map):
-    assert (len(lisp_list) == 3)
-    head = tuple(lisp_list[1])
-    assert (is_head(head))
-    name = get_prefix(head)
-    if name not in stream_map:
-        raise ValueError('Undefined external function: {}'.format(name))
-    return Predicate(head, stream_map[name], list_from_conjunction(lisp_list[2]))
 
 def parse_stream_pddl(stream_pddl, stream_map):
     streams = []
