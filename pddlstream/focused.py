@@ -2,6 +2,7 @@ import time
 from collections import defaultdict
 from itertools import product
 from heapq import heappush, heappop
+from functools import cmp_to_key
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.incremental import process_stream_queue
@@ -36,7 +37,22 @@ def optimistic_process_stream_queue(instantiator):
             instantiator.add_atom(evaluation_from_fact(fact))
     return stream_results
 
+def cmp(v1, v2):
+    # TODO: dynamic programming solution to this?
+    i1 = v1.instance.external.info
+    i2 = v2.instance.external.info
+    if ((i1.p_success <= i2.p_success) and (i1.overhead < i2.overhead)) or \
+            ((i1.p_success < i2.p_success) and (i1.overhead <= i2.overhead)):
+        return -1
+    if ((i2.p_success <= i1.p_success) and (i2.overhead < i1.overhead)) or \
+            ((i2.p_success < i1.p_success) and (i2.overhead <= i1.overhead)):
+        return +1
+    # TODO: include context here as a weak constraint
+    # TODO: actions as a weak constraint
+    return 0
+
 def topological_sort(stream_plan):
+    # TODO: order streams with streams
     if stream_plan is None:
         return None
 
@@ -47,27 +63,23 @@ def topological_sort(stream_plan):
         incoming_edges[v2].add(v1)
         outgoing_edges[v1].add(v2)
 
-    priority_fn = lambda r: r.instance.external.info.effort
+    key = cmp_to_key(cmp)
+    #key = lambda r: r.instance.external.info.effort
 
-    # TODO: dynamic programming solution to this?
     # Each thing has a evaluation cost and a probability of continuing vs moving to a terminal state
-    # Consider problems with equal costs or probabilities
-    # Equal costs: sort by increasing probabilities
-    # Equal probabilities: sort by increasing cost
     # TODO: prior order function?
-    # TODO: precompute priority fn?
     ordering = []
     queue = []
     for v in stream_plan:
         if not incoming_edges[v]:
-            heappush(queue, (priority_fn(v), v))
+            heappush(queue, (key(v), v))
     while queue:
         _, v1 = heappop(queue)
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
-                heappush(queue, (priority_fn(v2), v2))
+                heappush(queue, (key(v2), v2))
     return ordering
 
 ##################################################
