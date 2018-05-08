@@ -20,6 +20,12 @@
     :outputs (?q)
     :certified (and (Conf ?q) (Kin ?b ?q ?p))
   )
+  (:stream plan-motion ;Comments?
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :outputs (?t)
+    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
+  )
   (:predicate (Collision ?b1 ?p1 ?b2 ?p2)
     (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
   )

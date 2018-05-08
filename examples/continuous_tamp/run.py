@@ -120,6 +120,11 @@ def get_pose_gen(regions):
             yield (p,)
     return gen_fn
 
+def plan_motion(q1, q2):
+    t = [q1, q2]
+    #t = np.vstack([q1, q2])
+    return (t,)
+
 ##################################################
 
 def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
@@ -151,6 +156,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
 
     stream_map = {
         #'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        'plan-motion': from_fn(plan_motion),
         'sample-pose': get_pose_generator(tamp_problem.regions),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
@@ -169,7 +175,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=1):
+def get_tight_problem(n_blocks=1, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -228,7 +234,7 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name = action[0]
     if name == 'move':
-        _, conf = action[1:]
+        _, _, conf = action[1:]
     elif name == 'pick':
         holding, _, _ = action[1:]
         del block_poses[holding]
@@ -247,7 +253,7 @@ def main(focused=True, deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_blocked_problem
+    problem_fn = get_tight_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -259,7 +265,7 @@ def main(focused=True, deterministic=False):
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
         solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 max_time=10, max_cost=0, debug=False,
+                                 max_time=10, max_cost=INF, debug=False,
                                  commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=False)

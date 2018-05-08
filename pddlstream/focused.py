@@ -35,16 +35,24 @@ def optimistic_process_stream_queue(instantiator):
             instantiator.add_atom(evaluation_from_fact(fact))
     return stream_results
 
-def ground_stream_instances(stream_instance, bindings, evaluations):
+def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations):
     # TODO: combination for domain predicates
+    combined_evaluations = evaluations | opt_evaluations
+    real_instances = []
+    opt_instances = []
     input_objects = [[i] if isinstance(i, Object) else bindings[i]
                     for i in stream_instance.input_objects]
     for combo in product(*input_objects):
         mapping = dict(zip(stream_instance.input_objects, combo))
         domain = set(map(evaluation_from_fact, substitute_expression(
             stream_instance.get_domain(), mapping)))
-        if domain <= evaluations:
-            yield stream_instance.external.get_instance(combo)
+        if domain <= combined_evaluations:
+            instance = stream_instance.external.get_instance(combo)
+            if domain <= evaluations:
+                real_instances.append(instance)
+            else:
+                opt_instances.append(instance)
+    return real_instances, opt_instances
 
 ##################################################
 
@@ -81,34 +89,42 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     # TODO: could bind by just using new_evaluations
     # TODO: identify outputs bound to twice and don't sample for them
     opt_bindings = defaultdict(list)
-    next_results = []
+    opt_evaluations = set()
+    opt_results = []
     failed = False
     for step, opt_result in enumerate(stream_plan):
         if failed and quick_fail:  # TODO: check if satisfies target certified
             break
         # TODO: could update all at once here
         # Could check opt_bindings to see if new bindings
-        num_instances = max_values if (layers or all(isinstance(o, Object)
+        real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings, evaluations, opt_evaluations)
+        num_instances = min(len(real_instances), max_values) if (layers or all(isinstance(o, Object)
                                                      for o in opt_result.instance.input_objects)) else 0
-        for i, instance in enumerate(ground_stream_instances(opt_result.instance, opt_bindings, evaluations)):
-            if i < num_instances:
-                results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
-                disable_stream_instance(instance, disabled)
-            else:
-                results = instance.next_optimistic()
-                next_results += results
+        opt_instances += real_instances[num_instances:]
+        real_instances = real_instances[:num_instances]
+        new_results = []
+        for instance in real_instances:
+            results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
+            evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
+            disable_stream_instance(instance, disabled)
             failed |= not results
-            #if verbose and (not results):
-            #    print('Stream failure')
-            for result in results:
-                if i < num_instances:
-                    evaluations.update(map(evaluation_from_fact, result.get_certified()))
-                if isinstance(result, StreamResult): # Could not add if same value
-                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
-                        opt_bindings[opt].append(obj)
+            new_results += results
+        for instance in opt_instances:
+            results = instance.next_optimistic()
+            opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
+            opt_results += results
+            failed |= not results
+            new_results += results
+        for result in new_results:
+            if isinstance(result, StreamResult): # Could not add if same value
+                for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                    opt_bindings[opt].append(obj)
+
+    if verbose:
+        print('Success: {}'.format(not failed))
     if failed:
         return None
-    return next_results
+    return opt_results
 
 ##################################################
 

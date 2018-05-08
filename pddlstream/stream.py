@@ -255,17 +255,20 @@ def parse_stream_pddl(stream_pddl, stream_map):
     for lisp_list in stream_iter:
         name = lisp_list[0]
         if name == ':stream':
-            streams.append(parse_stream(lisp_list, stream_map))
+            external = parse_stream(lisp_list, stream_map)
         elif name == ':wild':
             raise NotImplementedError(name)
         elif name == ':rule':
-            pass
+            continue
             # TODO: implement rules
             # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
         elif name == ':function':
-            streams.append(parse_function(lisp_list, stream_map))
+            external = parse_function(lisp_list, stream_map)
         elif name == ':predicate': # Cannot just use args if want a bound
-            streams.append(parse_predicate(lisp_list, stream_map))
+            external = parse_predicate(lisp_list, stream_map)
         else:
             raise ValueError(name)
+        if any(e.name == external.name for e in streams):
+            raise ValueError('Stream [{}] is not unique'.format(external.name))
+        streams.append(external)
     return streams
