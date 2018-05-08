@@ -79,7 +79,7 @@ def get_partial_orders(stream_plan):
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
         for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.get_certified()):
+            if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
                 partial_orders.add((stream1, stream2))
     return partial_orders
 

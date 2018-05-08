@@ -114,7 +114,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), get_args(head), domain)
         self.head = head
         self.fn = fn
-        self.info = FunctionInfo()
+        self.info = FunctionInfo(p_success=1)
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -158,14 +158,18 @@ def geometric_cost(cost, p):
         return INF
     return cost/p
 
+DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
+DEFAULT_P_SUCCESS = 0.5
+
 
 class FunctionInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=0, overhead=0):
+    def __init__(self, eager=False, bound_fn=0, p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
         self.eager = eager
         self.bound_fn = bound_fn
+        self.p_success = p_success
         self.overhead = overhead
-        self.effort = geometric_cost(self.overhead, 1)
-        self.order = 0
+        self.effort = geometric_cost(self.overhead, self.p_success)
+        #self.order = 0
 
 
 def parse_function(lisp_list, stream_map):

@@ -253,12 +253,13 @@ def main(focused=True, deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_tight_problem
+    problem_fn = get_blocked_problem # get_tight_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
+        'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
         #'cfree': StreamInfo(eager=True),
     }
 

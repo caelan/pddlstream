@@ -3,7 +3,7 @@ from pddlstream.conversion import list_from_conjunction, objects_from_values, op
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.function import Instance, External, ExternalInfo, geometric_cost, parse_function, \
-    parse_predicate
+    parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS
 from pddlstream.utils import str_from_tuple, INF
 from collections import Counter
 
@@ -109,14 +109,15 @@ def get_unique_fn(stream):
 
 class StreamInfo(ExternalInfo):
     # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
-    def __init__(self, eager=False, bound_fn=get_unique_fn, p_success=1, overhead=0):
+    def __init__(self, eager=False, bound_fn=get_unique_fn,
+                 p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
         # TODO: could change frequency/priority for the incremental algorithm
         self.eager = eager
         self.bound_fn = bound_fn
         self.p_success = p_success
         self.overhead = overhead
         self.effort = geometric_cost(self.overhead, self.p_success)
-        self.order = 0
+        #self.order = 0
         # TODO: context?
 
 ##################################################

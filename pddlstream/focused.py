@@ -1,6 +1,7 @@
 import time
 from collections import defaultdict
 from itertools import product
+from heapq import heappush, heappop
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.incremental import process_stream_queue
@@ -14,7 +15,7 @@ from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
-from pddlstream.visualization import clear_visualizations, create_visualizations
+from pddlstream.visualization import clear_visualizations, create_visualizations, get_partial_orders
 
 def disable_stream_instance(stream_instance, disabled):
     disabled.append(stream_instance)
@@ -34,6 +35,42 @@ def optimistic_process_stream_queue(instantiator):
         for fact in stream_result.get_certified():
             instantiator.add_atom(evaluation_from_fact(fact))
     return stream_results
+
+def topological_sort(stream_plan):
+    if stream_plan is None:
+        return None
+
+    orders = get_partial_orders(stream_plan)
+    incoming_edges = defaultdict(set)
+    outgoing_edges = defaultdict(set)
+    for v1, v2 in orders:
+        incoming_edges[v2].add(v1)
+        outgoing_edges[v1].add(v2)
+
+    priority_fn = lambda r: r.instance.external.info.effort
+
+    # TODO: dynamic programming solution to this?
+    # Each thing has a evaluation cost and a probability of continuing vs moving to a terminal state
+    # Consider problems with equal costs or probabilities
+    # Equal costs: sort by increasing probabilities
+    # Equal probabilities: sort by increasing cost
+    # TODO: prior order function?
+    # TODO: precompute priority fn?
+    ordering = []
+    queue = []
+    for v in stream_plan:
+        if not incoming_edges[v]:
+            heappush(queue, (priority_fn(v), v))
+    while queue:
+        _, v1 = heappop(queue)
+        ordering.append(v1)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1)
+            if not incoming_edges[v2]:
+                heappush(queue, (priority_fn(v2), v2))
+    return ordering
+
+##################################################
 
 def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations):
     # TODO: combination for domain predicates
@@ -187,6 +224,7 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
                                                                negative, max_cost=best_cost, **search_kwargs)
+            stream_plan = topological_sort(stream_plan)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:
