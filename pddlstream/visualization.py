@@ -1,10 +1,10 @@
 import os
 
 from pddlstream.algorithm import get_optimistic_constraints
-from pddlstream.conversion import get_args, is_atom, EQ, get_prefix
+from pddlstream.conversion import get_args, is_atom, EQ, get_prefix, str_from_head
 from pddlstream.object import OptimisticObject
 from pddlstream.utils import str_from_tuple, clear_dir
-from pddlstream.function import FunctionResult, str_from_head
+from pddlstream.function import FunctionResult
 
 # https://www.graphviz.org/doc/info/colors.html
 

@@ -1,14 +1,8 @@
-from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
-    list_from_conjunction, is_parameter
-from pddlstream.utils import str_from_tuple, INF
 from collections import Counter
 
-
-def str_from_head(head):
-    return '{}{}'.format(get_prefix(head), str_from_tuple(get_args(head)))
-
-
-##################################################
+from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
+    list_from_conjunction, is_parameter, str_from_head
+from pddlstream.utils import str_from_tuple, INF
 
 class Result(object):
     def __init__(self, instance):
@@ -84,6 +78,13 @@ class FunctionInstance(Instance):  # Head(Instance):
         assert not self.enumerated
         self.enumerated = True
         self.value = self.external.fn(*self.get_input_values())
+        if type(self.value) is not self.external._codomain:
+            raise ValueError('Function {} produced a nonintegral value. '
+                             'FastDownward only supports integral costs. '
+                             'To "use" real costs, scale each cost by a large factor, '
+                             'capturing the most significant bits.')
+        if self.value < 0:
+            raise ValueError('Function {} produced a negative value')
         if verbose:
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
@@ -101,7 +102,8 @@ class FunctionInstance(Instance):  # Head(Instance):
 
 class Function(External):
     """
-    The key difference from a stream is that the outputs aren't treated as objects
+    An external nonnegative function F(i1, ..., ik) -> 0 <= int
+    External functions differ from streams in that their output isn't an object
     """
     _Instance = FunctionInstance
     _Result = FunctionResult
@@ -134,7 +136,8 @@ class PredicateInstance(FunctionInstance):
 
 class Predicate(Function):
     """
-    We do not make the closed world assumption
+    An external predicate P(i1, ..., ik) -> {False, True}
+    External predicates do not make the closed world assumption
     """
     _Instance = PredicateInstance
     _Result = PredicateResult

@@ -113,7 +113,24 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 ##################################################
 
 def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
-                  commit=True, effort_weight=None, eager_iterations=1, visualize=False, verbose=True, **kwargs):
+                  commit=True, effort_weight=None, eager_layers=1,
+                  visualize=False, verbose=True, **search_kwargs):
+    """
+    Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
+    :param problem: a PDDLStream problem
+    :param max_time: the maximum amount of time to apply streams
+    :param max_cost: a strict upper bound on plan cost
+    :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
+    :param commit: if True, it commits to instantiating a particular partial plan-skeleton.
+    :param effort_weight: a multiplier for stream effort compared to action costs
+    :param eager_layers: the number of eager stream application layers per iteration
+    :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
+    :param verbose: if True, this prints the result of each stream application
+    :param search_kwargs: keyword args for the search subroutine
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
@@ -138,13 +155,13 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             print('\nIteration: {} | Depth: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
                 num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
             # TODO: constrain to use previous plan to some degree
-            eagerly_evaluate(evaluations, eager_externals, eager_iterations, max_time-elapsed_time(start_time), verbose)
+            eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
             stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
                                                functions, max_time-elapsed_time(start_time))
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression,
-                                                         domain, stream_results, max_cost=best_cost, **kwargs)
+                                                               domain, stream_results, max_cost=best_cost, **search_kwargs)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
         if stream_plan is None:

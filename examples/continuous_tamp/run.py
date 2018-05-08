@@ -259,7 +259,7 @@ def main(focused=True, deterministic=False):
                                  max_time=10, max_cost=INF, debug=False,
                                  commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, iterations=1, unit_costs=False)
+        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

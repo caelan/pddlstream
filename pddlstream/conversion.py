@@ -4,6 +4,7 @@ import collections
 from collections import namedtuple
 
 from pddlstream.object import Object, OptimisticObject
+from pddlstream.utils import str_from_tuple
 
 EQ = '=' # xnor
 AND = 'and'
@@ -234,3 +235,7 @@ def opt_obj_from_value(value):
     return OptimisticObject.from_opt(value)
     # TODO: better way of doing this?
     #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
+
+
+def str_from_head(head):
+    return '{}{}'.format(get_prefix(head), str_from_tuple(get_args(head)))
