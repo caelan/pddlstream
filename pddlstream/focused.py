@@ -84,10 +84,16 @@ def populate_results(evaluations, streams, max_time):
 ##################################################
 
 def process_stream_plan(evaluations, stream_plan, disabled, verbose,
-                        quick_fail=False, layers=False, max_values=INF):
+                        quick_fail=True, layers=False, max_values=INF):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
-    # TODO: identify outputs bound to twice and don't sample for them
+    streams_from_output = defaultdict(list)
+    for result in stream_plan:
+        if isinstance(result, StreamResult):
+            for obj in result.output_objects:
+                streams_from_output[obj].append(result)
+    shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
+
     opt_bindings = defaultdict(list)
     opt_evaluations = set()
     opt_results = []
@@ -95,11 +101,12 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     for step, opt_result in enumerate(stream_plan):
         if failed and quick_fail:  # TODO: check if satisfies target certified
             break
-        # TODO: could update all at once here
         # Could check opt_bindings to see if new bindings
         real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings, evaluations, opt_evaluations)
-        num_instances = min(len(real_instances), max_values) if (layers or all(isinstance(o, Object)
-                                                     for o in opt_result.instance.input_objects)) else 0
+        #num_instances = min(len(real_instances), max_values) if (layers or all(isinstance(o, Object)
+        #                                             for o in opt_result.instance.input_objects)) else 0
+        num_instances = min(len(real_instances), max_values) \
+            if (layers or (step == 0) or (opt_result not in shared_output_streams)) else 0
         opt_instances += real_instances[num_instances:]
         real_instances = real_instances[:num_instances]
         new_results = []
@@ -107,7 +114,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
             results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
             evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             disable_stream_instance(instance, disabled)
-            failed |= not results
+            failed |= not results # TODO: predicate failure
             new_results += results
         for instance in opt_instances:
             results = instance.next_optimistic()
