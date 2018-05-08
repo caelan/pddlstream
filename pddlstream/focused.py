@@ -1,5 +1,5 @@
 import time
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, deque
 from itertools import product
 from heapq import heappush, heappop
 from functools import cmp_to_key
@@ -62,7 +62,7 @@ def get_stream_dag(stream_plan):
         outgoing_edges[v1].add(v2)
     return incoming_edges, outgoing_edges
 
-def topological_sort2(stream_plan):
+def forward_topological_sort(stream_plan):
     # TODO: order streams with streams
     if stream_plan is None:
         return None
@@ -88,19 +88,19 @@ def topological_sort2(stream_plan):
     print(compute_expected_cost(ordering))
     return ordering
 
-def topological_sort(stream_plan):
+def backward_topological_sort(stream_plan):
+    # Works well because DP reduces to this when no choices
     if stream_plan is None:
         return None
     incoming_edges, outgoing_edges = get_stream_dag(stream_plan)
     queue = []
     reversed_ordering = []
     visited = set()
-    future_infos = {}
     for v in stream_plan:
         if not outgoing_edges[v]:
             info = v.instance.external.info
-            future_infos[v] = (-info.p_success, -info.overhead)
-            heappush(queue, (future_infos[v], v))
+            key = (-info.p_success, -info.overhead)
+            heappush(queue, (key, v))
     while queue:
         _, v1 = heappop(queue)
         reversed_ordering.append(v1)
@@ -108,15 +108,17 @@ def topological_sort(stream_plan):
         for v2 in incoming_edges[v1]:
             if outgoing_edges[v2] <= visited:
                 info = v2.instance.external.info
-                future_infos[v2] = (-info.p_success, -info.overhead)
+                key = (-info.p_success, -info.overhead)
                 # TODO: could factor in outgoing_edges[v2]
-                heappush(queue, (future_infos[v2], v2))
+                heappush(queue, (key, v2))
     ordering = list(reversed(reversed_ordering))
     print(compute_expected_cost(ordering))
     return ordering
 
 
 def compute_expected_cost(stream_plan):
+    if stream_plan is None:
+        return INF
     expected_cost = 0
     for result in reversed(stream_plan):
         info = result.instance.external.info
@@ -131,44 +133,29 @@ def dynamic_programming(stream_plan):
     if stream_plan is None:
         return None
     incoming_edges, outgoing_edges = get_stream_dag(stream_plan)
-    # TODO: dynamic programming over sets or vertices fixed in order?
-    # The probability operates over the full future set
-
     def valid_combine(v, subset):
-        return outgoing_edges[v] <= subset  # Instead if prereqs not in set
-        #return not (incoming_edges[v] & subset) # I think these are the same
+        return outgoing_edges[v] <= subset
+        #return not (incoming_edges[v] & subset) # These are equivalent
 
-    # Need partial ordering (acyclic) on subproblems to avoid priority queue
-    # Naturally acyclic because of subsets.
-    queue = [(0, frozenset())]
-    expected_cost = {frozenset(): Subproblem(0, None, None)}
-    visited = set()
+    subset = frozenset()
+    queue = deque([subset]) # Acyclic because subsets
+    expected_cost = {subset: Subproblem(0, None, None)}
     while queue:
-        _, subset = heappop(queue)
-        if subset in visited:
-            continue
-        visited.add(subset)
-        for v in set(stream_plan) - subset: # TODO: this is where I can prune things
-            if valid_combine(v, subset):
+        subset = queue.popleft()
+        #for v in set(stream_plan) - subset: # TODO: this is where I can prune things
+        #    if valid_combine(v, subset):
+        candidates = filter(lambda v: valid_combine(v, subset), set(stream_plan) - subset)
+
+        for v in candidates:
                 new_subset = frozenset([v]) | subset
                 info = v.instance.external.info
                 new_cost = info.overhead + info.p_success*expected_cost[subset].cost # Add new element to front
-                if (new_subset not in expected_cost) or (new_cost < expected_cost[new_subset].cost):
-                    expected_cost[new_subset] = Subproblem(new_cost, v, subset)
-                    # TODO: do partial ordering here by ensure all other subproblems are solved
-                    #heappush(queue, (new_cost, new_subset))
-                    heappush(queue, (len(new_subset), new_subset))
-                #for v2 in new_subset:
-                #    stuff = new_subset = frozenset([v2])
-                #    if (new_subset not in expected_cost) and valid_combine(v2, stuff):
-                #        break
-                #else:
-                #    heappush(queue, (expected_cost[new_subset].cost, new_subset))
-
-
-                    # TODO: if no overhead, this just becomes a log shortest path problem? I don't think so really
-    # TODO: single source root
-    # The only decisions are when there are several things in the queue
+                subproblem = Subproblem(new_cost, v, subset)
+                if new_subset not in expected_cost:
+                    queue.append(new_subset)
+                    expected_cost[new_subset] = subproblem
+                elif new_cost < expected_cost[new_subset].cost:
+                    expected_cost[new_subset] = subproblem
 
     subset = frozenset(stream_plan)
     print(expected_cost[subset].cost)
@@ -182,14 +169,6 @@ def dynamic_programming(stream_plan):
     print(ordering)
     print(compute_expected_cost(ordering))
     return ordering
-
-
-
-
-
-
-
-
 
 ##################################################
 
@@ -347,8 +326,8 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
                                                                negative, max_cost=best_cost, **search_kwargs)
             print(compute_expected_cost(stream_plan))
-            print(topological_sort2(stream_plan))
-            print(topological_sort(stream_plan))
+            print(forward_topological_sort(stream_plan))
+            print(backward_topological_sort(stream_plan))
             #stream_plan = topological_sort(stream_plan)
             dynamic_programming(stream_plan)
             print('Stream plan: {}\n'
