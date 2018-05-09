@@ -67,17 +67,27 @@ def compute_expected_cost(stream_plan):
 # TODO: can give actions extreme priority
 # TODO: can also more manually reorder
 
-def dominates(v1, v2):
-    p_success1, overhead1 = get_stream_stats(v1)
-    p_success2, overhead2 = get_stream_stats(v2)
-    return (p_success1 <= p_success2) and (overhead1 <= overhead2)
-
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
-def dynamic_programming(vertices, valid_head, effort_orders=set(), prune=True, greedy=False):
+def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
     # 2^N rather than N!
-    _, out_effort_orders = neighbors_from_orders(effort_orders)
-    effort_ordering = topological_sort(vertices, effort_orders)[::-1]
+
+    def dominates(v1, v2):
+        p_success1, overhead1 = stats_fn(v1)
+        p_success2, overhead2 = stats_fn(v2)
+        return (p_success1 <= p_success2) and (overhead1 <= overhead2)
+
+    # TODO: can just do on the infos themselves
+    effort_orders = set()
+    if prune:
+        for i, v1 in enumerate(vertices):
+            for v2 in vertices[i+1:]:
+                if dominates(v1, v2):
+                    effort_orders.add((v1, v2)) # Includes equality
+                elif dominates(v2, v1):
+                    effort_orders.add((v2, v1))
+    _, out_priority_orders = neighbors_from_orders(effort_orders)
+    priority_ordering = topological_sort(vertices, effort_orders)[::-1]
 
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
@@ -85,10 +95,10 @@ def dynamic_programming(vertices, valid_head, effort_orders=set(), prune=True, g
     while queue:
         subset = queue.popleft()
         applied = set()
-        for v in effort_ordering:
+        for v in priority_ordering:
             if greedy and applied:
                 break
-            if (v not in subset) and valid_head(v, subset) and not (out_effort_orders[v] & applied):
+            if (v not in subset) and valid_head_fn(v, subset) and not (out_priority_orders[v] & applied):
                 applied.add(v)
                 new_subset = frozenset([v]) | subset
                 p_success, overhead = get_stream_stats(v)
@@ -110,25 +120,14 @@ def dynamic_programming(vertices, valid_head, effort_orders=set(), prune=True, g
         subset = subproblem.subset
     return ordering
 
-def reorder_streams(stream_plan, prune=True, **kwargs):
+def reorder_streams(stream_plan, **kwargs):
     if stream_plan is None:
         return None
-    in_stream_orders, out_stream_orders = neighbors_from_orders(get_partial_orders(stream_plan))
-    def valid_combine(v, subset):
-        return out_stream_orders[v] <= subset
-        #return in_stream_orders[v] & subset # These are equivalent
-
-    # TODO: can just do on the infos themselves
-    effort_orders = set()
-    if prune:
-        for i, v1 in enumerate(stream_plan):
-            for v2 in stream_plan[i+1:]:
-                if dominates(v1, v2):
-                    effort_orders.add((v1, v2)) # Includes equality
-                elif dominates(v2, v1):
-                    effort_orders.add((v2, v1))
-
-    return dynamic_programming(stream_plan, valid_combine, effort_orders, **kwargs)
+    stream_orders = get_partial_orders(stream_plan)
+    in_stream_orders, out_stream_orders = neighbors_from_orders(stream_orders)
+    valid_combine = lambda v, subset: out_stream_orders[v] <= subset
+    #valid_combine = lambda v, subset: in_stream_orders[v] & subset
+    return dynamic_programming(stream_plan, valid_combine, get_stream_stats, **kwargs)
 
 ##################################################
 
