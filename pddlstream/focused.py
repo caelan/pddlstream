@@ -5,7 +5,7 @@ from itertools import product
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
-from pddlstream.function import Function, Predicate, PredicateResult
+from pddlstream.function import Function, Predicate, PredicateResult, Result
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
@@ -16,10 +16,31 @@ from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
-def update_info(externals, stream_info):
+##################################################
+
+# TODO: namedtuple
+class ActionInfo(object):
+    def __init__(self, terminal=False, p_success=1):
+        """
+        :param terminal: Indicates the action may require replanning after use
+        :param p_success:
+        """
+        self.terminal = terminal # TODO: infer from p_success
+        self.p_success = p_success
+        # TODO: should overhead just be cost here then?
+
+def get_action_info(action_info):
+    action_execution = defaultdict(ActionInfo)
+    for name, info in action_info.items():
+        action_execution[name] = info
+    return action_execution
+
+def update_stream_info(externals, stream_info):
     for external in externals:
         if external.name in stream_info:
             external.info = stream_info[external.name]
+
+##################################################
 
 def populate_results(evaluations, streams, max_time):
     #start_time = time.time()
@@ -28,8 +49,6 @@ def populate_results(evaluations, streams, max_time):
     while instantiator.stream_queue: # and (elapsed_time(start_time) < max_time):
         stream_results += optimistic_process_stream_queue(instantiator)
     return stream_results
-
-##################################################
 
 def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
     start_time = time.time()
@@ -170,6 +189,16 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
     task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
 
+    # TODO: something that inverts the negative items
+    stream_instances = [] # TODO: could even apply these to the state directly
+    for result in stream_plan:
+        name = result.instance.external.name
+        precondition = list(map(fd_from_fact, result.instance.get_domain()))
+        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if not get_prefix(fact) == EQ]
+        cost = None # TODO: effort?
+        instance = pddl.PropositionalAction(name, precondition, effects, cost)
+        stream_instances.append(instance)
+
     action_instances = []
     for name, objects in action_plan:
         # TODO: just instantiate task?
@@ -208,28 +237,51 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
         apply_action(task.init, instance)
         action_instances.append(instance)
 
-    # TODO: something that inverts the negative items
-    stream_instances = [] # TODO: could even apply these to the state directly
-    for result in stream_plan:
-        name = result.instance.external.name
-        precondition = list(map(fd_from_fact, result.instance.get_domain()))
-        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if not get_prefix(fact) == EQ]
-        cost = None # TODO: effort?
-        instance = pddl.PropositionalAction(name, precondition, effects, cost)
-        stream_instances.append(instance)
+    #combined_instances = stream_instances + action_instances
+    orders = set()
+    for i, a1 in enumerate(action_plan):
+        for a2 in action_plan[i+1:]:
+            orders.add((a1, a2))
+    # TODO: just store first achiever here
+    for i, instance1 in enumerate(stream_instances):
+        for j in range(i+1, len(stream_instances)):
+            effects = {e for _, e in  instance1.add_effects}
+            if effects & set(stream_instances[j].precondition):
+                orders.add((stream_plan[i], stream_plan[j]))
+    for i, instance1 in enumerate(stream_instances):
+        for j, instance2 in enumerate(action_instances):
+            effects = {e for _, e in  instance1.add_effects}
+            if effects & set(instance2.precondition):
+                orders.add((stream_plan[i], action_plan[j]))
     return stream_instances, action_instances
+
+def separate_plan(combined_plan, action_info):
+    if combined_plan is None:
+        return None, None
+    stream_plan = []
+    action_plan = []
+    terminated = False
+    for operator in combined_plan:
+        if not terminated and isinstance(operator, Result):
+            stream_plan.append(operator)
+        else:
+            action_plan.append(operator)
+            name, _ = operator
+            terminated |= action_info[name].terminal
+    return stream_plan, action_plan
 
 ##################################################
 
-def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
+def solve_focused(problem, stream_info={}, action_info={}, max_time=INF, max_cost=INF,
                   commit=True, effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
+    :param action_info: a dictionary from stream name to ActionInfo for planning and execution
+    :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param max_time: the maximum amount of time to apply streams
     :param max_cost: a strict upper bound on plan cost
-    :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param commit: if True, it commits to instantiating a particular partial plan-skeleton.
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param eager_layers: the number of eager stream application layers per iteration
@@ -245,7 +297,8 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, externals = parse_problem(problem)
-    update_info(externals, stream_info)
+    action_info = get_action_info(action_info)
+    update_stream_info(externals, stream_info)
     eager_externals = filter(lambda e: e.info.eager, externals)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []
@@ -271,10 +324,12 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             # TODO: warning check if using simultaneous_stream_plan or relaxed_stream_plan with non-eager functions
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
-            stream_plan, action_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
+            combined_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
                                                                negative, max_cost=best_cost, **search_kwargs)
-            reorder_streams = dynamic_programming  # forward_topological_sort | backward_topological_sort | dynamic_programming
+            stream_plan, action_plan = separate_plan(combined_plan, action_info)
+            reorder_streams = dynamic_programming
             stream_plan = reorder_streams(stream_plan)
+            # TODO: no point not deferring streams for as long as possible unless really thinking about failure prob
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
             instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
@@ -306,4 +361,5 @@ def solve_focused(problem, max_time=INF, max_cost=INF, stream_info={},
             if not commit:
                 stream_results = None
             depth += 1
+    # TODO: modify streams here
     return revert_solution(best_plan, best_cost, evaluations)

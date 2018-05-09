@@ -8,7 +8,7 @@ from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from pddlstream.focused import disable_stream_instance, reset_disabled, update_info, eagerly_evaluate, \
+from pddlstream.focused import disable_stream_instance, reset_disabled, update_stream_info, eagerly_evaluate, \
     optimistic_process_stream_queue
 
 
@@ -72,7 +72,7 @@ def solve_focused(problem, max_time=INF, stream_info={}, effort_weight=None, eag
     num_iterations = 0
     best_plan = None; best_cost = INF
     evaluations, goal_expression, domain, externals = parse_problem(problem)
-    update_info(externals, stream_info)
+    update_stream_info(externals, stream_info)
     eager_externals = filter(lambda e: e.info.eager, externals)
     constraint_solver = ConstraintSolver(problem[3])
     disabled = []

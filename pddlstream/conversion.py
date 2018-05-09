@@ -216,6 +216,7 @@ def obj_from_pddl_plan(pddl_plan):
 def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
+    # TODO: do I want to have the tuple?
     return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
 
 ##################################################

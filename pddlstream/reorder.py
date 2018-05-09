@@ -13,6 +13,7 @@ def neighbors_from_orders(orders):
     return incoming_edges, outgoing_edges
 
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # Can also do a DFS version
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     ordering = []
     queue = []
@@ -57,8 +58,10 @@ Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
 # TODO: include context here as a weak constraint
 # TODO: actions as a weak constraint
-# TODO: works in the absence of parital orders
+# TODO: works in the absence of partial orders
 # TODO: actions are extremely unlikely to work
+# TODO: can give actions extreme priority
+# TODO: can also more manually reorder
 
 def dynamic_programming(stream_plan, prune=True, greedy=False):
     # 2^N rather than N!
@@ -122,6 +125,7 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
 
 ##################################################
 
+"""
 def partial_ordered(plan):
     # https://www.aaai.org/ocs/index.php/ICAPS/ICAPS10/paper/viewFile/1420/1539
     # http://repository.cmu.edu/cgi/viewcontent.cgi?article=1349&context=compsci
@@ -155,3 +159,4 @@ def partial_ordered(plan):
     print orders
     print primary_effects
     print topological_sort(range(len(plan)), orders, lambda v: hasattr(plan[v][0], 'stream'))
+"""

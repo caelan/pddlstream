@@ -11,7 +11,7 @@ import numpy as np
 from examples.continuous_tamp.constraint_solver import BLOCK_WIDTH, BLOCK_HEIGHT, GRASP
 from examples.discrete_tamp.viewer import COLORS
 from examples.continuous_tamp.constraint_solver import get_constraint_solver
-from pddlstream.focused import solve_focused
+from pddlstream.focused import solve_focused, ActionInfo
 from pddlstream.incremental import solve_incremental
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
@@ -257,6 +257,9 @@ def main(focused=True, deterministic=False):
     tamp_problem = problem_fn()
     print(tamp_problem)
 
+    action_info = {
+        'move': ActionInfo(terminal=True),
+    }
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
@@ -265,7 +268,7 @@ def main(focused=True, deterministic=False):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+        solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  max_time=10, max_cost=INF, debug=False,
                                  commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:

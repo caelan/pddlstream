@@ -2,7 +2,7 @@ from pddlstream.context import create_immediate_context
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
-from pddlstream.function import Instance, External, ExternalInfo, geometric_cost, parse_function, \
+from pddlstream.function import Result, Instance, External, ExternalInfo, geometric_cost, parse_function, \
     parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS
 from pddlstream.utils import str_from_tuple, INF
 from collections import Counter
@@ -122,7 +122,7 @@ class StreamInfo(ExternalInfo):
 
 ##################################################
 
-class StreamResult(object):
+class StreamResult(Result):
     def __init__(self, instance, output_objects):
         self.instance = instance
         self.output_objects = output_objects

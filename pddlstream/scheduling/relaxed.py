@@ -135,7 +135,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     with Verbose(False):
         ground_task = instantiate_task(task, simplify_axioms=False)
         if ground_task is None:
-            return None, None, INF
+            return None, INF
         sas_task = pddl_to_sas(ground_task)
         clear_dir(TEMP_DIR)
         with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
@@ -144,7 +144,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     safe_rm_dir(TEMP_DIR)
     action_plan, action_cost = parse_solution(solution)
     if action_plan is None:
-        return None, action_plan, action_cost
+        return action_plan, action_cost
 
     action_from_parameters = defaultdict(list) # Could also obtain from below
     for action in ground_task.reachable_action_params:
@@ -253,5 +253,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     stream_plan = []
     extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
+    stream_plan += list(function_plan)
+    action_plan = obj_from_pddl_plan(action_plan)
+    combined_plan = stream_plan + action_plan
 
-    return (stream_plan + list(function_plan)), obj_from_pddl_plan(action_plan), action_cost
+    return combined_plan, action_cost
