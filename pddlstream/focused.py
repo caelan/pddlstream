@@ -8,7 +8,7 @@ from pddlstream.function import Function, Predicate
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
-from pddlstream.reorder import dynamic_programming, instantiate_plan, separate_plan
+from pddlstream.reorder import reorder_streams, instantiate_plan, separate_plan, stuff_programming
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
@@ -211,14 +211,14 @@ def solve_focused(problem, stream_info={}, action_info={}, max_time=INF, max_cos
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             combined_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
                                                                negative, max_cost=best_cost, **search_kwargs)
+            #combined_plan = stuff_programming(evaluations, combined_plan, domain)
             stream_plan, action_plan = separate_plan(combined_plan, action_info)
-            reorder_streams = dynamic_programming
             stream_plan = reorder_streams(stream_plan)
             # TODO: no point not deferring streams for as long as possible unless really thinking about failure prob
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
-            instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
-            raw_input('Continue?')
+            #instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
+            #raw_input('Continue?')
 
         if stream_plan is None:
             if disabled or (depth != 0):

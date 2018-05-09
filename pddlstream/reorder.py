@@ -60,8 +60,6 @@ def compute_expected_cost(stream_plan):
         expected_cost = overhead + p_success * expected_cost
     return expected_cost
 
-Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
-
 # TODO: include context here as a weak constraint
 # TODO: actions as a weak constraint
 # TODO: works in the absence of partial orders
@@ -74,27 +72,12 @@ def dominates(v1, v2):
     p_success2, overhead2 = get_stream_stats(v2)
     return (p_success1 <= p_success2) and (overhead1 <= overhead2)
 
-def dynamic_programming(stream_plan, prune=True, greedy=False):
+Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
+
+def dynamic_programming(vertices, valid_head, effort_orders=set(), prune=True, greedy=False):
     # 2^N rather than N!
-    if stream_plan is None:
-        return None
-
-    # TODO: can just do on the infos themselves
-    effort_orders = set()
-    if prune:
-        for i, v1 in enumerate(stream_plan):
-            for v2 in stream_plan[i+1:]:
-                if dominates(v1, v2):
-                    effort_orders.add((v1, v2)) # Includes equality
-                elif dominates(v2, v1):
-                    effort_orders.add((v2, v1))
     _, out_effort_orders = neighbors_from_orders(effort_orders)
-    effort_ordering = topological_sort(stream_plan, effort_orders)[::-1]
-
-    in_stream_orders, out_stream_orders = neighbors_from_orders(get_partial_orders(stream_plan))
-    def valid_combine(v, subset):
-        return (v not in subset) and (out_stream_orders[v] <= subset)
-        #return (v not in subset) and not (in_stream_orders[v] & subset) # These are equivalent
+    effort_ordering = topological_sort(vertices, effort_orders)[::-1]
 
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
@@ -105,7 +88,7 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
         for v in effort_ordering:
             if greedy and applied:
                 break
-            if valid_combine(v, subset) and not (out_effort_orders[v] & applied):
+            if (v not in subset) and valid_head(v, subset) and not (out_effort_orders[v] & applied):
                 applied.add(v)
                 new_subset = frozenset([v]) | subset
                 p_success, overhead = get_stream_stats(v)
@@ -118,7 +101,7 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
                     subproblems[new_subset] = subproblem
 
     ordering = []
-    subset = frozenset(stream_plan)
+    subset = frozenset(vertices)
     while True:
         subproblem = subproblems[subset]
         if subproblem.head is None:
@@ -126,6 +109,26 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
         ordering.append(subproblem.head)
         subset = subproblem.subset
     return ordering
+
+def reorder_streams(stream_plan, prune=True, **kwargs):
+    if stream_plan is None:
+        return None
+    in_stream_orders, out_stream_orders = neighbors_from_orders(get_partial_orders(stream_plan))
+    def valid_combine(v, subset):
+        return out_stream_orders[v] <= subset
+        #return in_stream_orders[v] & subset # These are equivalent
+
+    # TODO: can just do on the infos themselves
+    effort_orders = set()
+    if prune:
+        for i, v1 in enumerate(stream_plan):
+            for v2 in stream_plan[i+1:]:
+                if dominates(v1, v2):
+                    effort_orders.add((v1, v2)) # Includes equality
+                elif dominates(v2, v1):
+                    effort_orders.add((v2, v1))
+
+    return dynamic_programming(stream_plan, valid_combine, effort_orders, **kwargs)
 
 ##################################################
 
@@ -167,12 +170,13 @@ def partial_ordered(plan):
 
 ##################################################
 
-def stuff_programming(combined_plan):
-    stream_plan, action_plan = combined_plan
+def stuff_programming(evaluations, combined_plan, domain):
+    stream_plan, action_plan = separate_plan(combined_plan)
+    goal_expression = ('and',)
+    orders = instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
+    print(orders)
 
-
-    pass
-
+    return dynamic_programming(combined_plan)
 
 def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain):
     if action_plan is None:
@@ -266,6 +270,7 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
                 orders.add((stream_plan[i], action_plan[j]))
     return orders
 
+##################################################
 
 def separate_plan(combined_plan, action_info=None):
     if combined_plan is None:
