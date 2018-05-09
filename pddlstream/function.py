@@ -89,6 +89,10 @@ class FunctionResult(Result):
     def get_certified(self):
         return [Equal(self.instance.get_head(), self.value)]
 
+    def get_tuple(self):
+        name = self.instance.external.name
+        return name, self.instance.input_objects, self.value
+
     def __repr__(self):
         return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
 
@@ -102,13 +106,16 @@ class FunctionInstance(Instance):  # Head(Instance):
     def next_results(self, stream_plan=None, verbose=False):
         assert not self.enumerated
         self.enumerated = True
-        self.value = self.external.fn(*self.get_input_values())
+        value = self.external.fn(*self.get_input_values())
+        self.value = self.external._codomain(value)
+        # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
         #if not isinstance(self.value, self.external._codomain):
-        #    raise ValueError('Function [{}] produced a nonintegral value [{}]. '
-        #                     'FastDownward only supports integral costs. '
-        #                     'To "use" real costs, scale each cost by a large factor, '
-        #                     'capturing the most significant bits.'.format(self.external.name, self.value))
+        if self.value != value:
+            raise ValueError('Function [{}] produced a nonintegral value [{}]. '
+                             'FastDownward only supports integral costs. '
+                             'To "use" real costs, scale each cost by a large factor, '
+                             'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if verbose:

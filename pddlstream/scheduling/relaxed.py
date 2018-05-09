@@ -4,8 +4,8 @@ from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
-    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init
-from pddlstream.scheduling.simultaneous import fact_from_fd, evaluations_from_stream_plan, extract_function_results, \
+    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd
+from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
 from pddlstream.utils import Verbose, INF, MockSet, find, implies
 from pddlstream.function import PredicateResult

@@ -136,8 +136,9 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 ##################################################
 
 from collections import defaultdict
-from pddlstream.conversion import pddl_from_object
-from pddlstream.fast_downward import get_problem, task_from_domain_problem, apply_action, is_applicable
+from pddlstream.conversion import pddl_from_object, get_prefix, EQ
+from pddlstream.fast_downward import get_problem, task_from_domain_problem, apply_action, is_applicable, get_init, \
+    fd_from_fact
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.utils import Verbose, INF, MockSet, find
 from pddlstream.function import PredicateResult
@@ -148,10 +149,12 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
         return None
     # TODO: could just do this within relaxed
     # TODO: propositional stream instances
+    # TODO: do I want to strip the fluents and just do the total ordering?
     negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    for result in negative_results:
-        result.value = not result.value
-    evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
+    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
+                                  for f in r.get_certified()), negated=True))
+    #negated_from_name = {r.instance.external.name for r in negative_results}
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
 
     import pddl_to_prolog
     import build_model
@@ -159,13 +162,15 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
     import pddl
     import instantiate
 
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
     actions = task.actions
     task.actions = []
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     function_assignments = {f.fluent: f.expression for f in task.init
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    task.init = set(task.init) - set(function_assignments)
+    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
+
+    action_instances = []
     for name, objects in action_plan:
         # TODO: just instantiate task?
         with Verbose(False):
@@ -184,30 +189,35 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
                            fluent_facts, type_to_objects,
                            task.use_min_cost_metric, function_assignments)
         assert(instance is not None)
-        print()
-        print(instance)
 
-
-        goal_list = []
-        with Verbose(False):
+        goal_list = [] # TODO: include the goal?
+        with Verbose(False): # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        print(instantiated_axioms)
-        print(helpful_axioms)
-        print(axiom_init)
-        axiom_from_atom = get_achieving_axioms(task.init, helpful_axioms, axiom_init)
+        axiom_from_atom = get_achieving_axioms(task.init | negative_init,
+                                               helpful_axioms, axiom_init)
+                                               #negated_from_name=negated_from_name)
+
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
         # TODO: what the propositional axiom has conditional derived
-        # TODO: there won't be anything here if no way to create these
-
-        print(axiom_plan)
-        axiom_pre = {p for ax in axiom_plan for p in ax.conditions}
+        axiom_pre = {p for ax in axiom_plan for p in ax.condition}
         axiom_eff = {ax.effect for ax in axiom_plan}
         instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
 
         assert(is_applicable(task.init, instance))
         apply_action(task.init, instance)
-        #instance.dump()
+        action_instances.append(instance)
+
+    # TODO: something that inverts the negative items
+    stream_instances = [] # TODO: could even apply these to the state directly
+    for result in stream_plan:
+        name = result.instance.external.name
+        precondition = list(map(fd_from_fact, result.instance.get_domain()))
+        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if not get_prefix(fact) == EQ]
+        cost = None # TODO: effort?
+        instance = pddl.PropositionalAction(name, precondition, effects, cost)
+        stream_instances.append(instance)
+    return stream_instances, action_instances
 
 ##################################################
 

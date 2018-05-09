@@ -131,6 +131,9 @@ class StreamResult(object):
                     list(zip(self.instance.external.outputs, self.output_objects)))
     def get_certified(self):
         return substitute_expression(self.instance.external.certified, self.get_mapping())
+    def get_tuple(self):
+        name = self.instance.external.name
+        return name, self.instance.input_objects, self.output_objects
     def __repr__(self):
         return '{}:{}->{}'.format(self.instance.external.name,
                                   str_from_tuple(self.instance.input_objects),

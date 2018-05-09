@@ -1,22 +1,12 @@
 from collections import defaultdict
 
 from pddlstream.algorithm import solve_finite
-from pddlstream.conversion import get_prefix, pddl_from_object, get_args, obj_from_pddl, evaluation_from_fact, Head
-from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain
-from pddlstream.utils import INF, find
+from pddlstream.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact, Head
+from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
+from pddlstream.function import FunctionResult
 from pddlstream.stream import StreamResult
-from pddlstream.function import FunctionResult, PredicateResult
+from pddlstream.utils import INF, find
 
-
-def fd_from_fact(evaluation):
-    import pddl
-    predicate = get_prefix(evaluation)
-    args = map(pddl_from_object, get_args(evaluation))
-    return pddl.Atom(predicate, args)
-
-def fact_from_fd(fd):
-    assert(not fd.negated)
-    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
     result_from_evaluation = {e: None for e in evaluations}

@@ -30,13 +30,27 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
 
 ##################################################
 
+def get_stream_stats(result):
+    info = result.instance.external.info
+    return info.p_success, info.overhead
+
+def get_deterministic_action_stats(action):
+    p_success = 1
+    overhead = INF
+    return p_success, overhead
+
+def get_replan_action_stats(action):
+    p_success = 1e-3 # Should never do zero...
+    overhead = 1
+    return p_success, overhead
+
 def compute_expected_cost(stream_plan):
     if stream_plan is None:
         return INF
     expected_cost = 0
     for result in reversed(stream_plan):
-        info = result.instance.external.info
-        expected_cost = info.overhead + info.p_success * expected_cost
+        p_success, overhead = get_stream_stats(result)
+        expected_cost = overhead + p_success * expected_cost
     return expected_cost
 
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
@@ -52,9 +66,9 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
         return None
 
     def dominates(v1, v2):
-        i1 = v1.instance.external.info
-        i2 = v2.instance.external.info
-        return (i1.p_success <= i2.p_success) and (i1.overhead <= i2.overhead)
+        p_success1, overhead1 = get_stream_stats(v1)
+        p_success2, overhead2 = get_stream_stats(v2)
+        return (p_success1 <= p_success2) and (overhead1 <= overhead2)
 
     # TODO: can just do on the infos themselves
     effort_orders = set()
@@ -87,9 +101,9 @@ def dynamic_programming(stream_plan, prune=True, greedy=False):
             if valid_combine(v, subset) and not (out_effort_orders[v] & applied):
                 applied.add(v)
                 new_subset = frozenset([v]) | subset
-                info = v.instance.external.info
-                new_cost = info.overhead + info.p_success*subproblems[subset].cost # Add new element to front
-                subproblem = Subproblem(new_cost, v, subset)
+                p_success, overhead = get_stream_stats(v)
+                new_cost = overhead + p_success*subproblems[subset].cost
+                subproblem = Subproblem(new_cost, v, subset)  # Adds new element to the front
                 if new_subset not in subproblems:
                     queue.append(new_subset)
                     subproblems[new_subset] = subproblem

@@ -7,7 +7,7 @@ from collections import namedtuple
 from time import time
 
 from pddlstream.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
-    pddl_list_from_expression
+    pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ
 from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir
 
 FD_BIN = os.path.join(os.environ['FD_PATH'], 'bin')
@@ -103,16 +103,34 @@ def parse_problem(domain, problem_pddl):
 
 ##################################################
 
-def get_init(init_evaluations):
+def fd_from_fact(fact):
+    # TODO: convert to evaluation?
+    prefix = get_prefix(fact)
+    if prefix == NOT:
+        return fd_from_fact(fact[1]).negate()
+    if prefix == EQ:
+        _, head, value = fact
+        predicate = get_prefix(head)
+        args = map(pddl_from_object, get_args(head))
+        fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=predicate, args=args)
+        expression = pddl.f_expression.NumericConstant(value)
+        return pddl.f_expression.Assign(fluent, expression)
+    args = map(pddl_from_object, get_args(fact))
+    return pddl.Atom(prefix, args)
+
+def fact_from_fd(fd):
+    assert(not fd.negated)
+    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+
+def get_init(init_evaluations, negated=False):
     init = []
     for evaluation in init_evaluations:
         name = evaluation.head.function
         args = tuple(map(pddl_from_object, evaluation.head.args))
         if is_atom(evaluation):
             init.append(pddl.Atom(name, args))
-        elif is_negated_atom(evaluation):
-            #return pddl.NegatedAtom(name, args)
-            pass
+        elif negated and is_negated_atom(evaluation):
+            init.append(pddl.NegatedAtom(name, args))
         else:
             fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
             expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
