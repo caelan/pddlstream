@@ -1,20 +1,23 @@
 import time
-from collections import defaultdict
 from itertools import product
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
-from pddlstream.function import Function, Predicate, PredicateResult, Result
+from pddlstream.function import Function, Predicate
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
-from pddlstream.reorder import dynamic_programming
+from pddlstream.reorder import dynamic_programming, instantiate_plan, separate_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
+from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
+from collections import defaultdict
+from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.utils import INF
+from pddlstream.function import PredicateResult
 
 ##################################################
 
@@ -151,124 +154,6 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     if failed:
         return None
     return opt_results
-
-##################################################
-
-from collections import defaultdict
-from pddlstream.conversion import pddl_from_object, get_prefix, EQ
-from pddlstream.fast_downward import get_problem, task_from_domain_problem, apply_action, is_applicable, get_init, \
-    fd_from_fact
-from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.utils import Verbose, INF, MockSet, find
-from pddlstream.function import PredicateResult
-from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
-
-def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain):
-    if action_plan is None:
-        return None
-    # TODO: could just do this within relaxed
-    # TODO: propositional stream instances
-    # TODO: do I want to strip the fluents and just do the total ordering?
-    negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
-                                  for f in r.get_certified()), negated=True))
-    #negated_from_name = {r.instance.external.name for r in negative_results}
-    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
-
-    import pddl_to_prolog
-    import build_model
-    import axiom_rules
-    import pddl
-    import instantiate
-
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
-    actions = task.actions
-    task.actions = []
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    function_assignments = {f.fluent: f.expression for f in task.init
-                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
-
-    # TODO: something that inverts the negative items
-    stream_instances = [] # TODO: could even apply these to the state directly
-    for result in stream_plan:
-        name = result.instance.external.name
-        precondition = list(map(fd_from_fact, result.instance.get_domain()))
-        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if not get_prefix(fact) == EQ]
-        cost = None # TODO: effort?
-        instance = pddl.PropositionalAction(name, precondition, effects, cost)
-        stream_instances.append(instance)
-
-    action_instances = []
-    for name, objects in action_plan:
-        # TODO: just instantiate task?
-        with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
-        #fluent_facts = instantiate.get_fluent_facts(task, model)
-        fluent_facts = MockSet()
-        init_facts = task.init
-        instantiated_axioms = instantiate_axioms(task, model, init_facts, fluent_facts)
-
-        # TODO: what if more than one action of the same name due to normalization?
-        action = find(lambda a: a.name == name, actions)
-        args = map(pddl_from_object, objects)
-        assert(len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                           fluent_facts, type_to_objects,
-                           task.use_min_cost_metric, function_assignments)
-        assert(instance is not None)
-
-        goal_list = [] # TODO: include the goal?
-        with Verbose(False): # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
-            helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        axiom_from_atom = get_achieving_axioms(task.init | negative_init,
-                                               helpful_axioms, axiom_init)
-                                               #negated_from_name=negated_from_name)
-
-        axiom_plan = []
-        extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
-        # TODO: what the propositional axiom has conditional derived
-        axiom_pre = {p for ax in axiom_plan for p in ax.condition}
-        axiom_eff = {ax.effect for ax in axiom_plan}
-        instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
-
-        assert(is_applicable(task.init, instance))
-        apply_action(task.init, instance)
-        action_instances.append(instance)
-
-    #combined_instances = stream_instances + action_instances
-    orders = set()
-    for i, a1 in enumerate(action_plan):
-        for a2 in action_plan[i+1:]:
-            orders.add((a1, a2))
-    # TODO: just store first achiever here
-    for i, instance1 in enumerate(stream_instances):
-        for j in range(i+1, len(stream_instances)):
-            effects = {e for _, e in  instance1.add_effects}
-            if effects & set(stream_instances[j].precondition):
-                orders.add((stream_plan[i], stream_plan[j]))
-    for i, instance1 in enumerate(stream_instances):
-        for j, instance2 in enumerate(action_instances):
-            effects = {e for _, e in  instance1.add_effects}
-            if effects & set(instance2.precondition):
-                orders.add((stream_plan[i], action_plan[j]))
-    return stream_instances, action_instances
-
-def separate_plan(combined_plan, action_info):
-    if combined_plan is None:
-        return None, None
-    stream_plan = []
-    action_plan = []
-    terminated = False
-    for operator in combined_plan:
-        if not terminated and isinstance(operator, Result):
-            stream_plan.append(operator)
-        else:
-            action_plan.append(operator)
-            name, _ = operator
-            terminated |= action_info[name].terminal
-    return stream_plan, action_plan
 
 ##################################################
 
