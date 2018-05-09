@@ -7,7 +7,8 @@ from pddlstream.fast_downward import get_init, task_from_domain_problem, get_pro
 from pddlstream.function import PredicateResult, Result
 from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.utils import INF, Verbose, MockSet, find
+from pddlstream.stream import StreamResult
+from pddlstream.utils import INF, Verbose, MockSet, find, implies
 from pddlstream.visualization import get_partial_orders
 
 def neighbors_from_orders(orders):
@@ -51,12 +52,12 @@ def get_replan_action_stats(action):
     overhead = 1
     return p_success, overhead
 
-def compute_expected_cost(stream_plan):
+def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     if stream_plan is None:
         return INF
     expected_cost = 0
     for result in reversed(stream_plan):
-        p_success, overhead = get_stream_stats(result)
+        p_success, overhead = stats_fn(result)
         expected_cost = overhead + p_success * expected_cost
     return expected_cost
 
@@ -71,13 +72,8 @@ Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
 def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
     # 2^N rather than N!
-
-    def dominates(v1, v2):
-        p_success1, overhead1 = stats_fn(v1)
-        p_success2, overhead2 = stats_fn(v2)
-        return (p_success1 <= p_success2) and (overhead1 <= overhead2)
-
     # TODO: can just do on the infos themselves
+    dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
     effort_orders = set()
     if prune:
         for i, v1 in enumerate(vertices):
@@ -101,7 +97,7 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
             if (v not in subset) and valid_head_fn(v, subset) and not (out_priority_orders[v] & applied):
                 applied.add(v)
                 new_subset = frozenset([v]) | subset
-                p_success, overhead = get_stream_stats(v)
+                p_success, overhead = stats_fn(v)
                 new_cost = overhead + p_success*subproblems[subset].cost
                 subproblem = Subproblem(new_cost, v, subset)  # Adds new element to the front
                 if new_subset not in subproblems:
@@ -120,7 +116,9 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
         subset = subproblem.subset
     return ordering
 
-def reorder_streams(stream_plan, **kwargs):
+##################################################
+
+def reorder_stream_plan(stream_plan, **kwargs):
     if stream_plan is None:
         return None
     stream_orders = get_partial_orders(stream_plan)
@@ -129,55 +127,22 @@ def reorder_streams(stream_plan, **kwargs):
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
     return dynamic_programming(stream_plan, valid_combine, get_stream_stats, **kwargs)
 
-##################################################
-
-"""
-def partial_ordered(plan):
-    # https://www.aaai.org/ocs/index.php/ICAPS/ICAPS10/paper/viewFile/1420/1539
-    # http://repository.cmu.edu/cgi/viewcontent.cgi?article=1349&context=compsci
-    # https://arxiv.org/pdf/1105.5441.pdf
-    # https://pdfs.semanticscholar.org/e057/e330249f447c2f065cf50db9dfaddad16aaa.pdf
-    # https://github.mit.edu/caelan/PAL/blob/master/src/search/post_processing.cc
-
-    instances = instantiate_plan(plan)
-    orders = set()
-    primary_effects = set() # TODO: start and goal operators here?
-    for i in reversed(xrange(len(instances))):
-        for pre in instances[i].preconditions:
-            for j in reversed(xrange(i)):
-                #if pre in instances[j].effects:
-                if any(eff == pre for eff in instances[j].effects):
-                    orders.add((j, i))
-                    primary_effects.add((j, pre))
-                    break
-        for eff in instances[i].effects:
-            for j in xrange(i):
-                if any((pre.head == eff.head) and (pre.value != eff.value) for pre in instances[j].preconditions):
-                    orders.add((j, i))
-            if (i, eff) in primary_effects:
-                for j in xrange(i):
-                    if any((eff2.head == eff.head) and (eff2.value != eff.value) for eff2 in instances[j].effects):
-                        orders.add((j, i))
-    # TODO: could remove transitive
-    # TODO: this isn't so helpful because it will choose arbitrary streams until an action is feasible (i.e. not intelligent ones)
-    for i, (action, args) in enumerate(plan):
-        print i, action, args #, instances[i].preconditions, instances[i].effects
-    print orders
-    print primary_effects
-    print topological_sort(range(len(plan)), orders, lambda v: hasattr(plan[v][0], 'stream'))
-"""
-
-##################################################
-
-def stuff_programming(evaluations, combined_plan, domain):
+def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwargs):
+    if combined_plan is None:
+        return None
     stream_plan, action_plan = separate_plan(combined_plan)
-    goal_expression = ('and',)
-    orders = instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain)
-    print(orders)
+    orders = get_combined_orders(evaluations, stream_plan, action_plan, domain)
+    _, out_orders = neighbors_from_orders(orders)
+    valid_combine = lambda v, subset: out_orders[v] <= subset
+    def stats_fn(operator):
+        if isinstance(operator, Result):
+            return get_stream_stats(operator)
+        name, _ = operator
+        info = action_info[name]
+        return info.p_success, info.overhead
+    return dynamic_programming(combined_plan, valid_combine, stats_fn, **kwargs)
 
-    return dynamic_programming(combined_plan)
-
-def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, domain):
+def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if action_plan is None:
         return None
     # TODO: could just do this within relaxed
@@ -195,6 +160,7 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
     import pddl
     import instantiate
 
+    goal_expression = ('and',)
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
     actions = task.actions
     task.actions = []
@@ -264,25 +230,70 @@ def instantiate_plan(evaluations, stream_plan, action_plan, goal_expression, dom
                 orders.add((stream_plan[i], stream_plan[j]))
     for i, instance1 in enumerate(stream_instances):
         for j, instance2 in enumerate(action_instances):
-            effects = {e for _, e in  instance1.add_effects}
+            effects = {e for _, e in  instance1.add_effects} | \
+                      {e.negate() for _, e in  instance1.del_effects}
             if effects & set(instance2.precondition):
                 orders.add((stream_plan[i], action_plan[j]))
     return orders
 
 ##################################################
 
-def separate_plan(combined_plan, action_info=None):
+def separate_plan(combined_plan, action_info=None, terminate=False, stream_only=True):
     if combined_plan is None:
         return None, None
     stream_plan = []
     action_plan = []
     terminated = False
     for operator in combined_plan:
-        if not terminated and isinstance(operator, Result):
-            stream_plan.append(operator)
+        if terminate and terminated:
+            break
+        if isinstance(operator, Result):
+            if terminated:
+                if implies(stream_only, isinstance(operator, StreamResult)):
+                    action_plan.append(operator.get_tuple())
+            else:
+                stream_plan.append(operator)
         else:
             action_plan.append(operator)
             if action_info is not None:
                 name, _ = operator
                 terminated |= action_info[name].terminal
     return stream_plan, action_plan
+
+##################################################
+
+"""
+def partial_ordered(plan):
+    # https://www.aaai.org/ocs/index.php/ICAPS/ICAPS10/paper/viewFile/1420/1539
+    # http://repository.cmu.edu/cgi/viewcontent.cgi?article=1349&context=compsci
+    # https://arxiv.org/pdf/1105.5441.pdf
+    # https://pdfs.semanticscholar.org/e057/e330249f447c2f065cf50db9dfaddad16aaa.pdf
+    # https://github.mit.edu/caelan/PAL/blob/master/src/search/post_processing.cc
+
+    instances = instantiate_plan(plan)
+    orders = set()
+    primary_effects = set() # TODO: start and goal operators here?
+    for i in reversed(xrange(len(instances))):
+        for pre in instances[i].preconditions:
+            for j in reversed(xrange(i)):
+                #if pre in instances[j].effects:
+                if any(eff == pre for eff in instances[j].effects):
+                    orders.add((j, i))
+                    primary_effects.add((j, pre))
+                    break
+        for eff in instances[i].effects:
+            for j in xrange(i):
+                if any((pre.head == eff.head) and (pre.value != eff.value) for pre in instances[j].preconditions):
+                    orders.add((j, i))
+            if (i, eff) in primary_effects:
+                for j in xrange(i):
+                    if any((eff2.head == eff.head) and (eff2.value != eff.value) for eff2 in instances[j].effects):
+                        orders.add((j, i))
+    # TODO: could remove transitive
+    # TODO: this isn't so helpful because it will choose arbitrary streams until an action is feasible (i.e. not intelligent ones)
+    for i, (action, args) in enumerate(plan):
+        print i, action, args #, instances[i].preconditions, instances[i].effects
+    print orders
+    print primary_effects
+    print topological_sort(range(len(plan)), orders, lambda v: hasattr(plan[v][0], 'stream'))
+"""

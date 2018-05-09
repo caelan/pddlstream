@@ -175,7 +175,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=1, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -232,14 +232,14 @@ def draw_state(viewer, state, colors):
 def apply_action(state, action):
     conf, holding, block_poses = state
     # TODO: don't mutate block_poses?
-    name = action[0]
+    name, args = action
     if name == 'move':
-        _, _, conf = action[1:]
+        _, _, conf = args
     elif name == 'pick':
-        holding, _, _ = action[1:]
+        holding, _, _ = args
         del block_poses[holding]
     elif name == 'place':
-        block, pose, _ = action[1:]
+        block, pose, _ = args
         holding = None
         block_poses[block] = pose
     else:
@@ -253,12 +253,14 @@ def main(focused=True, deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_blocked_problem # get_tight_problem
+    problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
     action_info = {
-        'move': ActionInfo(terminal=True),
+        #'move': ActionInfo(terminal=True),
+        #'pick': ActionInfo(terminal=True),
+        #'place': ActionInfo(terminal=True),
     }
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
@@ -281,10 +283,12 @@ def main(focused=True, deterministic=False):
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
     state = tamp_problem.initial
+    print()
     print(state)
     draw_state(viewer, state, colors)
-    for action in plan:
+    for i, action in enumerate(plan):
         user_input('Continue?')
+        print(i, action)
         state = apply_action(state, action)
         print(state)
         draw_state(viewer, state, colors)

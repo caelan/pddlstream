@@ -199,8 +199,6 @@ def obj_from_pddl(pddl):
     else:
         raise ValueError(pddl)
 
-#def value_from_object(obj):
-#    return obj.value
 
 def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
@@ -212,12 +210,35 @@ def obj_from_pddl_plan(pddl_plan):
         return None
     return [(action, tuple(map(obj_from_pddl, args))) for action, args in pddl_plan]
 
+def param_from_object(obj):
+    if isinstance(obj, OptimisticObject):
+        return obj.pddl
+    return obj.value
+
+def params_from_objects(objects):
+    return tuple(map(param_from_object, objects))
 
 def value_from_obj_plan(obj_plan):
     if obj_plan is None:
         return None
-    # TODO: do I want to have the tuple?
-    return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
+    #return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
+    #return [(action, tuple(values_from_objects(args))) for action, args in obj_plan]
+    value_plan = []
+    for operator in obj_plan:
+        if len(operator) == 2:
+            name, args = operator
+            new_operator = (name, params_from_objects(args)) # values_from_objects
+        elif len(operator) == 3:
+            name, inputs, outputs = operator
+            new_inputs = params_from_objects(inputs) # values_from_objects
+            new_outputs = outputs
+            if isinstance(new_outputs, collections.Sequence):
+                new_outputs = params_from_objects(new_outputs) # values_from_objects
+            new_operator = (name, new_inputs, new_outputs)
+        else:
+            raise ValueError(operator)
+        value_plan.append(new_operator)
+    return value_plan
 
 ##################################################
 
