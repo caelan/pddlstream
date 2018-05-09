@@ -127,7 +127,7 @@ def plan_motion(q1, q2):
 
 ##################################################
 
-def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
+def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -253,7 +253,7 @@ def main(focused=True, deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
