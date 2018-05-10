@@ -4,10 +4,10 @@ from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
-    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd
+    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd, solve_from_task
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF, MockSet, find, implies
+from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies
 from pddlstream.function import PredicateResult
 
 
@@ -93,7 +93,7 @@ def instantiate_axioms(task, model, init_facts, fluent_facts):
     for atom in model:
         if isinstance(atom.predicate, pddl.Axiom):
             #axiom = atom.predicate
-            axiom = find(lambda ax: ax.name == atom.predicate.name, task.axioms)
+            axiom = find_unique(lambda ax: ax.name == atom.predicate.name, task.axioms)
             variable_mapping = dict([(par.name, arg)
                                      for par, arg in zip(axiom.parameters, atom.args)])
             inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
@@ -145,34 +145,13 @@ def extract_axioms(axiom_from_atom, facts, axiom_plan):
 
 ##################################################
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs=True, **kwargs):
-    # TODO: alternatively could translate with stream actions on real opt_state and just discard them
-    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
-    task = task_from_domain_problem(domain, problem)
-    negative_from_name = {n.name: n for n in negative}
+def get_goal_instance(goal):
+    import pddl
+    name = '@goal-reachable'
+    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
+    return pddl.PropositionalAction(name, precondition, [], None)
 
-    with Verbose(False):
-        ground_task = instantiate_task(task, simplify_axioms=False)
-        if ground_task is None:
-            return None, INF
-        sas_task = pddl_to_sas(ground_task)
-        clear_dir(TEMP_DIR)
-        with open(os.path.join(TEMP_DIR, TRANSLATE_OUTPUT), "w") as output_file:
-            sas_task.output(output_file)
-    solution = run_search(TEMP_DIR, **kwargs)
-    safe_rm_dir(TEMP_DIR)
-    action_plan, action_cost = parse_solution(solution)
-    if action_plan is None:
-        return action_plan, action_cost
-
-    action_from_parameters = defaultdict(list) # Could also obtain from below
-    for action in ground_task.reachable_action_params:
-        for full_parameters in ground_task.reachable_action_params[action]:
-            external_parameters = tuple(full_parameters[:action.num_external_parameters])
-            action_from_parameters[(action.name, external_parameters)].append((action, full_parameters))
-    # TODO: handle the negative stream fact case which is different
-
+def recover_stream_plan(evaluations, stream_results, opt_evaluations, task, action_plan, negative, unit_costs):
     import pddl_to_prolog
     import build_model
     import pddl
@@ -180,45 +159,46 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     import instantiate
 
     real_init = get_init(evaluations)
-    function_assignments = {fact.fluent: fact.expression for fact in task.init # init_facts
+    function_assignments = {fact.fluent: fact.expression for fact in task.init  # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     results_from_head = get_results_from_head(opt_evaluations)
     fluent_facts = MockSet()
     init_facts = set()
 
-    fd_plan = []
+    action_instances = []
     function_plan = set()
-    for pair in action_plan:
-        candidates = action_from_parameters[pair]
-        assert(len(candidates) == 1) # TODO: extend to consider additional candidates
-        action, args = candidates[0]
+    for name, args in action_plan:
+        action = find_unique(lambda a: a.name == name, task.actions)
+        assert (len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         instance = action.instantiate(variable_mapping, init_facts,
-                           fluent_facts, type_to_objects,
-                           task.use_min_cost_metric, function_assignments)
-        assert(instance is not None)
-        fd_plan.append(instance)
+                                      fluent_facts, type_to_objects,
+                                      task.use_min_cost_metric, function_assignments)
+        assert (instance is not None)
+        action_instances.append(instance)
         if not unit_costs:
             function_plan.update(extract_function_results(results_from_head, action, args))
-        # TODO: negative atoms in actions
+    action_instances.append(get_goal_instance(task.goal))
+    # TODO: negative atoms in actions
 
+    negative_from_name = {n.name: n for n in negative}
     task.actions = []
     opt_state = set(task.init)
     real_state = set(real_init)
     preimage_plan = []
-    for i in range(len(fd_plan)+1):
+    for action in action_instances:
         task.init = opt_state
         original_axioms = task.axioms
         if negative_from_name:
             task.axioms = []
             for axiom in original_axioms:
-                assert(isinstance(axiom.condition, pddl.Conjunction))
+                assert (isinstance(axiom.condition, pddl.Conjunction))
                 parts = filter(lambda a: a.predicate not in negative_from_name, axiom.condition.parts)
                 task.axioms.append(pddl.Axiom(axiom.name, axiom.parameters,
-                                               axiom.num_external_parameters, pddl.Conjunction(parts)))
+                                              axiom.num_external_parameters, pddl.Conjunction(parts)))
         with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
+            model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
         task.axioms = original_axioms
 
         fluent_facts = instantiate.get_fluent_facts(task, model) | (opt_state - real_state)
@@ -226,29 +206,24 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
                                            (item in fluent_facts))
         instantiated_axioms = instantiate_axioms(task, model, real_state, mock_fluent)
 
-        action = fd_plan[i] if i != len(fd_plan) else None
-        goal_list = ground_task.goal_list if i == len(fd_plan) else []
-        preconditions = goal_list if action is None else action.precondition
         with Verbose(False):
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
-                [] if action is None else [action], instantiated_axioms, goal_list)
+                [] if action is None else [action], instantiated_axioms, [])
 
         axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
         axiom_plan = []  # Could always add all conditions
-        extract_axioms(axiom_from_atom, preconditions, axiom_plan)
+        extract_axioms(axiom_from_atom, action.precondition, axiom_plan)
         # TODO: add axiom init to reset state?
         preimage_plan += axiom_plan
+        apply_action(opt_state, action)
+        apply_action(real_state, action)
+        preimage_plan.append(action)
 
-        if action is not None:
-            apply_action(opt_state, action)
-            apply_action(real_state, action)
-            preimage_plan.append(action)
-
-    preimage = plan_preimage(preimage_plan, ground_task.goal_list) - set(real_init)
+    preimage = plan_preimage(preimage_plan, set()) - set(real_init)
     negative_preimage = filter(lambda a: a.predicate in negative_from_name, preimage)
     preimage -= set(negative_preimage)
     preimage = filter(lambda l: not l.negated, preimage)
-    #visualize_constraints(map(fact_from_fd, preimage))
+    # visualize_constraints(map(fact_from_fd, preimage))
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: can optimize for all streams & axioms all at once
@@ -258,14 +233,27 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         instance = negative.get_instance(map(obj_from_pddl, literal.args))
         value = not literal.negated
         if instance.enumerated:
-            assert(instance.value == value)
+            assert (instance.value == value)
         else:
             function_plan.add(PredicateResult(instance, value))
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     stream_plan = []
     extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
-    stream_plan += list(function_plan)
+    return stream_plan + list(function_plan)
+
+##################################################
+
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, **kwargs):
+    # TODO: alternatively could translate with stream actions on real opt_state and just discard them
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
+    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
+    task = task_from_domain_problem(domain, problem)
+    action_plan, action_cost = solve_from_task(task, **kwargs)
+    if action_plan is None:
+        return None, action_cost
+
+    stream_plan = recover_stream_plan(evaluations, stream_results, opt_evaluations, task, action_plan, negative, unit_costs)
     action_plan = obj_from_pddl_plan(action_plan)
     combined_plan = stream_plan + action_plan
 

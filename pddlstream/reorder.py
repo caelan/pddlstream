@@ -10,6 +10,7 @@ from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies
 
+
 def get_partial_orders(stream_plan):
     # TODO: only show the first atom achieved?
     partial_orders = set()
@@ -170,13 +171,8 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
-def get_goal_instance(goal):
-    import pddl
-    name = '@goal-reachable'
-    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
-    return pddl.PropositionalAction(name, precondition, [], None)
 
-def get_raw_action_instances(task, action_plan):
+def get_action_instances(task, action_plan):
     import pddl
     import instantiate
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
@@ -187,6 +183,7 @@ def get_raw_action_instances(task, action_plan):
     action_instances = []
     for name, objects in action_plan:
         # TODO: what if more than one action of the same name due to normalization?
+        # Normalized actions have same effects, so I just have to pick one
         action = find_unique(lambda a: a.name == name, task.actions)
         args = map(pddl_from_object, objects)
         assert (len(action.parameters) == len(args))
@@ -198,15 +195,11 @@ def get_raw_action_instances(task, action_plan):
         action_instances.append(instance)
     return action_instances
 
-def get_action_instances(evaluations, negative_init, action_plan, domain):
+def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog
     import build_model
     import axiom_rules
     import pddl
-
-    goal_expression = ('and',)
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
-    action_instances = get_raw_action_instances(task, action_plan)
 
     task.actions = []
     function_assignments = {f.fluent: f.expression for f in task.init
@@ -236,7 +229,6 @@ def get_action_instances(evaluations, negative_init, action_plan, domain):
 
         assert (is_applicable(task.init, instance))
         apply_action(task.init, instance)
-    return action_instances
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if action_plan is None:
@@ -244,15 +236,17 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     # TODO: could just do this within relaxed
     # TODO: do I want to strip the fluents and just do the partial ordering?
 
+    stream_instances = get_stream_instances(stream_plan)
     negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
     negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
                                   for f in r.get_certified()), negated=True))
     #negated_from_name = {r.instance.external.name for r in negative_results}
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
+    goal_expression = ('and',)
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=True))
 
-    stream_instances = get_stream_instances(stream_plan)
-    #action_instances = get_raw_action_instances(task, action_plan)
-    action_instances = get_action_instances(opt_evaluations, negative_init, action_plan, domain)
+    action_instances = get_action_instances(task, action_plan)
+    replace_derived(task, negative_init, action_instances)
 
     #combined_instances = stream_instances + action_instances
     orders = set()

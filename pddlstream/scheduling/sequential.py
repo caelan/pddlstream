@@ -2,7 +2,7 @@ from pddlstream.conversion import obj_from_pddl, obj_from_pddl_plan
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, solve_from_task, get_init, TOTAL_COST
 from pddlstream.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
     extract_function_results, get_results_from_head
-from pddlstream.utils import find, INF, MockSet
+from pddlstream.utils import find_unique, INF, MockSet
 
 
 # TODO: interpolate between all the scheduling options
@@ -16,7 +16,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     task = task_from_domain_problem(domain, problem)
     action_plan, action_cost = solve_from_task(task, **kwargs)
     if action_plan is None:
-        return None, action_plan, action_cost
+        return None, action_cost
 
     import instantiate
     fluent_facts = MockSet()
@@ -32,7 +32,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     action_from_name = {}
     function_plan = set()
     for i, (name, args) in enumerate(action_plan):
-        action = find(lambda a: a.name == name, domain.actions)
+        action = find_unique(lambda a: a.name == name, domain.actions)
         assert(len(action.parameters) == len(args))
         #parameters = action.parameters[:action.num_external_parameters]
         var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
@@ -65,4 +65,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append(action_from_name[name])
-    return (stream_plan + list(function_plan)), action_plan, action_cost
+    stream_plan += list(function_plan)
+    combined_plan = stream_plan + action_plan
+
+    return combined_plan, action_cost

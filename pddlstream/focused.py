@@ -11,7 +11,7 @@ from pddlstream.instantiation import Instantiator
 from pddlstream.macro_stream import get_macro_stream_plan, MacroResult
 from pddlstream.object import Object
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
+from pddlstream.scheduling.relaxed import relaxed_stream_plan, get_goal_instance
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
@@ -53,11 +53,10 @@ def update_stream_info(externals, stream_info):
 
 ##################################################
 
-def populate_results(evaluations, streams, max_time):
-    #start_time = time.time()
+def populate_results(evaluations, streams):
     instantiator = Instantiator(evaluations, streams)
     stream_results = []
-    while instantiator.stream_queue: # and (elapsed_time(start_time) < max_time):
+    while instantiator.stream_queue:
         stream_results += optimistic_process_stream_queue(instantiator)
     return stream_results
 
@@ -179,21 +178,55 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 
 ##################################################
 
-from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan, get_action_instances, get_goal_instance
-from pddlstream.fast_downward import get_problem, fact_from_fd
+from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan, \
+    replace_derived, get_action_instances, topological_sort
+from pddlstream.fast_downward import get_problem, fact_from_fd, task_from_domain_problem
 from pddlstream.scheduling.relaxed import plan_preimage
+from pddlstream.conversion import evaluation_from_fact
 
 
-def locally_optimize(evaluations, best_plan, goal_expression, domain):
+def locally_optimize(evaluations, action_plan, goal_expression, domain, functions, negative):
     problem = get_problem(evaluations, goal_expression, domain, unit_costs=False)
-    print(problem)
+    task = task_from_domain_problem(domain, problem)
+    plan_instances = get_action_instances(task, action_plan) + [get_goal_instance(problem.goal)]
+    replace_derived(task, set(), plan_instances)
+    preimage = filter(lambda a: not a.negated, plan_preimage(plan_instances, []))
 
-    instances = get_action_instances(evaluations, set(), best_plan, domain)
-    goal_instance = get_goal_instance(problem.goal)
-    preimage = filter(lambda a: not a.negated, plan_preimage(instances + [goal_instance], []))
-    print(preimage)
+    stream_results = set()
+    orders = set()
+    processed = set(map(fact_from_fd, preimage))
+    queue = deque((f, None) for f in processed)
+    while queue:
+        fact, parent = queue.popleft()
+        stream = evaluations[evaluation_from_fact(fact)]
+        if stream is None:
+            continue
+        stream_results.add(stream)
+        if parent is not None:
+            orders.add((stream, parent))
+        for fact2 in stream.instance.get_domain():
+            if fact2 not in processed:
+                queue.append((fact2, stream))
 
-    pass
+    opt_stream_plan = []
+    bindings = {}
+    for stream_result in topological_sort(stream_results, orders):
+        input_objects = tuple(bindings.get(o, o) for o in stream_result.instance.input_objects)
+        instance = stream_result.instance.external.get_instance(input_objects)
+        assert(not instance.disabled)
+        opt_results = instance.next_optimistic()
+        if not opt_results:
+            continue
+        opt_result = opt_results[0]
+        opt_stream_plan.append(opt_result)
+        for obj, opt in zip(stream_result.output_objects, opt_result.output_objects):
+            bindings[obj] = opt
+    opt_stream_plan += populate_results(evaluations_from_stream_plan(evaluations, opt_stream_plan),
+                                        functions + negative)
+    opt_action_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
+
+    print(opt_stream_plan)
+    print(opt_action_plan)
 
 
 ##################################################
@@ -234,7 +267,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     functions = filter(lambda s: type(s) is Function, externals)
     negative = filter(lambda s: type(s) is Predicate and s.is_negative(), externals)
     streams = filter(lambda s: s not in (functions + negative), externals)
-    stream_results = populate_results(evaluations, streams, max_time-elapsed_time(start_time))
+    stream_results = populate_results(evaluations, streams)
     depth = 0
     while elapsed_time(start_time) < max_time:
         if stream_results is None:
@@ -245,8 +278,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
             # TODO: constrain to use previous plan to some degree
             eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
-            stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
-                                               functions, max_time-elapsed_time(start_time))
+            stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results), functions)
             # TODO: warning check if using simultaneous_stream_plan or relaxed_stream_plan with non-eager functions
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
@@ -264,7 +296,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             if disabled or (depth != 0):
                 if depth == 0:
                     reset_disabled(disabled)
-                stream_results = populate_results(evaluations, streams, max_time - elapsed_time(start_time))
+                stream_results = populate_results(evaluations, streams)
                 depth = 0 # Recurse on problems
             else:
                 break
@@ -282,6 +314,6 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 stream_results = None
             depth += 1
 
-    locally_optimize(evaluations, best_plan, goal_expression, domain)
-
+    reset_disabled(disabled)
+    locally_optimize(evaluations, best_plan, goal_expression, domain, functions, negative)
     return revert_solution(best_plan, best_cost, evaluations)
