@@ -156,33 +156,9 @@ def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwa
         return info.p_success, info.overhead
     return dynamic_programming(combined_plan, valid_combine, stats_fn, **kwargs)
 
-def get_combined_orders(evaluations, stream_plan, action_plan, domain):
-    if action_plan is None:
-        return None
-    # TODO: could just do this within relaxed
-    # TODO: propositional stream instances
-    # TODO: do I want to strip the fluents and just do the total ordering?
-    negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
-                                  for f in r.get_certified()), negated=True))
-    #negated_from_name = {r.instance.external.name for r in negative_results}
-    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
 
-    import pddl_to_prolog
-    import build_model
-    import axiom_rules
+def get_stream_instances(stream_plan):
     import pddl
-    import instantiate
-
-    goal_expression = ('and',)
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=True))
-    actions = task.actions
-    task.actions = []
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    function_assignments = {f.fluent: f.expression for f in task.init
-                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
-
     # TODO: something that inverts the negative items
     stream_instances = [] # TODO: could even apply these to the state directly
     for result in stream_plan:
@@ -192,13 +168,30 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
         cost = None # TODO: effort?
         instance = pddl.PropositionalAction(name, precondition, effects, cost)
         stream_instances.append(instance)
+    return stream_instances
+
+def get_action_instances(evaluations, negative_init, action_plan, domain):
+    import pddl_to_prolog
+    import build_model
+    import axiom_rules
+    import pddl
+    import instantiate
+
+    goal_expression = ('and',)
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
+    actions = task.actions
+    task.actions = []
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    function_assignments = {f.fluent: f.expression for f in task.init
+                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
 
     action_instances = []
     for name, objects in action_plan:
         # TODO: just instantiate task?
         with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(task)) # Changes based on init
-        #fluent_facts = instantiate.get_fluent_facts(task, model)
+            model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
+        # fluent_facts = instantiate.get_fluent_facts(task, model)
         fluent_facts = MockSet()
         init_facts = task.init
         instantiated_axioms = instantiate_axioms(task, model, init_facts, fluent_facts)
@@ -206,19 +199,19 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
         # TODO: what if more than one action of the same name due to normalization?
         action = find(lambda a: a.name == name, actions)
         args = map(pddl_from_object, objects)
-        assert(len(action.parameters) == len(args))
+        assert (len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         instance = action.instantiate(variable_mapping, init_facts,
-                           fluent_facts, type_to_objects,
-                           task.use_min_cost_metric, function_assignments)
-        assert(instance is not None)
+                                      fluent_facts, type_to_objects,
+                                      task.use_min_cost_metric, function_assignments)
+        assert (instance is not None)
 
-        goal_list = [] # TODO: include the goal?
-        with Verbose(False): # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
+        goal_list = []  # TODO: include the goal?
+        with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
         axiom_from_atom = get_achieving_axioms(task.init | negative_init,
                                                helpful_axioms, axiom_init)
-                                               #negated_from_name=negated_from_name)
+        # negated_from_name=negated_from_name)
 
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
@@ -227,9 +220,25 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
         axiom_eff = {ax.effect for ax in axiom_plan}
         instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
 
-        assert(is_applicable(task.init, instance))
+        assert (is_applicable(task.init, instance))
         apply_action(task.init, instance)
         action_instances.append(instance)
+    return action_instances
+
+def get_combined_orders(evaluations, stream_plan, action_plan, domain):
+    if action_plan is None:
+        return None
+    # TODO: could just do this within relaxed
+    # TODO: do I want to strip the fluents and just do the partial ordering?
+
+    negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
+    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
+                                  for f in r.get_certified()), negated=True))
+    #negated_from_name = {r.instance.external.name for r in negative_results}
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
+
+    stream_instances = get_stream_instances(stream_plan)
+    action_instances = get_action_instances(opt_evaluations, negative_init, action_plan, domain)
 
     #combined_instances = stream_instances + action_instances
     orders = set()

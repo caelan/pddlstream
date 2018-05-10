@@ -1,7 +1,6 @@
 import os
 
-from pddlstream.algorithm import get_optimistic_constraints
-from pddlstream.conversion import get_args, EQ, get_prefix
+from pddlstream.conversion import get_args, EQ, get_prefix, fact_from_evaluation
 from pddlstream.function import FunctionResult
 from pddlstream.object import OptimisticObject
 from pddlstream.reorder import get_partial_orders
@@ -126,3 +125,11 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
                 achieved_facts.add(fact)
     graph.draw(filename, prog='dot')
     return graph
+
+
+def get_optimistic_constraints(evaluations, stream_plan):
+    # TODO: approximates needed facts using produced ones
+    constraints = set()
+    for stream in stream_plan:
+        constraints.update(stream.get_certified())
+    return constraints - set(map(fact_from_evaluation, evaluations))

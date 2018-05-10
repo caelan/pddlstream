@@ -1,10 +1,10 @@
-from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    fact_from_evaluation
+from collections import OrderedDict
+
+from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream_pddl
-from collections import OrderedDict
 
 
 def parse_constants(domain, constant_map):
@@ -36,11 +36,3 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
-
-
-def get_optimistic_constraints(evaluations, stream_plan):
-    # TODO: approximates needed facts using produced ones
-    constraints = set()
-    for stream in stream_plan:
-        constraints.update(stream.get_certified())
-    return constraints - set(map(fact_from_evaluation, evaluations))
