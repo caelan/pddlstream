@@ -201,6 +201,7 @@ def replace_derived(task, negative_init, action_instances):
     import axiom_rules
     import pddl
 
+    actions = task.actions
     task.actions = []
     function_assignments = {f.fluent: f.expression for f in task.init
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
@@ -229,6 +230,7 @@ def replace_derived(task, negative_init, action_instances):
 
         assert (is_applicable(task.init, instance))
         apply_action(task.init, instance)
+    task.actions = actions
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if action_plan is None:

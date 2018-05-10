@@ -3,15 +3,38 @@ from collections import deque, Counter
 from pddlstream.conversion import substitute_expression, Minimize
 from pddlstream.function import PredicateResult, FunctionResult
 from pddlstream.reorder import get_partial_orders, neighbors_from_orders, topological_sort
-from pddlstream.stream import Stream, StreamResult, StreamInfo
+from pddlstream.stream import Stream, StreamInstance, StreamResult, StreamInfo
 
 # TODO: locally optimize a feasible plan skeleton (can be done with sampling as well)
 # Extract backpointers to what achieved each used fact. Seed with current values
 
 class MacroResult(StreamResult):
-    def __init__(self, instance, output_objects, child_results):
-        super(MacroResult, self).__init__(instance, output_objects)
-        self.child_results = child_results
+    def decompose(self):
+        mapping = self.get_mapping()
+        results = []
+        for i, stream in enumerate(self.instance.external.streams):
+            macro_from_micro = self.instance.external.macro_from_micro[i]
+            input_objects = tuple(mapping[macro_from_micro[inp]] for inp in stream.inputs)
+            instance = stream.get_instance(input_objects)
+            output_objects = tuple(mapping[macro_from_micro[out]] for out in stream.outputs)
+            results.append(StreamResult(instance, output_objects))
+        return results
+
+class MacroInstance(StreamInstance):
+    pass
+    #def decompose(self):
+    #    return self.streams
+
+class Macro(Stream):
+    _Instance = MacroInstance
+    _Result = MacroResult
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, streams, macro_from_micro):
+        super(Macro, self).__init__(name, gen_fn, inputs, domain, outputs, certified)
+        self.streams = streams
+        self.macro_from_micro = macro_from_micro
+    #def decompose(self):
+    #    return self.streams
+    # TODO: decomposition ability for each of these...
 
 class StreamSynthesizer(object): # JointStream | Stream Combiner
     # TODO: load from a file as well
@@ -33,13 +56,11 @@ class StreamSynthesizer(object): # JointStream | Stream Combiner
         if key in self.macro_results:
             return self.macro_results[key]
         param_from_obj = {}
-        inputs = []
-        domain = set()
-        outputs = []
-        certified = set()
-        input_objects = []
-        output_objects = []
+        macro_from_micro = []
+        inputs, domain, outputs, certified = [], set(), [], set()
+        input_objects, output_objects = [], []
         functions = set()
+        streams = []
         for result in cluster:  # TODO: branch on sequences here
             local_mapping = {}
             stream = result.instance.external
@@ -67,15 +88,17 @@ class StreamSynthesizer(object): # JointStream | Stream Combiner
                         output_objects.append(output_object)
                     local_mapping[out] = param_from_obj[output_object]
                 certified.update(substitute_expression(stream.certified, local_mapping))
+                streams.append(stream)
+                macro_from_micro.append(local_mapping)
 
         gen_fn = self.get_gen_fn(inputs, outputs, certified | functions)
-        mega_stream = Stream(self.name, gen_fn,
+        mega_stream = Macro(self.name, gen_fn,
                              inputs=tuple(inputs), domain=domain,
-                             outputs=tuple(outputs), certified=certified)
+                             outputs=tuple(outputs), certified=certified,
+                             streams=streams, macro_from_micro=macro_from_micro)
         # mega_stream.info = StreamInfo() # TODO: stream info
         mega_instance = mega_stream.get_instance(input_objects)
-        stream_results = filter(lambda s: isinstance(s, StreamResult), cluster)
-        self.macro_results[key] = MacroResult(mega_instance, output_objects, stream_results)
+        self.macro_results[key] = MacroResult(mega_instance, output_objects)
         return self.macro_results[key]
 
 def get_macro_stream_plan(stream_plan, dynamic_streams):

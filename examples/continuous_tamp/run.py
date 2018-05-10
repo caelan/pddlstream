@@ -69,7 +69,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -169,9 +169,9 @@ def main(focused=True, deterministic=False):
         #                  gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-        #                           'posecollision': 0, 'distance': 0},
-        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+                                   'posecollision': 0, 'distance': 0},
+                          gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)

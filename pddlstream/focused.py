@@ -164,7 +164,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 for opt, obj in zip(opt_result.output_objects, result.output_objects):
                     opt_bindings[opt].append(obj)
         if local_failure and isinstance(opt_result, MacroResult):
-            stream_queue.extendleft(reversed(opt_result.child_results))
+            stream_queue.extendleft(reversed(opt_result.decompose()))
             failed = False # TODO: check if satisfies target certified
         else:
             first_step = False
@@ -173,45 +173,57 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     if verbose:
         print('Success: {}'.format(not failed))
     if failed:
-        return None
-    return opt_results
+        return None, None
+    return opt_results, opt_bindings
 
 ##################################################
 
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan, \
     replace_derived, get_action_instances, topological_sort
-from pddlstream.fast_downward import get_problem, fact_from_fd, task_from_domain_problem
-from pddlstream.scheduling.relaxed import plan_preimage
-from pddlstream.conversion import evaluation_from_fact
+from pddlstream.fast_downward import get_problem, fact_from_fd, task_from_domain_problem, get_init
+from pddlstream.scheduling.relaxed import plan_preimage, recover_stream_plan
+from pddlstream.conversion import evaluation_from_fact, pddl_from_object
 
 
-def locally_optimize(evaluations, action_plan, goal_expression, domain, functions, negative):
-    problem = get_problem(evaluations, goal_expression, domain, unit_costs=False)
-    task = task_from_domain_problem(domain, problem)
-    plan_instances = get_action_instances(task, action_plan) + [get_goal_instance(problem.goal)]
+def locally_optimize(evaluations, action_plan, goal_expression, domain, functions, negative, dynamic_streams, verbose):
+    print('\nPostprocessing') # TODO: postprocess current skeleton as well
+
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
+    plan_instances = get_action_instances(task, action_plan) + [get_goal_instance(task.goal)]
     replace_derived(task, set(), plan_instances)
     preimage = filter(lambda a: not a.negated, plan_preimage(plan_instances, []))
 
     stream_results = set()
-    orders = set()
     processed = set(map(fact_from_fd, preimage))
-    queue = deque((f, None) for f in processed)
+    queue = deque(processed)
     while queue:
-        fact, parent = queue.popleft()
-        stream = evaluations[evaluation_from_fact(fact)]
-        if stream is None:
+        fact = queue.popleft()
+        result = evaluations[evaluation_from_fact(fact)]
+        if result is None:
             continue
-        stream_results.add(stream)
-        if parent is not None:
-            orders.add((stream, parent))
-        for fact2 in stream.instance.get_domain():
+        stream_results.add(result)
+        for fact2 in result.instance.get_domain():
             if fact2 not in processed:
-                queue.append((fact2, stream))
+                queue.append(fact2)
+
+    orders = set()
+    for result in stream_results:
+        for fact in result.instance.get_domain():
+            result2 = evaluations[evaluation_from_fact(fact)]
+            if result2 is not None:
+                orders.add((result2, result))
+
+    ordered_results = []
+    for result in topological_sort(stream_results, orders):
+        if isinstance(result, MacroResult):
+            ordered_results.extend(result.decompose())
+        else:
+            ordered_results.append(result)
 
     opt_stream_plan = []
-    bindings = {}
-    for stream_result in topological_sort(stream_results, orders):
-        input_objects = tuple(bindings.get(o, o) for o in stream_result.instance.input_objects)
+    opt_from_obj = {}
+    for stream_result in ordered_results:
+        input_objects = tuple(opt_from_obj.get(o, o) for o in stream_result.instance.input_objects)
         instance = stream_result.instance.external.get_instance(input_objects)
         assert(not instance.disabled)
         opt_results = instance.next_optimistic()
@@ -220,21 +232,36 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
         opt_result = opt_results[0]
         opt_stream_plan.append(opt_result)
         for obj, opt in zip(stream_result.output_objects, opt_result.output_objects):
-            bindings[obj] = opt
-    opt_stream_plan += populate_results(evaluations_from_stream_plan(evaluations, opt_stream_plan),
-                                        functions + negative)
-    opt_action_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
+            opt_from_obj[obj] = opt
+    opt_stream_plan += populate_results(evaluations_from_stream_plan(evaluations, opt_stream_plan), functions)
+    opt_action_plan = [(name, tuple(opt_from_obj.get(o, o) for o in args)) for name, args in action_plan]
 
-    print(opt_stream_plan)
-    print(opt_action_plan)
+    opt_evaluations = evaluations_from_stream_plan(evaluations, opt_stream_plan)
+    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
+    pddl_plan = [(name, map(pddl_from_object, args)) for name, args in opt_action_plan]
+    stream_plan = recover_stream_plan(evaluations, opt_stream_plan, opt_task, pddl_plan, negative, unit_costs=False)
 
+    stream_plan = reorder_stream_plan(stream_plan)  # TODO: is this strictly redundant?
+    stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
+    print('Stream plan: {}\n'
+          'Action plan: {}'.format(stream_plan, opt_action_plan))
+
+    disabled = []
+    _, obj_from_opt = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+    if obj_from_opt is None:
+        return action_plan
+    # TODO: compare solution cost and validity?
+    # TODO: select which binding
+    # TODO: repeatedly do this
+    new_action_plan = [(name, tuple(obj_from_opt.get(o, [o])[0] for o in args)) for name, args in opt_action_plan]
+    return new_action_plan
 
 ##################################################
 
 def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                   max_time=INF, max_cost=INF,
                   commit=True, effort_weight=None, eager_layers=1,
-                  visualize=False, verbose=True, **search_kwargs):
+                  visualize=False, verbose=True, postprocess=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
@@ -309,11 +336,13 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            stream_results, _ = process_stream_plan(evaluations, stream_plan, disabled, verbose)
             if not commit:
                 stream_results = None
             depth += 1
 
     reset_disabled(disabled)
-    locally_optimize(evaluations, best_plan, goal_expression, domain, functions, negative)
+    if postprocess:
+        best_plan = locally_optimize(evaluations, best_plan, goal_expression, domain,
+                                     functions, negative, dynamic_streams, verbose)
     return revert_solution(best_plan, best_cost, evaluations)
