@@ -27,6 +27,20 @@ def axiom_preimage(axiom, preimage):
         preimage.remove(axiom.effect)
     preimage.update(axiom.condition)
 
+def plan_preimage(plan, goal):
+    import pddl
+    preimage = set(goal)
+    for action in reversed(plan):
+        if isinstance(action, pddl.PropositionalAction):
+            action_preimage(action, preimage)
+        elif isinstance(action, pddl.PropositionalAxiom):
+            axiom_preimage(action, preimage)
+        else:
+            raise ValueError(action)
+    return preimage
+
+##################################################
+
 Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
 
 def get_achieving_streams(evaluations, stream_results, op=sum):
@@ -71,6 +85,26 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
         stream_plan.append(stream_result)
 
+##################################################
+
+def instantiate_axioms(task, model, init_facts, fluent_facts):
+    import pddl
+    instantiated_axioms = []
+    for atom in model:
+        if isinstance(atom.predicate, pddl.Axiom):
+            #axiom = atom.predicate
+            axiom = find(lambda ax: ax.name == atom.predicate.name, task.axioms)
+            variable_mapping = dict([(par.name, arg)
+                                     for par, arg in zip(axiom.parameters, atom.args)])
+            inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
+            # TODO: can do a custom instantiation to preserve conditions
+            # TODO: try catch for if precondition not included
+            if inst_axiom:
+                instantiated_axioms.append(inst_axiom)
+    return instantiated_axioms
+
+##################################################
+
 def get_achieving_axioms(state, axioms, axiom_init, negated_from_name={}):
     unprocessed_from_atom = defaultdict(list)
     axiom_from_atom = {}
@@ -109,21 +143,7 @@ def extract_axioms(axiom_from_atom, facts, axiom_plan):
         extract_axioms(axiom_from_atom, axiom.condition, axiom_plan)
         axiom_plan.append(axiom)
 
-def instantiate_axioms(task, model, init_facts, fluent_facts):
-    import pddl
-    instantiated_axioms = []
-    for atom in model:
-        if isinstance(atom.predicate, pddl.Axiom):
-            #axiom = atom.predicate
-            axiom = find(lambda ax: ax.name == atom.predicate.name, task.axioms)
-            variable_mapping = dict([(par.name, arg)
-                                     for par, arg in zip(axiom.parameters, atom.args)])
-            inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
-            # TODO: can do a custom instantiation to preserve conditions
-            # TODO: try catch for if precondition not included
-            if inst_axiom:
-                instantiated_axioms.append(inst_axiom)
-    return instantiated_axioms
+##################################################
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs=True, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
@@ -224,15 +244,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
             apply_action(real_state, action)
             preimage_plan.append(action)
 
-    preimage = set(ground_task.goal_list)
-    for action in reversed(preimage_plan):
-        if isinstance(action, pddl.PropositionalAction):
-            action_preimage(action, preimage)
-        elif isinstance(action, pddl.PropositionalAxiom):
-            axiom_preimage(action, preimage)
-        else:
-            raise ValueError(action)
-    preimage -= set(real_init)
+    preimage = plan_preimage(preimage_plan, ground_task.goal_list) - set(real_init)
     negative_preimage = filter(lambda a: a.predicate in negative_from_name, preimage)
     preimage -= set(negative_preimage)
     preimage = filter(lambda l: not l.negated, preimage)

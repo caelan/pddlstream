@@ -103,6 +103,16 @@ def find(test, sequence):
             return item
     return None
 
+def find_unique(test, sequence):
+    found, value = False, None
+    for item in sequence:
+        if test(item):
+            if found:
+                raise RuntimeError('Not unique')
+            found, value = True, item
+    if not found:
+        raise RuntimeError('Unable to find a value')
+    return value
 
 def str_from_tuple(tup):
     return '({})'.format(', '.join(map(str, tup)))

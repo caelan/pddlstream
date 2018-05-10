@@ -252,3 +252,9 @@ def parse_predicate(lisp_list, stream_map):
     if name not in stream_map:
         raise ValueError('Undefined external function: {}'.format(name))
     return Predicate(head, stream_map[name], list_from_conjunction(lisp_list[2]))
+
+
+def dump_external_statistics(externals):
+    for external in externals:
+        print(external, external.estimate_p_success(), external.estimate_overhead())
+

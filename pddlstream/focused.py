@@ -177,9 +177,24 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         return None
     return opt_results
 
-def dump_external_statistics(externals):
-    for external in externals:
-        print(external, external.estimate_p_success(), external.estimate_overhead())
+##################################################
+
+from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan, get_action_instances, get_goal_instance
+from pddlstream.fast_downward import get_problem, fact_from_fd
+from pddlstream.scheduling.relaxed import plan_preimage
+
+
+def locally_optimize(evaluations, best_plan, goal_expression, domain):
+    problem = get_problem(evaluations, goal_expression, domain, unit_costs=False)
+    print(problem)
+
+    instances = get_action_instances(evaluations, set(), best_plan, domain)
+    goal_instance = get_goal_instance(problem.goal)
+    preimage = filter(lambda a: not a.negated, plan_preimage(instances + [goal_instance], []))
+    print(preimage)
+
+    pass
+
 
 ##################################################
 
@@ -266,4 +281,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             if not commit:
                 stream_results = None
             depth += 1
+
+    locally_optimize(evaluations, best_plan, goal_expression, domain)
+
     return revert_solution(best_plan, best_cost, evaluations)

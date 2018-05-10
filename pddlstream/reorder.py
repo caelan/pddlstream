@@ -8,7 +8,7 @@ from pddlstream.function import PredicateResult, Result
 from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, find, implies
+from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies
 
 def get_partial_orders(stream_plan):
     # TODO: only show the first atom achieved?
@@ -170,34 +170,24 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
-def get_action_instances(evaluations, negative_init, action_plan, domain):
-    import pddl_to_prolog
-    import build_model
-    import axiom_rules
+def get_goal_instance(goal):
+    import pddl
+    name = '@goal-reachable'
+    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
+    return pddl.PropositionalAction(name, precondition, [], None)
+
+def get_raw_action_instances(task, action_plan):
     import pddl
     import instantiate
-
-    goal_expression = ('and',)
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
-    actions = task.actions
-    task.actions = []
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     function_assignments = {f.fluent: f.expression for f in task.init
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
-
+    fluent_facts = MockSet()
+    init_facts = set()
     action_instances = []
     for name, objects in action_plan:
-        # TODO: just instantiate task?
-        with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
-        # fluent_facts = instantiate.get_fluent_facts(task, model)
-        fluent_facts = MockSet()
-        init_facts = task.init
-        instantiated_axioms = instantiate_axioms(task, model, init_facts, fluent_facts)
-
         # TODO: what if more than one action of the same name due to normalization?
-        action = find(lambda a: a.name == name, actions)
+        action = find_unique(lambda a: a.name == name, task.actions)
         args = map(pddl_from_object, objects)
         assert (len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
@@ -205,6 +195,30 @@ def get_action_instances(evaluations, negative_init, action_plan, domain):
                                       fluent_facts, type_to_objects,
                                       task.use_min_cost_metric, function_assignments)
         assert (instance is not None)
+        action_instances.append(instance)
+    return action_instances
+
+def get_action_instances(evaluations, negative_init, action_plan, domain):
+    import pddl_to_prolog
+    import build_model
+    import axiom_rules
+    import pddl
+
+    goal_expression = ('and',)
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
+    action_instances = get_raw_action_instances(task, action_plan)
+
+    task.actions = []
+    function_assignments = {f.fluent: f.expression for f in task.init
+                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+    task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
+    fluent_facts = MockSet()
+    for instance in action_instances:
+        # TODO: just instantiate task?
+        with Verbose(False):
+            model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
+        # fluent_facts = instantiate.get_fluent_facts(task, model)
+        instantiated_axioms = instantiate_axioms(task, model, task.init, fluent_facts)
 
         goal_list = []  # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
@@ -222,7 +236,6 @@ def get_action_instances(evaluations, negative_init, action_plan, domain):
 
         assert (is_applicable(task.init, instance))
         apply_action(task.init, instance)
-        action_instances.append(instance)
     return action_instances
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
@@ -238,6 +251,7 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
 
     stream_instances = get_stream_instances(stream_plan)
+    #action_instances = get_raw_action_instances(task, action_plan)
     action_instances = get_action_instances(opt_evaluations, negative_init, action_plan, domain)
 
     #combined_instances = stream_instances + action_instances

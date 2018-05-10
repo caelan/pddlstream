@@ -169,9 +169,9 @@ def main(focused=True, deterministic=False):
         #                  gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                   'posecollision': 0, 'distance': 0},
-                          gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+        #                           'posecollision': 0, 'distance': 0},
+        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
