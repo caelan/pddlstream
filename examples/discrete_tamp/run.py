@@ -11,33 +11,23 @@ import numpy as np
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_test, Generator
+from pddlstream.stream import from_gen_fn, from_test, from_fn
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
 
-"""
-  (:derived (Unsafe ?p1) 
-    (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (Collision ?p1 ?p2)
-                            (AtPose ?b ?p2)))
-  )           
-  (:derived (Unsafe ?p1) 
-    (exists (?b ?p2) (and (Pose ?p1) (Block ?b) (Pose ?p2) (not (CFree ?p1 ?p2)) 
-                            (AtPose ?b ?p2)))
-  )        
-"""
 
 # TODO: Can infer domain from usage or from specification
 
 GRASP = np.array([0, 0])
 
-class IKGenerator(Generator):
-    def __init__(self, *inputs):
-        super(IKGenerator, self).__init__()
-        self.p, = inputs
-    def generate(self, *args):
-        self.enumerated = True
-        return [(self.p + GRASP,)]
-
+# class IKGenerator(Generator):
+#     def __init__(self, *inputs):
+#         super(IKGenerator, self).__init__()
+#         self.p, = inputs
+#     def generate(self, *args):
+#         self.enumerated = True
+#         return [(self.p + GRASP,)]
+#
 # class IKFactGenerator(FactGenerator):
 #     def __init__(self, *inputs):
 #         super(IKFactGenerator, self).__init__()
@@ -92,8 +82,8 @@ def pddlstream_from_tamp(tamp_problem):
     stream_map = {
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
-        #'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
-        'inverse-kinematics': IKGenerator,
+        'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
+        #'inverse-kinematics': IKGenerator,
         #'inverse-kinematics': IKFactGenerator,
         'collision-free': from_test(lambda *args: not collision_test(*args)),
         'collision': collision_test,
@@ -151,14 +141,14 @@ def draw_state(viewer, state, colors):
 def apply_action(state, action):
     conf, holding, block_poses = state
     # TODO: don't mutate block_poses?
-    name = action[0]
+    name, args = action
     if name == 'move':
-        _, conf = action[1:]
+        _, conf = args
     elif name == 'pick':
-        holding, _, _ = action[1:]
+        holding, _, _ = args
         del block_poses[holding]
     elif name == 'place':
-        block, pose, _ = action[1:]
+        block, pose, _ = args
         holding = None
         block_poses[block] = pose
     else:

@@ -175,7 +175,7 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     import instantiate
 
     goal_expression = ('and',)
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=True))
     actions = task.actions
     task.actions = []
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)

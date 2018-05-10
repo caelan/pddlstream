@@ -142,7 +142,6 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         new_results = []
         local_failure = False
         for instance in real_instances:
-            #results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
             results = instance.next_results(verbose=verbose)
             evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             disable_stream_instance(instance, disabled)
@@ -172,6 +171,10 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     if failed:
         return None
     return opt_results
+
+def dump_external_statistics(externals):
+    for external in externals:
+        print(external, external.estimate_p_success(), external.estimate_overhead())
 
 ##################################################
 
@@ -204,7 +207,6 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     action_info = get_action_info(action_info)
     update_stream_info(externals, stream_info)
     eager_externals = filter(lambda e: e.info.eager, externals)
-    #constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
@@ -255,17 +257,8 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            #constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
-            #evaluations.update(map(evaluation_from_fact, constraint_facts))
-            #if constraint_facts:
-            #    stream_results = []
-            #else:
             stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
             if not commit:
                 stream_results = None
             depth += 1
-    # TODO: modify streams here
-
-    for external in externals:
-        print(external, external.estimate_p_success(), external.estimate_overhead())
     return revert_solution(best_plan, best_cost, evaluations)

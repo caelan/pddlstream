@@ -7,9 +7,8 @@ from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import get_constraint_solver
 from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfree_pose_fn, cfree_motion_fn
-from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_generator, collision_test, \
+from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, rejection_sample_placed, plan_motion
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.macro_stream import StreamSynthesizer
@@ -17,12 +16,12 @@ from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
-from pddlstream.stream import from_fn, from_test, StreamInfo
+from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
 from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
 
-def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
+def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -53,7 +52,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     stream_map = {
         #'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'plan-motion': from_fn(plan_motion),
-        'sample-pose': get_pose_generator(tamp_problem.regions),
+        'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #'collision-free': from_test(lambda *args: not collision_test(*args)),
@@ -62,8 +61,6 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
     }
-    if constraint_solver:
-        stream_map['constraint-solver'] = get_constraint_solver(tamp_problem.regions)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
@@ -149,6 +146,7 @@ def main(focused=True, deterministic=False):
     np.set_printoptions(precision=2)
     if deterministic:
         np.random.seed(0)
+    print('Seed:', np.random.get_state()[1][0])
 
     problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
@@ -171,9 +169,9 @@ def main(focused=True, deterministic=False):
         #                  gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-        #                           'posecollision': 0, 'distance': 0},
-        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+                                   'posecollision': 0, 'distance': 0},
+                          gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)

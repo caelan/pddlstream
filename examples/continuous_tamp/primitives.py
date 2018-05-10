@@ -3,7 +3,6 @@ import math
 import numpy as np
 
 from examples.continuous_tamp.viewer import SUCTION_HEIGHT
-from pddlstream.stream import Generator
 
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
@@ -33,27 +32,27 @@ def get_block_interval(b, p):
 
 ##################################################
 
-def get_pose_generator(regions):
-    class PoseGenerator(Generator):
-        def __init__(self, *inputs):
-            super(PoseGenerator, self).__init__()
-            self.b, self.r = inputs
-        def generate(self, outputs=None, streams=tuple()):
-            # TODO: designate which streams can be handled
-            placed = {}
-            for stream in streams:
-                name, args = stream[0], stream[1:]
-                if name in ['collision-free', 'cfree']:
-                    for i in range(0, len(args), 2):
-                        b, p = args[i:i+2]
-                        if self.b != b:
-                            placed[b] = p
-            #p = sample_region(self.b, regions[self.r])
-            p = rejection_sample_region(self.b, regions[self.r], placed=placed)
-            if p is None:
-                return []
-            return [(p,)]
-    return PoseGenerator
+# def get_pose_generator(regions):
+#     class PoseGenerator(Generator):
+#         def __init__(self, *inputs):
+#             super(PoseGenerator, self).__init__()
+#             self.b, self.r = inputs
+#         def generate(self, outputs=None, streams=tuple()):
+#             # TODO: designate which streams can be handled
+#             placed = {}
+#             for stream in streams:
+#                 name, args = stream[0], stream[1:]
+#                 if name in ['collision-free', 'cfree']:
+#                     for i in range(0, len(args), 2):
+#                         b, p = args[i:i+2]
+#                         if self.b != b:
+#                             placed[b] = p
+#             #p = sample_region(self.b, regions[self.r])
+#             p = rejection_sample_region(self.b, regions[self.r], placed=placed)
+#             if p is None:
+#                 return []
+#             return [(p,)]
+#     return PoseGenerator
 
 
 def collision_test(b1, p1, b2, p2):

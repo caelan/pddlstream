@@ -75,7 +75,7 @@ class Instance(object):
     def get_domain(self):
         return substitute_expression(self.external.domain, self.get_mapping())
 
-    def next_results(self, stream_plan=None, verbose=False):
+    def next_results(self, verbose=False):
         raise NotImplementedError()
 
 

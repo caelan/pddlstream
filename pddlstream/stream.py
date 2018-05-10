@@ -1,6 +1,5 @@
 from collections import Counter
 
-from experimental.context import create_immediate_context
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
@@ -9,41 +8,19 @@ from pddlstream.function import Result, Instance, External, ExternalInfo, geomet
 from pddlstream.utils import str_from_tuple, INF
 import time
 
-
-class Generator(object):
-    # TODO: I could also include this in a
-    #def __init__(self, *inputs):
-    #    self.inputs = tuple(inputs)
-    def __init__(self):
-        # TODO: store attempted contexts?
-        self.enumerated = False
-        self.uses_context = True
-    #def __iter__(self):
-    #def __call__(self, *args, **kwargs):
-    def generate(self, outputs=None, streams=tuple()):
-        raise NotImplementedError()
-
-class ListGenerator(Generator):
-    # TODO: could also pass gen_fn(*inputs)
-    # TODO: can test whether is instance for context
+class BoundedGenerator(object):
     def __init__(self, generator, max_calls=INF):
-        super(ListGenerator, self).__init__()
-        #super(ListGeneratorFn, self).__init__(*inputs)
-        #self.generator = gen_fn(*inputs)
         self.generator = generator
         self.max_calls = max_calls
         self.calls = 0
-        self.enumerated = (self.calls < self.max_calls)
-        self.uses_context = False
-    def generate(self, **kwargs):
+    @property
+    def enumerated(self):
+        return self.max_calls <= self.calls
+    def next(self):
+        if self.enumerated:
+            raise StopIteration()
         self.calls += 1
-        if self.max_calls <= self.calls:
-            self.enumerated = True
-        try:
-            return next(self.generator)
-        except StopIteration:
-            self.enumerated = True
-        return []
+        return next(self.generator)
 
 ##################################################
 
@@ -61,7 +38,7 @@ def from_gen_fn(gen_fn):
 
 def from_list_fn(list_fn):
     #return lambda *args: iter([list_fn(*args)])
-    return lambda *args: ListGenerator(iter([list_fn(*args)]), max_calls=1)
+    return lambda *args: BoundedGenerator(iter([list_fn(*args)]), max_calls=1)
 
 
 def from_fn(fn):
@@ -148,29 +125,21 @@ class StreamInstance(Instance):
     def __init__(self, stream, input_objects):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
-    def _next_outputs(self, stream_plan):
+    def _next_outputs(self):
         if self._generator is None:
             self._generator = self.external.gen_fn(*self.get_input_values())
-        if isinstance(self._generator, Generator):
-            new_values = []
-            #if self._generator.uses_context and (stream_plan is not None):
-            #    # TODO: enumerated for just context?
-            #    target_values, target_streams = create_immediate_context(stream_plan[0], stream_plan[1:])
-            #    new_values += self._generator.generate(target_values, target_streams)
-            #    self.enumerated = self._generator.enumerated
-            if not new_values and not self.enumerated:
-                new_values += self._generator.generate()
-                self.enumerated = self._generator.enumerated
-            return new_values
+        new_values = []
         try:
-            return next(self._generator)
+            new_values = next(self._generator)
         except StopIteration:
             self.enumerated = True
-        return []
-    def next_results(self, stream_plan=None, verbose=False):
+        if isinstance(self._generator, BoundedGenerator):
+            self.enumerated = self._generator.enumerated
+        return new_values
+    def next_results(self, verbose=False):
         start_time = time.time()
         assert not self.enumerated
-        new_values = self._next_outputs(stream_plan)
+        new_values = self._next_outputs()
         if verbose:
             print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, new_values))))
