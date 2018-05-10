@@ -1,10 +1,7 @@
 import numpy as np
 
-from examples.continuous_tamp.viewer import SUCTION_HEIGHT
+from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
 
-BLOCK_WIDTH = 2
-BLOCK_HEIGHT = BLOCK_WIDTH
-GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
 def get_constraint_solver(regions, max_time=5, verbose=False):
@@ -51,8 +48,8 @@ def get_constraint_solver(regions, max_time=5, verbose=False):
                 _, p, r = args
                 px, py = variable_from_id.get(id(p), p)
                 x1, x2 = regions[r]
-                m.addConstr(x1 <= px - BLOCK_WIDTH/2)
-                m.addConstr(px + BLOCK_WIDTH/2 <= x2)
+                m.addConstr(x1 <= px - BLOCK_WIDTH / 2)
+                m.addConstr(px + BLOCK_WIDTH / 2 <= x2)
                 m.addConstr(py == 0)
             elif name in ('cfree', 'collision'):
                 p1, p2 = map(get_var, args)
@@ -102,3 +99,41 @@ def get_constraint_solver(regions, max_time=5, verbose=False):
                 atoms.append(new_fact)
         return atoms
     return constraint_solver
+
+##################################################
+
+def cfree_motion_fn(outputs, certified):
+    assert(len(outputs) == 1)
+    q0, q1 = None, None
+    placed = {}
+    for fact in certified:
+        if fact[0] == 'motion':
+            q0, _, q1 = fact[1:]
+        if fact[0] == 'not':
+            _, b, p =  fact[1][1:]
+            placed[b] = p
+    return plan_motion(q0, q1)
+
+
+def get_cfree_pose_fn(regions):
+    def fn(outputs, certified):
+        print(outputs, certified)
+        b, r = None, None
+        placed = {}
+        for fact in certified:
+            print(fact)
+            if fact[0] == 'contained':
+                b, _, r = fact[1:]
+            if fact[0] == 'not':
+                _, _, b2, p2 =  fact[1][1:]
+                placed[b2] = p2
+        p = sample_region(b, regions[r])
+        return (p,)
+    return fn
+
+
+def get_optimize_fn(regions):
+    def fn(outputs, certified):
+        print(outputs, certified)
+        raw_input('awefawef')
+    return fn

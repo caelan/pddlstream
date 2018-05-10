@@ -10,6 +10,7 @@ from pddlstream.object import Object
 # TODO: revisit a stream with and without context automatically
 # TODO: could hash to avoid revisiting period
 
+
 def create_immediate_context(stream_result, stream_plan):
     # TODO: consider previous bindings and choose one value
     streams = []
@@ -41,11 +42,3 @@ class ConstraintSolver(object):
         # TODO: certify if optimal
     #def __repr__(self):
     #    return self.__class__.__name__
-
-
-class DynamicStream(object):
-    # TODO: load from a file as well
-    def __init__(self, name, streams, gen_fn):
-        self.name = name
-        self.streams = streams # Names of streams. Include counts in the future
-        self.gen_fn = gen_fn

@@ -2,131 +2,25 @@
 
 from __future__ import print_function
 
-import math
 import os
 from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import BLOCK_WIDTH, BLOCK_HEIGHT, GRASP
-from examples.discrete_tamp.viewer import COLORS
 from examples.continuous_tamp.constraint_solver import get_constraint_solver
-from pddlstream.focused import solve_focused, ActionInfo
-from pddlstream.incremental import solve_incremental
+from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfree_pose_fn
+from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_generator, collision_test, \
+    distance_fn, inverse_kin_fn, get_region_test, rejection_sample_placed, plan_motion
+from examples.discrete_tamp.viewer import COLORS
+from pddlstream.macro_stream import DynamicStream
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
-from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator, StreamInfo
-from pddlstream.utils import print_solution, user_input, read, INF, find
-from pddlstream.context import DynamicStream
+from pddlstream.focused import solve_focused
+from pddlstream.incremental import solve_incremental
+from pddlstream.stream import from_fn, from_test, StreamInfo
+from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
-SCALE_COST = 1.
-
-def scale_cost(cost):
-    return int(math.ceil(SCALE_COST*cost))
-
-##################################################
-
-def interval_contains(i1, i2):
-    """
-    :param i1: The container interval
-    :param i2: The possibly contained interval
-    :return:
-    """
-    return (i1[0] <= i2[0]) and (i2[1] <= i1[1])
-
-def interval_overlap(i1, i2):
-    return (i2[0] <= i1[1]) and (i1[0] <= i2[1])
-
-def get_block_interval(b, p):
-    return p[0]*np.ones(2) + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
-
-##################################################
-
-def get_pose_generator(regions):
-    class PoseGenerator(Generator):
-        def __init__(self, *inputs):
-            super(PoseGenerator, self).__init__()
-            self.b, self.r = inputs
-        def generate(self, outputs=None, streams=tuple()):
-            # TODO: designate which streams can be handled
-            placed = {}
-            for stream in streams:
-                name, args = stream[0], stream[1:]
-                if name in ['collision-free', 'cfree']:
-                    for i in range(0, len(args), 2):
-                        b, p = args[i:i+2]
-                        if self.b != b:
-                            placed[b] = p
-            #p = sample_region(self.b, regions[self.r])
-            p = rejection_sample_region(self.b, regions[self.r], placed=placed)
-            if p is None:
-                return []
-            return [(p,)]
-    return PoseGenerator
-
-def collision_test(b1, p1, b2, p2):
-    return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
-
-def distance_fn(q1, q2):
-    ord = 1  # 1 | 2
-    return scale_cost(np.linalg.norm(q2 - q1, ord=ord))
-
-def inverse_kin_fn(b, p):
-    return (p - GRASP,)
-
-def get_region_test(regions):
-    def test(b, p, r):
-        return interval_contains(regions[r], get_block_interval(b, p))
-    return test
-
-def sample_region(b, region):
-    x1, x2 = np.array(region, dtype=float) - get_block_interval(b, np.zeros(2))
-    if x2 < x1:
-        return None
-    x = np.random.uniform(x1, x2)
-    return np.array([x, 0])
-
-def rejection_sample_region(b, region, placed={}, max_attempts=10):
-    for _ in range(max_attempts):
-        p = sample_region(b, region)
-        if p is None:
-            break
-        if not any(collision_test(b, p, b2, p2) for b2, p2 in placed.items()):
-            return p
-    return None
-
-
-def rejection_sample_placed(block_poses={}, block_regions={}, regions={}, max_attempts=10):
-    assert(not set(block_poses.keys()) & set(block_regions.keys()))
-    for _ in range(max_attempts):
-        placed = block_poses.copy()
-        remaining = block_regions.items()
-        np.random.shuffle(remaining)
-        for b, r in remaining:
-            p = rejection_sample_region(b, regions[r], placed)
-            if p is None:
-                break
-            placed[b] = p
-        else:
-            return placed
-    return None
-
-def get_pose_gen(regions):
-    def gen_fn(b, r):
-        while True:
-            p = sample_region(b, regions[r])
-            if p is None:
-                break
-            yield (p,)
-    return gen_fn
-
-def plan_motion(q1, q2):
-    t = [q1, q2]
-    #t = np.vstack([q1, q2])
-    return (t,)
-
-##################################################
 
 def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     initial = tamp_problem.initial
@@ -250,40 +144,6 @@ def apply_action(state, action):
 
 ##################################################
 
-def cfree_motion_fn(outputs, certified):
-    assert(len(outputs) == 1)
-    q0, q1 = None, None
-    placed = {}
-    for fact in certified:
-        if fact[0] == 'motion':
-            q0, _, q1 = fact[1:]
-        if fact[0] == 'not':
-            _, b, p =  fact[1][1:]
-            placed[b] = p
-    return plan_motion(q0, q1)
-
-def get_cfree_pose_fn(regions):
-    def fn(outputs, certified):
-        print(outputs, certified)
-        b, r = None, None
-        placed = {}
-        for fact in certified:
-            print(fact)
-            if fact[0] == 'contained':
-                b, _, r = fact[1:]
-            if fact[0] == 'not':
-                _, _, b2, p2 =  fact[1][1:]
-                placed[b2] = p2
-        p = sample_region(b, regions[r])
-        return (p,)
-    return fn
-
-def get_optimize_fn(regions):
-    def fn(outputs, certified):
-        print(outputs, certified)
-        raw_input('awefawef')
-    return fn
-
 def main(focused=True, deterministic=False):
     np.set_printoptions(precision=2)
     if deterministic:
@@ -307,11 +167,11 @@ def main(focused=True, deterministic=False):
     dynamic = [
         #DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
         #              gen_fn=from_fn(cfree_motion_fn)),
-        #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
-        #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                   'posecollision': 0, 'distance': 0},
-                      gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
+                      gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
+        #DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+        #                           'posecollision': 0, 'distance': 0},
+        #              gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
