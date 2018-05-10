@@ -82,13 +82,16 @@ class DiscreteTAMPViewer(object):
                 self.environment.append(self.canvas.create_oval(x - pose_radius, y - pose_radius,
                                                                 x + pose_radius, y + pose_radius, fill='black'))
 
-    def draw_robot(self, r, c, color='white'):
+    def draw_robot(self, r, c, color='yellow'):
         # TODO - could also visualize as top grasps instead of side grasps
-        grasp_buffer = 5
+        grasp_buffer = 3 # 0 | 3 | 5
         finger_length = self.side + grasp_buffer  # + self.block_buffer
         finger_width = 10
         gripper_length = 20
-        gripper_width = self.side + 2 * self.block_buffer + finger_width
+        if self.draw_fingers:
+            gripper_width = self.side + 2 * self.block_buffer + finger_width
+        else:
+            gripper_width = self.side
         stem_length = 50
         stem_width = 20
 

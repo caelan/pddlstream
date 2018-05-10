@@ -4,6 +4,7 @@ from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain
     solve_from_task
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream_pddl
+from collections import OrderedDict
 
 
 def parse_constants(domain, constant_map):
@@ -24,7 +25,8 @@ def parse_problem(problem):
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map)
-    evaluations = set(evaluations_from_init(init))
+    #evaluations = set(evaluations_from_init(init))
+    evaluations = OrderedDict((e, None) for e in evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
     return evaluations, goal_expression, domain, streams
 

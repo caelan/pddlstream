@@ -10,6 +10,7 @@ import numpy as np
 
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
+from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_test, from_fn
 from pddlstream.utils import print_solution, user_input, read
@@ -157,15 +158,17 @@ def apply_action(state, action):
 
 ##################################################
 
-def main():
+def main(focused=True):
     problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
-    #solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, unit_costs=True)
+    if focused:
+        solution = solve_focused(pddlstream_problem, unit_costs=True)
+    else:
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+        solution = solve_incremental(pddlstream_problem, unit_costs=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

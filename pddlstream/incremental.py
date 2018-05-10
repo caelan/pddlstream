@@ -13,8 +13,9 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
     for result in stream_instance.next_results(verbose=verbose):
         for fact in result.get_certified():
             evaluation = evaluation_from_fact(fact)
-            instantiator.add_atom(evaluation)
-            evaluations.add(evaluation)
+            if evaluation not in evaluations:
+                evaluations[evaluation] = result
+                instantiator.add_atom(evaluation)
     if not stream_instance.enumerated:
         instantiator.queue_stream_instance(stream_instance)
 

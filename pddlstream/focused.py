@@ -82,7 +82,8 @@ def optimistic_process_stream_queue(instantiator):
 
 def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations):
     # TODO: combination for domain predicates
-    combined_evaluations = evaluations | opt_evaluations
+    evaluation_set = set(evaluations)
+    combined_evaluations = evaluation_set | opt_evaluations
     real_instances = []
     opt_instances = []
     input_objects = [[i] if isinstance(i, Object) else bindings[i]
@@ -93,7 +94,7 @@ def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluati
             stream_instance.get_domain(), mapping)))
         if domain <= combined_evaluations:
             instance = stream_instance.external.get_instance(combo)
-            if domain <= evaluations:
+            if domain <= evaluation_set:
                 real_instances.append(instance)
             else:
                 opt_instances.append(instance)
@@ -143,7 +144,11 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         local_failure = False
         for instance in real_instances:
             results = instance.next_results(verbose=verbose)
-            evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
+            for result in results:
+                for fact in result.get_certified():
+                    evaluation = evaluation_from_fact(fact)
+                    if evaluation not in evaluations:
+                        evaluations[evaluation] = result
             disable_stream_instance(instance, disabled)
             local_failure |= not results
             if isinstance(opt_result, PredicateResult) and not any(opt_result.value == r.value for r in results):
