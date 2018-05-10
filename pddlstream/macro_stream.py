@@ -13,7 +13,7 @@ class MacroResult(StreamResult):
         super(MacroResult, self).__init__(instance, output_objects)
         self.child_results = child_results
 
-class DynamicStream(object): # JointStream | Stream Combiner
+class StreamSynthesizer(object): # JointStream | Stream Combiner
     # TODO: load from a file as well
     macro_results = {}
     def __init__(self, name, streams, gen_fn):

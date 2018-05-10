@@ -2,14 +2,13 @@ import time
 from collections import defaultdict, deque
 from itertools import product
 
-from pddlstream.algorithm import parse_problem, get_optimistic_constraints
-from pddlstream.context import ConstraintSolver
-from pddlstream.macro_stream import get_macro_stream_plan, MacroResult
+from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function, Predicate
 from pddlstream.function import PredicateResult
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
+from pddlstream.macro_stream import get_macro_stream_plan, MacroResult
 from pddlstream.object import Object
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
@@ -266,4 +265,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 stream_results = None
             depth += 1
     # TODO: modify streams here
+
+    for external in externals:
+        print(external, external.estimate_p_success(), external.estimate_overhead())
     return revert_solution(best_plan, best_cost, evaluations)

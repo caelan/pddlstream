@@ -12,7 +12,7 @@ from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfre
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_generator, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, rejection_sample_placed, plan_motion
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.macro_stream import DynamicStream
+from pddlstream.macro_stream import StreamSynthesizer
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
@@ -162,17 +162,18 @@ def main(focused=True, deterministic=False):
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
+        'trajcollision': StreamInfo(p_success=1),  # bound_fn is None
         #'cfree': StreamInfo(eager=True),
     }
 
     dynamic = [
-        DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-                      gen_fn=from_fn(cfree_motion_fn)),
+        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #                  gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                   'posecollision': 0, 'distance': 0},
-                      gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+        #                           'posecollision': 0, 'distance': 0},
+        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)

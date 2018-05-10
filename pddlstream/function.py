@@ -3,6 +3,7 @@ from collections import Counter
 from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, is_parameter, str_from_head
 from pddlstream.utils import str_from_tuple, INF
+import time
 
 DEFAULT_P_SUCCESS = 0.75
 DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
@@ -43,7 +44,27 @@ class Instance(object):
         self.input_objects = tuple(input_objects)
         self.enumerated = False
         self.disabled = False
+        self.total_calls = 0
+        self.total_overhead = 0
+        self.total_successes = 0
         # self.results_history = []
+
+    def update_statistics(self, start_time, results):
+        overhead = time.time() - start_time
+        success = len(results) != 0
+        self.total_calls += 1
+        self.total_overhead += overhead
+        self.total_successes += success
+        self.external.update_statistics(overhead, success)
+        # TODO: update the global as well
+
+    def estimate_p_success(self, reg_p_success=1, reg_calls=0):
+        raise NotImplementedError()
+        # TODO: use the external as a prior
+        # TODO: Bayesian estimation of likelihood that has result
+
+    def estimate_overhead(self, reg_overhead=0, reg_calls=0):
+        raise NotImplementedError()
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -70,6 +91,29 @@ class External(object):
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         self.instances = {}
+        self.total_calls = 0
+        self.total_overhead = 0
+        self.total_successes = 0
+        # TODO: write the statistics to a file using the stream filename?
+
+    def update_statistics(self, overhead, success):
+        self.total_calls += 1
+        self.total_overhead += overhead
+        self.total_successes += success
+
+    def estimate_p_success(self, reg_p_success=1, reg_calls=0):
+        calls = self.total_calls + reg_calls
+        if calls == 0:
+            return None
+        # TODO: use prior from info instead?
+        return float(self.total_successes + reg_p_success*reg_calls) / calls
+
+    def estimate_overhead(self, reg_overhead=0, reg_calls=0):
+        calls = self.total_calls + reg_calls
+        if calls == 0:
+            return None
+        # TODO: use prior from info instead?
+        return float(self.total_overhead + reg_overhead*reg_calls) / calls
 
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
@@ -104,6 +148,7 @@ class FunctionInstance(Instance):  # Head(Instance):
         return substitute_expression(self.external.head, self.get_mapping())
 
     def next_results(self, stream_plan=None, verbose=False):
+        start_time = time.time()
         assert not self.enumerated
         self.enumerated = True
         value = self.external.fn(*self.get_input_values())
@@ -121,7 +166,10 @@ class FunctionInstance(Instance):  # Head(Instance):
         if verbose:
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
-        return [self.external._Result(self, self.value)]
+        results = [self.external._Result(self, self.value)]
+        # TODO: include as failure if a predicate evaluation is unsuccessful
+        self.update_statistics(start_time, results)
+        return results
 
     def next_optimistic(self):
         if self.enumerated or self.disabled:

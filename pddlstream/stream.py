@@ -1,11 +1,13 @@
-from pddlstream.context import create_immediate_context
+from collections import Counter
+
+from experimental.context import create_immediate_context
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.function import Result, Instance, External, ExternalInfo, geometric_cost, parse_function, \
     parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS
 from pddlstream.utils import str_from_tuple, INF
-from collections import Counter
+import time
 
 
 class Generator(object):
@@ -127,7 +129,7 @@ class StreamInfo(ExternalInfo):
 
 class StreamResult(Result):
     def __init__(self, instance, output_objects):
-        self.instance = instance
+        super(StreamResult, self).__init__(instance)
         self.output_objects = output_objects
     def get_mapping(self):
         return dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
@@ -151,11 +153,11 @@ class StreamInstance(Instance):
             self._generator = self.external.gen_fn(*self.get_input_values())
         if isinstance(self._generator, Generator):
             new_values = []
-            if self._generator.uses_context and (stream_plan is not None):
-                # TODO: enumerated for just context?
-                target_values, target_streams = create_immediate_context(stream_plan[0], stream_plan[1:])
-                new_values += self._generator.generate(target_values, target_streams)
-                self.enumerated = self._generator.enumerated
+            #if self._generator.uses_context and (stream_plan is not None):
+            #    # TODO: enumerated for just context?
+            #    target_values, target_streams = create_immediate_context(stream_plan[0], stream_plan[1:])
+            #    new_values += self._generator.generate(target_values, target_streams)
+            #    self.enumerated = self._generator.enumerated
             if not new_values and not self.enumerated:
                 new_values += self._generator.generate()
                 self.enumerated = self._generator.enumerated
@@ -166,12 +168,15 @@ class StreamInstance(Instance):
             self.enumerated = True
         return []
     def next_results(self, stream_plan=None, verbose=False):
+        start_time = time.time()
         assert not self.enumerated
         new_values = self._next_outputs(stream_plan)
         if verbose:
             print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, new_values))))
-        return [self.external._Result(self, objects_from_values(output_values)) for output_values in new_values]
+        results = [self.external._Result(self, objects_from_values(output_values)) for output_values in new_values]
+        self.update_statistics(start_time, results)
+        return results
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
