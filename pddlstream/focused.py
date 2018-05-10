@@ -11,7 +11,7 @@ from pddlstream.function import PredicateResult
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
-from pddlstream.reorder import separate_plan, reorder_combined_plan
+from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
@@ -32,7 +32,7 @@ class ActionInfo(object):
         """
         self.terminal = terminal # TODO: infer from p_success?
         if self.terminal:
-            self.p_success, self.overhead = 1e-3, 1
+            self.p_success, self.overhead = 1e-3, 0
         else:
             self.p_success, self.overhead = 1, INF
         if p_success is not None:
@@ -224,7 +224,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             combined_plan = reorder_combined_plan(evaluations, combined_plan, action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
             stream_plan, action_plan = separate_plan(combined_plan, action_info)
-            #stream_plan = reorder_streams(stream_plan)
+            stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
             stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
