@@ -8,6 +8,11 @@ from pddlstream.stream import Stream, StreamResult, StreamInfo
 # TODO: locally optimize a feasible plan skeleton (can be done with sampling as well)
 # Extract backpointers to what achieved each used fact. Seed with current values
 
+class MacroResult(StreamResult):
+    def __init__(self, instance, output_objects, child_results):
+        super(MacroResult, self).__init__(instance, output_objects)
+        self.child_results = child_results
+
 class DynamicStream(object): # JointStream | Stream Combiner
     # TODO: load from a file as well
     macro_results = {}
@@ -15,68 +20,63 @@ class DynamicStream(object): # JointStream | Stream Combiner
         self.name = name
         self.streams = streams # Names of streams. Include counts in the future
         self.gen_fn = gen_fn
+    def get_gen_fn(self, inputs, outputs, certified):
+        # TODO: take in guess values for inputs? (i.e.
+        def new_gen_fn(*input_values):
+            assert (len(inputs) == len(input_values))
+            mapping = dict(zip(inputs, input_values))
+            targets = substitute_expression(certified, mapping)
+            return self.gen_fn(outputs, targets)  # TODO: could also return a map
+        return new_gen_fn
+    def get_macro_result(self, cluster):
+        key = frozenset(cluster)
+        if key in self.macro_results:
+            return self.macro_results[key]
+        param_from_obj = {}
+        inputs = []
+        domain = set()
+        outputs = []
+        certified = set()
+        input_objects = []
+        output_objects = []
+        functions = set()
+        for result in cluster:  # TODO: branch on sequences here
+            local_mapping = {}
+            stream = result.instance.external
+            for inp, input_object in zip(stream.inputs, result.instance.input_objects):
+                # TODO: only do optimistic parameters?
+                # if isinstance()
+                if input_object not in param_from_obj:
+                    param_from_obj[input_object] = '?i{}'.format(len(inputs))
+                    inputs.append(param_from_obj[input_object])
+                    input_objects.append(input_object)
+                local_mapping[inp] = param_from_obj[input_object]
+            domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
 
-class MacroResult(StreamResult):
-    def __init__(self, instance, output_objects, child_results):
-        super(MacroResult, self).__init__(instance, output_objects)
-        self.child_results = child_results
+            if isinstance(result, PredicateResult):
+                # functions.append(Equal(stream.head, result.value))
+                mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
+                functions.update(substitute_expression(result.get_certified(), mapping))
+            elif isinstance(result, FunctionResult):
+                functions.add(substitute_expression(Minimize(stream.head), local_mapping))
+            else:
+                for out, output_object in zip(stream.outputs, result.output_objects):
+                    if output_object not in param_from_obj:
+                        param_from_obj[output_object] = '?o{}'.format(len(outputs))
+                        outputs.append(param_from_obj[output_object])
+                        output_objects.append(output_object)
+                    local_mapping[out] = param_from_obj[output_object]
+                certified.update(substitute_expression(stream.certified, local_mapping))
 
-def get_gen_fn(inputs, outputs, certified, gen_fn):
-    # TODO: take in guess values for inputs? (i.e.
-    def new_gen_fn(*input_values):
-        assert(len(inputs) == len(input_values))
-        mapping = dict(zip(inputs, input_values))
-        targets = substitute_expression(certified, mapping)
-        return gen_fn(outputs, targets)  # TODO: could also return a map
-    return new_gen_fn
-
-def get_macro_stream_result(dynamic, cluster):
-    # TODO: cache the cluster and return it if possible
-    param_from_obj = {}
-    inputs = []
-    domain = set()
-    outputs = []
-    certified = set()
-    input_objects = []
-    output_objects = []
-    functions = set()
-    # TODO: always have the option of not making a mega stream
-    for result in cluster:  # TODO: branch on sequences here
-        local_mapping = {}
-        stream = result.instance.external
-        for inp, input_object in zip(stream.inputs, result.instance.input_objects):
-            # TODO: only do optimistic parameters?
-            # if isinstance()
-            if input_object not in param_from_obj:
-                param_from_obj[input_object] = '?i{}'.format(len(inputs))
-                inputs.append(param_from_obj[input_object])
-                input_objects.append(input_object)
-            local_mapping[inp] = param_from_obj[input_object]
-        domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
-
-        if isinstance(result, PredicateResult):
-            # functions.append(Equal(stream.head, result.value))
-            mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
-            functions.update(substitute_expression(result.get_certified(), mapping))
-        elif isinstance(result, FunctionResult):
-            functions.add(substitute_expression(Minimize(stream.head), local_mapping))
-        else:
-            for out, output_object in zip(stream.outputs, result.output_objects):
-                if output_object not in param_from_obj:
-                    param_from_obj[output_object] = '?o{}'.format(len(outputs))
-                    outputs.append(param_from_obj[output_object])
-                    output_objects.append(output_object)
-                local_mapping[out] = param_from_obj[output_object]
-            certified.update(substitute_expression(stream.certified, local_mapping))
-
-    gen_fn = get_gen_fn(inputs, outputs, certified | functions, dynamic.gen_fn)
-    mega_stream = Stream(dynamic.name, gen_fn,
-                              inputs=tuple(inputs), domain=domain,
-                              outputs=tuple(outputs), certified=certified)
-    #mega_stream.info = StreamInfo() # TODO: stream info
-    mega_instance = mega_stream.get_instance(input_objects)
-    stream_results = filter(lambda s: isinstance(s, StreamResult), cluster)
-    return MacroResult(mega_instance, output_objects, stream_results)
+        gen_fn = self.get_gen_fn(inputs, outputs, certified | functions)
+        mega_stream = Stream(self.name, gen_fn,
+                             inputs=tuple(inputs), domain=domain,
+                             outputs=tuple(outputs), certified=certified)
+        # mega_stream.info = StreamInfo() # TODO: stream info
+        mega_instance = mega_stream.get_instance(input_objects)
+        stream_results = filter(lambda s: isinstance(s, StreamResult), cluster)
+        self.macro_results[key] = MacroResult(mega_instance, output_objects, stream_results)
+        return self.macro_results[key]
 
 def get_macro_stream_plan(stream_plan, dynamic_streams):
     if (stream_plan is None) or not dynamic_streams:
@@ -116,7 +116,7 @@ def get_macro_stream_plan(stream_plan, dynamic_streams):
             if not all(n <= counts[name] for name, n in dynamic.streams.items()):
                 continue
             ordered_cluster = [r for r in stream_plan if r in cluster]
-            new_stream_plan.append(get_macro_stream_result(dynamic, ordered_cluster))
+            new_stream_plan.append(dynamic.get_macro_result(ordered_cluster))
             new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), ordered_cluster)
             break
         else:
