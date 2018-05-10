@@ -16,7 +16,8 @@ from pddlstream.incremental import solve_incremental
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.stream import from_gen_fn, from_fn, from_test, Generator, StreamInfo
-from pddlstream.utils import print_solution, user_input, read, INF
+from pddlstream.utils import print_solution, user_input, read, INF, find
+from pddlstream.context import DynamicStream
 from viewer import ContinuousTMPViewer, GROUND
 
 SCALE_COST = 1.
@@ -127,7 +128,7 @@ def plan_motion(q1, q2):
 
 ##################################################
 
-def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
+def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -162,7 +163,8 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
         'inverse-kinematics':  from_fn(inverse_kin_fn),
         #'collision-free': from_test(lambda *args: not collision_test(*args)),
         'cfree': lambda *args: not collision_test(*args),
-        'collision': collision_test,
+        'posecollision': collision_test,
+        'trajcollision': lambda *args: False,
         'distance': distance_fn,
     }
     if constraint_solver:
@@ -175,7 +177,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -248,6 +250,25 @@ def apply_action(state, action):
 
 ##################################################
 
+def cfree_motion_fn(outputs, certified):
+    assert(len(outputs) == 1)
+
+    print(outputs, certified)
+
+    q0, q1 = None, None
+    placed = {}
+    for fact in certified:
+        if fact[0] == 'motion':
+            q0, _, q1 = fact[1:]
+        if fact[0] == 'not':
+            _, b, p =  fact[1][1:]
+            placed[b] = p
+    print(q0, q1)
+    print(placed)
+    raw_input('Solved')
+
+    return plan_motion(q0, q1)
+
 def main(focused=True, deterministic=False):
     np.set_printoptions(precision=2)
     if deterministic:
@@ -268,9 +289,15 @@ def main(focused=True, deterministic=False):
         #'cfree': StreamInfo(eager=True),
     }
 
+    dynamic = [
+        DynamicStream('cfree-motion', ['plan-motion', 'trajcollision'],
+                      gen_fn=from_fn(cfree_motion_fn))
+    ]
+
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
+                                 dynamic_streams=dynamic,
                                  max_time=10, max_cost=INF, debug=False,
                                  commit=True, effort_weight=None, unit_costs=False, visualize=False)
     else:

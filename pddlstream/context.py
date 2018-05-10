@@ -41,3 +41,11 @@ class ConstraintSolver(object):
         # TODO: certify if optimal
     #def __repr__(self):
     #    return self.__class__.__name__
+
+
+class DynamicStream(object):
+    # TODO: load from a file as well
+    def __init__(self, name, streams, gen_fn):
+        self.name = name
+        self.streams = streams # Names of streams. Include counts in the future
+        self.gen_fn = gen_fn

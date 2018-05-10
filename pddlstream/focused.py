@@ -1,23 +1,24 @@
 import time
 from itertools import product
+from collections import defaultdict, OrderedDict, deque
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
-from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
+from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression, Minimize, Equal
 from pddlstream.function import Function, Predicate
 from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
-from pddlstream.reorder import reorder_stream_plan, get_combined_orders, separate_plan, reorder_combined_plan
+from pddlstream.reorder import reorder_stream_plan, get_combined_orders, \
+    separate_plan, reorder_combined_plan, neighbors_from_orders, get_partial_orders
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.stream import StreamResult
+from pddlstream.stream import StreamResult, Stream
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from collections import defaultdict
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.utils import INF
-from pddlstream.function import PredicateResult
+from pddlstream.function import PredicateResult, FunctionResult
 
 ##################################################
 
@@ -164,7 +165,126 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 
 ##################################################
 
-def solve_focused(problem, stream_info={}, action_info={}, max_time=INF, max_cost=INF,
+def method(stream_plan, dynamic_streams):
+    if stream_plan is None:
+        return None
+    orders = get_partial_orders(stream_plan)
+    for order in list(orders):
+        orders.add(order[::-1])
+    neighbors, _ = neighbors_from_orders(orders)
+    # TODO: what if many possibilities?
+
+    processed = set()
+    new_stream_plan = []
+    for v in stream_plan: # Processing in order is important
+        if v in processed:
+            continue
+        processed.add(v)
+        # TODO: assert that it has at least one thing in it
+
+        for dynamic in dynamic_streams:
+            # TODO: something could be an input and output of a cut...
+            if v.instance.external.name not in dynamic.streams:
+                continue
+            # TODO: need to ensure all are covered I think?
+            # TODO: don't do if no streams within
+
+            results = [v]
+            queue = deque([v])
+            while queue:
+                v1 = queue.popleft()
+                for v2 in neighbors[v1]:
+                    if (v2 not in processed) and (v2.instance.external.name in dynamic.streams):
+                        results.append(v2)
+                        queue.append(v2)
+                        processed.add(v2)
+
+            print(results)
+
+
+            param_from_obj = {}
+            inputs = []
+            domain = set()
+            outputs = []
+            certified = set()
+            input_objects = []
+            output_objects = []
+            functions = set()
+            # TODO: always have the option of not making a mega stream
+            for result in results: # TODO: branch on sequences here
+                # TODO: obtain cluster, top sort, then process
+                # TODO: could just do no instance inputs (no need for an instance...)
+                # TODO: could return map or tuple
+                local_mapping = {}
+                stream = result.instance.external
+                for inp, input_object in zip(stream.inputs, result.instance.input_objects):
+                    # TODO: make fixed objects constant
+                    #if isinstance()
+                    if input_object not in param_from_obj:
+                        param_from_obj[input_object] = '?i{}'.format(len(inputs))
+                        inputs.append(param_from_obj[input_object])
+                        input_objects.append(input_object)
+                    local_mapping[inp] = param_from_obj[input_object]
+                print(local_mapping)
+
+                if isinstance(result, PredicateResult):
+                    #functions.append(Equal(stream.head, result.value))
+                    mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
+                    functions.update(substitute_expression(result.get_certified(), mapping))
+                elif isinstance(result, PredicateResult):
+                    functions.add(substitute_expression(Minimize(stream.head), local_mapping))
+                else:
+                    #for inp in stream.inputs: # TODO: only do optimistic parameters?
+                    #    #if inp not in local_mapping:
+                    #    #    # TODO: this isn't right
+                    #    local_mapping[inp] = '?i{}'.format(len(inputs))
+                    #    inputs.append(local_mapping[inp])
+
+                    domain.update(substitute_expression(stream.domain, local_mapping))
+                    for out, output_object in zip(stream.outputs, result.output_objects):
+                        if output_object not in param_from_obj:
+                            param_from_obj[output_object] = '?o{}'.format(len(outputs))
+                            outputs.append(param_from_obj[output_object])
+                            output_objects.append(output_object)
+
+                        local_mapping[out] = param_from_obj[output_object]
+
+                    # TODO: what if the input parameters for one are the outputs of another in the cluster
+                    #for out in stream.outputs:
+                    #    #if out not in local_mapping:
+                    #    local_mapping[out] = '?o{}'.format(len(outputs))
+                    #    outputs.append(local_mapping[out])
+                    certified.update(substitute_expression(stream.certified, local_mapping))
+
+            def gen_fn(*input_values):
+                print(input_values)
+                mapping = dict(zip(inputs, input_values))
+                targets = substitute_expression(certified | functions, mapping)
+                return dynamic.gen_fn(outputs, targets)
+
+            mega_stream = Stream(dynamic.name, gen_fn,
+                   inputs=tuple(inputs), domain=domain,
+                   outputs=tuple(outputs), certified=certified)
+            mega_instance = mega_stream.get_instance(input_objects)
+            mega_result = StreamResult(mega_instance, output_objects)
+            new_stream_plan.append(mega_result)
+            new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), results)
+
+            print(mega_stream)
+            print(mega_result)
+            raw_input('awefawef')
+
+            break
+        else:
+            new_stream_plan.append(v)
+
+    print(new_stream_plan)
+
+
+    return new_stream_plan
+
+def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
+                  max_time=INF, max_cost=INF,
                   commit=True, effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, **search_kwargs):
     """
@@ -224,6 +344,7 @@ def solve_focused(problem, stream_info={}, action_info={}, max_time=INF, max_cos
             #stream_plan = reorder_streams(stream_plan)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
+            stream_plan = method(stream_plan, dynamic_streams)
 
         if stream_plan is None:
             if disabled or (depth != 0):

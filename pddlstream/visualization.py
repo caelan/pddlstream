@@ -1,10 +1,11 @@
 import os
 
 from pddlstream.algorithm import get_optimistic_constraints
-from pddlstream.conversion import get_args, is_atom, EQ, get_prefix, str_from_head
-from pddlstream.object import OptimisticObject
-from pddlstream.utils import str_from_tuple, clear_dir
+from pddlstream.conversion import get_args, EQ, get_prefix
 from pddlstream.function import FunctionResult
+from pddlstream.object import OptimisticObject
+from pddlstream.reorder import get_partial_orders
+from pddlstream.utils import str_from_tuple, clear_dir
 
 # https://www.graphviz.org/doc/info/colors.html
 
@@ -73,15 +74,6 @@ def visualize_constraints(constraints, filename='constraint_network.pdf'):
     return graph
 
 ##################################################
-
-def get_partial_orders(stream_plan):
-    # TODO: only show the first atom achieved?
-    partial_orders = set()
-    for i, stream1 in enumerate(stream_plan):
-        for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
-                partial_orders.add((stream1, stream2))
-    return partial_orders
 
 def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     from pygraphviz import AGraph

@@ -14,6 +14,8 @@ EXISTS = 'exists'
 FORALL = 'forall'
 WHEN = 'when'
 IMPLIES = 'implies'
+MINIMIZE = 'minimize'
+MAXIMIZE = 'maximize'
 
 PARAMETER = '?'
 TYPE = '-'
@@ -37,7 +39,10 @@ def Not(expression):
     return (NOT, expression)
 
 def Equal(expression1, expression2):
-    return (EQ,) + (expression1, expression2)
+    return (EQ, expression1, expression2)
+
+def Minimize(expression):
+    return (MINIMIZE, expression)
 
 def Type(param, ty):
     return (param, TYPE, ty)

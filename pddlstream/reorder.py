@@ -9,7 +9,17 @@ from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axio
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, Verbose, MockSet, find, implies
-from pddlstream.visualization import get_partial_orders
+
+def get_partial_orders(stream_plan):
+    # TODO: only show the first atom achieved?
+    partial_orders = set()
+    for i, stream1 in enumerate(stream_plan):
+        for stream2 in stream_plan[i+1:]: # Prevents circular
+            if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
+                partial_orders.add((stream1, stream2))
+    return partial_orders
+
+##################################################
 
 def neighbors_from_orders(orders):
     incoming_edges = defaultdict(set)

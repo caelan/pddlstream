@@ -75,6 +75,9 @@ def from_test(test):
 def from_rule():
     return from_test(lambda *args: True)
 
+def empty_gen():
+    return lambda *args: iter([])
+
 ##################################################
 
 def get_empty_fn(stream):

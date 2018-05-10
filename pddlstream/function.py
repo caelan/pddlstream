@@ -71,11 +71,11 @@ class External(object):
         self.domain = tuple(domain)
         self.instances = {}
 
-    def get_instance(self, input_values):
-        input_values = tuple(input_values)
-        if input_values not in self.instances:
-            self.instances[input_values] = self._Instance(self, input_values)
-        return self.instances[input_values]
+    def get_instance(self, input_objects):
+        input_objects = tuple(input_objects)
+        if input_objects not in self.instances:
+            self.instances[input_objects] = self._Instance(self, input_objects)
+        return self.instances[input_objects]
 
 
 ##################################################
