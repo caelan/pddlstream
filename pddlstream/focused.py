@@ -1,6 +1,6 @@
 import time
 from itertools import product
-from collections import defaultdict, OrderedDict, deque
+from collections import defaultdict, OrderedDict, deque, Counter
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
@@ -10,7 +10,7 @@ from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.object import Object
 from pddlstream.reorder import reorder_stream_plan, get_combined_orders, \
-    separate_plan, reorder_combined_plan, neighbors_from_orders, get_partial_orders
+    separate_plan, reorder_combined_plan, neighbors_from_orders, get_partial_orders, topological_sort
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult, Stream
@@ -165,7 +165,15 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 
 ##################################################
 
-def method(stream_plan, dynamic_streams):
+def get_gen_fn(inputs, outputs, certified, gen_fn):
+    def new_gen_fn(*input_values):
+        assert(len(inputs) == len(input_values))
+        mapping = dict(zip(inputs, input_values))
+        targets = substitute_expression(certified, mapping)
+        return gen_fn(outputs, targets)  # TODO: could also return a map
+    return new_gen_fn
+
+def get_macro_stream_plan(stream_plan, dynamic_streams):
     if stream_plan is None:
         return None
     orders = get_partial_orders(stream_plan)
@@ -189,18 +197,23 @@ def method(stream_plan, dynamic_streams):
             # TODO: need to ensure all are covered I think?
             # TODO: don't do if no streams within
 
-            results = [v]
+            cluster = [v]
             queue = deque([v])
             while queue:
                 v1 = queue.popleft()
                 for v2 in neighbors[v1]:
                     if (v2 not in processed) and (v2.instance.external.name in dynamic.streams):
-                        results.append(v2)
+                        cluster.append(v2)
                         queue.append(v2)
                         processed.add(v2)
+            print(cluster)
+            cluster = topological_sort(cluster, get_partial_orders(cluster))
+            print(cluster)
+            raw_input('awewf')
 
-            print(results)
-
+            counts = Counter(r.instance.external.name for r in cluster)
+            if not all(n <= counts[name] for name, n in dynamic.streams.items()):
+                continue
 
             param_from_obj = {}
             inputs = []
@@ -211,69 +224,43 @@ def method(stream_plan, dynamic_streams):
             output_objects = []
             functions = set()
             # TODO: always have the option of not making a mega stream
-            for result in results: # TODO: branch on sequences here
-                # TODO: obtain cluster, top sort, then process
-                # TODO: could just do no instance inputs (no need for an instance...)
-                # TODO: could return map or tuple
+            for result in cluster: # TODO: branch on sequences here
                 local_mapping = {}
                 stream = result.instance.external
                 for inp, input_object in zip(stream.inputs, result.instance.input_objects):
-                    # TODO: make fixed objects constant
+                    # TODO: only do optimistic parameters?
                     #if isinstance()
                     if input_object not in param_from_obj:
                         param_from_obj[input_object] = '?i{}'.format(len(inputs))
                         inputs.append(param_from_obj[input_object])
                         input_objects.append(input_object)
                     local_mapping[inp] = param_from_obj[input_object]
-                print(local_mapping)
+                domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
 
                 if isinstance(result, PredicateResult):
                     #functions.append(Equal(stream.head, result.value))
                     mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
                     functions.update(substitute_expression(result.get_certified(), mapping))
-                elif isinstance(result, PredicateResult):
+                elif isinstance(result, FunctionResult):
                     functions.add(substitute_expression(Minimize(stream.head), local_mapping))
                 else:
-                    #for inp in stream.inputs: # TODO: only do optimistic parameters?
-                    #    #if inp not in local_mapping:
-                    #    #    # TODO: this isn't right
-                    #    local_mapping[inp] = '?i{}'.format(len(inputs))
-                    #    inputs.append(local_mapping[inp])
-
-                    domain.update(substitute_expression(stream.domain, local_mapping))
                     for out, output_object in zip(stream.outputs, result.output_objects):
                         if output_object not in param_from_obj:
                             param_from_obj[output_object] = '?o{}'.format(len(outputs))
                             outputs.append(param_from_obj[output_object])
                             output_objects.append(output_object)
-
                         local_mapping[out] = param_from_obj[output_object]
-
-                    # TODO: what if the input parameters for one are the outputs of another in the cluster
-                    #for out in stream.outputs:
-                    #    #if out not in local_mapping:
-                    #    local_mapping[out] = '?o{}'.format(len(outputs))
-                    #    outputs.append(local_mapping[out])
                     certified.update(substitute_expression(stream.certified, local_mapping))
 
-            def gen_fn(*input_values):
-                print(input_values)
-                mapping = dict(zip(inputs, input_values))
-                targets = substitute_expression(certified | functions, mapping)
-                return dynamic.gen_fn(outputs, targets)
-
+            gen_fn = get_gen_fn(inputs, outputs, certified | functions, dynamic.gen_fn)
             mega_stream = Stream(dynamic.name, gen_fn,
                    inputs=tuple(inputs), domain=domain,
                    outputs=tuple(outputs), certified=certified)
+            mega_stream.cluster = cluster # TODO: new class?
             mega_instance = mega_stream.get_instance(input_objects)
             mega_result = StreamResult(mega_instance, output_objects)
             new_stream_plan.append(mega_result)
-            new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), results)
-
-            print(mega_stream)
-            print(mega_result)
-            raw_input('awefawef')
-
+            new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), cluster)
             break
         else:
             new_stream_plan.append(v)
@@ -344,7 +331,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             #stream_plan = reorder_streams(stream_plan)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
-            stream_plan = method(stream_plan, dynamic_streams)
+            stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
 
         if stream_plan is None:
             if disabled or (depth != 0):

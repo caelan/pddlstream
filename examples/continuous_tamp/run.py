@@ -252,9 +252,6 @@ def apply_action(state, action):
 
 def cfree_motion_fn(outputs, certified):
     assert(len(outputs) == 1)
-
-    print(outputs, certified)
-
     q0, q1 = None, None
     placed = {}
     for fact in certified:
@@ -263,11 +260,29 @@ def cfree_motion_fn(outputs, certified):
         if fact[0] == 'not':
             _, b, p =  fact[1][1:]
             placed[b] = p
-    print(q0, q1)
-    print(placed)
-    raw_input('Solved')
-
     return plan_motion(q0, q1)
+
+def get_cfree_pose_fn(regions):
+    def fn(outputs, certified):
+        print(outputs, certified)
+        b, r = None, None
+        placed = {}
+        for fact in certified:
+            print(fact)
+            if fact[0] == 'contained':
+                b, _, r = fact[1:]
+            if fact[0] == 'not':
+                _, _, b2, p2 =  fact[1][1:]
+                placed[b2] = p2
+        p = sample_region(b, regions[r])
+        return (p,)
+    return fn
+
+def get_optimize_fn(regions):
+    def fn(outputs, certified):
+        print(outputs, certified)
+        raw_input('awefawef')
+    return fn
 
 def main(focused=True, deterministic=False):
     np.set_printoptions(precision=2)
@@ -290,8 +305,13 @@ def main(focused=True, deterministic=False):
     }
 
     dynamic = [
-        DynamicStream('cfree-motion', ['plan-motion', 'trajcollision'],
-                      gen_fn=from_fn(cfree_motion_fn))
+        #DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #              gen_fn=from_fn(cfree_motion_fn)),
+        #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
+        #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
+        DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+                                   'posecollision': 0, 'distance': 0},
+                      gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
