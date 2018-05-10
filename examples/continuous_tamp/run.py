@@ -8,7 +8,7 @@ from collections import namedtuple
 import numpy as np
 
 from examples.continuous_tamp.constraint_solver import get_constraint_solver
-from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfree_pose_fn
+from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfree_pose_fn, cfree_motion_fn
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_generator, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, rejection_sample_placed, plan_motion
 from examples.discrete_tamp.viewer import COLORS
@@ -22,7 +22,7 @@ from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
 
-def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
+def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -165,13 +165,13 @@ def main(focused=True, deterministic=False):
     }
 
     dynamic = [
-        #DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-        #              gen_fn=from_fn(cfree_motion_fn)),
+        DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+                      gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        #DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-        #                           'posecollision': 0, 'distance': 0},
-        #              gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+                                   'posecollision': 0, 'distance': 0},
+                      gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)

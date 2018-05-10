@@ -47,17 +47,15 @@ def get_macro_stream_plan(stream_plan, dynamic_streams):
             # TODO: need to ensure all are covered I think?
             # TODO: don't do if no streams within
 
-            cluster = [v]
+            cluster = {v}
             queue = deque([v])
             while queue:
                 v1 = queue.popleft()
                 for v2 in neighbors[v1]:
                     if (v2 not in processed) and (v2.instance.external.name in dynamic.streams):
-                        cluster.append(v2)
+                        cluster.add(v2)
                         queue.append(v2)
                         processed.add(v2)
-            cluster = topological_sort(cluster, get_partial_orders(cluster))
-
             counts = Counter(r.instance.external.name for r in cluster)
             if not all(n <= counts[name] for name, n in dynamic.streams.items()):
                 continue
@@ -71,7 +69,9 @@ def get_macro_stream_plan(stream_plan, dynamic_streams):
             output_objects = []
             functions = set()
             # TODO: always have the option of not making a mega stream
-            for result in cluster: # TODO: branch on sequences here
+            for result in stream_plan: # TODO: branch on sequences here
+                if result not in cluster:
+                    continue
                 local_mapping = {}
                 stream = result.instance.external
                 for inp, input_object in zip(stream.inputs, result.instance.input_objects):
