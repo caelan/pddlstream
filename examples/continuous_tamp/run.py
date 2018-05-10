@@ -44,7 +44,8 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
            [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
 
-    goal_literals = [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
+    goal_literals = [('HandEmpty',)] + \
+                    [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
     if tamp_problem.goal_conf is not None:
         goal_literals += [('AtConf', tamp_problem.goal_conf)]
     goal = And(*goal_literals)
@@ -99,14 +100,14 @@ def get_blocked_problem():
 
     conf = np.array([0, 5])
     blocks = ['block{}'.format(i) for i in range(2)]
-    #poses = [np.zeros(2), np.array([7.5, 0])]
-    #block_poses = dict(zip(blocks, poses))
+    poses = [np.zeros(2), np.array([7.5, 0])]
+    block_poses = dict(zip(blocks, poses))
 
     block_regions = {
         blocks[0]: GROUND,
         blocks[1]: goal,
     }
-    block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+    #block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
     initial = TAMPState(conf, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
@@ -149,7 +150,7 @@ def main(focused=True, deterministic=False):
     if deterministic:
         np.random.seed(0)
 
-    problem_fn = get_tight_problem # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 

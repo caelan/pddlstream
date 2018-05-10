@@ -75,11 +75,12 @@ def get_macro_stream_result(dynamic, cluster):
                               outputs=tuple(outputs), certified=certified)
     #mega_stream.info = StreamInfo() # TODO: stream info
     mega_instance = mega_stream.get_instance(input_objects)
-    return MacroResult(mega_instance, output_objects, cluster)
+    stream_results = filter(lambda s: isinstance(s, StreamResult), cluster)
+    return MacroResult(mega_instance, output_objects, stream_results)
 
 def get_macro_stream_plan(stream_plan, dynamic_streams):
-    if stream_plan is None:
-        return None
+    if (stream_plan is None) or not dynamic_streams:
+        return stream_plan
     orders = get_partial_orders(stream_plan)
     for order in list(orders):
         orders.add(order[::-1])

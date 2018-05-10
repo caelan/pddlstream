@@ -95,6 +95,7 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
     _, out_priority_orders = neighbors_from_orders(effort_orders)
     priority_ordering = topological_sort(vertices, effort_orders)[::-1]
 
+    # TODO: could the greedy strategy lead to premature choices
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
     subproblems = {subset: Subproblem(0, None, None)}
@@ -119,6 +120,9 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
     ordering = []
     subset = frozenset(vertices)
     while True:
+        if subset not in subproblems:
+            print(vertices)
+            # TODO: some sort of bug where the problem isn't solved?
         subproblem = subproblems[subset]
         if subproblem.head is None:
             break

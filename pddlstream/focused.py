@@ -1,10 +1,10 @@
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from itertools import product
 
 from pddlstream.algorithm import parse_problem, get_optimistic_constraints
 from pddlstream.context import ConstraintSolver
-from pddlstream.macro_stream import get_macro_stream_plan
+from pddlstream.macro_stream import get_macro_stream_plan, MacroResult
 from pddlstream.conversion import revert_solution, evaluation_from_fact, substitute_expression
 from pddlstream.function import Function, Predicate
 from pddlstream.function import PredicateResult
@@ -17,7 +17,7 @@ from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF
-from pddlstream.utils import elapsed_time
+from pddlstream.utils import elapsed_time, implies
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
 
@@ -128,36 +128,46 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     opt_evaluations = set()
     opt_results = []
     failed = False
-    for step, opt_result in enumerate(stream_plan):
-        if failed and quick_fail:  # TODO: check if satisfies target certified
-            break
+    first_step = True
+    stream_queue = deque(stream_plan)
+    while stream_queue and implies(quick_fail, not failed):
+        opt_result = stream_queue.popleft()
         # Could check opt_bindings to see if new bindings
         real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings, evaluations, opt_evaluations)
         #num_instances = min(len(real_instances), max_values) if (layers or all(isinstance(o, Object)
         #                                             for o in opt_result.instance.input_objects)) else 0
         num_instances = min(len(real_instances), max_values) \
-            if (layers or (step == 0) or (opt_result not in shared_output_streams)) else 0
+            if (layers or first_step or (opt_result not in shared_output_streams)) else 0
         opt_instances += real_instances[num_instances:]
         real_instances = real_instances[:num_instances]
         new_results = []
+        local_failure = False
         for instance in real_instances:
-            results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
+            #results = instance.next_results(verbose=verbose, stream_plan=stream_plan[step:])
+            results = instance.next_results(verbose=verbose)
             evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             disable_stream_instance(instance, disabled)
-            failed |= not results
+            local_failure |= not results
             if isinstance(opt_result, PredicateResult) and not any(opt_result.value == r.value for r in results):
-                failed = True # TODO: check for instance?
+                local_failure = True # TODO: check for instance?
             new_results += results
         for instance in opt_instances:
             results = instance.next_optimistic()
             opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             opt_results += results
-            failed |= not results
+            local_failure |= not results
             new_results += results
         for result in new_results:
             if isinstance(result, StreamResult): # Could not add if same value
                 for opt, obj in zip(opt_result.output_objects, result.output_objects):
                     opt_bindings[opt].append(obj)
+        if local_failure and isinstance(opt_result, MacroResult):
+            stream_queue.extendleft(reversed(opt_result.child_results))
+            failed = False # TODO: check if satisfies target certified
+        else:
+            first_step = False
+            failed |= local_failure
+
     if verbose:
         print('Success: {}'.format(not failed))
     if failed:
@@ -195,7 +205,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     action_info = get_action_info(action_info)
     update_stream_info(externals, stream_info)
     eager_externals = filter(lambda e: e.info.eager, externals)
-    constraint_solver = ConstraintSolver(problem[3])
+    #constraint_solver = ConstraintSolver(problem[3])
     disabled = []
     if visualize:
         clear_visualizations()
@@ -246,12 +256,12 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
-            evaluations.update(map(evaluation_from_fact, constraint_facts))
-            if constraint_facts:
-                stream_results = []
-            else:
-                stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            #constraint_facts = constraint_solver.solve(get_optimistic_constraints(evaluations, stream_plan), verbose=verbose)
+            #evaluations.update(map(evaluation_from_fact, constraint_facts))
+            #if constraint_facts:
+            #    stream_results = []
+            #else:
+            stream_results = process_stream_plan(evaluations, stream_plan, disabled, verbose)
             if not commit:
                 stream_results = None
             depth += 1
