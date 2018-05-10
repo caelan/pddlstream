@@ -225,9 +225,9 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             print('Combined plan: {}'.format(combined_plan))
             stream_plan, action_plan = separate_plan(combined_plan, action_info)
             #stream_plan = reorder_streams(stream_plan)
+            stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
-            stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
 
         if stream_plan is None:
             if disabled or (depth != 0):

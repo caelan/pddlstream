@@ -56,10 +56,7 @@ def get_macro_stream_plan(stream_plan, dynamic_streams):
                         cluster.append(v2)
                         queue.append(v2)
                         processed.add(v2)
-            print(cluster)
             cluster = topological_sort(cluster, get_partial_orders(cluster))
-            print(cluster)
-            raw_input('awewf')
 
             counts = Counter(r.instance.external.name for r in cluster)
             if not all(n <= counts[name] for name, n in dynamic.streams.items()):

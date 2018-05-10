@@ -22,7 +22,7 @@ from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
 
-def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
+def pddlstream_from_tamp(tamp_problem, constraint_solver=True):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -71,7 +71,7 @@ def pddlstream_from_tamp(tamp_problem, constraint_solver=False):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -167,8 +167,8 @@ def main(focused=True, deterministic=False):
     dynamic = [
         #DynamicStream('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
         #              gen_fn=from_fn(cfree_motion_fn)),
-        DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
-                      gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
+        #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
+        #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
         #DynamicStream('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
         #                           'posecollision': 0, 'distance': 0},
         #              gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
