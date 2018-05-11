@@ -259,9 +259,9 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
 ##################################################
 
 def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
-                  max_time=INF, max_cost=INF,
+                  max_time=INF, max_cost=INF, unit_costs=False,
                   commit=True, effort_weight=None, eager_layers=1,
-                  visualize=False, verbose=True, postprocess=True, **search_kwargs):
+                  visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
@@ -310,7 +310,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
             combined_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
-                                                               negative, max_cost=best_cost, **search_kwargs)
+                                                               negative, max_cost=best_cost, unit_costs=unit_costs, **search_kwargs)
             combined_plan = reorder_combined_plan(evaluations, combined_plan, action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
             stream_plan, action_plan = separate_plan(combined_plan, action_info)
@@ -342,7 +342,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             depth += 1
 
     reset_disabled(disabled)
-    if postprocess:
+    if postprocess and (not unit_costs) and (best_plan is not None):
         best_plan = locally_optimize(evaluations, best_plan, goal_expression, domain,
                                      functions, negative, dynamic_streams, verbose)
     return revert_solution(best_plan, best_cost, evaluations)

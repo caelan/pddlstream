@@ -6,6 +6,8 @@ import os
 from collections import namedtuple
 
 import numpy as np
+import cProfile
+import pstats
 
 from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfree_pose_fn, cfree_motion_fn
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_gen, collision_test, \
@@ -69,7 +71,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -169,21 +171,26 @@ def main(focused=True, deterministic=False):
         #                  gen_fn=from_fn(cfree_motion_fn)),
         #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
         #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
-        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                   'posecollision': 0, 'distance': 0},
-                          gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+        #                           'posecollision': 0, 'distance': 0},
+        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ]
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
+    pr = cProfile.Profile()
+    pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  dynamic_streams=dynamic,
                                  max_time=10, max_cost=INF, debug=False,
-                                 commit=True, effort_weight=None, unit_costs=False, visualize=False)
+                                 commit=True, effort_weight=None, unit_costs=False,
+                                 visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=False)
     print_solution(solution)
     plan, cost, evaluations = solution
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     if plan is None:
         return
 

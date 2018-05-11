@@ -158,17 +158,17 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True):
+def main(focused=True, unit_costs=False):
     problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=True)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs)
     else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
-        solution = solve_incremental(pddlstream_problem, unit_costs=False)
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

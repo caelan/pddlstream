@@ -2,7 +2,7 @@ import numpy as np
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
 
-MIN_CLEARANCE = 0 # 0 | 1e-3
+MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
 ##################################################
 

@@ -5,6 +5,7 @@ from pddlstream.function import FunctionResult
 from pddlstream.object import OptimisticObject
 from pddlstream.reorder import get_partial_orders
 from pddlstream.utils import str_from_tuple, clear_dir
+from pddlstream.stream import StreamResult
 
 # https://www.graphviz.org/doc/info/colors.html
 
@@ -37,7 +38,7 @@ def create_visualizations(evaluations, stream_plan, num_iterations):
 
 ##################################################
 
-def visualize_constraints(constraints, filename='constraint_network.pdf'):
+def visualize_constraints(constraints, filename='constraint_network.pdf', use_functions=True):
     from pygraphviz import AGraph
 
     graph = AGraph(strict=True, directed=False)
@@ -62,6 +63,8 @@ def visualize_constraints(constraints, filename='constraint_network.pdf'):
         graph.add_node(str(opt_obj), shape='circle', color=PARAMETER_COLOR)
 
     for head in heads:
+        if not use_functions and (head in functions):
+            continue
         # TODO: prune values w/o free parameters?
         name = str_from_tuple(head)
         color = COST_COLOR if head in functions else CONSTRAINT_COLOR
@@ -93,7 +96,7 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
 
 ##################################################
 
-def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
+def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use_functions=False):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -113,11 +116,15 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf'):
 
     achieved_facts = set()
     for stream in stream_plan:
+        if not use_functions and isinstance(stream, FunctionResult):
+            continue
         s_stream = add_stream(stream)
         for fact in stream.instance.get_domain():
             if fact in achieved_facts:
                 s_fact = add_fact(fact)
                 graph.add_edge(s_fact, s_stream) # Add initial facts?
+        #if not isinstance(stream, StreamResult):
+        #    continue
         for fact in stream.get_certified():
             if fact not in achieved_facts: # Ensures DAG
                 s_fact = add_fact(fact)

@@ -113,7 +113,7 @@ def main(max_time=20):
     draw_roadmap(roadmap, obstacles, regions) # TODO: do this in realtime
     user_input('Continue?')
 
-    segments = [action[1:] for action in plan]
+    segments = [args for name, args in plan]
     draw_solution(segments, obstacles, regions)
     user_input('Finish?')
 
