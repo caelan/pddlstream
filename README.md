@@ -44,13 +44,8 @@ These are simple examples that can be run without additional depedencies:
 * Blocksworld: `$ python examples/pddl/blocksworld.py` (alternatively `python -m examples.pddl.blocksworld`)
 * Blocksworld with Derived Predicates: `$ python examples/pddl/blocksworld_derived.py`
 * Discrete TAMP: `$ python examples/discrete_tamp/run.py`
-<!--img src="images/discrete_tamp.png" height="100"-->
-
 * 1D Continuous TAMP: `$ python examples/continuous_tamp/run.py`
-<!--img src="images/continuous_tamp.png" height="100"-->
-
 * 2D Motion Planning: `$ python examples/motion/run.py`
-<!--img src="images/motion.png" height="200"-->
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
 
