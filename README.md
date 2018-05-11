@@ -47,6 +47,9 @@ These are simple examples that can be run without additional depedencies:
 * 1D Continuous TAMP: `$ python examples/continuous_tamp/run.py`
 * 2D Motion Planning: `$ python examples/motion/run.py`
 
+<!--img src="images/pr2.png" height="300">&emsp;<img src="images/kuka.png" height="300"-->
+
+
 ### PyBullet
 
 These examples require installation of following library:
