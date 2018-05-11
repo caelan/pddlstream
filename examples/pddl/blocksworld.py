@@ -3,23 +3,60 @@
 from __future__ import print_function
 
 from pddlstream.fast_downward import solve_from_pddl
-from pddlstream.utils import read
+from pddlstream.incremental import solve_incremental, solve_exhaustive
+from pddlstream.focused import solve_focused
+from pddlstream.utils import print_solution, read
 import os
+
+def read_pddl(filename):
+    directory = os.path.dirname(os.path.abspath(__file__))
+    return read(os.path.join(directory, filename))
 
 ##################################################
 
-# Can extend problem file as well if provided with an object map
+def solve_pddl():
+    domain_pddl = read_pddl('domain.pddl')
+    problem_pddl = read_pddl('problem.pddl')
+
+    plan, cost = solve_from_pddl(domain_pddl, problem_pddl)
+    print('Plan:', plan)
+    print('Cost:', cost)
+
+##################################################
+
+def get_problem():
+    domain_pddl = read_pddl('domain.pddl')
+    constant_map = {}
+    stream_pddl = None
+    stream_map = {}
+
+    init = [
+        ('on-table', 'a'),
+        ('on', 'b', 'a'),
+        ('clear', 'b'),
+        ('arm-empty',),
+    ]
+    goal =  ('on', 'a', 'b')
+
+    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+
+def solve_pddlstream(focused=True):
+    pddlstream_problem = get_problem()
+    if focused:
+        solution = solve_focused(pddlstream_problem, unit_costs=True)
+    else:
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=True)
+        solution = solve_incremental(pddlstream_problem, unit_costs=True)
+    print_solution(solution)
+
+##################################################
+
 # TODO: could extract the FD parser by itself
 # TODO: include my version of FD as a submodule
 
 def main():
-    directory = os.path.dirname(os.path.abspath(__file__))
-    domain_pddl = read(os.path.join(directory, 'domain.pddl'))
-    problem_pddl = read(os.path.join(directory, 'problem.pddl'))
-
-    plan, cost = solve_from_pddl(domain_pddl, problem_pddl, debug=False)
-    print('Plan:', plan)
-    print('Cost:', cost)
+    #solve_pddl()
+    solve_pddlstream()
 
 if __name__ == '__main__':
     main()

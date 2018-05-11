@@ -6,4 +6,4 @@
      (on b a)
      (clear b)
      (arm-empty))
-   (:goal (and (on a b))))
+   (:goal (on a b)))

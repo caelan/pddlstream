@@ -2,7 +2,10 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import solve_from_pddl, translate_paths, write_pddl
+from pddlstream.incremental import solve_incremental, solve_exhaustive
+from pddlstream.focused import solve_focused
+from pddlstream.utils import print_solution
+from pddlstream.fast_downward import solve_from_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -51,27 +54,41 @@ PROBLEM_PDDL = """
 
 ##################################################
 
-# TODO: read PDDL from a file or string
-# Can always parse name, parameters, etc from pddl
-# No types to start but later can extend
-# Not assuming any special preconditions and effects makes it easy to extend to other PDDL variants
-# Can extend problem file as well if provided with an object map
-
-def brainstorm():
-    domain_path, problem_path = write_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
-    task = translate_paths(domain_path, problem_path) # TODO: might need to make these wrt temp
-    print(task.objects)
-    print(task.axioms) # Separated but not negated
-    task.dump()
-    #print(task.__dict__)
-    #return
-    import sys
-    # TODO: could even directly convert and mutate the task
-
-def main():
-    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, debug=False)
+def solve_pddl():
+    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
     print('Plan:', plan)
     print('Cost:', cost)
+
+##################################################
+
+def get_problem():
+    constant_map = {}
+    stream_pddl = None
+    stream_map = {}
+
+    init = [
+        ('on-table', 'a'),
+        ('on', 'b', 'a'),
+        ('arm-empty',),
+    ]
+    goal =  ('on', 'a', 'b')
+
+    return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
+
+def solve_pddlstream(focused=True):
+    pddlstream_problem = get_problem()
+    if focused:
+        solution = solve_focused(pddlstream_problem, unit_costs=True)
+    else:
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=True)
+        solution = solve_incremental(pddlstream_problem, unit_costs=True)
+    print_solution(solution)
+
+##################################################
+
+def main():
+    #solve_pddl()
+    solve_pddlstream()
 
 if __name__ == '__main__':
     main()

@@ -228,6 +228,8 @@ def parse_stream_pddl(stream_pddl, stream_map):
     streams = []
     if stream_pddl is None:
         return streams
+    if all(isinstance(e, External) for e in stream_pddl):
+        return stream_pddl
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, stream_name = next(stream_iter)
