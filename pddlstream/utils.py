@@ -4,6 +4,7 @@ import os
 import shutil
 import sys
 import time
+import math
 
 INF = float('inf')
 
@@ -11,6 +12,9 @@ try:
    user_input = raw_input
 except NameError:
    user_input = input
+
+def int_ceil(f):
+    return int(math.ceil(f))
 
 def read(filename):
     with open(filename, 'r') as f:
@@ -136,3 +140,22 @@ class MockSet(object):
 
 def implies(a, b):
     return not a or b
+
+def irange(start, end=None, step=1):
+    if end is None:
+        end = start
+        start = 0
+    n = start
+    while n < end:
+        yield n
+        n += step
+
+def argmin(function, sequence):
+    values = list(sequence)
+    scores = [function(x) for x in values]
+    return values[scores.index(min(scores))]
+
+def argmax(function, sequence):
+    values = list(sequence)
+    scores = [function(x) for x in values]
+    return values[scores.index(max(scores))]

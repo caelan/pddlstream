@@ -1,6 +1,7 @@
-from collections import defaultdict, namedtuple, deque
+from collections import namedtuple, deque
 from heapq import heappush, heappop
 
+from pddlstream.algorithm import neighbors_from_orders
 from pddlstream.conversion import evaluation_from_fact, get_prefix, EQ, pddl_from_object
 from pddlstream.fast_downward import get_init, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
     apply_action
@@ -21,14 +22,6 @@ def get_partial_orders(stream_plan):
     return partial_orders
 
 ##################################################
-
-def neighbors_from_orders(orders):
-    incoming_edges = defaultdict(set)
-    outgoing_edges = defaultdict(set)
-    for v1, v2 in orders:
-        incoming_edges[v2].add(v1)
-        outgoing_edges[v1].add(v2)
-    return incoming_edges, outgoing_edges
 
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
     # Can also do a DFS version
@@ -52,16 +45,6 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
 def get_stream_stats(result):
     info = result.instance.external.info
     return info.p_success, info.overhead
-
-def get_deterministic_action_stats(action):
-    p_success = 1
-    overhead = INF
-    return p_success, overhead
-
-def get_replan_action_stats(action):
-    p_success = 1e-3 # Should never do zero...
-    overhead = 1
-    return p_success, overhead
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     if stream_plan is None:

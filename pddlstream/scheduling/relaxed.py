@@ -1,14 +1,16 @@
 import os
-from collections import defaultdict, deque, namedtuple
+from collections import defaultdict, deque, namedtuple, OrderedDict
 from heapq import heappush, heappop
 
-from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl
+from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
 from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
     parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd, solve_from_task
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies
+from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies, argmax
 from pddlstream.function import PredicateResult
+from pddlstream.algorithm import neighbors_from_orders
+from pddlstream.scheduling.simultaneous import get_stream_actions
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -83,7 +85,7 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
         if (stream_result is None) or (stream_result in stream_plan):
             continue
         extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
-        stream_plan.append(stream_result)
+        stream_plan.append(stream_result) # TODO: don't add if satisfied
 
 ##################################################
 
@@ -152,18 +154,21 @@ def get_goal_instance(goal):
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
     return pddl.PropositionalAction(name, precondition, [], None)
 
-def recover_stream_plan(evaluations, stream_results, task, action_plan, negative, unit_costs):
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
+                        unit_costs, optimize=True):
     import pddl_to_prolog
     import build_model
     import pddl
     import axiom_rules
     import instantiate
 
+    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
     real_init = get_init(evaluations)
     function_assignments = {fact.fluent: fact.expression for fact in task.init  # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    results_from_head = get_results_from_head(evaluations_from_stream_plan(evaluations, stream_results))
+    results_from_head = get_results_from_head(opt_evaluations)
     fluent_facts = MockSet()
     init_facts = set()
 
@@ -238,22 +243,37 @@ def recover_stream_plan(evaluations, stream_results, task, action_plan, negative
             function_plan.add(PredicateResult(instance, value))
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
+    preimage_facts = map(fact_from_fd, preimage)
     stream_plan = []
-    extract_stream_plan(node_from_atom, map(fact_from_fd, preimage), stream_plan)
-    return stream_plan + list(function_plan)
+    extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
+    if not optimize: # TODO: detect this based on unique or not
+        return stream_plan + list(function_plan)
+
+    # TODO: search in space of partially ordered plans
+    # TODO: local optimization - remove one and see if feasible
+
+    task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
+    task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    new_plan, _ = solve_from_task(task, planner='max-astar', debug=False)
+    # TODO: investigate admissible heuristics
+    if new_plan is None:
+        return stream_plan + list(function_plan)
+
+    new_stream_plan = [stream_result_from_name[name] for name, _ in new_plan]
+    return new_stream_plan + list(function_plan)
 
 ##################################################
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
-    task = task_from_domain_problem(domain, problem)
+    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
     action_plan, action_cost = solve_from_task(task, **kwargs)
     if action_plan is None:
         return None, action_cost
 
-    stream_plan = recover_stream_plan(evaluations, stream_results, task, action_plan, negative, unit_costs)
+    stream_plan = recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan,
+                                      negative, unit_costs)
     action_plan = obj_from_pddl_plan(action_plan)
     combined_plan = stream_plan + action_plan
 

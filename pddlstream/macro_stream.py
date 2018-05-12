@@ -2,7 +2,8 @@ from collections import deque, Counter
 
 from pddlstream.conversion import substitute_expression, Minimize
 from pddlstream.function import PredicateResult, FunctionResult
-from pddlstream.reorder import get_partial_orders, neighbors_from_orders, topological_sort
+from pddlstream.reorder import get_partial_orders, topological_sort
+from pddlstream.algorithm import neighbors_from_orders
 from pddlstream.stream import Stream, StreamInstance, StreamResult, StreamInfo
 
 # TODO: locally optimize a feasible plan skeleton (can be done with sampling as well)

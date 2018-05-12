@@ -71,7 +71,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -144,13 +144,13 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False):
+def main(focused=True, deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
         np.random.seed(0)
     print('Seed:', np.random.get_state()[1][0])
 
-    problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -183,10 +183,10 @@ def main(focused=True, deterministic=False):
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  dynamic_streams=dynamic,
                                  max_time=10, max_cost=INF, debug=False,
-                                 commit=True, effort_weight=None, unit_costs=False,
+                                 commit=True, effort_weight=None, unit_costs=unit_costs,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=False)
+        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

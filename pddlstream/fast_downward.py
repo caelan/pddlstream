@@ -51,6 +51,8 @@ SEARCH_OPTIONS = {
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
     'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
                  ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=NORMAL))"'
+                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
 
     # Suboptimal
     'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '

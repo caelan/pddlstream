@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
@@ -36,3 +36,12 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
+
+
+def neighbors_from_orders(orders):
+    incoming_edges = defaultdict(set)
+    outgoing_edges = defaultdict(set)
+    for v1, v2 in orders:
+        incoming_edges[v2].add(v1)
+        outgoing_edges[v1].add(v2)
+    return incoming_edges, outgoing_edges

@@ -169,8 +169,7 @@ def fact_from_evaluation(evaluation):
         return head
     elif is_negated_atom(evaluation):
         return (NOT, head)
-    else:
-        return (EQ, head, evaluation.value)
+    return (EQ, head, evaluation.value)
 
 def init_from_evaluation(evaluation):
     head = (evaluation.head.function,) + values_from_objects(evaluation.head.args)
@@ -178,8 +177,7 @@ def init_from_evaluation(evaluation):
         return head
     elif is_negated_atom(evaluation):
         return (NOT, head)
-    else:
-        return (EQ, head, evaluation.value)
+    return (EQ, head, evaluation.value)
 
 def init_from_evaluations(evaluations):
     return list(map(init_from_evaluation, evaluations))

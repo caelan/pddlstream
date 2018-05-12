@@ -5,7 +5,7 @@ from pddlstream.conversion import pddl_from_object, obj_from_pddl, evaluation_fr
 from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
 from pddlstream.function import FunctionResult
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF, find
+from pddlstream.utils import INF, find, int_ceil
 
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
@@ -35,7 +35,7 @@ def get_results_from_head(evaluations):
         #results_from_head[evaluation.head].append(stream_result)
     return results_from_head
 
-def get_stream_action(result, name, effect_scale=1):
+def get_stream_action(result, name, unit_cost, effect_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
 
@@ -45,19 +45,19 @@ def get_stream_action(result, name, effect_scale=1):
     effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
                for fact in result.get_certified()]
 
-    effort = result.instance.external.info.effort
+    effort = 1 if unit_cost else result.instance.external.info.effort
     if effort == INF:
         return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-    expression = pddl.NumericConstant(effect_scale*effort) # Integer
-    increase = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
+    expression = pddl.NumericConstant(int_ceil(effect_scale*effort)) # Integer
+    cost = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
 
     return pddl.Action(name=name, parameters=parameters, num_external_parameters=len(parameters),
-                    precondition=precondition, effects=effects, cost=increase)
+                    precondition=precondition, effects=effects, cost=cost)
     # TODO: previous problem seemed to be new predicates
 
 
-def get_stream_actions(results):
+def get_stream_actions(results, unit_costs=False):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(results):
@@ -65,7 +65,7 @@ def get_stream_actions(results):
         if type(stream_result) == FunctionResult:
             continue
         name = '{}-{}'.format(stream_result.instance.external.name, i)
-        stream_action = get_stream_action(stream_result, name)
+        stream_action = get_stream_action(stream_result, name, unit_costs)
         if stream_action is None:
             continue
         stream_result_from_name[name] = stream_result

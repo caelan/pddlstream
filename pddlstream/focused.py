@@ -121,7 +121,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         if isinstance(result, StreamResult):
             for obj in result.output_objects:
                 streams_from_output[obj].append(result)
-    shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
+    #shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
+    shared_output_streams = {}
 
     opt_bindings = defaultdict(list)
     opt_evaluations = set()
@@ -237,9 +238,9 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
     opt_action_plan = [(name, tuple(opt_from_obj.get(o, o) for o in args)) for name, args in action_plan]
 
     opt_evaluations = evaluations_from_stream_plan(evaluations, opt_stream_plan)
-    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=False))
+    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs=False)
     pddl_plan = [(name, map(pddl_from_object, args)) for name, args in opt_action_plan]
-    stream_plan = recover_stream_plan(evaluations, opt_stream_plan, opt_task, pddl_plan, negative, unit_costs=False)
+    stream_plan = recover_stream_plan(evaluations, opt_stream_plan, domain, problem, pddl_plan, negative, unit_costs=False)
 
     stream_plan = reorder_stream_plan(stream_plan)  # TODO: is this strictly redundant?
     stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
