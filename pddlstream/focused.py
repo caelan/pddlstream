@@ -53,13 +53,6 @@ def update_stream_info(externals, stream_info):
 
 ##################################################
 
-def populate_results(evaluations, streams):
-    instantiator = Instantiator(evaluations, streams)
-    stream_results = []
-    while instantiator.stream_queue:
-        stream_results += optimistic_process_stream_queue(instantiator)
-    return stream_results
-
 def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
     start_time = time.time()
     instantiator = Instantiator(evaluations, externals)
@@ -77,6 +70,15 @@ def optimistic_process_stream_queue(instantiator):
             instantiator.add_atom(evaluation_from_fact(fact))
     return stream_results
 
+def populate_results(evaluations, streams, initial_instances=[]):
+    instantiator = Instantiator(evaluations, streams)
+    for instance in initial_instances:
+        instantiator.stream_queue.append(instance)
+    stream_results = []
+    while instantiator.stream_queue:
+        stream_results += optimistic_process_stream_queue(instantiator)
+    return stream_results
+
 ##################################################
 
 def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations):
@@ -85,8 +87,9 @@ def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluati
     combined_evaluations = evaluation_set | opt_evaluations
     real_instances = []
     opt_instances = []
-    input_objects = [[i] if isinstance(i, Object) else bindings[i]
-                    for i in stream_instance.input_objects]
+    #input_objects = [[i] if isinstance(i, Object) else bindings[i]
+    #                for i in stream_instance.input_objects]
+    input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
     for combo in product(*input_objects):
         mapping = dict(zip(stream_instance.input_objects, combo))
         domain = set(map(evaluation_from_fact, substitute_expression(
@@ -121,21 +124,19 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         if isinstance(result, StreamResult):
             for obj in result.output_objects:
                 streams_from_output[obj].append(result)
-    #shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
-    shared_output_streams = {}
+    shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
+    #shared_output_streams = {}
 
     opt_bindings = defaultdict(list)
     opt_evaluations = set()
     opt_results = []
     failed = False
-    first_step = True
     stream_queue = deque(stream_plan)
     while stream_queue and implies(quick_fail, not failed):
         opt_result = stream_queue.popleft()
-        # Could check opt_bindings to see if new bindings
-        real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings, evaluations, opt_evaluations)
-        #num_instances = min(len(real_instances), max_values) if (layers or all(isinstance(o, Object)
-        #                                             for o in opt_result.instance.input_objects)) else 0
+        real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings,
+                                                                evaluations, opt_evaluations)
+        first_step = all(isinstance(o, Object) for o in opt_result.instance.input_objects)
         num_instances = min(len(real_instances), max_values) \
             if (layers or first_step or (opt_result not in shared_output_streams)) else 0
         opt_instances += real_instances[num_instances:]
@@ -168,7 +169,6 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
             stream_queue.extendleft(reversed(opt_result.decompose()))
             failed = False # TODO: check if satisfies target certified
         else:
-            first_step = False
             failed |= local_failure
 
     if verbose:
@@ -337,7 +337,19 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            stream_results, _ = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+            option = True
+            if option:
+                # TODO: can instantiate all but subtract stream_results
+                # TODO: can even pass a subset of the fluent state
+                # TODO: can just compute the stream plan preimage
+                # TODO: replan constraining the initial state and plan skeleton
+                # TODO: reuse subproblems
+                # TODO: always start from the initial state (i.e. don't update)
+                old_evaluations = set(evaluations)
+                stream_results, _ = process_stream_plan(evaluations, stream_plan, disabled, verbose)
+                new_evaluations = set(evaluations) - old_evaluations
+                new_instances = [r.instance for r in stream_results]
+                stream_results = populate_results(new_evaluations, streams, new_instances)
             if not commit:
                 stream_results = None
             depth += 1
