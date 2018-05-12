@@ -22,6 +22,14 @@ from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
 from pddlstream.utils import print_solution, user_input, read, INF
 from viewer import ContinuousTMPViewer, GROUND
 
+"""
+  (:stream test-region
+    :inputs (?b ?p ?r)
+    :domain (and (Pose ?b ?p) (Region ?r))
+    :outputs ()
+    :certified (Contained ?b ?p ?r)
+  )
+"""
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -52,17 +60,17 @@ def pddlstream_from_tamp(tamp_problem):
     goal = And(*goal_literals)
 
     stream_map = {
-        #'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'plan-motion': from_fn(plan_motion),
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
-        #'collision-free': from_test(lambda *args: not collision_test(*args)),
+        'collision-free': from_test(lambda *args: not collision_test(*args)),
         'cfree': lambda *args: not collision_test(*args),
         'posecollision': collision_test,
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
     }
+    #stream_map = 'debug'
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 

@@ -1,10 +1,11 @@
-from collections import Counter
+from collections import Counter, defaultdict
+from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
 from pddlstream.function import Result, Instance, External, ExternalInfo, geometric_cost, parse_function, \
-    parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS
+    parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS, DEBUG
 from pddlstream.utils import str_from_tuple, INF
 import time
 
@@ -86,8 +87,19 @@ def get_unique_fn(stream):
         return [output_values]
     return fn
 
+class DebugValue(object): # TODO: could just do an object
+    _output_counts = defaultdict(count)
+    def __init__(self, stream, input_values, output_parameter):
+        self.stream = stream
+        self.input_values = input_values
+        self.output_parameter = output_parameter
+        self.index = next(self._output_counts[output_parameter])
+    def __repr__(self):
+        return '${}{}'.format(self.output_parameter[1:], self.index)
 
 ##################################################
+
+# TODO: debug stream functions
 
 class StreamInfo(ExternalInfo):
     # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
@@ -169,6 +181,9 @@ class Stream(External):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, inputs, domain)
         # Each stream could certify a stream-specific fact as well
+        if gen_fn == DEBUG:
+            #gen_fn = from_fn(lambda *args: tuple(object() for _ in self.outputs))
+            gen_fn = from_fn(lambda *args: tuple(DebugValue(name, args, o) for o in self.outputs))
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
@@ -217,11 +232,14 @@ def parse_stream(lisp_list, stream_map):
     assert (STREAM_ATTRIBUTES == attributes)
     values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
     name, inputs, domain, outputs, certified = values
-    if name not in stream_map:
-        raise ValueError('Undefined stream conditional generator: {}'.format(name))
-    return Stream(name, stream_map[name],
-                          tuple(inputs), list_from_conjunction(domain),
-                          tuple(outputs), list_from_conjunction(certified))
+    if stream_map == DEBUG:
+        gen_fn = DEBUG
+    else:
+        if name not in stream_map:
+            raise ValueError('Undefined stream conditional generator: {}'.format(name))
+        gen_fn = stream_map[name]
+    return Stream(name, gen_fn, tuple(inputs), list_from_conjunction(domain),
+                  tuple(outputs), list_from_conjunction(certified))
 
 
 def parse_stream_pddl(stream_pddl, stream_map):
@@ -234,6 +252,7 @@ def parse_stream_pddl(stream_pddl, stream_map):
     assert('define' == next(stream_iter))
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
+    #debug = (stream_map == DEBUG)
 
     for lisp_list in stream_iter:
         name = lisp_list[0]

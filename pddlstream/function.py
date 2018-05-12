@@ -7,7 +7,7 @@ import time
 
 DEFAULT_P_SUCCESS = 0.75
 DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
-
+DEBUG = 'debug'
 
 class ExternalInfo(object):
     pass
@@ -194,6 +194,8 @@ class Function(External):
     def __init__(self, head, fn, domain):
         super(Function, self).__init__(get_prefix(head), get_args(head), domain)
         self.head = head
+        if fn == DEBUG:
+            fn = lambda *args: self._codomain()
         self.fn = fn
         self.info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
     def __repr__(self):
@@ -240,18 +242,26 @@ def parse_function(lisp_list, stream_map):
     # inputs = get_args(head)
     domain = list_from_conjunction(lisp_list[2])
     name = get_prefix(head)
-    if name not in stream_map:
-        raise ValueError('Undefined external function: {}'.format(name))
-    return Function(head, stream_map[name], domain)
+    if stream_map == DEBUG:
+        fn = DEBUG
+    else:
+        if name not in stream_map:
+            raise ValueError('Undefined external function: {}'.format(name))
+        fn = stream_map[name]
+    return Function(head, fn, domain)
 
 def parse_predicate(lisp_list, stream_map):
     assert (len(lisp_list) == 3)
     head = tuple(lisp_list[1])
     assert (is_head(head))
     name = get_prefix(head)
-    if name not in stream_map:
-        raise ValueError('Undefined external function: {}'.format(name))
-    return Predicate(head, stream_map[name], list_from_conjunction(lisp_list[2]))
+    if stream_map == DEBUG:
+        fn = DEBUG
+    else:
+        if name not in stream_map:
+            raise ValueError('Undefined external function: {}'.format(name))
+        fn = stream_map[name]
+    return Predicate(head, fn, list_from_conjunction(lisp_list[2]))
 
 
 def dump_external_statistics(externals):

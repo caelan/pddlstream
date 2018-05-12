@@ -8,12 +8,6 @@
     :outputs (?p)
     :certified (and (Pose ?b ?p) (Contained ?b ?p ?r))
   )
-  (:stream test-region
-    :inputs (?b ?p ?r)
-    :domain (and (Pose ?b ?p) (Region ?r))
-    :outputs ()
-    :certified (Contained ?b ?p ?r)
-  )
   (:stream inverse-kinematics ;Comments?
     :inputs (?b ?p)
     :domain (Pose ?b ?p)
