@@ -12,18 +12,22 @@ import scipy.stats as stats
 
 trAlways = print
 
+
 # Think of this as a mixture of a distribution and something like a uniform,
 # but it doesn't really work unless the universe is finite
 class HedgedDist:
-    def __init__(self, baseDist, p, universe = None):
+    def __init__(self, baseDist, p, universe=None):
         self.baseDist = baseDist
         self.p = p
         self.n = len(universe) if universe is not None else 0
+
     def mode(self):
         return self.baseDist.mode()
+
     def prob(self, v):
         return self.baseDist.prob(v) * self.p + \
                (1.0 / self.n) if self.n > 0 else 0
+
 
 class DiscreteDist:
     """
@@ -34,10 +38,13 @@ class DiscreteDist:
 
     def __init__(self):
         raise Exception('Abstract class')
+
     def prob(self, x):
         raise Exception('Abstract class')
+
     def setProb(self, x, p):
         raise Exception('Abstract class')
+
     def support(self):
         raise Exception('Abstract class')
 
@@ -78,7 +85,7 @@ class DiscreteDist:
     # and sum the results.
     def variance(self):
         mu = self.mean()
-        return sum([(x - mu)**2 * self.prob(x) for x in self.support()])
+        return sum([(x - mu) ** 2 * self.prob(x) for x in self.support()])
 
     def conditionOnVar(self, index, value):
         """
@@ -91,12 +98,13 @@ class DiscreteDist:
         """
         newElements = [elt for elt in self.support() if elt[index] == value]
         z = sum([self.prob(elt) for elt in newElements])
-        return DDist(dict([(removeElt(elt, index), self.prob(elt)/z) \
-                                                   for elt in newElements]))
+        return DDist(dict([(removeElt(elt, index), self.prob(elt) / z) \
+                           for elt in newElements]))
 
     def verify(self):
         z = sum([self.prob(elt) for elt in self.support()])
         assert 0.99999 < z < 1.00001, 'degenerate distribution ' + str(self)
+
 
 def convertToDDist(oldD):
     newD = DDist({})
@@ -104,10 +112,12 @@ def convertToDDist(oldD):
         newD.addProb(elt, oldD.prob(elt))
     return newD
 
+
 class DDist(DiscreteDist):
     """Discrete distribution represented as a dictionary.  Can be
     sparse, in the sense that elements that are not explicitly
     contained in the dictionary are assuemd to have zero probability."""
+
     def __init__(self, dictionary={}, name=None):
         self.__d = copy.copy(dictionary)
         """ Dictionary whose keys are elements of the domain and values
@@ -139,7 +149,7 @@ class DDist(DiscreteDist):
         """
         self.setProb(val, self.prob(val) + p)
         self.update()
-        
+
     def mulProb(self, val, p):
         """
         Multiply the probability of element C{val} by C{p}
@@ -244,14 +254,14 @@ class DDist(DiscreteDist):
 
     def transitionUpdate(self, tDist):
         new = {}
-        for sPrime in self.support(): #for each old state sPrime
-            tDistS = tDist(sPrime) #distribution over ending states
-            if tDistS is None: # terminal state
+        for sPrime in self.support():  # for each old state sPrime
+            tDistS = tDist(sPrime)  # distribution over ending states
+            if tDistS is None:  # terminal state
                 continue
             oldP = self.prob(sPrime)
             for s in tDistS.support():
-                #prob of transitioning to s from sPrime                
-                new[s] = new.get(s,0) + tDistS.prob(s)*oldP 
+                # prob of transitioning to s from sPrime
+                new[s] = new.get(s, 0) + tDistS.prob(s) * oldP
         self.__d = new
         if len(self.support()) > 0:
             self.update()
@@ -265,12 +275,12 @@ class DDist(DiscreteDist):
         z = sum([d.prob(e) for e in d.support()])
         if z > 0.0:
             d.normalize(z)
-        return z                        # prob(obs)
+        return z  # prob(obs)
 
     def __repr__(self):
         if self.__d.items():
-            dictRepr = reduce(operator.add,[repr(k)+": "+prettyString(p)+", " \
-                                            for (k, p) in self.__d.items()])
+            dictRepr = reduce(operator.add, [repr(k) + ": " + prettyString(p) + ", " \
+                                             for (k, p) in self.__d.items()])
         else:
             dictRepr = '{}'
         return "DDist({" + dictRepr[:-2] + "})"
@@ -282,17 +292,20 @@ class DDist(DiscreteDist):
         if isinstance(self, JDist):
             return self
         else:
-            result = JDist([self.support()], name = [self.name])
+            result = JDist([self.support()], name=[self.name])
             result.d = dict([((e,), self.prob(e)) for e in self.support()])
             return result
 
     def __hash__(self):
         return hash(frozenset(self.__d.items()))
+
     def __eq__(self, other):
         return self.__d == other.__d
+
     def __ne__(self, other):
         return self.__d != other.__d
-            
+
+
 ######################################################################
 #   Special cases
 
@@ -300,7 +313,8 @@ def DeltaDist(v):
     """
     Distribution with all of its probability mass on value C{v}
     """
-    return DDist({v:1.0})
+    return DDist({v: 1.0})
+
 
 def UniformDist(elts):
     """
@@ -309,6 +323,7 @@ def UniformDist(elts):
     """
     p = 1.0 / len(elts)
     return DDist(dict([(e, p) for e in elts]))
+
 
 class MixtureDist(DiscreteDist):
     """
@@ -323,12 +338,13 @@ class MixtureDist(DiscreteDist):
     distributions.  Alternatively, we could assume that d1 and d2 are
     DDists and compute a new DDist.
     """
+
     def __init__(self, d1, d2, p):
         self.d1 = d1
         self.d2 = d2
         self.p = p
         self.binom = DDist({True: p, False: 1 - p})
-        
+
     def prob(self, elt):
         return self.p * self.d1.prob(elt) + (1 - self.p) * self.d2.prob(elt)
 
@@ -351,8 +367,9 @@ class MixtureDist(DiscreteDist):
             result += str(x) + ' : ' + str(self.prob(x)) + ', '
         result += str(elts[-1]) + ' : ' + str(self.prob(elts[-1])) + '})'
         return result
-    
+
     __repr__ = __str__
+
 
 def MixtureDD(d1, d2, p):
     """
@@ -367,10 +384,11 @@ def MixtureDD(d1, d2, p):
     distributions.  Alternatively, we could assume that d1 and d2 are
     DDists and compute a new DDist.
     """
-    return DDist(dict([(e, p * d1.prob(e) + (1-p) * d2.prob(e)) \
+    return DDist(dict([(e, p * d1.prob(e) + (1 - p) * d2.prob(e)) \
                        for e in set(d1.support()).union(set(d2.support()))]))
-    
-def triangleDist(peak, halfWidth, lo = None, hi = None):
+
+
+def triangleDist(peak, halfWidth, lo=None, hi=None):
     """
     Construct and return a DDist over integers. The
     distribution will have its peak at index C{peak} and fall off
@@ -391,7 +409,8 @@ def triangleDist(peak, halfWidth, lo = None, hi = None):
         d[elt] = value / total
     return DDist(d)
 
-def squareDist(lo, hi, loLimit = None, hiLimit = None):
+
+def squareDist(lo, hi, loLimit=None, hiLimit=None):
     """
     Construct and return a DDist over integers.  The
     distribution will have a uniform distribution on integers from
@@ -404,6 +423,7 @@ def squareDist(lo, hi, loLimit = None, hiLimit = None):
     for i in range(lo, hi):
         incrDictEntry(d, clip(i, loLimit, hiLimit), p)
     return DDist(d)
+
 
 def JDist(PA, PBgA):
     """
@@ -420,6 +440,7 @@ def JDist(PA, PBgA):
         for b in PBgA(a).support():
             d[(a, b)] = PA.prob(a) * PBgA(a).prob(b)
     return DDist(d)
+
 
 def JDistIndep(PA, PB):
     """
@@ -447,8 +468,10 @@ def bayesEvidence(PA, PBgA, b):
     # Remember that the order of the variables will be A, B
     return JDist(PA, PBgA).conditionOnVar(1, b)
 
+
 def totalProbability(PA, PBgA):
     return JDist(PA, PBgA).project(lambda (a, b): b)
+
 
 ######################################################################
 #   Continuous distribution
@@ -457,20 +480,21 @@ class GaussianDistribution:
     """
     Basic one-dimensional Gaussian.  
     """
-    def __init__(self, gmean, variance = None, stdev = None):
+
+    def __init__(self, gmean, variance=None, stdev=None):
         self.mean = gmean
         if variance:
             self.var = variance
             self.stdev = math.sqrt(self.var)
         elif stdev:
             self.stdev = stdev
-            self.var = stdev**2
+            self.var = stdev ** 2
         else:
             raise Exception, 'Have to specify variance or stdev'
 
     def __str__(self):
-        return 'Normal('+prettyString(self.mean)+', '+\
-               prettyString(self.var)+')'
+        return 'Normal(' + prettyString(self.mean) + ', ' + \
+               prettyString(self.var) + ')'
 
     def prob(self, v):
         return gaussian(v, self.mean, self.stdev)
@@ -510,35 +534,38 @@ class GaussianDistribution:
         self.var = variance
         self.stdev = math.sqrt(self.var)
 
+
 class LogNormalDistribution:
     """
     log d ~ Normal(mu, sigma)
     Note that in some references we use \rho = 1/\sigma^2
     """
+
     def __init__(self, mu, sigma):
-        self.mu = mu    # this is log of what we'd think of as mu   
+        self.mu = mu  # this is log of what we'd think of as mu
         self.sigma = sigma
 
     def prob(self, v):
         return gaussian(math.log(v), self.mu, self.sigma)
 
     def mean(self):
-        return exp(self.mu + self.sigma^2/2)
+        return exp(self.mu + self.sigma ^ 2 / 2)
 
     def mode(self):
-        return exp(self.mu - self.sigma^2)
+        return exp(self.mu - self.sigma ^ 2)
 
     def median(self):
         return exp(self.mu)
 
     def variance(self):
-        ssigma = self.sigma^2
+        ssigma = self.sigma ^ 2
         return exp(2 * self.mu + ssigma) * (exp(ssigma) - 1)
 
     def draw(self):
         return exp(random.normalvariate(self.mu, self.sigma))
 
-def fixSigma(sigma, ridge = 1e-20):
+
+def fixSigma(sigma, ridge=1e-20):
     # Can pass in ridge > 0 to ensure minimum eigenvalue is always >= ridge
     good = True
     for i in range(len(sigma)):
@@ -546,7 +573,7 @@ def fixSigma(sigma, ridge = 1e-20):
             if sigma[i, j] != sigma[j, i]:
                 if abs(sigma[i, j] - sigma[j, i]) > 1e-10:
                     trAlways('found asymmetry mag:',
-                                 abs(sigma[i, j] - sigma[j, i]))
+                             abs(sigma[i, j] - sigma[j, i]))
                 good = False
     if not good:
         sigma = (sigma + sigma.T) / 2
@@ -566,17 +593,18 @@ def fixSigma(sigma, ridge = 1e-20):
         sigma = sigma + 2 * (ridge - minEig) * identity(len(sigma))
     return sigma
 
+
 # Uses numpy matrices
 # pose4 is a big hack to deal with a case when the last element is a rotation
 class MultivariateGaussianDistribution:
-    def __init__(self, mu, sigma, pose4 = False):
+    def __init__(self, mu, sigma, pose4=False):
         mu = mat(mu)
         if mu.shape[1] != 1 and mu.shape[0] == 1:
             mu = mu.T
-        self.mu = mu       # column vector
+        self.mu = mu  # column vector
         if type(sigma) in (list, tuple):
             sigma = makeDiag(sigma)
-        self.sigma = fixSigma(mat(sigma))     # square pos def matrix
+        self.sigma = fixSigma(mat(sigma))  # square pos def matrix
         self.pose4 = pose4
 
     def copy(self):
@@ -588,7 +616,7 @@ class MultivariateGaussianDistribution:
         d = len(v)
         if type(v) in (tuple, list):
             v = np.mat(v).T
-        norm = math.sqrt((2 * math.pi)**d * linalg.det(self.sigma))
+        norm = math.sqrt((2 * math.pi) ** d * linalg.det(self.sigma))
         diff = v - self.mu
         if diff.shape == (1, 4):
             diff = diff.T
@@ -598,14 +626,14 @@ class MultivariateGaussianDistribution:
 
     def logProb(self, v):
         d = len(v)
-        norm = math.sqrt((2 * math.pi)**d * linalg.det(self.sigma))
+        norm = math.sqrt((2 * math.pi) ** d * linalg.det(self.sigma))
         diff = v - self.mu
         if diff.shape == (1, 4):
             diff = diff.T
         if self.pose4:
             diff[3][0] = fixAnglePlusMinusPi(diff[3][0])
         return -0.5 * diff.T * self.sigma.I * diff - np.log(norm)
-    
+
     def discreteProb(self, ranges):
         # No good way to do this!  Maybe eventually make a table or something
         # For now, super wrong, assume diagonal
@@ -620,56 +648,56 @@ class MultivariateGaussianDistribution:
     def marginal(self, indices):
         assert not self.pose4
         mmu = self.mu.take(indices).T
-        mcov = self.sigma.take(indices, axis = 0).take(indices, axis = 1)
+        mcov = self.sigma.take(indices, axis=0).take(indices, axis=1)
         return MultivariateGaussianDistribution(mmu, mcov)
 
-    def conditional(self, indices2, values2, indices1, xadd = op.add):
+    def conditional(self, indices2, values2, indices1, xadd=op.add):
         assert not self.pose4
         # Mean of indices1, conditioned on indices2 = values2
         mu1 = self.mu.take(indices1).T
         mu2 = self.mu.take(indices2).T
-        sigma11 = self.sigma.take(indices1, axis = 0).take(indices1, axis = 1)
-        sigma12 = self.sigma.take(indices1, axis = 0).take(indices2, axis = 1)
-        sigma21 = self.sigma.take(indices2, axis = 0).take(indices1, axis = 1)
-        sigma22 = self.sigma.take(indices2, axis = 0).take(indices2, axis = 1)
+        sigma11 = self.sigma.take(indices1, axis=0).take(indices1, axis=1)
+        sigma12 = self.sigma.take(indices1, axis=0).take(indices2, axis=1)
+        sigma21 = self.sigma.take(indices2, axis=0).take(indices1, axis=1)
+        sigma22 = self.sigma.take(indices2, axis=0).take(indices2, axis=1)
         sigma22I = sigma22.I
         mu1g2 = xadd(mu1, sigma12 * sigma22I * xadd(values2, -mu2))
         sigma1g2 = fixSigma(sigma11 - sigma12 * sigma22I * sigma21)
         return MultivariateGaussianDistribution(mu1g2, sigma1g2)
 
-    def difference(self, indices1, indices2, xadd = op.add):
+    def difference(self, indices1, indices2, xadd=op.add):
         assert not self.pose4
         # dist of indices1 - indices2
         mu1 = self.mu.take(indices1).T
         mu2 = self.mu.take(indices2).T
-        sigma11 = self.sigma.take(indices1, axis = 0).take(indices1, axis = 1)
-        sigma21 = self.sigma.take(indices2, axis = 0).take(indices1, axis = 1)
-        sigma12 = self.sigma.take(indices1, axis = 0).take(indices2, axis = 1)
-        sigma22 = self.sigma.take(indices2, axis = 0).take(indices2, axis = 1)
+        sigma11 = self.sigma.take(indices1, axis=0).take(indices1, axis=1)
+        sigma21 = self.sigma.take(indices2, axis=0).take(indices1, axis=1)
+        sigma12 = self.sigma.take(indices1, axis=0).take(indices2, axis=1)
+        sigma22 = self.sigma.take(indices2, axis=0).take(indices2, axis=1)
 
         mudiff = xadd(mu1, -mu2)
         sigmadiff = fixSigma(sigma11 + sigma22 - sigma21 - sigma12)
         return MultivariateGaussianDistribution(mudiff, sigmadiff)
 
-    def corners(self, p, xadd = op.add, noZ = False):
+    def corners(self, p, xadd=op.add, noZ=False):
         assert not self.pose4
         # Generate points along each major axis
         pts = []
         if noZ:
-            smallSigma = self.sigma.take([0,1,3], axis=0).take([0,1,3], axis=1)
+            smallSigma = self.sigma.take([0, 1, 3], axis=0).take([0, 1, 3], axis=1)
             (eigVals, eigVecs) = linalg.eigh(smallSigma)
             for (val, vec) in zip(eigVals, eigVecs.T):
                 # Just do it for X, Y, Th;  no variation in Z 
                 off3 = math.sqrt(val) * p * vec.T / linalg.norm(vec)
-                offset = mat([off3[0,0], off3[1, 0], 0, off3[2, 0]]).T
+                offset = mat([off3[0, 0], off3[1, 0], 0, off3[2, 0]]).T
                 pts.append(xadd(self.mu, offset))
-                pts.append(xadd(self.mu,  -offset))
+                pts.append(xadd(self.mu, -offset))
         else:
             (eigVals, eigVecs) = linalg.eigh(self.sigma)
             for (val, vec) in zip(eigVals, eigVecs.T):
                 offset = math.sqrt(val) * p * vec.T / linalg.norm(vec)
                 pts.append(xadd(self.mu, offset))
-                pts.append(xadd(self.mu,  -offset))
+                pts.append(xadd(self.mu, -offset))
         return pts
 
     def mean(self):
@@ -692,22 +720,22 @@ class MultivariateGaussianDistribution:
 
     # if diagonal
     def varTuple(self):
-        return tuple([self.sigma[i,i] for i in range(self.sigma.shape[0])])
+        return tuple([self.sigma[i, i] for i in range(self.sigma.shape[0])])
 
     def pnm(self, deltas):
         assert not self.pose4
         # Amount of probability mass within delta of mean. Treating
         # the dimensions independently; deltas is a vector; returns
         # a vector of results
-        return [gaussPNM(math.sqrt(self.sigma[i,i]), deltas[i]) \
+        return [gaussPNM(math.sqrt(self.sigma[i, i]), deltas[i]) \
                 for i in range(len(deltas))]
 
     def pn(self, value, deltas):
         assert not self.pose4
         # Amount of probability mass within delta of value
         # Value is a column vector of same dim as mu; so is delta
-        return [gaussPN(value[i], deltas[i], float(self.mu[i]), 
-                        math.sqrt(self.sigma[i,i])) \
+        return [gaussPN(value[i], deltas[i], float(self.mu[i]),
+                        math.sqrt(self.sigma[i, i])) \
                 for i in range(len(deltas))]
 
     # Special hack for when we know this is a vector of poses
@@ -720,11 +748,11 @@ class MultivariateGaussianDistribution:
             if mod(i, 4) == 3:
                 result.append(gaussPNAngle(value[i], deltas[i],
                                            float(self.mu[i]),
-                                           math.sqrt(float(self.sigma[i,i]))))
+                                           math.sqrt(float(self.sigma[i, i]))))
             else:
                 result.append(gaussPN(value[i], deltas[i],
-                                      float(self.mu[i]), 
-                                      math.sqrt(float(self.sigma[i,i]))))
+                                      float(self.mu[i]),
+                                      math.sqrt(float(self.sigma[i, i]))))
         return result
 
     def draw(self):
@@ -744,28 +772,33 @@ class MultivariateGaussianDistribution:
             obs = np.mat(obs).T
         innovation = np.transpose(obs - mvg.mu)
         if mvg.pose4:
-            innovation[0,3] = fixAnglePlusMinusPi(innovation[0,3])
+            innovation[0, 3] = fixAnglePlusMinusPi(innovation[0, 3])
         innovation_covariance = mvg.sigma + obsSigma
         kalman_gain = mvg.sigma * np.linalg.inv(innovation_covariance)
         size = mvg.mu.shape[0]
         mu = mvg.mu + kalman_gain * innovation.T
-        sigma = (np.eye(size)-kalman_gain)*mvg.sigma
-        return MultivariateGaussianDistribution(mu, sigma,  mvg.pose4)
+        sigma = (np.eye(size) - kalman_gain) * mvg.sigma
+        return MultivariateGaussianDistribution(mu, sigma, mvg.pose4)
 
     def __str__(self):
-        return 'G('+prettyString(self.mu)+','+prettyString(self.sigma)+')'
+        return 'G(' + prettyString(self.mu) + ',' + prettyString(self.sigma) + ')'
+
     __repr__ = __str__
+
     def __hash__(self):
         return str(self).__hash__()
+
     def __eq__(self, other):
         return str(self) == str(other)
+
     def __ne__(self, other):
         return str(self) != str(other)
+
 
 # A mixture of Gaussians, with implicit "leftover" probability assigned to
 # a uniform
 class GMU:
-    def __init__(self, components, ranges = None):
+    def __init__(self, components, ranges=None):
         # A list of (mvg, p) pairs;  p's sum to <= 1
         # All same dimensionality (d)
         self.components = [list(c) for c in components]
@@ -773,7 +806,7 @@ class GMU:
         self.ranges = ranges
         if ranges:
             self.area = prod((hi - lo) for (lo, hi) in ranges)
-        self.uniformWeight = 1 - sum(p for (d,p) in components)
+        self.uniformWeight = 1 - sum(p for (d, p) in components)
         assert ranges is None or self.uniformWeight < 10e-10
         self.mixtureProbs = DDist(dict([(i, p) for (i, (c, p)) in \
                                         enumerate(self.components)] + \
@@ -790,17 +823,17 @@ class GMU:
         # Side effects
         for i in range(len(self.components)):
             self.components[i][0] = \
-                      self.components[i][0].kalmanTransUpdate(u, transSigma)
+                self.components[i][0].kalmanTransUpdate(u, transSigma)
 
     def kalmanObsUpdate(self, obs, obsSigma):
         # Side effects
         for i in range(len(self.components)):
             self.components[i][0] = \
-                      self.components[i][0].kalmanObsUpdate(obs, obsSigma)
+                self.components[i][0].kalmanObsUpdate(obs, obsSigma)
         self.decreaseUniformWeight()
 
     # Decrease the amount assigned to the uniform and renormalize others
-    def decreaseUniformWeight(self, factor = 2.0):
+    def decreaseUniformWeight(self, factor=2.0):
         weights = [c[1] for c in self.components]
         oldWeightSum = sum(weights)
         self.uniformWeight = min(self.uniformWeight / factor, 0.999)
@@ -811,7 +844,7 @@ class GMU:
 
     def kalmanObsUpdateNoSE(self, obs, obsSigma):
         thing = GMU([[d.kalmanObsUpdate(obs, obsSigma), p] \
-                    for (d, p) in self.components])
+                     for (d, p) in self.components])
         thing.decreaseUniformWeight()
         return thing
 
@@ -860,9 +893,12 @@ class GMU:
             return miscUtil.argmax(self.components, lambda (d, p): p)[0]
         else:
             return None
+
     def __str__(self):
-        return 'GMU('+', '.join([prettyString(c) for c in self.components])+')'
+        return 'GMU(' + ', '.join([prettyString(c) for c in self.components]) + ')'
+
     __repr__ = __str__
+
 
 def fitGaussianToPoses(data):
     # Data is a matrix of vectors (len mod 4 = 0) representing vec of poses
@@ -870,21 +906,24 @@ def fitGaussianToPoses(data):
     mu = meanPoses(data)
     return MultivariateGaussianDistribution(mu, covPoses(data, mu))
 
+
 def meanPoses(data):
     # Go by columns
     mu = []
     for i in range(data.shape[1]):
         if mod(i, 4) == 3:
-            mu.append(angleMean(data[:,i]))
+            mu.append(angleMean(data[:, i]))
         else:
-            mu.append(data[:,i].mean())
+            mu.append(data[:, i].mean())
     return mat(mu).T
+
 
 def angleMean(data):
     d = data.T.tolist()[0]
     n = len(d)
-    return math.atan2(sum([math.sin(x) for x in d])/n,
-                      sum([math.cos(x) for x in d])/n)
+    return math.atan2(sum([math.sin(x) for x in d]) / n,
+                      sum([math.cos(x) for x in d]) / n)
+
 
 # Rows of data are examples; mu is a column vector
 def covPoses(data, mu):
@@ -896,13 +935,14 @@ def covPoses(data, mu):
         sigma += delta * delta.T
     return sigma / n
 
+
 class ProductDistribution:
     def __init__(self):
         self.ds = None
 
     def prob(self, vs):
         return reduce(operator.mul, [d.prob(v) for (v, d) in \
-                            zip(vs, self.ds)])
+                                     zip(vs, self.ds)])
 
     def mean(self):
         return [d.mean() for d in self.ds]
@@ -928,24 +968,27 @@ class ProductDistribution:
     def draw(self):
         return tuple([d.draw() for d in self.ds])
 
+
 class ProductGaussianDistribution(ProductDistribution):
     """
     Product of independent Gaussians
     """
+
     def __init__(self, means, stdevs):
         self.ds = [GaussianDistribution(m, s) for (m, s) in zip(means, stdevs)]
 
 
 class ProductUniformDistribution(ProductDistribution):
     def __init__(self, means, stdevs, n):
-        self.ds = [CUniformDist(m - n*s, m+n*s) \
+        self.ds = [CUniformDist(m - n * s, m + n * s) \
                    for (m, s) in zip(means, stdevs)]
 
-        
+
 class CUniformDist:
     """
     Uniform distribution over a given finite one dimensional range
     """
+
     def __init__(self, xMin, xMax):
         self.xMin = xMin
         self.xMax = xMax
@@ -958,12 +1001,12 @@ class CUniformDist:
             return 0
 
     def draw(self):
-        return self.xMin + random.random() * (self.xMax - self.xMin) 
+        return self.xMin + random.random() * (self.xMax - self.xMin)
+
+    ######################################################################
 
 
-    
-######################################################################
-#   Utilities
+# Utilities
 
 # Multinomial distribution.  k items, probability p, independent, that
 # each one will flip.  How many flips?
@@ -972,16 +1015,18 @@ def binomialDist(n, p):
     """
     Binomial distribution on C{n} items with probability C{p}.
     """
-    return DDist(dict([(k, binCoeff(n, k) * p**k) for k in range(0, n+1)]))
+    return DDist(dict([(k, binCoeff(n, k) * p ** k) for k in range(0, n + 1)]))
+
 
 def binCoeff(n, k):
     """
     n choose k  (the binomial coefficient)
     """
-    if k < n/2.0:
-        return binCoeff(n, n-k)
+    if k < n / 2.0:
+        return binCoeff(n, n - k)
     else:
-        return reduce(operator.mul, [j for j in range(k+1, n+1)], 1)
+        return reduce(operator.mul, [j for j in range(k + 1, n + 1)], 1)
+
 
 def cartesianProduct(domains):
     """
@@ -993,7 +1038,8 @@ def cartesianProduct(domains):
         return ((),)
     else:
         return tuple([(v1,) + rest for v1 in domains[0] \
-                    for rest in cartesianProduct(domains[1:])])
+                      for rest in cartesianProduct(domains[1:])])
+
 
 def ensureList(x):
     """
@@ -1016,11 +1062,12 @@ def removeElt(items, i):
     returns a copy;  if the result is a list of length 1, just return
     the element  
     """
-    result = items[:i] + items[i+1:]
+    result = items[:i] + items[i + 1:]
     if len(result) == 1:
         return result[0]
     else:
         return result
+
 
 def incrDictEntry(d, k, v):
     """
@@ -1036,6 +1083,7 @@ def incrDictEntry(d, k, v):
     else:
         d[k] = v
 
+
 ############################ Regression
 
 # If we want the 1-pnm(delta) after an observation with obsSigma to be
@@ -1044,13 +1092,14 @@ def incrDictEntry(d, k, v):
 def regressGaussianPNM(epsr, obsSigma, delta):
     # based on observation
     pnmr = 1 - epsr
-    ei2 = ss.erfinv(pnmr)**2
-    part2 = (delta**2)/(2 * obsSigma**2)
+    ei2 = ss.erfinv(pnmr) ** 2
+    part2 = (delta ** 2) / (2 * obsSigma ** 2)
     if ei2 < part2:
         return .99999999
     if pnmr > .99999999:
         raw_input("Erfinv argument too big")
     return 1 - ss.erf(math.sqrt(ei2 - part2))
+
 
 def regressGaussianPNMTransition(epsr, transSigma, delta):
     # return epsr * 0.8
@@ -1059,26 +1108,29 @@ def regressGaussianPNMTransition(epsr, transSigma, delta):
     # resultVar = delta**2 / (2 * erfinv(1 - epsr)**2)
     # prevVar + transVar = resultVar
     # So, if resultVar < transVar this is impossible
-    
-    denom = (2 * ss.erfinv(1-epsr)**2)
+
+    denom = (2 * ss.erfinv(1 - epsr) ** 2)
     if denom <= 0:
-        trAlways("Error in erf calculation, epsr=", epsr, ol = True)
+        trAlways("Error in erf calculation, epsr=", epsr, ol=True)
         return 1.0
-    
-    resultVar = (delta**2) / denom
-    prevVar =  resultVar - transSigma**2
+
+    resultVar = (delta ** 2) / denom
+    prevVar = resultVar - transSigma ** 2
     if prevVar <= 0:
         return None
-    return 1 - ss.erf(delta / math.sqrt(2*prevVar))
+    return 1 - ss.erf(delta / math.sqrt(2 * prevVar))
+
 
 # Amount of probability mass within delta of mean, given
 def gaussPNM(sigma, delta):
     return ss.erf(delta / (math.sqrt(2) * sigma))
 
+
 # Amount of probability mass within delta of value, given a Gaussian
 def gaussPN(value, delta, mu, sigma):
     rv = stats.norm(mu, sigma)
     return rv.cdf(value + delta) - rv.cdf(value - delta)
+
 
 def gaussPNAngle(value, delta, mu, sigma):
     limit1 = fixAnglePlusMinusPi(value - mu - delta)
@@ -1088,19 +1140,22 @@ def gaussPNAngle(value, delta, mu, sigma):
     rv = stats.norm(0, sigma)
     return rv.cdf(upper) - rv.cdf(lower)
 
+
 # Gauss CDF
 def Phi(x):
     return 0.5 + ss.erf(x / math.sqrt(2.0)) / 2.0
+
 
 def probModeMoved(delta, var, obsVar):
     p = 1 - ss.erf(delta * (var + obsVar) / (math.sqrt(2.0 * obsVar) * var))
     return p
 
-#chiSq = (0.71, 1.06, 1.65, 2.20, 3.36, 4.88, 5.99, 7.78, 9.49, 13.28, 18.47)
-#pValue = (0.95, 0.90, 0.80, 0.70, 0.50, 0.30, 0.20, 0.10, 0.05, 0.01, 0.001)
+
+# chiSq = (0.71, 1.06, 1.65, 2.20, 3.36, 4.88, 5.99, 7.78, 9.49, 13.28, 18.47)
+# pValue = (0.95, 0.90, 0.80, 0.70, 0.50, 0.30, 0.20, 0.10, 0.05, 0.01, 0.001)
 
 pValue = (1.0, 0.995, 0.975, 0.20, 0.10, 0.05, 0.025, 0.02, 0.01, 0.005, 0.002,
-              0.001)
+          0.001)
 chiSqTables = {
     1: (0.0, 0.0000393, 0.000982, 1.642, 2.706, 3.841, 5.024, 5.412, 6.635, 7.879, 9.550, 10.828),
     2: (0.0, 0.0100, 0.0506, 3.219, 4.605, 5.991, 7.378, 7.824, 9.210, 10.597, 12.429, 13.816),
@@ -1108,7 +1163,8 @@ chiSqTables = {
     4: (0.0, 0.207, 0.484, 5.989, 7.779, 9.488, 11.143, 11.668, 13.277, 14.860, 16.924, 18.467),
     5: (0.0, 0.412, 0.831, 7.289, 9.236, 11.070, 12.833, 13.388, 15.086, 16.750, 18.907, 20.515),
     6: (0.0, 0.676, 1.237, 8.558, 10.645, 12.592, 14.449, 15.033, 16.812, 18.548, 20.791, 22.458)
-    }
+}
+
 
 # Given p value find chiSq
 
@@ -1117,13 +1173,14 @@ def chiSqFromP(p, nDof):
     for i in range(len(pValue)):
         if p >= pValue[i]:
             if i == 0:
-                slope = (chiSq[i+1] - chiSq[i])/(pValue[i+1] - pValue[i])
-                return (p - pValue[i])*slope + chiSq[i]
+                slope = (chiSq[i + 1] - chiSq[i]) / (pValue[i + 1] - pValue[i])
+                return (p - pValue[i]) * slope + chiSq[i]
             else:
-                slope = (chiSq[i] - chiSq[i-1])/(pValue[i] - pValue[i-1])
-                return (p - pValue[i-1])*slope + chiSq[i-1]
-    slope = (chiSq[-2] - chiSq[-1])/(pValue[-2] - pValue[-1])
-    return (p - pValue[-1])*slope + chiSq[-1]
+                slope = (chiSq[i] - chiSq[i - 1]) / (pValue[i] - pValue[i - 1])
+                return (p - pValue[i - 1]) * slope + chiSq[i - 1]
+    slope = (chiSq[-2] - chiSq[-1]) / (pValue[-2] - pValue[-1])
+    return (p - pValue[-1]) * slope + chiSq[-1]
+
 
 def tangentSpaceAdd(a, b):
     res = a + b
@@ -1131,12 +1188,13 @@ def tangentSpaceAdd(a, b):
         res[i, 0] = fixAnglePlusMinusPi(res[i, 0])
     return res
 
+
 def fixAnglePlusMinusPi(a):
     """
     A is an angle in radians;  return an equivalent angle between plus
     and minus pi
     """
-    pi2 = 2.0* math.pi
+    pi2 = 2.0 * math.pi
     i = 0
     while abs(a) > math.pi:
         if a > math.pi:
@@ -1144,8 +1202,9 @@ def fixAnglePlusMinusPi(a):
         elif a < -math.pi:
             a = a + pi2
         i += 1
-        if i > 10: break                # loop found
+        if i > 10: break  # loop found
     return a
+
 
 def clip(v, vMin, vMax):
     if vMin == None:
@@ -1159,40 +1218,48 @@ def clip(v, vMin, vMax):
         else:
             return max(min(v, vMax), vMin)
 
+
 def gaussian(x, mu, sigma):
-    return math.exp(-((x-mu)**2 / (2*sigma**2))) /(sigma*math.sqrt(2*math.pi))
+    return math.exp(-((x - mu) ** 2 / (2 * sigma ** 2))) / (sigma * math.sqrt(2 * math.pi))
+
 
 ### All much too specific to 2D.  Fix.
 
 def confDist(c1, c2):
-    return math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+    return math.sqrt((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2)
+
 
 def gauss(mean, var):
     if not type(mean) == np.ndarray:
         mean = np.array([mean[0], mean[1]])
     if not type(var) == np.ndarray:
-        var = np.array([[var[0], 0.0],[0.0,var[1]]])
+        var = np.array([[var[0], 0.0], [0.0, var[1]]])
     return MultivariateGaussianDistribution(mean, var)
+
 
 def composeVariance(var1, var2):
     return var1 + var2
+
 
 def invComposeVariance(addedVar, resultVar):
     # Assumes np 
     return resultVar - addedVar
 
+
 def invComposeVarianceLists(addedVar, resultVar):
     # Assumes np 
     return makeDiag(resultVar) - makeDiag(addedVar)
 
+
 def moveVariance(conf1, conf2):
     dist = confDist(conf1, conf2)
-    var = math.ceil(dist)*0.001
+    var = math.ceil(dist) * 0.001
     moveVar = makeDiag((var, var))
     return moveVar
 
+
 # Assume H  is identity (transforms state into obs)
-def varBeforeObs(obsVar, varAfterObs, maxV = 1.0):
+def varBeforeObs(obsVar, varAfterObs, maxV=1.0):
     # S = VB + VO
     # K = VB * S^-1
     # VA = (I - K) VB
