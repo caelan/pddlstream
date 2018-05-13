@@ -295,9 +295,12 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     functions = filter(lambda s: type(s) is Function, externals)
     negative = filter(lambda s: type(s) is Predicate and s.is_negative(), externals)
     streams = filter(lambda s: s not in (functions + negative), externals)
-    stream_results = populate_results(evaluations, streams)
-    depth = 0
+    stream_results = []
+    depth = 1
+    #stream_results = populate_results(evaluations, streams)
+    #depth = 0
     while elapsed_time(start_time) < max_time:
+        search_time = time.time() # TODO: allocate more sampling effort to maintain the balance
         if stream_results is None:
             stream_plan, action_plan, cost = None, None, INF
         else:
