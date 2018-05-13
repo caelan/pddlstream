@@ -1,14 +1,16 @@
-#import pdb
-#import math
-import operator
+from __future__ import print_function
+
 from miscUtil import prettyString, makeDiag, argmaxWithVal
-import numpy as np
 from numpy import *
 import random
 import operator as op
 import copy
-#from hpn.traceFile import trAlways
 import scipy.stats
+import miscUtil
+import scipy.special as ss
+import scipy.stats as stats
+
+trAlways = print
 
 # Think of this as a mixture of a distribution and something like a uniform,
 # but it doesn't really work unless the universe is finite
@@ -592,7 +594,6 @@ class MultivariateGaussianDistribution:
             diff = diff.T
         if self.pose4:
             diff[3][0] = fixAnglePlusMinusPi(diff[3][0])
-        #print v, self.mu, diff, norm
         return float(exp(-0.5 * diff.T * self.sigma.I * diff) / norm)
 
     def logProb(self, v):
@@ -1040,9 +1041,6 @@ def incrDictEntry(d, k, v):
 # If we want the 1-pnm(delta) after an observation with obsSigma to be
 # < epsr, then what does the 1-pnm have to be before the update?
 
-import scipy.special as ss
-import scipy.stats as stats
-
 def regressGaussianPNM(epsr, obsSigma, delta):
     # based on observation
     pnmr = 1 - epsr
@@ -1069,18 +1067,8 @@ def regressGaussianPNMTransition(epsr, transSigma, delta):
     
     resultVar = (delta**2) / denom
     prevVar =  resultVar - transSigma**2
-    # print 'RegressGaussianPNMTransition'
-    # print '    epsr', epsr
-    # print '    delta', delta
-    # print '    transSigma', transSigma
-    # print '    ss.erfinv(1-epsr)', ss.erfinv(1-epsr)
-    # print '    ((delta**2) / (2 * ss.erfinv(1-epsr)**2))', \
-    #       ((delta**2) / (2 * ss.erfinv(1-epsr)**2))
     if prevVar <= 0:
-    #    print '   failed'
         return None
-    # print '    delta / math.sqrt(2*prevVar)', delta / math.sqrt(2*prevVar)
-    # print '    result', 1 - ss.erf(delta / math.sqrt(2*prevVar))
     return 1 - ss.erf(delta / math.sqrt(2*prevVar))
 
 # Amount of probability mass within delta of mean, given
@@ -1228,5 +1216,3 @@ def varBeforeObs(obsVar, varAfterObs, maxV = 1.0):
     result = [(x * y / (x - y) if x > y else maxV)
               for (x, y) in zip(obsVar, varAfterObs)]
     return tuple(result)
-
-
