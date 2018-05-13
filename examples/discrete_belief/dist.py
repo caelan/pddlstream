@@ -9,6 +9,7 @@ import scipy.stats
 import miscUtil
 import scipy.special as ss
 import scipy.stats as stats
+import operator
 
 trAlways = print
 

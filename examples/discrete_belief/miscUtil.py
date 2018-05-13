@@ -609,6 +609,3 @@ def detuple(t):
         return t[0]
     else:
         return t
-
-
-print 'Loaded hpnUtil/miscUtil.py'
