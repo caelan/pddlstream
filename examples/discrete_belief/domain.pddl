@@ -7,6 +7,8 @@
     (LookProb ?l ?d1 ?d2)
     (GE ?d ?l ?p)
     (BLocGE ?o ?l ?p)
+    (BCollision ?l ?d)
+    (Unsafe ?l)
   )
   (:functions
     (MoveCost ?l1 ?2)
@@ -15,7 +17,7 @@
   (:action move
     :parameters (?o ?l1 ?l2 ?d1 ?d2)
     :precondition (and (Obj ?o) (MoveProb ?l1 ?l2 ?d1 ?d2)
-                       (BLoc ?o ?d1))
+                       (BLoc ?o ?d1) (not (Unsafe ?l2)))
     :effect (and (BLoc ?o ?d2)
                  (not (BLoc ?o ?d1))
                  (increase (total-cost) (MoveCost ?l1 ?l2)))
@@ -31,5 +33,9 @@
   (:derived (BLocGE ?o ?l ?p)
     (exists (?d) (and (Obj ?o) (GE ?d ?l ?p)
                             (Bloc ?o ?d)))
+  )
+  (:derived (Unsafe ?l)
+    (exists (?o ?d) (and (Obj ?o) (BCollision ?l ?d)
+                         (BLoc ?o ?d)))
   )
 )

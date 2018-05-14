@@ -5,6 +5,9 @@
   (:function (LookCost ?l ?d1)
     (and (Location ?l) (Dist ?d1))
   )
+  (:predicate (BCollision ?l ?d)
+    (and (Location ?l) (Dist ?d))
+  )
   (:stream ge
     :inputs (?d ?l ?p)
     :domain (and (Dist ?d) (Location ?l) (Prob ?p))
