@@ -1,4 +1,10 @@
 (define (stream pick-and-place)
+  (:function (MoveCost ?l1 ?l2)
+    (and (Location ?l1) (Location ?l2))
+  )
+  (:function (LookCost ?l ?d1)
+    (and (Location ?l) (Dist ?d1))
+  )
   (:stream ge
     :inputs (?d ?l ?p)
     :domain (and (Dist ?d) (Location ?l) (Prob ?p))
