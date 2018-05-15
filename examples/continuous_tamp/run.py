@@ -158,7 +158,7 @@ def main(focused=True, deterministic=False, unit_costs=True):
         np.random.seed(0)
     print('Seed:', np.random.get_state()[1][0])
 
-    problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
