@@ -173,7 +173,6 @@ def main(focused=True, deterministic=False, unit_costs=True):
         #'trajcollision': StreamInfo(p_success=1),  # bound_fn is None
         #'cfree': StreamInfo(eager=True),
     }
-    # TODO: load statistics
 
     dynamic = [
         #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
