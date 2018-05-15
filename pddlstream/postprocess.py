@@ -1,9 +1,12 @@
-from collections import deque, defaultdict
+from collections import deque, defaultdict, namedtuple
+from heapq import heappush, heappop
 from itertools import product
+import time
 
 from pddlstream.conversion import evaluation_from_fact, pddl_from_object, substitute_expression
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, fact_from_fd
 from pddlstream.function import PredicateResult
+from pddlstream.incremental import process_stream_queue
 from pddlstream.instantiation import Instantiator
 from pddlstream.macro_stream import MacroResult, get_macro_stream_plan
 from pddlstream.object import Object
@@ -11,7 +14,7 @@ from pddlstream.reorder import get_action_instances, replace_derived, topologica
 from pddlstream.scheduling.relaxed import get_goal_instance, plan_preimage, recover_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF, implies
+from pddlstream.utils import INF, implies, elapsed_time
 
 def optimistic_process_stream_queue(instantiator):
     stream_instance = instantiator.stream_queue.popleft()
@@ -145,6 +148,76 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     # TODO: could also immediately switch to binding if plan_index == 0 afterwards
     return opt_results, opt_bindings
 
+
+##################################################
+
+# TODO: can either entirely replace arguments on plan or just pass bindings
+# TODO: handle this in a partially ordered way
+# TODO: no point not doing all at once if unique
+# TODO: store location in history in the sampling history
+
+SamplingKey = namedtuple('SamplingKey', ['attempts', 'length']) # TODO: alternatively just preimage
+SamplingProblem = namedtuple('SamplingProblem', ['bindings', 'stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
+
+def add_certified(evaluations, result):
+    for fact in result.get_certified():
+        evaluation = evaluation_from_fact(fact)
+        if evaluation not in evaluations:
+            evaluations[evaluation] = result
+
+def pop_stream_queue(queue, evaluations, disabled, max_cost, persistent, verbose):
+    key, sampling_problem = heappop(queue)
+    bindings, stream_plan, action_plan, cost = sampling_problem
+    if max_cost <= cost: # TODO: update costs
+        return None
+    if not stream_plan:
+        #new_action_plan = [(name, tuple(obj_from_opt.get(o, [o])[0] for o in args)) for name, args in opt_action_plan]
+        return action_plan
+    opt_result = stream_plan[0] # TODO: could do several at once but no real point
+    input_objects = [bindings.get(i, i) for i in opt_result.instance.input_objects]
+    instance = opt_result.instance.external.get_instance(input_objects)
+    if instance.enumerated:
+        return
+    assert(not any(evaluation_from_fact(f) not in evaluations for f in instance.get_domain()))
+
+    # TODO: hash all prior stream outputs and then iterate through them first.
+    # TODO: hash combinations to prevent repeats
+
+    results = instance.next_results(verbose=verbose)
+    disable_stream_instance(instance, disabled) # TODO: prematurely disable?
+    for result in results:
+        add_certified(evaluations, result)
+        if isinstance(result, PredicateResult) and (opt_result.value != result.value):
+            continue # TODO: check if satisfies target certified
+        new_bindings = bindings.copy()
+        if isinstance(result, StreamResult):  # Could not add if same value
+            for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                assert(opt not in new_bindings) # TODO: return failure if conflicting bindings
+                new_bindings[opt] = obj
+        new_stream_plan = stream_plan[1:]
+        new_key = SamplingKey(0, len(new_stream_plan))
+        new_problem = SamplingProblem(new_bindings, new_stream_plan, action_plan, cost)
+        heappush(queue, (new_key, new_problem))
+
+    if isinstance(opt_result, MacroResult): # TODO: maybe I always want to add this anyways...
+        new_stream_plan = opt_result.decompose() + stream_plan[1:]
+        new_key = SamplingKey(0, len(new_stream_plan))
+        new_problem = SamplingProblem(bindings, new_stream_plan, action_plan, cost)
+        heappush(queue, (new_key, new_problem))
+
+    if persistent and not instance.enumerated:
+        new_key = SamplingKey(key.attempts + 1, len(stream_plan))
+        heappush(queue, (new_key, sampling_problem))
+    # TODO: decide to readd or not
+
+def process_stream_plan_queue(queue, evaluations, disabled, max_cost, persistent, max_time, verbose):
+    start_time = time.time()
+    while queue and ((queue[0][0].attempts == 0) or (elapsed_time(start_time) < max_time)):
+        plan = pop_stream_queue(queue, evaluations, disabled, max_cost, persistent, verbose)
+        if plan is not None:
+            return plan
+    return None
+
 ##################################################
 
 def locally_optimize(evaluations, action_plan, goal_expression, domain, functions, negative, dynamic_streams, verbose):
@@ -217,3 +290,19 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
     # TODO: repeatedly do this
     new_action_plan = [(name, tuple(obj_from_opt.get(o, [o])[0] for o in args)) for name, args in opt_action_plan]
     return new_action_plan
+
+
+def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
+    start_time = time.time()
+    instantiator = Instantiator(evaluations, externals)
+    for _ in range(num_iterations):
+        for _ in range(len(instantiator.stream_queue)):
+            if max_time <= elapsed_time(start_time):
+                break
+            process_stream_queue(instantiator, evaluations, verbose=verbose)
+
+
+def reset_disabled(disabled):
+    for stream_instance in disabled:
+        stream_instance.disabled = False
+    disabled[:] = []

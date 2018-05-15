@@ -3,9 +3,9 @@ import time
 from experimental.context import ConstraintSolver
 from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import evaluation_from_fact, revert_solution
-from pddlstream.focused import reset_disabled, eagerly_evaluate
 from pddlstream.statistics import update_stream_info
-from pddlstream.postprocess import optimistic_process_stream_queue, disable_stream_instance
+from pddlstream.postprocess import optimistic_process_stream_queue, disable_stream_instance, eagerly_evaluate, \
+    reset_disabled
 from pddlstream.instantiation import Instantiator
 from pddlstream.scheduling.sequential import sequential_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan

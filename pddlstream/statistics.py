@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import os
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle
 
@@ -32,7 +32,6 @@ def get_action_info(action_info):
 ##################################################
 
 
-SamplingProblem = namedtuple('SamplingProblem', ['stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
 DATA_DIR = 'data/'
 
 

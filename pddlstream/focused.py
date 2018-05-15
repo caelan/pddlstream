@@ -1,38 +1,22 @@
 from __future__ import print_function
 
 import time
-from collections import deque
+from heapq import heappush
 
 from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
-from pddlstream.incremental import process_stream_queue
-from pddlstream.instantiation import Instantiator
 from pddlstream.macro_stream import get_macro_stream_plan
-from pddlstream.postprocess import locally_optimize, populate_results, process_stream_plan
+from pddlstream.postprocess import locally_optimize, populate_results, process_stream_plan, \
+    SamplingProblem, SamplingKey, process_stream_plan_queue, eagerly_evaluate, reset_disabled
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.statistics import get_action_info, update_stream_info, SamplingProblem, load_stream_statistics, \
+from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
-
-
-def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
-    start_time = time.time()
-    instantiator = Instantiator(evaluations, externals)
-    for _ in range(num_iterations):
-        for _ in range(len(instantiator.stream_queue)):
-            if max_time <= elapsed_time(start_time):
-                break
-            process_stream_queue(instantiator, evaluations, verbose=verbose)
-
-def reset_disabled(disabled):
-    for stream_instance in disabled:
-        stream_instance.disabled = False
-    disabled[:] = []
 
 
 # TODO: compute total stream plan p_success and overhead
@@ -81,9 +65,10 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     streams = filter(lambda s: s not in (functions + negative), externals)
     stream_results = []
     depth = 1
-    sampling_queue = deque()
+    sampling_queue = []
     while elapsed_time(start_time) < max_time:
         search_time = time.time() # TODO: allocate more sampling effort to maintain the balance
+        # TODO: total search time vs most recent search time?
         if stream_results is None:
             stream_plan, action_plan, cost = None, None, INF
         else:
@@ -121,7 +106,16 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                     break
             stream_results = None
         else:
-            sampling_queue.append(SamplingProblem(stream_plan, action_plan, cost))
+            sampling_key = SamplingKey(0, len(stream_plan))
+            sampling_problem = SamplingProblem({}, stream_plan, action_plan, cost)
+            heappush(sampling_queue, (sampling_key, sampling_problem))
+            process_stream_plan_queue(sampling_queue, evaluations, disabled, max_cost, True, 0, verbose)
+
+            depth += 1
+            stream_results = None
+
+            continue
+
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
             option = True
