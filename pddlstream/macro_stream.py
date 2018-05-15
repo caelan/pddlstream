@@ -102,6 +102,8 @@ class StreamSynthesizer(object): # JointStream | Stream Combiner
         self.macro_results[key] = MacroResult(mega_instance, output_objects)
         return self.macro_results[key]
 
+# TODO: worthwhile noting that the focused algorithm does not search over all plan skeletons directly...
+
 def get_macro_stream_plan(stream_plan, dynamic_streams):
     if (stream_plan is None) or not dynamic_streams:
         return stream_plan

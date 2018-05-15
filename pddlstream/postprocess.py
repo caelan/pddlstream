@@ -165,26 +165,27 @@ def add_certified(evaluations, result):
         if evaluation not in evaluations:
             evaluations[evaluation] = result
 
-def pop_stream_queue(queue, evaluations, disabled, max_cost, persistent, verbose):
+def pop_stream_queue(queue, evaluations, max_cost, verbose):
     key, sampling_problem = heappop(queue)
     bindings, stream_plan, action_plan, cost = sampling_problem
-    if max_cost <= cost: # TODO: update costs
-        return None
+    #if max_cost <= cost: # TODO: update costs
+    #    # TODO: undo disabling of these
+    #    return None
     if not stream_plan:
-        #new_action_plan = [(name, tuple(obj_from_opt.get(o, [o])[0] for o in args)) for name, args in opt_action_plan]
-        return action_plan
+        new_action_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
+        return new_action_plan
     opt_result = stream_plan[0] # TODO: could do several at once but no real point
     input_objects = [bindings.get(i, i) for i in opt_result.instance.input_objects]
     instance = opt_result.instance.external.get_instance(input_objects)
     if instance.enumerated:
-        return
+        return None
     assert(not any(evaluation_from_fact(f) not in evaluations for f in instance.get_domain()))
 
     # TODO: hash all prior stream outputs and then iterate through them first.
     # TODO: hash combinations to prevent repeats
 
     results = instance.next_results(verbose=verbose)
-    disable_stream_instance(instance, disabled) # TODO: prematurely disable?
+    instance.disabled = True # TODO: prematurely disable?
     for result in results:
         add_certified(evaluations, result)
         if isinstance(result, PredicateResult) and (opt_result.value != result.value):
@@ -204,16 +205,16 @@ def pop_stream_queue(queue, evaluations, disabled, max_cost, persistent, verbose
         new_key = SamplingKey(0, len(new_stream_plan))
         new_problem = SamplingProblem(bindings, new_stream_plan, action_plan, cost)
         heappush(queue, (new_key, new_problem))
-
-    if persistent and not instance.enumerated:
+    if instance.enumerated:
         new_key = SamplingKey(key.attempts + 1, len(stream_plan))
         heappush(queue, (new_key, sampling_problem))
-    # TODO: decide to readd or not
+    return None
 
-def process_stream_plan_queue(queue, evaluations, disabled, max_cost, persistent, max_time, verbose):
+# TODO: search until new?
+def process_stream_plan_queue(queue, evaluations, max_cost, max_time, verbose):
     start_time = time.time()
     while queue and ((queue[0][0].attempts == 0) or (elapsed_time(start_time) < max_time)):
-        plan = pop_stream_queue(queue, evaluations, disabled, max_cost, persistent, verbose)
+        plan = pop_stream_queue(queue, evaluations, max_cost, verbose)
         if plan is not None:
             return plan
     return None
