@@ -7,7 +7,7 @@ from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.macro_stream import get_macro_stream_plan
-from pddlstream.stream_plan import populate_results, process_stream_plan, \
+from pddlstream.stream_plan import populate_results, process_stream_plan, activate_first, \
     SamplingProblem, SamplingKey, greedily_process_queue, fairly_process_queue, eagerly_evaluate, reset_disabled
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
@@ -16,7 +16,7 @@ from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.utils import INF, elapsed_time, get_length
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
 # TODO: compute total stream plan p_success and overhead
@@ -35,7 +35,7 @@ def partition_externals(externals):
     return streams, functions, negative
 
 def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
-                  max_time=INF, max_cost=INF, unit_costs=False, max_sampling_time=0,
+                  max_time=INF, max_cost=INF, unit_costs=False, sampling_time=0,
                   commit=True, effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
@@ -58,9 +58,10 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     # TODO: return to just using the highest level samplers at the start
     start_time = time.time()
     num_iterations = 0
-    best_plan = None; best_cost = INF
+    cost_fn = get_length if unit_costs else None
+    best_plan = None; best_cost = cost_fn(best_plan)
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
-    action_info = get_action_info(action_info)
+    action_infos = get_action_info(action_info)
     update_stream_info(externals, stream_info)
     load_stream_statistics(stream_name, externals)
     if visualize:
@@ -72,28 +73,19 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
         # TODO: decide max_sampling_time based on total search_time or likelihood estimates
-        action_plan = greedily_process_queue(queue, evaluations, max_cost, max_sampling_time, verbose)
-        if action_plan is not None:
-            cost = 0
-            if cost < best_cost:
-                best_plan = action_plan; best_cost = cost
-                if best_cost < max_cost:
-                    break
-                # TODO: avoid processing if not breaking?
-        eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
-
         print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(queue), len(evaluations), best_cost, elapsed_time(start_time)))
         # TODO: constrain to use previous plan to some degree
-        stream_results = populate_results(evaluations, streams)
-        stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results), functions)
-        # TODO: warning check if using simultaneous_stream_plan or relaxed_stream_plan with non-eager functions
+        eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
+        stream_results = populate_results(evaluations, streams + functions)
+        # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
         solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
         combined_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
-                                                           negative, max_cost=best_cost, unit_costs=unit_costs, **search_kwargs)
-        combined_plan = reorder_combined_plan(evaluations, combined_plan, action_info, domain)
+                                                negative, max_cost=best_cost, unit_costs=unit_costs, **search_kwargs)
+        if action_infos:
+            combined_plan = reorder_combined_plan(evaluations, combined_plan, action_infos, domain)
         #print('Combined plan: {}'.format(combined_plan))
-        stream_plan, action_plan = separate_plan(combined_plan, action_info)
+        stream_plan, action_plan = separate_plan(combined_plan, action_infos)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
         stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
         print('Stream plan: {}\n'
@@ -101,15 +93,26 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
 
         if stream_plan is None:
             if queue:
-                fairly_process_queue(queue, evaluations, max_cost, verbose)
+                action_plan = fairly_process_queue(queue, evaluations, max_cost, verbose)
             else:
                 break
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
             sampling_key = SamplingKey(0, len(stream_plan))
-            sampling_problem = SamplingProblem({}, stream_plan, action_plan, cost)
+            bindings = {}
+            sampling_problem = SamplingProblem(activate_first(bindings, stream_plan), 0,
+                                               bindings, stream_plan, action_plan, cost)
             heappush(queue, (sampling_key, sampling_problem))
+            action_plan = greedily_process_queue(queue, evaluations, max_cost, sampling_time, verbose)
+            # TODO: keep updating the best plan
+        if action_plan is not None:
+            cost = 0
+            if cost < best_cost:
+                best_plan = action_plan; best_cost = cost
+                if best_cost < max_cost:
+                    break
+                # TODO: avoid processing if not breaking?
 
     if postprocess and (not unit_costs) and (best_plan is not None):
         best_plan = locally_optimize(evaluations, best_plan, goal_expression, domain,

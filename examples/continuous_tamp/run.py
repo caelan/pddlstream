@@ -79,7 +79,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
