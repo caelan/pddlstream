@@ -7,8 +7,9 @@ from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.macro_stream import get_macro_stream_plan
-from pddlstream.postprocess import locally_optimize, populate_results, process_stream_plan, \
-    SamplingProblem, SamplingKey, process_stream_plan_queue, eagerly_evaluate, reset_disabled
+from pddlstream.stream_plan import populate_results, process_stream_plan, \
+    SamplingProblem, SamplingKey, greedily_process_queue, fairly_process_queue, eagerly_evaluate, reset_disabled
+from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
@@ -34,7 +35,7 @@ def partition_externals(externals):
     return streams, functions, negative
 
 def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
-                  max_time=INF, max_cost=INF, unit_costs=False,
+                  max_time=INF, max_cost=INF, unit_costs=False, max_sampling_time=0,
                   commit=True, effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
@@ -67,12 +68,11 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     eager_externals = filter(lambda e: e.info.eager, externals)
     streams, functions, negative = partition_externals(externals)
     queue = []
+    # TODO: switch to searching if believe chance of search better than sampling
     while elapsed_time(start_time) < max_time:
         num_iterations += 1
-        # TODO: ensure that everything is evaluated once or use time?
-
-        process_time = 0
-        action_plan = process_stream_plan_queue(queue, evaluations, max_cost, process_time, verbose)
+        # TODO: decide max_sampling_time based on total search_time or likelihood estimates
+        action_plan = greedily_process_queue(queue, evaluations, max_cost, max_sampling_time, verbose)
         if action_plan is not None:
             cost = 0
             if cost < best_cost:
@@ -80,14 +80,11 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 if best_cost < max_cost:
                     break
                 # TODO: avoid processing if not breaking?
-
-        search_time = time.time() # TODO: allocate more sampling effort to maintain the balance
-        # TODO: total search time vs most recent search time?
-
-        print('\nIteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, len(evaluations), best_cost, elapsed_time(start_time)))
-        # TODO: constrain to use previous plan to some degree
         eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
+
+        print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+            num_iterations, len(queue), len(evaluations), best_cost, elapsed_time(start_time)))
+        # TODO: constrain to use previous plan to some degree
         stream_results = populate_results(evaluations, streams)
         stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results), functions)
         # TODO: warning check if using simultaneous_stream_plan or relaxed_stream_plan with non-eager functions
@@ -102,13 +99,17 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
 
-        if (stream_plan is None) and not queue:
-            break
-        if visualize:
-            create_visualizations(evaluations, stream_plan, num_iterations)
-        sampling_key = SamplingKey(0, len(stream_plan))
-        sampling_problem = SamplingProblem({}, stream_plan, action_plan, cost)
-        heappush(queue, (sampling_key, sampling_problem))
+        if stream_plan is None:
+            if queue:
+                fairly_process_queue(queue, evaluations, max_cost, verbose)
+            else:
+                break
+        else:
+            if visualize:
+                create_visualizations(evaluations, stream_plan, num_iterations)
+            sampling_key = SamplingKey(0, len(stream_plan))
+            sampling_problem = SamplingProblem({}, stream_plan, action_plan, cost)
+            heappush(queue, (sampling_key, sampling_problem))
 
     if postprocess and (not unit_costs) and (best_plan is not None):
         best_plan = locally_optimize(evaluations, best_plan, goal_expression, domain,
