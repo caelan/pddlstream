@@ -26,6 +26,9 @@ from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDi
 # TODO: could use fixed threshold or the max of the ones met
 # TODO: could ensure tight, but I bet FD prunes dominated actions anyways
 # TODO: conditional effects on movements/collapsing belief (can either rest or just make zero)
+# TODO: mixture of Gaussian's
+# TODO: do we want to control other modalities by this?
+# TODO: reduce to Gaussian around position in approximate belief
 
 ##################################################
 
@@ -38,16 +41,20 @@ def get_belief_problem(num_locs, deterministic, observable):
     else:
         p1, p2 = 0.6, 0.9
 
+    l0 = 'l0'
+    l1 = 'l1'
+    l2 = 'l2'
+
     initial = [
-        ('o1', 'l1', p1),
-        ('o2', 'l2', p2),
+        ('o1', l1, p1),
+        ('o2', l2, p2),
     ]
 
-    #goal = [('o1', 'l1', 0.95)]
-    #goal = [('o1', 'l0', 0.95)]
-    goal = [('o1', 'l2', 0.95)]
+    #goal = [('o1', l1, 0.95)]
+    goal = [('o1', l0, 0.95)]
+    #goal = [('o1', l2, 0.95)]
 
-    locations = {'l0'}
+    locations = {l0}
 
     if deterministic:
         p_move_s = 1.0
@@ -117,9 +124,10 @@ def get_collision_test(max_p_collision):
     # TODO: could include the threshold as a parameter
     # TODO: function that computes this threshold and then test?
     def test(l, d):
-        return ge_fn(d, l, max_p_collision)
-        #return prob_collision(..., d) <= max_p_collision
-        #return False
+        return max_p_collision < prob_occupied(l, d)
+        #return ge_fn(d, l, max_p_collision)
+        #return max_p_collision < prob_collision(..., d)
+        #return max_p_collision < prob_collision(..., d)
     return test
 
 ##################################################
@@ -164,21 +172,20 @@ def get_observation_fn(control_loc, p_look_fp, p_look_fn):
 
 def get_look_cost_fn(belief_problem):
     action_cost = 1
-    def fn(control_loc, d):
+    def fn(control_loc, d, obs):
         d_obs = totalProbability(d, get_observation_fn(control_loc,
                                                        belief_problem.p_look_fp,
                                                        belief_problem.p_look_fn))
-        p_obs = float(d_obs.prob(True))
+        p_obs = float(d_obs.prob(obs))
         expected_cost = revisit_mdp_cost(action_cost, action_cost, p_obs)
         return scale_cost(expected_cost)
     return fn
 
 def get_look_fn(belief_problem):
-    def fn(control_loc, d1):
+    def fn(control_loc, d1, obs):
         if prob_occupied(control_loc, d1) == 0:  # Not possible to generate observation
             return None
         d2 = d1.copy()
-        obs = True
         d2.obsUpdate(get_observation_fn(control_loc, belief_problem.p_look_fp,
                                         belief_problem.p_look_fn), obs)
         return (d2,)
@@ -186,15 +193,19 @@ def get_look_fn(belief_problem):
 
 ##################################################
 
-def to_pddlstream(belief_problem):
+def to_pddlstream(belief_problem, collisions=True):
     objects = {o for (o, _, _) in belief_problem.initial}
     locations = {l for (_, l, _) in belief_problem.initial + belief_problem.goal} | \
                 set(belief_problem.locations)
     uniform = UniformDist(locations)
     initial_bel = {o: MixtureDD(DeltaDist(l), uniform, p) for o, l, p in belief_problem.initial}
+    max_p_collision = 0.25 if collisions else 1.0
 
     # TODO: separate pick and place for move
-    init = \
+    init = [
+        ('Obs', True), # Positive observation
+        #('Obs', False), # Negative observation
+    ] + \
         [('Obj', o) for o in objects] + \
         [('Location', l) for l in locations]
     for o, d in initial_bel.items():
@@ -211,7 +222,7 @@ def to_pddlstream(belief_problem):
     stream_map = {
         'MoveCost': move_cost_fn,
         'LookCost': get_look_cost_fn(belief_problem),
-        'BCollision': get_collision_test(0.25),
+        'BCollision': get_collision_test(max_p_collision),
         'ge': from_test(ge_fn),
         'prob-after-move': from_fn(get_move_fn(belief_problem)),
         'prob-after-look': from_fn(get_look_fn(belief_problem)),
@@ -220,16 +231,17 @@ def to_pddlstream(belief_problem):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def main(num_locs=5, deterministic=False, observable=False, focused=True, custom_bound=True):
+def main(num_locs=5, deterministic=False, observable=False, collisions=True, focused=True, custom_bound=True):
 
     belief_problem = get_belief_problem(num_locs, deterministic, observable)
-    pddlstream_problem = to_pddlstream(belief_problem)
+    pddlstream_problem = to_pddlstream(belief_problem, collisions)
 
     # TODO: cap the cost at MAX_COST?
-    solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_cost=MAX_COST, unit_costs=False)
+    solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', debug=True,
+                                 max_cost=MAX_COST, unit_costs=False)
     print_solution(solution)
     plan, cost, init = solution
     print('Real cost:', float(cost)/SCALE_COST)
 
 if __name__ == '__main__':
-    main(deterministic=False, observable=False, focused=True, custom_bound=True)
+    main(deterministic=False, observable=False, collisions=True, focused=True, custom_bound=True)

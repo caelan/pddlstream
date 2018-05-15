@@ -31,7 +31,7 @@ def solve_current(problem, **search_kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    evaluations, goal_expression, domain, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -48,7 +48,7 @@ def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
         using stream applications
     """
     start_time = time.time()
-    evaluations, goal_expression, domain, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
     instantiator = Instantiator(evaluations, streams)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
@@ -73,7 +73,7 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    evaluations, goal_expression, domain, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
     instantiator = Instantiator(evaluations, streams)
     while elapsed_time(start_time) < max_time:
         num_iterations += 1

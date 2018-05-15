@@ -5,13 +5,13 @@ from pddlstream.conversion import values_from_objects, substitute_expression, ge
 from pddlstream.utils import str_from_tuple, INF
 import time
 
-DEFAULT_P_SUCCESS = 0.75
-DEFAULT_OVERHEAD = 1 # TODO: estimate search overhead
 DEBUG = 'debug'
 
 class ExternalInfo(object):
-    pass
-
+    def __init__(self, eager, p_success, overhead):
+        self.eager = eager
+        self.p_success = p_success
+        self.overhead = overhead
 
 def geometric_cost(cost, p):
     if p == 0:
@@ -19,12 +19,9 @@ def geometric_cost(cost, p):
     return cost/p
 
 class FunctionInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=0, p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
-        self.eager = eager
+    def __init__(self, eager=False, bound_fn=0, p_success=None, overhead=None):
+        super(FunctionInfo, self).__init__(eager, p_success, overhead)
         self.bound_fn = bound_fn
-        self.p_success = p_success
-        self.overhead = overhead
-        self.effort = geometric_cost(self.overhead, self.p_success)
         #self.order = 0
 
 ##################################################
@@ -81,13 +78,14 @@ class Instance(object):
 
 class External(object):
     _Instance = None
-    def __init__(self, name, inputs, domain):
+    def __init__(self, name, info, inputs, domain):
         for p, c in Counter(inputs).items():
             if c != 1:
                 raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
         for p in {a for i in domain for a in get_args(i) if is_parameter(a)} - set(inputs):
             raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
         self.name = name.lower()
+        self.info = info
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         self.instances = {}
@@ -101,19 +99,32 @@ class External(object):
         self.total_overhead += overhead
         self.total_successes += success
 
-    def estimate_p_success(self, reg_p_success=1, reg_calls=0):
+    def estimate_p_success(self, reg_p_success=1, reg_calls=1):
         calls = self.total_calls + reg_calls
         if calls == 0:
-            return None
+            return reg_p_success
         # TODO: use prior from info instead?
         return float(self.total_successes + reg_p_success*reg_calls) / calls
 
-    def estimate_overhead(self, reg_overhead=0, reg_calls=0):
+    def estimate_overhead(self, reg_overhead=0, reg_calls=1):
         calls = self.total_calls + reg_calls
         if calls == 0:
-            return None
+            return reg_overhead
         # TODO: use prior from info instead?
         return float(self.total_overhead + reg_overhead*reg_calls) / calls
+
+    def get_p_success(self):
+        if self.info.p_success is None:
+            return self.estimate_p_success()
+        return self.info.p_success
+
+    def get_overhead(self):
+        if self.info.overhead is None:
+            return self.estimate_overhead()
+        return self.info.overhead
+
+    def get_effort(self):
+        return geometric_cost(self.get_overhead(), self.get_p_success())
 
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
@@ -167,8 +178,10 @@ class FunctionInstance(Instance):  # Head(Instance):
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
-        # TODO: include as failure if a predicate evaluation is unsuccessful
-        self.update_statistics(start_time, results)
+        if isinstance(self, PredicateInstance) and (self.value != self._opt_value):
+            self.update_statistics(start_time, []) # TODO: do this more automatically
+        else:
+            self.update_statistics(start_time, results)
         return results
 
     def next_optimistic(self):
@@ -190,14 +203,14 @@ class Function(External):
     _Result = FunctionResult
     _codomain = int
     _default_p_success = 1
-    _default_overhead = DEFAULT_OVERHEAD
+    _default_overhead = None
     def __init__(self, head, fn, domain):
-        super(Function, self).__init__(get_prefix(head), get_args(head), domain)
+        info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
+        super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         if fn == DEBUG:
             fn = lambda *args: self._codomain()
         self.fn = fn
-        self.info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -227,8 +240,8 @@ class Predicate(Function):
     _Instance = PredicateInstance
     _Result = PredicateResult
     _codomain = bool
-    _default_p_success = 0.5
-    _default_overhead = DEFAULT_OVERHEAD
+    _default_p_success = None
+    _default_overhead = None
     def is_negative(self):
         return self._Instance._opt_value is False
 

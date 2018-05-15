@@ -1,10 +1,10 @@
-(define (domain pick-and-place)
+(define (domain belief)
   (:requirements :strips :equality)
   (:predicates
     (Obj ?q)
     (BLoc ?o ?d)
     (MoveProb ?l1 ?l2 ?d1 ?d2)
-    (LookProb ?l ?d1 ?d2)
+    (LookProb ?l ?d1 ?ob ?d2)
     (GE ?d ?l ?p)
     (BLocGE ?o ?l ?p)
     (BCollision ?l ?d)
@@ -12,7 +12,7 @@
   )
   (:functions
     (MoveCost ?l1 ?2)
-    (LookCost ?l ?d)
+    (LookCost ?l ?d ?ob)
   )
   (:action move
     :parameters (?o ?l1 ?l2 ?d1 ?d2)
@@ -23,12 +23,12 @@
                  (increase (total-cost) (MoveCost ?l1 ?l2)))
   )
   (:action look
-    :parameters (?o ?l ?d1 ?d2)
-    :precondition (and (Obj ?o) (LookProb ?l ?d1 ?d2)
+    :parameters (?o ?l ?d1 ?ob ?d2)
+    :precondition (and (Obj ?o) (LookProb ?l ?d1 ?ob ?d2)
                        (BLoc ?o ?d1))
     :effect (and (BLoc ?o ?d2)
                  (not (BLoc ?o ?d1))
-                 (increase (total-cost) (LookCost ?l ?d1)))
+                 (increase (total-cost) (LookCost ?l ?d1 ?ob)))
   )
   (:derived (BLocGE ?o ?l ?p)
     (exists (?d) (and (Obj ?o) (GE ?d ?l ?p)

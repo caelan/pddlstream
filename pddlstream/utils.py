@@ -5,6 +5,7 @@ import shutil
 import sys
 import time
 import math
+import pickle
 
 INF = float('inf')
 
@@ -24,6 +25,17 @@ def read(filename):
 def write(filename, string):
     with open(filename, 'w') as f:
         f.write(string)
+
+
+def write_pickle(filename, data):
+    # TODO: cannot pickle lambda or nested functions
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def read_pickle(filename):
+    with open(filename, 'rb') as f:
+        return pickle.load(f)
 
 
 def safe_remove(p):

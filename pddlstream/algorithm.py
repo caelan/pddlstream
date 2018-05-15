@@ -24,11 +24,11 @@ def parse_problem(problem):
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
-    streams = parse_stream_pddl(stream_pddl, stream_map)
+    stream_name, streams = parse_stream_pddl(stream_pddl, stream_map)
     #evaluations = set(evaluations_from_init(init))
     evaluations = OrderedDict((e, None) for e in evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
-    return evaluations, goal_expression, domain, streams
+    return evaluations, goal_expression, domain, stream_name, streams
 
 
 def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs):

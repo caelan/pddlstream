@@ -4,8 +4,8 @@ from itertools import count
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
 from pddlstream.fast_downward import parse_lisp
-from pddlstream.function import Result, Instance, External, ExternalInfo, geometric_cost, parse_function, \
-    parse_predicate, DEFAULT_OVERHEAD, DEFAULT_P_SUCCESS, DEBUG
+from pddlstream.function import Result, Instance, External, ExternalInfo, parse_function, \
+    parse_predicate, DEBUG
 from pddlstream.utils import str_from_tuple, INF
 import time
 
@@ -102,15 +102,11 @@ class DebugValue(object): # TODO: could just do an object
 # TODO: debug stream functions
 
 class StreamInfo(ExternalInfo):
-    # TODO: make bound, effort, etc meta-parameters of the algorithms or part of the problem?
     def __init__(self, eager=False, bound_fn=get_unique_fn,
-                 p_success=DEFAULT_P_SUCCESS, overhead=DEFAULT_OVERHEAD):
+                 p_success=None, overhead=None):
         # TODO: could change frequency/priority for the incremental algorithm
-        self.eager = eager
+        super(StreamInfo, self).__init__(eager, p_success, overhead)
         self.bound_fn = bound_fn
-        self.p_success = p_success
-        self.overhead = overhead
-        self.effort = geometric_cost(self.overhead, self.p_success)
         #self.order = 0
         # TODO: context?
 
@@ -179,7 +175,7 @@ class Stream(External):
             raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
         for p in {a for i in certified for a in get_args(i) if is_parameter(a)} - set(inputs + outputs):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
-        super(Stream, self).__init__(name, inputs, domain)
+        super(Stream, self).__init__(name, StreamInfo(), inputs, domain)
         # Each stream could certify a stream-specific fact as well
         if gen_fn == DEBUG:
             #gen_fn = from_fn(lambda *args: tuple(object() for _ in self.outputs))
@@ -187,8 +183,7 @@ class Stream(External):
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        self.opt_fn = get_shared_fn(self) # get_unique_fn | get_shared_fn
-        self.info = StreamInfo()
+        self.opt_fn = get_unique_fn(self) # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 
@@ -277,4 +272,4 @@ def parse_stream_pddl(stream_pddl, stream_map):
         if any(e.name == external.name for e in streams):
             raise ValueError('Stream [{}] is not unique'.format(external.name))
         streams.append(external)
-    return streams
+    return stream_name, streams

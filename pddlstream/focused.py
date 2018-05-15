@@ -1,5 +1,8 @@
+from __future__ import print_function
+
 import time
-from collections import defaultdict, deque
+import os
+from collections import defaultdict, deque, namedtuple
 from itertools import product
 
 from pddlstream.algorithm import parse_problem
@@ -15,8 +18,7 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan, get_goal_instance
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF
-from pddlstream.utils import elapsed_time, implies
+from pddlstream.utils import INF, elapsed_time, implies, write_pickle, read_pickle, ensure_dir
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
 
@@ -259,6 +261,40 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
 
 ##################################################
 
+SamplingProblem = namedtuple('SamplingProblem', ['stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
+
+DATA_DIR = 'data/'
+
+def get_stream_data_filename(stream_name):
+    return os.path.join(DATA_DIR, '{}.pp'.format(stream_name))
+
+def load_stream_statistics(stream_name, externals):
+    filename = get_stream_data_filename(stream_name)
+    if not os.path.exists(filename):
+        return
+    data = read_pickle(filename)
+    for external in externals:
+        if external.name in data:
+            statistics = data[external.name]
+            external.total_calls += statistics['calls']
+            external.total_overhead += statistics['overhead']
+            external.total_successes += statistics['successes']
+
+def write_stream_statistics(stream_name, externals):
+    data = {}
+    for external in externals:
+        data[external.name] = {
+            'calls': external.total_calls,
+            'overhead': external.total_overhead,
+            'successes': external.total_successes,
+        }
+        print(external.name, data[external.name])
+    filename = get_stream_data_filename(stream_name)
+    ensure_dir(filename)
+    write_pickle(filename, data)
+
+##################################################
+
 def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
                   commit=True, effort_weight=None, eager_layers=1,
@@ -284,9 +320,10 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     start_time = time.time()
     num_iterations = 0
     best_plan = None; best_cost = INF
-    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
     action_info = get_action_info(action_info)
     update_stream_info(externals, stream_info)
+    load_stream_statistics(stream_name, externals)
     eager_externals = filter(lambda e: e.info.eager, externals)
     disabled = []
     if visualize:
@@ -299,6 +336,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     depth = 1
     #stream_results = populate_results(evaluations, streams)
     #depth = 0
+    sampling_queue = deque()
     while elapsed_time(start_time) < max_time:
         search_time = time.time() # TODO: allocate more sampling effort to maintain the balance
         if stream_results is None:
@@ -338,6 +376,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                     break
             stream_results = None
         else:
+            sampling_queue.append(SamplingProblem(stream_plan, action_plan, cost))
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
             option = True
@@ -351,8 +390,9 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 old_evaluations = set(evaluations)
                 stream_results, _ = process_stream_plan(evaluations, stream_plan, disabled, verbose)
                 new_evaluations = set(evaluations) - old_evaluations
-                new_instances = [r.instance for r in stream_results]
-                stream_results = populate_results(new_evaluations, streams, new_instances)
+                if stream_results is not None:
+                    new_instances = [r.instance for r in stream_results]
+                    stream_results = populate_results(new_evaluations, streams, new_instances)
             if not commit:
                 stream_results = None
             depth += 1
@@ -361,4 +401,5 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     if postprocess and (not unit_costs) and (best_plan is not None):
         best_plan = locally_optimize(evaluations, best_plan, goal_expression, domain,
                                      functions, negative, dynamic_streams, verbose)
+    write_stream_statistics(stream_name, externals)
     return revert_solution(best_plan, best_cost, evaluations)

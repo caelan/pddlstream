@@ -43,8 +43,8 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
 ##################################################
 
 def get_stream_stats(result):
-    info = result.instance.external.info
-    return info.p_success, info.overhead
+    external = result.instance.external
+    return external.get_p_success(), external.get_overhead()
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     if stream_plan is None:
