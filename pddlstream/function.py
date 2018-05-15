@@ -28,8 +28,9 @@ class FunctionInfo(ExternalInfo):
 
 
 class Result(object):
-    def __init__(self, instance):
+    def __init__(self, instance, opt_index):
         self.instance = instance
+        self.opt_index = opt_index
 
     def get_certified(self):
         raise NotImplementedError()
@@ -41,10 +42,11 @@ class Instance(object):
         self.input_objects = tuple(input_objects)
         self.enumerated = False
         self.disabled = False
+        self.opt_index = 0
         self.total_calls = 0
         self.total_overhead = 0
         self.total_successes = 0
-        # self.results_history = []
+        self.results_history = []
 
     def update_statistics(self, start_time, results):
         overhead = time.time() - start_time
@@ -53,15 +55,20 @@ class Instance(object):
         self.total_overhead += overhead
         self.total_successes += success
         self.external.update_statistics(overhead, success)
+        self.results_history.append(results)
         # TODO: update the global as well
 
-    def estimate_p_success(self, reg_p_success=1, reg_calls=0):
-        raise NotImplementedError()
+    def get_p_success(self):
+        return self.external.get_p_success()
         # TODO: use the external as a prior
         # TODO: Bayesian estimation of likelihood that has result
+        # Model hidden state of whether has values or if will produce values?
 
-    def estimate_overhead(self, reg_overhead=0, reg_calls=0):
-        raise NotImplementedError()
+    def get_overhead(self):
+        return self.external.get_overhead()
+
+    def get_effort(self):
+        return geometric_cost(self.get_overhead(), self.get_p_success())
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -136,8 +143,8 @@ class External(object):
 ##################################################
 
 class FunctionResult(Result):
-    def __init__(self, instance, value):
-        super(FunctionResult, self).__init__(instance)
+    def __init__(self, instance, value, opt_index=None):
+        super(FunctionResult, self).__init__(instance, opt_index)
         self.instance = instance
         self.value = value
 
@@ -187,7 +194,9 @@ class FunctionInstance(Instance):  # Head(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        return [self.external._Result(self, self._opt_value)]
+        opt_fn = lambda *args: self._opt_value
+        opt_value = opt_fn(*self.get_input_values())
+        return [self.external._Result(self, opt_value, opt_index=self.opt_index)]
 
     def __repr__(self):
         # return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)

@@ -13,7 +13,7 @@ def evaluations_from_stream_plan(evaluations, stream_plan):
     opt_evaluations = set(evaluations)
     for result in stream_plan:
         if isinstance(result, StreamResult):
-            effort = result.instance.external.get_effort()
+            effort = result.instance.get_effort()
             if effort == INF:
                 continue
         assert(not result.instance.disabled)
@@ -45,7 +45,7 @@ def get_stream_action(result, name, unit_cost, effect_scale=1):
     effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
                for fact in result.get_certified()]
 
-    effort = 1 if unit_cost else result.instance.external.get_effort()
+    effort = 1 if unit_cost else result.instance.get_effort()
     if effort == INF:
         return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])

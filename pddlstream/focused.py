@@ -19,6 +19,7 @@ from pddlstream.statistics import get_action_info, update_stream_info, SamplingP
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.visualization import clear_visualizations, create_visualizations
 
+
 def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
     start_time = time.time()
     instantiator = Instantiator(evaluations, externals)
@@ -32,6 +33,12 @@ def reset_disabled(disabled):
     for stream_instance in disabled:
         stream_instance.disabled = False
     disabled[:] = []
+
+
+# TODO: compute total stream plan p_success and overhead
+# TODO: ensure search and sampling have equal time
+# TODO: select whether to search or sample based on expected success rates
+# TODO: estimate the success rate for a stream_plan given past outcomes
 
 ##################################################
 

@@ -33,14 +33,12 @@ def populate_results(evaluations, streams, initial_instances=[]):
 
 ##################################################
 
-def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations):
+def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluations, plan_index):
     # TODO: combination for domain predicates
     evaluation_set = set(evaluations)
     combined_evaluations = evaluation_set | opt_evaluations
     real_instances = []
     opt_instances = []
-    #input_objects = [[i] if isinstance(i, Object) else bindings[i]
-    #                for i in stream_instance.input_objects]
     input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
     for combo in product(*input_objects):
         mapping = dict(zip(stream_instance.input_objects, combo))
@@ -48,15 +46,34 @@ def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluati
             stream_instance.get_domain(), mapping)))
         if domain <= combined_evaluations:
             instance = stream_instance.external.get_instance(combo)
-            if domain <= evaluation_set:
-                real_instances.append(instance)
+            immediate = False
+            if immediate:
+                if domain <= evaluation_set:
+                    if instance.opt_index == 0:
+                        real_instances.append(instance)
+                    else:
+                        instance.opt_index -= 1
+                        opt_instances.append(instance)
+                else:
+                    opt_instances.append(instance)
             else:
-                opt_instances.append(instance)
+                #if (instance.opt_index == 0) and (domain <= evaluation_set):
+                if (plan_index == 0) and (domain <= evaluation_set):
+                    real_instances.append(instance)
+                else:
+                   if instance.opt_index != 0:
+                       instance.opt_index -= 1
+                   opt_instances.append(instance)
     return real_instances, opt_instances
 
 def disable_stream_instance(stream_instance, disabled):
     disabled.append(stream_instance)
     stream_instance.disabled = True
+
+def get_stream_plan_index(stream_plan):
+    if not stream_plan:
+        return 0
+    return max(r.opt_index for r in stream_plan)
 
 ##################################################
 
@@ -64,6 +81,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                         quick_fail=True, layers=False, max_values=INF):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
+    plan_index = get_stream_plan_index(stream_plan)
     streams_from_output = defaultdict(list)
     for result in stream_plan:
         if isinstance(result, StreamResult):
@@ -71,6 +89,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 streams_from_output[obj].append(result)
     shared_output_streams = {s for streams in streams_from_output.values() if 1 < len(streams) for s in streams}
     #shared_output_streams = {}
+    print(shared_output_streams)
+    print(plan_index)
 
     opt_bindings = defaultdict(list)
     opt_evaluations = set()
@@ -80,7 +100,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
     while stream_queue and implies(quick_fail, not failed):
         opt_result = stream_queue.popleft()
         real_instances, opt_instances = ground_stream_instances(opt_result.instance, opt_bindings,
-                                                                evaluations, opt_evaluations)
+                                                                evaluations, opt_evaluations, plan_index)
         first_step = all(isinstance(o, Object) for o in opt_result.instance.input_objects)
         num_instances = min(len(real_instances), max_values) \
             if (layers or first_step or (opt_result not in shared_output_streams)) else 0
@@ -101,6 +121,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
                 local_failure = True # TODO: check for instance?
             new_results += results
         for instance in opt_instances:
+            #print(instance, instance.opt_index)
             results = instance.next_optimistic()
             opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             opt_results += results
@@ -120,6 +141,8 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
         print('Success: {}'.format(not failed))
     if failed:
         return None, None
+    # TODO: just return binding
+    # TODO: could also immediately switch to binding if plan_index == 0 afterwards
     return opt_results, opt_bindings
 
 ##################################################

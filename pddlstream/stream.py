@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, namedtuple
 from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
@@ -60,30 +60,29 @@ def empty_gen():
 
 ##################################################
 
+UniqueOpt = namedtuple('UniqueOpt', ['instance', 'output_index'])
+SharedOpt = namedtuple('SharedOpt', ['external', 'output_index'])
+
 def get_empty_fn(stream):
     # TODO: also use None to designate this
     return lambda *input_values: []
 
-def get_shared_fn(stream):
+def get_shared_fn(stream): # TODO: identify bound
     def fn(*input_values):
-        output_values = tuple((stream, i) for i in range(len(stream.outputs)))
+        output_values = tuple(SharedOpt(stream, i) for i in range(len(stream.outputs)))
         return [output_values]
     return fn
 
 def create_partial_fn():
     # TODO: indices or names
-    def get_partial_fn(stream):
-        def fn(*input_values):
-            output_values = tuple((stream, i) for i in range(len(stream.outputs)))
-            return [output_values]
-        return fn
+    raise NotImplementedError()
     return get_partial_fn
 
 def get_unique_fn(stream):
     def fn(*input_values):
         input_objects = map(opt_obj_from_value, input_values)
         stream_instance = stream.get_instance(input_objects)
-        output_values = tuple((stream_instance, i) for i in range(len(stream.outputs)))
+        output_values = tuple(UniqueOpt(stream_instance, i) for i in range(len(stream.outputs)))
         return [output_values]
     return fn
 
@@ -113,8 +112,8 @@ class StreamInfo(ExternalInfo):
 ##################################################
 
 class StreamResult(Result):
-    def __init__(self, instance, output_objects):
-        super(StreamResult, self).__init__(instance)
+    def __init__(self, instance, output_objects, opt_index=None):
+        super(StreamResult, self).__init__(instance, opt_index)
         self.output_objects = output_objects
     def get_mapping(self):
         return dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
@@ -133,6 +132,7 @@ class StreamInstance(Instance):
     def __init__(self, stream, input_objects):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
+        self.opt_index = len(stream.opt_fns) - 1
     def _next_outputs(self):
         if self._generator is None:
             self._generator = self.external.gen_fn(*self.get_input_values())
@@ -159,8 +159,9 @@ class StreamInstance(Instance):
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real not real verifications of things?
-        new_optimistic = self.external.opt_fn(*self.get_input_values())
-        return [self.external._Result(self, opt_from_values(output_opt)) for output_opt in new_optimistic]
+        opt_fn = self.external.opt_fns[self.opt_index]
+        new_optimistic = opt_fn(*self.get_input_values())
+        return [self.external._Result(self, opt_from_values(output_opt), opt_index=self.opt_index) for output_opt in new_optimistic]
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -183,7 +184,8 @@ class Stream(External):
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        self.opt_fn = get_shared_fn(self) # get_unique_fn | get_shared_fn
+        self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
+        #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 

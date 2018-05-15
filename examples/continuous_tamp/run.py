@@ -152,7 +152,7 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=True):
+def main(focused=True, deterministic=False, unit_costs=False):
     np.set_printoptions(precision=2)
     if deterministic:
         np.random.seed(0)

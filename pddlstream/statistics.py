@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 from collections import defaultdict, namedtuple
 
@@ -27,11 +29,7 @@ def get_action_info(action_info):
         action_execution[name] = info
     return action_execution
 
-
-def update_stream_info(externals, stream_info):
-    for external in externals:
-        if external.name in stream_info:
-            external.info = stream_info[external.name]
+##################################################
 
 
 SamplingProblem = namedtuple('SamplingProblem', ['stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
@@ -64,8 +62,14 @@ def write_stream_statistics(stream_name, externals):
             'overhead': external.total_overhead,
             'successes': external.total_successes,
         }
-        print(external.name, external.get_p_success(), external.get_overhead(), external.get_effort()) #, data[external.name])
+        print('External: {} | p_success: {:.3f} | overhead: {:.3f}'.format(
+            external.name, external.get_p_success(), external.get_overhead())) #, external.get_effort()) #, data[external.name])
     filename = get_stream_data_filename(stream_name)
     ensure_dir(filename)
     write_pickle(filename, data)
     print('Wrote:', filename)
+
+def update_stream_info(externals, stream_info):
+    for external in externals:
+        if external.name in stream_info:
+            external.info = stream_info[external.name]
