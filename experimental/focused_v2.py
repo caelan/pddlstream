@@ -7,7 +7,7 @@ from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.synthesizer import get_synthetic_stream_plan
-from pddlstream.stream_plan import optimistic_process_streams, Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate
+from pddlstream.skeleton import optimistic_process_streams, Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate
 from experimental.stream_plan import reset_disabled, process_stream_plan
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan

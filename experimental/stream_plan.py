@@ -7,7 +7,7 @@ from pddlstream.function import PredicateResult
 from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.object import Object
 from pddlstream.stream import StreamResult
-from pddlstream.stream_plan import get_stream_plan_index
+from pddlstream.skeleton import get_stream_plan_index
 from pddlstream.utils import INF, implies
 
 

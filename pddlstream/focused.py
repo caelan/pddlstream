@@ -13,7 +13,7 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
-from pddlstream.stream_plan import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
+from pddlstream.skeleton import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
     Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
 from pddlstream.utils import INF
 from pddlstream.visualization import clear_visualizations, create_visualizations

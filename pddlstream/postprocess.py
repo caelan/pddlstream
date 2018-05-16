@@ -5,7 +5,7 @@ import time
 from pddlstream.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, fact_from_fd
 from pddlstream.synthesizer import SynthStreamResult, get_synthetic_stream_plan
-from pddlstream.stream_plan import optimistic_process_streams, greedily_process_queue, SkeletonKey, Skeleton, instantiate_first
+from pddlstream.skeleton import optimistic_process_streams, greedily_process_queue, SkeletonKey, Skeleton, instantiate_first
 from pddlstream.reorder import get_action_instances, replace_derived, topological_sort, reorder_stream_plan
 from pddlstream.scheduling.relaxed import get_goal_instance, plan_preimage, recover_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
