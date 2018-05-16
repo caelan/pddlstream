@@ -3,7 +3,7 @@ from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
     substitute_expression, opt_obj_from_value, get_args, is_parameter
-from pddlstream.fast_downward import parse_lisp
+from pddlstream.downward import parse_lisp
 from pddlstream.function import Result, Instance, External, ExternalInfo, parse_function, \
     parse_predicate, DEBUG
 from pddlstream.utils import str_from_tuple, INF

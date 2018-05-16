@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact, Head
-from pddlstream.fast_downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
+from pddlstream.downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
 from pddlstream.function import FunctionResult
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, find, int_ceil

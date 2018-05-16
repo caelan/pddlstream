@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import solve_from_pddl
+from pddlstream.downward import solve_from_pddl
 from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
 from pddlstream.utils import print_solution, read

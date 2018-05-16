@@ -15,7 +15,7 @@ from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_p
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.conversion import And, Equal
-from pddlstream.fast_downward import TOTAL_COST
+from pddlstream.downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
 from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
@@ -79,7 +79,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -152,12 +152,15 @@ def apply_action(state, action):
 
 ##################################################
 
+def get_random_seed():
+    return np.random.get_state()[1][0]
+
 def main(focused=True, deterministic=False, unit_costs=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
-    print('Seed:', np.random.get_state()[1][0])
+    print('Seed:', get_random_seed())
 
     problem_fn = get_blocked_problem # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
@@ -176,8 +179,8 @@ def main(focused=True, deterministic=False, unit_costs=False):
     }
 
     dynamic = [
-        StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-                          gen_fn=from_fn(cfree_motion_fn)),
+        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #                  gen_fn=from_fn(cfree_motion_fn)),
         #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
         #                           'posecollision': 0, 'distance': 0},
         #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
@@ -209,7 +212,7 @@ def main(focused=True, deterministic=False, unit_costs=False):
     draw_state(viewer, state, colors)
     for i, action in enumerate(plan):
         user_input('Continue?')
-        print(i, action)
+        print(i, *action)
         state = apply_action(state, action)
         print(state)
         draw_state(viewer, state, colors)

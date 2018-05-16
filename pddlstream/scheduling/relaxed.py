@@ -3,7 +3,7 @@ from collections import defaultdict, deque, namedtuple, OrderedDict
 from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
-from pddlstream.fast_downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
+from pddlstream.downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
     parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd, solve_from_task
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head

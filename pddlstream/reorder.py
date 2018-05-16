@@ -3,7 +3,7 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithm import neighbors_from_orders
 from pddlstream.conversion import evaluation_from_fact, get_prefix, EQ, pddl_from_object
-from pddlstream.fast_downward import get_init, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
+from pddlstream.downward import get_init, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
     apply_action
 from pddlstream.function import PredicateResult, Result
 from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms

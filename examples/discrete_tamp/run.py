@@ -9,7 +9,7 @@ from collections import namedtuple
 import numpy as np
 
 from pddlstream.conversion import And, Equal
-from pddlstream.fast_downward import TOTAL_COST
+from pddlstream.downward import TOTAL_COST
 from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_gen_fn, from_test, from_fn

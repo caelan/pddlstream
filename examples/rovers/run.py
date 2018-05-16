@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.fast_downward import solve_from_pddl
+from pddlstream.downward import solve_from_pddl
 from pddlstream.utils import read, get_length
 import os
 

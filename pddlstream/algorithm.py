@@ -3,7 +3,7 @@ from collections import OrderedDict, defaultdict
 
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact
-from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
+from pddlstream.downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream_pddl
