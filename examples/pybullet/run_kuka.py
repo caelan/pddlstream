@@ -16,9 +16,47 @@ from examples.pybullet.utils.utils import WorldSaver, connect, dump_world, get_p
     disconnect, DRAKE_IIWA_URDF, get_bodies, input
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, StreamInfo, from_gen_fn
-from pddlstream.utils import print_solution, read, INF, get_file_path
+from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen
+from pddlstream.synthesizer import StreamSynthesizer
+from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
+def get_fixed(robot, movable):
+    rigid = [body for body in get_bodies() if body != robot]
+    fixed = [body for body in rigid if body not in movable]
+    return fixed
+
+def place_movable(certified):
+    placed = []
+    for literal in certified:
+        if literal[0] == 'not':
+            fact = literal[1]
+            if fact[0] == 'trajcollision':
+                _, b, p = fact[1:]
+                set_pose(b, p.pose)
+                placed.append(b)
+    return placed
+
+def get_free_motion_synth(robot, movable=[], teleport=False):
+    fixed = get_fixed(robot, movable)
+    def fn(outputs, certified):
+        assert(len(outputs) == 1)
+        q0, _, q1 = find_unique(lambda f: f[0] == 'freemotion', certified)[1:]
+        obstacles = fixed + place_movable(certified)
+        free_motion_fn = get_free_motion_gen(robot, obstacles, teleport)
+        return free_motion_fn(q0, q1)
+    return fn
+
+def get_holding_motion_synth(robot, movable=[], teleport=False):
+    fixed = get_fixed(robot, movable)
+    def fn(outputs, certified):
+        assert(len(outputs) == 1)
+        q0, _, q1, o, g = find_unique(lambda f: f[0] == 'holdingmotion', certified)[1:]
+        obstacles = fixed + place_movable(certified)
+        holding_motion_fn = get_holding_motion_gen(robot, obstacles, teleport)
+        return holding_motion_fn(q0, q1, o, g)
+    return fn
+
+#######################################################
 
 def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collisions=False, grasp_name='top'):
     #assert (not are_colliding(tree, kin_cache))
@@ -34,8 +72,7 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collision
             ('AtConf', conf),
             ('HandEmpty',)]
 
-    rigid = [body for body in get_bodies() if body != robot]
-    fixed = [body for body in rigid if body not in movable]
+    fixed = get_fixed(robot, movable)
     print('Movable:', movable)
     print('Fixed:', fixed)
     for body in movable:
@@ -69,8 +106,10 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collision
         'sample-pose': from_gen_fn(get_stable_gen(fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(robot, grasp_name)),
         'inverse-kinematics': from_fn(get_ik_fn(robot, fixed, teleport)),
-        'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
-        'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
+        #'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
+        'plan-free-motion': empty_gen(),
+        # 'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
+        'plan-holding-motion': empty_gen(),
         'TrajCollision': get_movable_collision_test(),
     }
 
@@ -103,7 +142,7 @@ def load_world():
 
 #######################################################
 
-def main(viewer=False, display=True, simulate=False):
+def main(viewer=False, display=True, simulate=False, teleport=False):
     # TODO: fix argparse & FastDownward
     #parser = argparse.ArgumentParser()  # Automatically includes help
     #parser.add_argument('-viewer', action='store_true', help='enable viewer.')
@@ -116,16 +155,23 @@ def main(viewer=False, display=True, simulate=False):
     dump_world()
 
     pddlstream_problem = pddlstream_from_problem(robot, movable=movable,
-                                                 teleport=False, movable_collisions=True)
+                                                 teleport=teleport, movable_collisions=True)
     _, _, _, stream_map, init, goal = pddlstream_problem
+    synthesizers = [
+        StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
+                          from_fn(get_free_motion_synth(robot, movable, teleport))),
+        StreamSynthesizer('safe-holding-motion', {'plan-holding-motion': 1, 'trajcollision': 0},
+                          from_fn(get_holding_motion_synth(robot, movable, teleport))),
+    ]
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
+    print('Synthesizers:', stream_map.keys())
     print(names)
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=[], max_cost=INF)
+    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
