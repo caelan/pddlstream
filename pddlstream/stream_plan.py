@@ -7,7 +7,7 @@ from pddlstream.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.function import FunctionResult, PredicateResult
 from pddlstream.instantiation import Instantiator
-from pddlstream.macro_stream import MacroResult
+from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.stream import StreamResult
 from pddlstream.utils import elapsed_time
 
@@ -40,7 +40,6 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None):
 # TODO: can either entirely replace arguments on plan or just pass bindings
 # TODO: handle this in a partially ordered way
 # TODO: no point not doing all at once if unique
-# TODO: store location in history in the sampling history
 # TODO: alternatively store just preimage and reachieve
 
 SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
@@ -59,7 +58,7 @@ def instantiate_first(bindings, stream_plan):
 def bind_plan(bindings, plan):
     return [(name, tuple(bindings.get(o, o) for o in args)) for name, args in plan]
 
-def pop_stream_queue(key, sampling_problem, queue, evaluations, store):
+def proccess_stream_plan(key, sampling_problem, queue, evaluations, store):
     instance, num_processed, bindings, stream_plan, action_plan, cost = sampling_problem
     if not stream_plan:
         store.add_plan(bind_plan(bindings, action_plan), cost)
@@ -96,7 +95,7 @@ def pop_stream_queue(key, sampling_problem, queue, evaluations, store):
                                 new_bindings, new_stream_plan, action_plan, new_cost)
         heappush(queue, (new_key, new_skeleton))
 
-    if (key.attempts == 0) and isinstance(opt_result, MacroResult):
+    if (key.attempts == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
         new_stream_plan = opt_result.decompose() + stream_plan[1:]
         new_key = SkeletonKey(0, len(new_stream_plan))
         new_skeleton = Skeleton(instantiate_first(bindings, new_stream_plan), 0,
@@ -114,20 +113,21 @@ def greedily_process_queue(queue, evaluations, store, max_time):
     # TODO: search until new disabled or new evaluation?
     start_time = time.time()
     while queue and not store.is_terminated():
-        key, sampling_problem = queue[0]
+        key, skeleton = queue[0]
         if (key.attempts != 0) and (max_time <= elapsed_time(start_time)):
             break
         heappop(queue)
-        pop_stream_queue(key, sampling_problem, queue, evaluations, store)
+        proccess_stream_plan(key, skeleton, queue, evaluations, store)
 
 def fairly_process_queue(queue, evaluations, store):
     # TODO: max queue attempts?
     old_queue = list(queue)
     queue[:] = []
-    for key, sampling_problem in old_queue:
+    for key, skeleton in old_queue:
         if store.is_terminated():
             break
-        pop_stream_queue(key, sampling_problem, queue, evaluations, store)
+        print('Attempts: {} | Length: {}'.format(key.attempts, key.length))
+        proccess_stream_plan(key, skeleton, queue, evaluations, store)
         if store.is_terminated():
             break
         greedily_process_queue(queue, evaluations, store, 0)

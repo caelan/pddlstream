@@ -26,6 +26,47 @@ class FunctionInfo(ExternalInfo):
 
 ##################################################
 
+class Performance(object):
+    def __init__(self, name, info):
+        self.name = name.lower()
+        self.info = info
+        self.total_calls = 0
+        self.total_overhead = 0
+        self.total_successes = 0
+
+    def update_statistics(self, overhead, success):
+        self.total_calls += 1
+        self.total_overhead += overhead
+        self.total_successes += success
+
+    def _estimate_p_success(self, reg_p_success=1, reg_calls=1):
+        calls = self.total_calls + reg_calls
+        if calls == 0:
+            return reg_p_success
+        # TODO: use prior from info instead?
+        return float(self.total_successes + reg_p_success*reg_calls) / calls
+
+    def _estimate_overhead(self, reg_overhead=0, reg_calls=1):
+        calls = self.total_calls + reg_calls
+        if calls == 0:
+            return reg_overhead
+        # TODO: use prior from info instead?
+        return float(self.total_overhead + reg_overhead*reg_calls) / calls
+
+    def get_p_success(self):
+        if self.info.p_success is None:
+            return self._estimate_p_success()
+        return self.info.p_success
+
+    def get_overhead(self):
+        if self.info.overhead is None:
+            return self._estimate_overhead()
+        return self.info.overhead
+
+    def get_effort(self):
+        return geometric_cost(self.get_overhead(), self.get_p_success())
+
+##################################################
 
 class Result(object):
     def __init__(self, instance, opt_index):
@@ -82,56 +123,18 @@ class Instance(object):
     def next_results(self, verbose=False):
         raise NotImplementedError()
 
-
-class External(object):
+class External(Performance):
     _Instance = None
     def __init__(self, name, info, inputs, domain):
+        super(External, self).__init__(name, info)
         for p, c in Counter(inputs).items():
             if c != 1:
                 raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
         for p in {a for i in domain for a in get_args(i) if is_parameter(a)} - set(inputs):
             raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
-        self.name = name.lower()
-        self.info = info
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         self.instances = {}
-        self.total_calls = 0
-        self.total_overhead = 0
-        self.total_successes = 0
-        # TODO: write the statistics to a file using the stream filename?
-
-    def update_statistics(self, overhead, success):
-        self.total_calls += 1
-        self.total_overhead += overhead
-        self.total_successes += success
-
-    def estimate_p_success(self, reg_p_success=1, reg_calls=1):
-        calls = self.total_calls + reg_calls
-        if calls == 0:
-            return reg_p_success
-        # TODO: use prior from info instead?
-        return float(self.total_successes + reg_p_success*reg_calls) / calls
-
-    def estimate_overhead(self, reg_overhead=0, reg_calls=1):
-        calls = self.total_calls + reg_calls
-        if calls == 0:
-            return reg_overhead
-        # TODO: use prior from info instead?
-        return float(self.total_overhead + reg_overhead*reg_calls) / calls
-
-    def get_p_success(self):
-        if self.info.p_success is None:
-            return self.estimate_p_success()
-        return self.info.p_success
-
-    def get_overhead(self):
-        if self.info.overhead is None:
-            return self.estimate_overhead()
-        return self.info.overhead
-
-    def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
 
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
@@ -284,9 +287,3 @@ def parse_predicate(lisp_list, stream_map):
             raise ValueError('Undefined external function: {}'.format(name))
         fn = stream_map[name]
     return Predicate(head, fn, list_from_conjunction(lisp_list[2]))
-
-
-def dump_external_statistics(externals):
-    for external in externals:
-        print(external, external.estimate_p_success(), external.estimate_overhead())
-

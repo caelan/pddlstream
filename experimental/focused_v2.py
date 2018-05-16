@@ -6,7 +6,7 @@ from heapq import heappush
 from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
-from pddlstream.macro_stream import get_macro_stream_plan
+from pddlstream.synthesizer import get_synthetic_stream_plan
 from pddlstream.stream_plan import optimistic_process_streams, Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate
 from experimental.stream_plan import reset_disabled, process_stream_plan
 from pddlstream.postprocess import locally_optimize
@@ -88,7 +88,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             print('Combined plan: {}'.format(combined_plan))
             stream_plan, action_plan = separate_plan(combined_plan, action_info)
             stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
-            stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
+            stream_plan = get_synthetic_stream_plan(stream_plan, dynamic_streams)
             print('Stream plan: {}\n'
                   'Action plan: {}'.format(stream_plan, action_plan))
 

@@ -4,7 +4,7 @@ from itertools import product
 from pddlstream.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.function import PredicateResult
-from pddlstream.macro_stream import MacroResult
+from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.object import Object
 from pddlstream.stream import StreamResult
 from pddlstream.stream_plan import get_stream_plan_index
@@ -107,7 +107,7 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
             if isinstance(result, StreamResult): # Could not add if same value
                 for opt, obj in zip(opt_result.output_objects, result.output_objects):
                     opt_bindings[opt].append(obj)
-        if local_failure and isinstance(opt_result, MacroResult):
+        if local_failure and isinstance(opt_result, SynthStreamResult):
             stream_queue.extendleft(reversed(opt_result.decompose()))
             failed = False # TODO: check if satisfies target certified
         else:

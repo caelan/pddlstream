@@ -13,7 +13,7 @@ from examples.continuous_tamp.constraint_solver import get_optimize_fn, get_cfre
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, BLOCK_HEIGHT, get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, rejection_sample_placed, plan_motion
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.macro_stream import StreamSynthesizer
+from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.conversion import And, Equal
 from pddlstream.fast_downward import TOTAL_COST
 from pddlstream.focused import solve_focused
@@ -152,7 +152,7 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=True):
+def main(focused=True, deterministic=False, unit_costs=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -176,10 +176,8 @@ def main(focused=True, deterministic=False, unit_costs=True):
     }
 
     dynamic = [
-        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-        #                  gen_fn=from_fn(cfree_motion_fn)),
-        #DynamicStream('cfree-pose', {'sample-pose': 1, 'posecollision': 0},
-        #              gen_fn=from_fn(get_cfree_pose_fn(tamp_problem.regions))),
+        StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+                          gen_fn=from_fn(cfree_motion_fn)),
         #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
         #                           'posecollision': 0, 'distance': 0},
         #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
@@ -190,9 +188,9 @@ def main(focused=True, deterministic=False, unit_costs=True):
     pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
-                                 dynamic_streams=dynamic,
+                                 synthesizers=dynamic,
                                  max_time=10, max_cost=INF, debug=False,
-                                 commit=True, effort_weight=None, unit_costs=unit_costs,
+                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs)

@@ -6,7 +6,7 @@ from pddlstream.algorithm import parse_problem, SolutionStore, has_costs
 from pddlstream.instantiation import Instantiator
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
-from pddlstream.macro_stream import get_macro_stream_plan
+from pddlstream.synthesizer import get_synthetic_stream_plan
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
@@ -52,9 +52,9 @@ def partition_externals(externals):
 def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
     combined_plan, cost = solve_stream_plan(stream_results)
     stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
-    print('Depth: {}\n'
-          'Stream plan: {}\n'
-          'Action plan: {}'.format(depth, stream_plan, action_plan))
+    #print('Depth: {}\n'
+    #      'Stream plan: {}\n'
+    #      'Action plan: {}'.format(depth, stream_plan, action_plan))
     if stream_plan is None:
         return stream_plan, cost, depth
     plan_index = get_stream_plan_index(stream_plan)
@@ -69,21 +69,24 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
 
 def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
+    # TODO: option to toggle commit using max_depth?
+    # TODO: constrain to use previous plan to some degree
     num_iterations = 0
     while True:
         num_iterations += 1
-        print('Iteration: {}'.format(num_iterations))
+        #print('Iteration: {}'.format(num_iterations))
         stream_results = optimistic_process_streams(evaluations, streams + functions)
         combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
-        print()
+        #print()
+        print('Attempt: {} | Depth: {} | Success: {}'.format(num_iterations, depth, num_iterations))
         if (combined_plan is not None) or (depth == 0):
             return combined_plan, cost
 
 ##################################################
 
-def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
+def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=None, sampling_time=0,
-                  commit=True, effort_weight=None, eager_layers=1,
+                  effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
@@ -92,7 +95,6 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param max_time: the maximum amount of time to apply streams
     :param max_cost: a strict upper bound on plan cost
-    :param commit: if True, it commits to instantiating a particular partial plan-skeleton.
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param eager_layers: the number of eager stream application layers per iteration
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
@@ -112,7 +114,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)
     update_stream_info(externals, stream_info)
-    load_stream_statistics(stream_name, externals)
+    load_stream_statistics(stream_name, externals + synthesizers)
     if visualize:
         clear_visualizations()
     eager_externals = filter(lambda e: e.info.eager, externals)
@@ -124,7 +126,6 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         # TODO: decide max_sampling_time based on total search_time or likelihood estimates
         print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, len(queue), len(evaluations), store.best_cost, store.elapsed_time()))
-        # TODO: constrain to use previous plan to some degree
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
                                                             negative, max_cost=store.best_cost,
@@ -136,7 +137,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
-        stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)
+        stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
 
@@ -148,15 +149,11 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            sampling_key = SkeletonKey(0, len(stream_plan))
-            bindings = {}
-            sampling_problem = Skeleton(instantiate_first(bindings, stream_plan), 0,
-                                        bindings, stream_plan, action_plan, cost)
-            heappush(queue, (sampling_key, sampling_problem))
+            heappush(queue, (SkeletonKey(0, len(stream_plan)),
+                             Skeleton(instantiate_first({}, stream_plan), 0, {}, stream_plan, action_plan, cost)))
             greedily_process_queue(queue, evaluations, store, sampling_time)
 
-    if postprocess and (not unit_costs) and (store.best_plan is not None):
-        store.best_plan = locally_optimize(evaluations, store.best_plan, goal_expression, domain,
-                                     functions, negative, dynamic_streams, verbose)
-    write_stream_statistics(stream_name, externals)
+    if postprocess and (not unit_costs):
+        locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
+    write_stream_statistics(stream_name, externals + synthesizers)
     return revert_solution(store.best_plan, store.best_cost, evaluations)
