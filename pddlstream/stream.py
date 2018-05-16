@@ -242,9 +242,9 @@ def parse_stream(lisp_list, stream_map):
 def parse_stream_pddl(stream_pddl, stream_map):
     streams = []
     if stream_pddl is None:
-        return streams
+        return None, streams
     if all(isinstance(e, External) for e in stream_pddl):
-        return stream_pddl
+        return None, stream_pddl
     for name in stream_map.keys():
         if name != name.lower():
             stream_map[name.lower()] = stream_map[name]
