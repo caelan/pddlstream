@@ -3,7 +3,8 @@ from collections import deque
 from pddlstream.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.fast_downward import task_from_domain_problem, get_problem, fact_from_fd
 from pddlstream.macro_stream import MacroResult, get_macro_stream_plan
-from pddlstream.stream_plan import populate_results, process_stream_plan
+from pddlstream.stream_plan import optimistic_process_streams
+from experimental.stream_plan import process_stream_plan
 from pddlstream.reorder import get_action_instances, replace_derived, topological_sort, reorder_stream_plan
 from pddlstream.scheduling.relaxed import get_goal_instance, plan_preimage, recover_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
@@ -57,7 +58,7 @@ def locally_optimize(evaluations, action_plan, goal_expression, domain, function
         opt_stream_plan.append(opt_result)
         for obj, opt in zip(stream_result.output_objects, opt_result.output_objects):
             opt_from_obj[obj] = opt
-    opt_stream_plan += populate_results(evaluations_from_stream_plan(evaluations, opt_stream_plan), functions)
+    opt_stream_plan += optimistic_process_streams(evaluations_from_stream_plan(evaluations, opt_stream_plan), functions)
     opt_action_plan = [(name, tuple(opt_from_obj.get(o, o) for o in args)) for name, args in action_plan]
 
     opt_evaluations = evaluations_from_stream_plan(evaluations, opt_stream_plan)

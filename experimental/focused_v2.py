@@ -7,8 +7,8 @@ from pddlstream.algorithm import parse_problem
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.macro_stream import get_macro_stream_plan
-from pddlstream.stream_plan import populate_results, process_stream_plan, \
-    Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate, reset_disabled
+from pddlstream.stream_plan import optimistic_process_streams, Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate
+from experimental.stream_plan import reset_disabled, process_stream_plan
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
@@ -78,7 +78,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 num_iterations, depth, len(evaluations), best_cost, elapsed_time(start_time)))
             # TODO: constrain to use previous plan to some degree
             eagerly_evaluate(evaluations, eager_externals, eager_layers, max_time - elapsed_time(start_time), verbose)
-            stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results), functions)
+            stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results), functions)
             # TODO: warning check if using simultaneous_stream_plan or relaxed_stream_plan with non-eager functions
             solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
             #solve_stream_plan = sequential_stream_plan if effort_weight is None else simultaneous_stream_plan
@@ -96,7 +96,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             if disabled or (depth != 0):
                 if depth == 0:
                     reset_disabled(disabled)
-                stream_results = populate_results(evaluations, streams)
+                stream_results = optimistic_process_streams(evaluations, streams)
                 depth = 0 # Recurse on problems
             else:
                 break
@@ -131,7 +131,7 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                 new_evaluations = set(evaluations) - old_evaluations
                 if stream_results is not None:
                     new_instances = [r.instance for r in stream_results]
-                    stream_results = populate_results(new_evaluations, streams, new_instances)
+                    stream_results = optimistic_process_streams(new_evaluations, streams, new_instances)
             if not commit:
                 stream_results = None
             depth += 1

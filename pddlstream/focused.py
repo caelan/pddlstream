@@ -13,7 +13,7 @@ from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
-from pddlstream.stream_plan import populate_results, instantiate_first, process_stream_plan_2, \
+from pddlstream.stream_plan import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
     Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
 from pddlstream.utils import INF
 from pddlstream.visualization import clear_visualizations, create_visualizations
@@ -60,12 +60,12 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     plan_index = get_stream_plan_index(stream_plan)
     if plan_index == 0:
         return combined_plan, cost, depth
-    stream_results, bindings = process_stream_plan_2(evaluations, stream_plan)
+    stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
     double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
-    stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
-                                       streams, double_bindings=double_bindings)
-    stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
-                                       functions)
+    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
+                                                 streams, double_bindings=double_bindings)
+    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
+                                                 functions)
     return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
 
 def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
@@ -73,7 +73,7 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
     while True:
         num_iterations += 1
         print('Iteration: {}'.format(num_iterations))
-        stream_results = populate_results(evaluations, streams + functions)
+        stream_results = optimistic_process_streams(evaluations, streams + functions)
         combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
         print()
         if (combined_plan is not None) or (depth == 0):
