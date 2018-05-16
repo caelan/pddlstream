@@ -1,0 +1,3 @@
+[submodule "examples/pybullet/utils"]
+	path = examples/pybullet/utils
+	url = https://github.com/caelan/ss-pybullet

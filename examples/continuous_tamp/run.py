@@ -19,7 +19,7 @@ from pddlstream.downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
 from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
-from pddlstream.utils import print_solution, user_input, read, INF
+from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from viewer import ContinuousTMPViewer, GROUND
 
 """
@@ -35,9 +35,8 @@ def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
-    directory = os.path.dirname(os.path.abspath(__file__))
-    domain_pddl = read(os.path.join(directory, 'domain.pddl'))
-    stream_pddl = read(os.path.join(directory, 'stream.pddl'))
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
     init = [
