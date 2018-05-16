@@ -15,15 +15,12 @@ from examples.pybullet.utils.utils import WorldSaver, connect, dump_world, get_p
     BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, wait_for_interrupt, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, input
 
-from pddlstream.utils import read, get_file_path
-from pddlstream.conversion import And, Equal
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
-from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
+from pddlstream.stream import from_fn, StreamInfo, from_gen_fn
+from pddlstream.utils import print_solution, read, INF, get_file_path
 
 
-def pddlstream_from_problem(robot, movable=[],
-                    teleport=False, movable_collisions=False, grasp_name='top'):
+def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collisions=False, grasp_name='top'):
     #assert (not are_colliding(tree, kin_cache))
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -64,8 +61,8 @@ def pddlstream_from_problem(robot, movable=[],
             #('Holding', body),
             #('On', body, fixed[1]),
             #('On', body, fixed[2]),
-            ('Cleaned', body),
-            #('Cooked', body),
+            #('Cleaned', body),
+            ('Cooked', body),
     )
 
     stream_map = {
@@ -92,10 +89,17 @@ def load_world():
     block = load_model(BLOCK_URDF, fixed_base=False)
     #cup = load_model('models/dinnerware/cup/cup_small.urdf', Pose(Point(x=+0.5, y=+0.5, z=0.5)), fixed_base=False)
 
+    body_names = {
+        sink: 'sink',
+        stove: 'stove',
+        block: 'celery',
+    }
+    movable_bodies = [block]
+
     set_pose(block, Pose(Point(y=0.5, z=stable_z(block, floor))))
     set_default_camera()
 
-    return robot, block
+    return robot, body_names, movable_bodies
 
 #######################################################
 
@@ -107,11 +111,17 @@ def main(viewer=False, display=True, simulate=False):
     #args = parser.parse_args()
 
     connect(use_gui=viewer)
-    robot, block = load_world()
+    robot, names, movable = load_world()
     saved_world = WorldSaver()
     dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(robot, movable=[block], teleport=False, movable_collisions=True)
+    pddlstream_problem = pddlstream_from_problem(robot, movable=movable,
+                                                 teleport=False, movable_collisions=True)
+    _, _, _, stream_map, init, goal = pddlstream_problem
+    print('Init:', init)
+    print('Goal:', goal)
+    print('Streams:', stream_map.keys())
+    print(names)
 
     pr = cProfile.Profile()
     pr.enable()

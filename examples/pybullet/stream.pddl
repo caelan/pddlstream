@@ -21,7 +21,13 @@
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
-    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
+    :certified (and (Traj ?t) (FreeMotion ?q1 ?t ?q2))
+  )
+  (:stream plan-holding-motion
+    :inputs (?q1 ?q2 ?o ?g)
+    :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
+    :outputs (?t)
+    :certified (and (Traj ?t) (HoldingMotion ?q1 ?t ?q2 ?o ?g))
   )
 
   (:predicate (TrajCollision ?t ?o2 ?p2)

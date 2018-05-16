@@ -7,7 +7,8 @@
 
     (Grasp ?o ?g)
     (Kin ?o ?p ?g ?q ?t)
-    (Motion ?q1 ?t ?q2)
+    (FreeMotion ?q1 ?t ?q2)
+    (HoldingMotion ?q1 ?t ?q2 ?o ?g)
     (Supported ?o ?p ?r)
     (TrajCollision ?t ?o2 ?p2)
 
@@ -24,10 +25,17 @@
     (UnsafeTraj ?t)
   )
 
-  (:action move
+  (:action move_free
     :parameters (?q1 ?q2 ?t)
-    :precondition (and (Motion ?q1 ?t ?q2)
-                       (AtConf ?q1) (CanMove))
+    :precondition (and (FreeMotion ?q1 ?t ?q2)
+                       (AtConf ?q1) (HandEmpty) (CanMove))
+    :effect (and (AtConf ?q2)
+                 (not (AtConf ?q1)) (not (CanMove)))
+  )
+  (:action move_holding
+    :parameters (?q1 ?q2 ?o ?g ?t)
+    :precondition (and (HoldingMotion ?q1 ?t ?q2 ?o ?g)
+                       (AtConf ?q1) (AtGrasp ?o ?g) (CanMove))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove)))
   )
