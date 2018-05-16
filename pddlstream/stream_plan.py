@@ -3,24 +3,14 @@ from collections import deque, defaultdict, namedtuple
 from heapq import heappush, heappop
 from itertools import product
 
+from pddlstream.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
-from pddlstream.function import PredicateResult
-from pddlstream.incremental import process_stream_queue
+from pddlstream.function import FunctionResult, PredicateResult
 from pddlstream.instantiation import Instantiator
 from pddlstream.macro_stream import MacroResult
 from pddlstream.object import Object
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, implies, elapsed_time
-
-
-def eagerly_evaluate(evaluations, externals, num_iterations, max_time, verbose):
-    start_time = time.time()
-    instantiator = Instantiator(evaluations, externals)
-    for _ in range(num_iterations):
-        for _ in range(len(instantiator.stream_queue)):
-            if max_time <= elapsed_time(start_time):
-                break
-            process_stream_queue(instantiator, evaluations, verbose=verbose)
 
 
 def optimistic_process_stream_queue(instantiator):
@@ -77,12 +67,6 @@ def ground_stream_instances(stream_instance, bindings, evaluations, opt_evaluati
     return real_instances, opt_instances
 
 ##################################################
-
-def add_certified(evaluations, result):
-    for fact in result.get_certified():
-        evaluation = evaluation_from_fact(fact)
-        if evaluation not in evaluations:
-            evaluations[evaluation] = result
 
 def reset_disabled(disabled):
     for stream_instance in disabled:
@@ -173,11 +157,11 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 # TODO: no point not doing all at once if unique
 # TODO: store location in history in the sampling history
 
-SamplingKey = namedtuple('SamplingKey', ['attempts', 'length']) # TODO: alternatively just preimage
-SamplingProblem = namedtuple('SamplingProblem', ['instance', 'num_processed',
+SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length']) # TODO: alternatively just preimage
+Skeleton = namedtuple('Skeleton', ['instance', 'num_processed',
                                                  'bindings', 'stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
 
-def activate_first(bindings, stream_plan):
+def instantiate_first(bindings, stream_plan):
     if not stream_plan:
         return None
     opt_result = stream_plan[0] # TODO: could do several at once but no real point
@@ -186,27 +170,30 @@ def activate_first(bindings, stream_plan):
     instance.disabled = True
     return instance
 
-def pop_stream_queue(key, sampling_problem, queue, evaluations, max_cost, verbose):
+def bind_plan(bindings, plan):
+    return [(name, tuple(bindings.get(o, o) for o in args)) for name, args in plan]
+
+def pop_stream_queue(key, sampling_problem, queue, evaluations, store):
     instance, num_processed, bindings, stream_plan, action_plan, cost = sampling_problem
-    #if max_cost <= cost: # TODO: update costs
-    #    # TODO: undo disabling of these
-    #    return None
     if not stream_plan:
-        new_action_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
-        return new_action_plan
+        store.add_plan(bind_plan(bindings, action_plan), cost)
+        return
+    if store.best_cost <= cost:
+        instance.disabled = False # TODO: only disable if not used elsewhere
+        # TODO: could just hash instances
+        return
     opt_result = stream_plan[0] # TODO: could do several at once but no real point
     assert(not any(evaluation_from_fact(f) not in evaluations for f in instance.get_domain()))
-    # TODO: hash all prior stream outputs and then iterate through them first.
     # TODO: hash combinations to prevent repeats
 
     results = []
     for i in range(num_processed, len(instance.results_history)):
         results.extend(instance.results_history[i])
     if not instance.enumerated and not results:
-        results = instance.next_results(verbose=verbose)
+        results = instance.next_results(verbose=store.verbose)
     for result in results:
         add_certified(evaluations, result)
-        if isinstance(result, PredicateResult) and (opt_result.value != result.value):
+        if (type(result) is PredicateResult) and (opt_result.value != result.value):
             continue # TODO: check if satisfies target certified
         new_bindings = bindings.copy()
         if isinstance(result, StreamResult):  # Could not add if same value
@@ -214,48 +201,46 @@ def pop_stream_queue(key, sampling_problem, queue, evaluations, max_cost, verbos
                 assert(opt not in new_bindings) # TODO: return failure if conflicting bindings
                 new_bindings[opt] = obj
         new_stream_plan = stream_plan[1:]
-        new_key = SamplingKey(0, len(new_stream_plan))
-        new_problem = SamplingProblem(activate_first(new_bindings, new_stream_plan), 0,
-                                      new_bindings, new_stream_plan, action_plan, cost)
-        heappush(queue, (new_key, new_problem))
+        new_cost = cost
+        if type(result) is FunctionResult:
+            new_cost += (result.value - opt_result.value)
+        new_key = SkeletonKey(0, len(new_stream_plan))
+        new_skeleton = Skeleton(instantiate_first(new_bindings, new_stream_plan), 0,
+                                new_bindings, new_stream_plan, action_plan, new_cost)
+        heappush(queue, (new_key, new_skeleton))
 
-    if (key.attempts == 0) and isinstance(opt_result, MacroResult): # TODO: only decompose once?
+    if (key.attempts == 0) and isinstance(opt_result, MacroResult):
         new_stream_plan = opt_result.decompose() + stream_plan[1:]
-        new_key = SamplingKey(0, len(new_stream_plan))
-        new_problem = SamplingProblem(activate_first(bindings, new_stream_plan), 0,
-                                      bindings, new_stream_plan, action_plan, cost)
-        heappush(queue, (new_key, new_problem))
+        new_key = SkeletonKey(0, len(new_stream_plan))
+        new_skeleton = Skeleton(instantiate_first(bindings, new_stream_plan), 0,
+                                bindings, new_stream_plan, action_plan, cost)
+        heappush(queue, (new_key, new_skeleton))
     if not instance.enumerated:
-        new_key = SamplingKey(key.attempts + 1, len(stream_plan)) # TODO: compute expected sampling effort required
-        new_problem = SamplingProblem(instance, len(instance.results_history),
-                                      bindings, stream_plan, action_plan, cost)
-        heappush(queue, (new_key, new_problem))
-    return None
+        new_key = SkeletonKey(key.attempts + 1, len(stream_plan)) # TODO: compute expected sampling effort required
+        new_skeleton = Skeleton(instance, len(instance.results_history),
+                               bindings, stream_plan, action_plan, cost)
+        heappush(queue, (new_key, new_skeleton))
 
 ##################################################
 
-def greedily_process_queue(queue, evaluations, max_cost, max_time, verbose):
+def greedily_process_queue(queue, evaluations, store, max_time):
     # TODO: search until new disabled or new evaluation?
     start_time = time.time()
-    while queue:
+    while queue and not store.is_terminated():
         key, sampling_problem = queue[0]
         if (key.attempts != 0) and (max_time <= elapsed_time(start_time)):
             break
         heappop(queue)
-        plan = pop_stream_queue(key, sampling_problem, queue, evaluations, max_cost, verbose)
-        if plan is not None:
-            return plan
-    return None
+        pop_stream_queue(key, sampling_problem, queue, evaluations, store)
 
-def fairly_process_queue(queue, evaluations, max_cost, verbose):
+def fairly_process_queue(queue, evaluations, store):
     # TODO: max queue attempts?
     old_queue = list(queue)
     queue[:] = []
     for key, sampling_problem in old_queue:
-        plan = pop_stream_queue(key, sampling_problem, queue, evaluations, max_cost, verbose)
-        if plan is not None:
-            return plan
-        plan = greedily_process_queue(queue, evaluations, max_cost, 0, verbose)
-        if plan is not None:
-            return plan
-    return None
+        if store.is_terminated():
+            break
+        pop_stream_queue(key, sampling_problem, queue, evaluations, store)
+        if store.is_terminated():
+            break
+        greedily_process_queue(queue, evaluations, store, 0)

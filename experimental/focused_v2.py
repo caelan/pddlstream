@@ -8,7 +8,7 @@ from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.macro_stream import get_macro_stream_plan
 from pddlstream.stream_plan import populate_results, process_stream_plan, \
-    SamplingProblem, SamplingKey, greedily_process_queue, eagerly_evaluate, reset_disabled
+    Skeleton, SkeletonKey, greedily_process_queue, eagerly_evaluate, reset_disabled
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
@@ -107,8 +107,8 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                     break
             stream_results = None
         else:
-            sampling_key = SamplingKey(0, len(stream_plan))
-            sampling_problem = SamplingProblem({}, stream_plan, action_plan, cost)
+            sampling_key = SkeletonKey(0, len(stream_plan))
+            sampling_problem = Skeleton({}, stream_plan, action_plan, cost)
             heappush(sampling_queue, (sampling_key, sampling_problem))
             greedily_process_queue(sampling_queue, evaluations, disabled, max_cost, True, 0, verbose)
 

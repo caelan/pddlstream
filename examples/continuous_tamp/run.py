@@ -192,7 +192,7 @@ def main(focused=True, deterministic=False, unit_costs=True):
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  dynamic_streams=dynamic,
-                                 max_time=10, max_cost=INF, debug=False,
+                                 max_time=10, max_cost=0, debug=False,
                                  commit=True, effort_weight=None, unit_costs=unit_costs,
                                  visualize=False)
     else:

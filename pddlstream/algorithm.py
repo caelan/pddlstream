@@ -1,10 +1,13 @@
+import time
 from collections import OrderedDict, defaultdict
 
-from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan
+from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
+    evaluation_from_fact
 from pddlstream.fast_downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task
 from pddlstream.object import Object
 from pddlstream.stream import parse_stream_pddl
+from pddlstream.utils import get_length, elapsed_time, INF
 
 
 def parse_constants(domain, constant_map):
@@ -30,8 +33,17 @@ def parse_problem(problem):
     goal_expression = obj_from_value_expression(goal)
     return evaluations, goal_expression, domain, stream_name, streams
 
+##################################################
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=True, **kwargs):
+def has_costs(domain):
+    for action in domain.actions:
+        if action.cost is not None:
+            return True
+    return False
+
+def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs):
+    if unit_costs is None:
+        unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = solve_from_task(task, **kwargs)
@@ -45,3 +57,40 @@ def neighbors_from_orders(orders):
         incoming_edges[v2].add(v1)
         outgoing_edges[v1].add(v2)
     return incoming_edges, outgoing_edges
+
+##################################################
+
+class SolutionStore(object):
+    def __init__(self, max_time, max_cost, verbose):
+        # TODO: store evaluations here as well as map from head to value?
+        self.start_time = time.time()
+        self.max_time = max_time
+        #self.cost_fn = get_length if unit_costs else None
+        self.max_cost = max_cost
+        self.verbose = verbose
+        self.best_plan = None
+        self.best_cost = INF
+        #self.best_cost = self.cost_fn(self.best_plan)
+    def add_plan(self, plan, cost):
+        # TODO: list of plans
+        if cost < self.best_cost:
+            self.best_plan = plan
+            self.best_cost = cost
+    def is_solved(self):
+        return self.best_cost < self.max_cost
+    def elapsed_time(self):
+        return elapsed_time(self.start_time)
+    def is_timeout(self):
+        return self.max_time <= self.elapsed_time()
+    def is_terminated(self):
+        return self.is_solved() or self.is_timeout()
+
+
+def add_certified(evaluations, result):
+    new_evaluations = []
+    for fact in result.get_certified():
+        evaluation = evaluation_from_fact(fact)
+        if evaluation not in evaluations:
+            evaluations[evaluation] = result
+            new_evaluations.append(evaluation)
+    return new_evaluations
