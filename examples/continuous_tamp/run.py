@@ -79,7 +79,7 @@ def pddlstream_from_tamp(tamp_problem):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -155,8 +155,7 @@ def apply_action(state, action):
 def main(focused=True, deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
-        #seed = 0
-        seed = 4006722365
+        seed = 0
         np.random.seed(seed)
     print('Seed:', np.random.get_state()[1][0])
 
@@ -192,7 +191,7 @@ def main(focused=True, deterministic=False, unit_costs=True):
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  dynamic_streams=dynamic,
-                                 max_time=10, max_cost=0, debug=False,
+                                 max_time=10, max_cost=INF, debug=False,
                                  commit=True, effort_weight=None, unit_costs=unit_costs,
                                  visualize=False)
     else:

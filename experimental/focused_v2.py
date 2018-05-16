@@ -107,15 +107,14 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
                     break
             stream_results = None
         else:
+            """
             sampling_key = SkeletonKey(0, len(stream_plan))
             sampling_problem = Skeleton({}, stream_plan, action_plan, cost)
             heappush(sampling_queue, (sampling_key, sampling_problem))
             greedily_process_queue(sampling_queue, evaluations, disabled, max_cost, True, 0, verbose)
-
             depth += 1
             stream_results = None
-
-            continue
+            """
 
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)

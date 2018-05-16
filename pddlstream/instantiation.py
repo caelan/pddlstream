@@ -19,7 +19,7 @@ def get_mapping(atoms1, atoms2, initial={}):
     return mapping
 
 
-class Instantiator(object): # Dynamic Stream Instsantiator
+class Instantiator(object): # Dynamic Stream Instantiator
     def __init__(self, evaluations, streams):
         # TODO: filter eager
         #self.streams_from_atom = defaultdict(list)
@@ -43,15 +43,12 @@ class Instantiator(object): # Dynamic Stream Instsantiator
     #        # TODO: remove from set?
     #        yield stream_instance
 
-    def queue_stream_instance(self, stream_instance):
-        self.stream_queue.append(stream_instance)
-
     def _add_instance(self, stream, input_objects):
         stream_instance = stream.get_instance(input_objects)
         if stream_instance in self.stream_instances:
             return False
         self.stream_instances.add(stream_instance)
-        self.queue_stream_instance(stream_instance)
+        self.stream_queue.append(stream_instance)
         return True
 
     def add_atom(self, atom):

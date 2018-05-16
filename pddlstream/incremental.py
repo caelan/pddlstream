@@ -14,7 +14,7 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
         for evaluation in add_certified(evaluations, result):
             instantiator.add_atom(evaluation)
     if not stream_instance.enumerated:
-        instantiator.queue_stream_instance(stream_instance)
+        instantiator.stream_queue.append(stream_instance)
 
 ##################################################
 

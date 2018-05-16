@@ -10,11 +10,11 @@ from pddlstream.macro_stream import get_macro_stream_plan
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
+from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
-from pddlstream.stream_plan import populate_results, instantiate_first, \
-    Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue
+from pddlstream.stream_plan import populate_results, instantiate_first, process_stream_plan_2, \
+    Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
 from pddlstream.utils import INF
 from pddlstream.visualization import clear_visualizations, create_visualizations
 from pddlstream.incremental import layered_process_stream_queue
@@ -32,6 +32,52 @@ def partition_externals(externals):
     streams = filter(lambda s: s not in (functions + negative), externals)
     return streams, functions, negative
 
+##################################################
+
+# TODO: can instantiate all but subtract stream_results
+# TODO: can even pass a subset of the fluent state
+# TODO: can just compute the stream plan preimage
+# TODO: replan constraining the initial state and plan skeleton
+# TODO: reuse subproblems
+# TODO: always start from the initial state (i.e. don't update)
+
+# def stream_plan_preimage(stream_plan):
+#     preimage = set()
+#     for stream_result in reversed(stream_plan):
+#         preimage -= set(stream_result.get_certified())
+#         preimage |= set(stream_result.instance.get_domain())
+#     return preimage
+
+# TODO: check empty plan first?
+def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
+    combined_plan, cost = solve_stream_plan(stream_results)
+    stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
+    print('Depth: {}\n'
+          'Stream plan: {}\n'
+          'Action plan: {}'.format(depth, stream_plan, action_plan))
+    if stream_plan is None:
+        return stream_plan, cost, depth
+    plan_index = get_stream_plan_index(stream_plan)
+    if plan_index == 0:
+        return combined_plan, cost, depth
+    stream_results, bindings = process_stream_plan_2(evaluations, stream_plan)
+    double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
+    stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
+                                       streams, double_bindings=double_bindings)
+    stream_results += populate_results(evaluations_from_stream_plan(evaluations, stream_results),
+                                       functions)
+    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
+
+def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
+    num_iterations = 0
+    while True:
+        num_iterations += 1
+        print('Iteration: {}'.format(num_iterations))
+        stream_results = populate_results(evaluations, streams + functions)
+        combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
+        print()
+        if (combined_plan is not None) or (depth == 0):
+            return combined_plan, cost
 
 ##################################################
 
@@ -57,6 +103,8 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
         using stream applications
     """
     # TODO: return to just using the highest level samplers at the start
+    solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+    # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     num_iterations = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
@@ -78,15 +126,14 @@ def solve_focused(problem, stream_info={}, action_info={}, dynamic_streams=[],
             num_iterations, len(queue), len(evaluations), store.best_cost, store.elapsed_time()))
         # TODO: constrain to use previous plan to some degree
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
-        stream_results = populate_results(evaluations, streams + functions)
-        # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
-        solve_stream_plan = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
-        combined_plan, cost = solve_stream_plan(evaluations, goal_expression, domain, stream_results,
-                                                negative, max_cost=store.best_cost,
-                                                unit_costs=unit_costs, **search_kwargs)
+        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
+                                                            negative, max_cost=store.best_cost,
+                                                            unit_costs=unit_costs, **search_kwargs)
+        #combined_plan, cost = solve_stream_plan(populate_results(evaluations, streams + functions))
+        combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
-        #print('Combined plan: {}'.format(combined_plan))
+            print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
         stream_plan = get_macro_stream_plan(stream_plan, dynamic_streams)

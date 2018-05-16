@@ -184,8 +184,8 @@ class Stream(External):
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
-        self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
+        self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
+        #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 

@@ -12,23 +12,23 @@ from pddlstream.object import Object
 from pddlstream.stream import StreamResult
 from pddlstream.utils import INF, implies, elapsed_time
 
+def is_double_bound(stream_instance, double_bindings):
+    if double_bindings is None:
+        return True
+    bindings = [double_bindings[o] for o in stream_instance.input_objects if o in double_bindings]
+    return len(set(bindings)) != len(bindings)
 
-def optimistic_process_stream_queue(instantiator):
-    stream_instance = instantiator.stream_queue.popleft()
-    stream_results = stream_instance.next_optimistic()
-    for stream_result in stream_results:
-        for fact in stream_result.get_certified():
-            instantiator.add_atom(evaluation_from_fact(fact))
-    return stream_results
-
-
-def populate_results(evaluations, streams, initial_instances=[]):
+def populate_results(evaluations, streams, double_bindings=None):
     instantiator = Instantiator(evaluations, streams)
-    for instance in initial_instances:
-        instantiator.stream_queue.append(instance)
     stream_results = []
     while instantiator.stream_queue:
-        stream_results += optimistic_process_stream_queue(instantiator)
+        stream_instance = instantiator.stream_queue.popleft()
+        if not is_double_bound(stream_instance, double_bindings):
+            continue
+        for stream_result in stream_instance.next_optimistic():
+            for fact in stream_result.get_certified():
+                instantiator.add_atom(evaluation_from_fact(fact))
+            stream_results.append(stream_result) # TODO: don't readd if all repeated facts?
     return stream_results
 
 ##################################################
@@ -156,10 +156,11 @@ def process_stream_plan(evaluations, stream_plan, disabled, verbose,
 # TODO: handle this in a partially ordered way
 # TODO: no point not doing all at once if unique
 # TODO: store location in history in the sampling history
+# TODO: alternatively store just preimage and reachieve
 
-SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length']) # TODO: alternatively just preimage
-Skeleton = namedtuple('Skeleton', ['instance', 'num_processed',
-                                                 'bindings', 'stream_plan', 'action_plan', 'cost']) # TODO: alternatively just preimage
+SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
+Skeleton = namedtuple('Skeleton', ['instance', 'num_processed', 'bindings',
+                                   'stream_plan', 'action_plan', 'cost'])
 
 def instantiate_first(bindings, stream_plan):
     if not stream_plan:
@@ -189,14 +190,15 @@ def pop_stream_queue(key, sampling_problem, queue, evaluations, store):
     results = []
     for i in range(num_processed, len(instance.results_history)):
         results.extend(instance.results_history[i])
-    if not instance.enumerated and not results:
+    if not results and not instance.enumerated:
+        #print(key.attempts, key.length)
         results = instance.next_results(verbose=store.verbose)
     for result in results:
         add_certified(evaluations, result)
         if (type(result) is PredicateResult) and (opt_result.value != result.value):
             continue # TODO: check if satisfies target certified
         new_bindings = bindings.copy()
-        if isinstance(result, StreamResult):  # Could not add if same value
+        if isinstance(result, StreamResult):
             for opt, obj in zip(opt_result.output_objects, result.output_objects):
                 assert(opt not in new_bindings) # TODO: return failure if conflicting bindings
                 new_bindings[opt] = obj
@@ -244,3 +246,41 @@ def fairly_process_queue(queue, evaluations, store):
         if store.is_terminated():
             break
         greedily_process_queue(queue, evaluations, store, 0)
+
+
+##################################################
+
+def ground_stream_instances_2(stream_instance, bindings, evaluations, opt_evaluations, immediate=False):
+    # TODO: combination for domain predicates
+    evaluation_set = set(evaluations)
+    opt_instances = []
+    input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
+    for combo in product(*input_objects):
+        mapping = dict(zip(stream_instance.input_objects, combo))
+        domain = set(map(evaluation_from_fact, substitute_expression(
+            stream_instance.get_domain(), mapping))) # TODO: could just instantiate first
+        if domain <= opt_evaluations:
+            instance = stream_instance.external.get_instance(combo)
+            if (instance.opt_index != 0) and (not immediate or (domain <= evaluation_set)):
+                instance.opt_index -= 1
+            opt_instances.append(instance)
+    return opt_instances
+
+def process_stream_plan_2(evaluations, stream_plan):
+    # TODO: can also use the instantiator and operate directly on the outputs
+    # TODO: could bind by just using new_evaluations
+    evaluations = set(evaluations)
+    opt_evaluations = set(evaluations)
+    opt_bindings = defaultdict(list)
+    opt_results = []
+    for opt_result in stream_plan:
+        # TODO: could just do first step
+        for instance in ground_stream_instances_2(opt_result.instance, opt_bindings, evaluations, opt_evaluations):
+            results = instance.next_optimistic()
+            opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
+            opt_results += results
+            for result in results:
+                if isinstance(result, StreamResult): # Could not add if same value
+                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                        opt_bindings[opt].append(obj)
+    return opt_results, opt_bindings
