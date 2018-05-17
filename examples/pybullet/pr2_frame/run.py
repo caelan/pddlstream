@@ -2,17 +2,16 @@
 
 from __future__ import print_function
 
-import argparse
-import time
-import pybullet as p # TODO: try/catch
-import numpy as np
+try:
+    import pybullet as p
+except ImportError:
+    raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
+
 import cProfile
 import pstats
 
-
 from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, is_placement, \
     disconnect, input, get_joint_positions, enable_gravity, set_pose
-
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, get_press_gen, Attach, Detach, Clean, Cook, Trajectory, control_commands, step_commands
 from examples.pybullet.utils.pr2_utils import ARM_JOINT_NAMES, get_arm_joints
@@ -24,49 +23,13 @@ from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen, from_
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
-"""
-  (:derived (UnsafeBTraj ?t)
-    (exists (?f1 ?q1 ?o1 ?p1 ?f2 ?q2 ?o2 ?p2) (and (BTraj ?t) (Arm ?f1) (not (= ?f1 ?f2))
-            (BTrajCollision ?t ?f1 ?q1 ?o1 ?p1 ?f2 ?q2 ?o2 ?p2)
-            (AtAConf ?f1 ?q1) (AtPose ?f1 ?o1 ?p1) (AtAConf ?f2 ?q2) (AtPose ?f2 ?o2 ?p2)))
-  )
-"""
-
-def place_movable(certified):
-    # TODO: make a fixed body for each object (or one environment body)
-    # TODO: make no grasp a type of grasp for simplicity
-    # TODO: make the pose just be relative to a frame (world or arms). Then can just test if while moving two collide.
-    # TODO: check all moving with all
-
-    # TODO: always arm geometry wrt arm frame
-    # For base: bt, (arm1, q1, o1, p1), (frame2, q2, o2, p2) # TODO: separate out arm?
-    # For base: bq, (arm1, at, o1, p1), (frame2, q2, o2, p2)
-
-    for literal in certified:
-        if literal[0] != 'not':
-            continue
-        fact = literal[1]
-        if fact[0] == 'trajposecollision':
-            _, b, p = fact[1:]
-            p.step()
-        if fact[0] == 'trajarmcollision':
-            _, a, q = fact[1:]
-            q.step()
-        if fact[0] == 'trajgraspcollision':
-            _, a, o, g = fact[1:]
-            # TODO: finish this
-
-def get_base_motion_synth(problem, teleport=False):
-    # TODO: could factor the safety checks if desired (but no real point)
-    #fixed = get_fixed(robot, movable)
-    def fn(outputs, certified):
-        assert(len(outputs) == 1)
-        q0, _, q1 = find_unique(lambda f: f[0] == 'basemotion', certified)[1:]
-        print(certified)
-        place_movable(certified)
-        free_motion_fn = get_motion_gen(problem, teleport)
-        return free_motion_fn(q0, q1)
-    return fn
+# TODO: make a fixed body for each object (or one environment body)
+# TODO: make no grasp a type of grasp for simplicity
+# TODO: make the pose just be relative to a frame (world or arms). Then can just test if while moving two collide.
+# TODO: check all moving with all
+# TODO: always arm geometry wrt arm frame
+# For base: bt, (arm1, q1, o1, p1), (frame2, q2, o2, p2) # TODO: separate out arm?
+# For arm: bq, (arm1, at, o1, p1), (frame2, q2, o2, p2)
 
 #######################################################
 

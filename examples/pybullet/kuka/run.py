@@ -2,10 +2,11 @@
 
 from __future__ import print_function
 
-import argparse
-import time
-import pybullet as p # TODO: try/catch
-import numpy as np
+try:
+    import pybullet as p
+except ImportError:
+    raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
+
 import cProfile
 import pstats
 

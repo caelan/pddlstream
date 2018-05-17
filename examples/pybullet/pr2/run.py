@@ -2,13 +2,13 @@
 
 from __future__ import print_function
 
-import argparse
-import time
-import pybullet as p # TODO: try/catch
-import numpy as np
+try:
+    import pybullet as p
+except ImportError:
+    raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
+
 import cProfile
 import pstats
-
 
 from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, is_placement, \
     disconnect, input, get_joint_positions, enable_gravity, set_pose
@@ -26,15 +26,6 @@ from pddlstream.utils import print_solution, read, INF, get_file_path, find_uniq
 
 
 def place_movable(certified):
-    # TODO: make a fixed body for each object (or one environment body)
-    # TODO: make no grasp a type of grasp for simplicity
-    # TODO: make the pose just be relative to a frame (world or arms). Then can just test if while moving two collide.
-    # TODO: check all moving with all
-
-    # TODO: always arm geometry wrt arm frame
-    # For base: bt, (arm1, q1, o1, p1), (frame2, q2, o2, p2) # TODO: separate out arm?
-    # For base: bq, (arm1, at, o1, p1), (frame2, q2, o2, p2)
-
     for literal in certified:
         if literal[0] != 'not':
             continue
