@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict, namedtuple
+from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, objects_from_values, opt_from_values, \
@@ -31,9 +31,8 @@ def from_list_gen_fn(list_gen_fn):
 
 
 def from_gen_fn(gen_fn):
-    #return lambda *args: ([output_values] for output_values in gen_fn(*args))
-    list_gen_fn = lambda *args: ([output_values] for output_values in gen_fn(*args))
-    return from_list_gen_fn(list_gen_fn)
+    return from_list_gen_fn(lambda *args: ([] if output_values is None else [output_values]
+                                           for output_values in gen_fn(*args)))
 
 ##################################################
 
@@ -143,6 +142,15 @@ class StreamInstance(Instance):
             self.enumerated = True
         if isinstance(self._generator, BoundedGenerator):
             self.enumerated = self._generator.enumerated
+        if not isinstance(new_values, Sequence):
+            raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))
+        for output_values in new_values:
+            if not isinstance(output_values, Sequence):
+                raise ValueError('An output tuple for stream [{}] is not a sequence: {}'.format(
+                    self.external.name, output_values))
+            if len(output_values) != len(self.external.outputs):
+                raise ValueError('An output tuple for stream [{}] has length {} instead of {}: {}'.format(
+                    self.external.name, len(output_values), len(self.external.outputs), output_values))
         return new_values
     def next_results(self, verbose=False):
         start_time = time.time()
