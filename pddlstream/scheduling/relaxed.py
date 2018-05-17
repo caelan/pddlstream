@@ -89,18 +89,16 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
 
 ##################################################
 
-def instantiate_axioms(task, model, init_facts, fluent_facts):
+def instantiate_axioms(model, init_facts, fluent_facts, axiom_remap={}):
     import pddl
     instantiated_axioms = []
     for atom in model:
         if isinstance(atom.predicate, pddl.Axiom):
-            #axiom = atom.predicate
-            axiom = find_unique(lambda ax: ax.name == atom.predicate.name, task.axioms)
+            axiom = atom.predicate
+            axiom = axiom_remap.get(axiom, axiom)
             variable_mapping = dict([(par.name, arg)
                                      for par, arg in zip(axiom.parameters, atom.args)])
             inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
-            # TODO: can do a custom instantiation to preserve conditions
-            # TODO: try catch for if precondition not included
             if inst_axiom:
                 instantiated_axioms.append(inst_axiom)
     return instantiated_axioms
@@ -196,13 +194,15 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     for instance in action_instances:
         task.init = opt_state
         original_axioms = task.axioms
+        axiom_remap = {}
         if negative_from_name:
-            task.axioms = []
             for axiom in original_axioms:
                 assert (isinstance(axiom.condition, pddl.Conjunction))
                 parts = filter(lambda a: a.predicate not in negative_from_name, axiom.condition.parts)
-                task.axioms.append(pddl.Axiom(axiom.name, axiom.parameters,
-                                              axiom.num_external_parameters, pddl.Conjunction(parts)))
+                new_axiom = pddl.Axiom(axiom.name, axiom.parameters,
+                                       axiom.num_external_parameters, pddl.Conjunction(parts))
+                axiom_remap[new_axiom] = axiom
+            task.axioms = axiom_remap.keys()
         with Verbose(False):
             model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
         task.axioms = original_axioms
@@ -210,7 +210,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         fluent_facts = instantiate.get_fluent_facts(task, model) | (opt_state - real_state)
         mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
                                            (item in fluent_facts))
-        instantiated_axioms = instantiate_axioms(task, model, real_state, mock_fluent)
+        instantiated_axioms = instantiate_axioms(model, real_state, mock_fluent, axiom_remap)
 
         with Verbose(False):
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])

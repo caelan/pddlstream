@@ -194,7 +194,7 @@ def replace_derived(task, negative_init, action_instances):
         with Verbose(False):
             model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
         # fluent_facts = instantiate.get_fluent_facts(task, model)
-        instantiated_axioms = instantiate_axioms(task, model, task.init, fluent_facts)
+        instantiated_axioms = instantiate_axioms(model, task.init, fluent_facts)
 
         goal_list = []  # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)

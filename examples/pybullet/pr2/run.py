@@ -10,21 +10,58 @@ import cProfile
 import pstats
 
 
-from examples.pybullet.utils.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, Point, set_default_camera, stable_z, \
-    BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, wait_for_interrupt, is_placement, get_body_name, \
-    disconnect, DRAKE_IIWA_URDF, get_bodies, input, get_joint_positions, enable_gravity
+from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, is_placement, \
+    disconnect, input, get_joint_positions, enable_gravity, set_pose
 
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, get_press_gen, Attach, Detach, Clean, Cook, Trajectory, control_commands, step_commands
-from examples.pybullet.utils.pr2_utils import ARM_LINK_NAMES, close_arm, ARM_JOINT_NAMES, get_arm_joints
+from examples.pybullet.utils.pr2_utils import ARM_JOINT_NAMES, get_arm_joints
 from examples.pybullet.utils.pr2_problems import holding_problem, stacking_problem, cleaning_problem, cooking_problem, \
     cleaning_button_problem, cooking_button_problem
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen, from_list_fn
+from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen, from_list_fn, fn_from_constant
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
+
+def place_movable(certified):
+    # TODO: make a fixed body for each object (or one environment body)
+    # TODO: make no grasp a type of grasp for simplicity
+    # TODO: make the pose just be relative to a frame (world or arms). Then can just test if while moving two collide.
+    # TODO: check all moving with all
+
+    # TODO: always arm geometry wrt arm frame
+    # For base: bt, (arm1, q1, o1, p1), (frame2, q2, o2, p2) # TODO: separate out arm?
+    # For base: bq, (arm1, at, o1, p1), (frame2, q2, o2, p2)
+
+    for literal in certified:
+        if literal[0] != 'not':
+            continue
+        fact = literal[1]
+        if fact[0] == 'trajposecollision':
+            _, b, p = fact[1:]
+            p.step()
+        if fact[0] == 'trajarmcollision':
+            _, a, q = fact[1:]
+            q.step()
+        if fact[0] == 'trajgraspcollision':
+            _, a, o, g = fact[1:]
+            # TODO: finish this
+
+def get_base_motion_synth(problem, teleport=False):
+    # TODO: could factor the safety checks if desired (but no real point)
+    #fixed = get_fixed(robot, movable)
+    def fn(outputs, certified):
+        assert(len(outputs) == 1)
+        q0, _, q1 = find_unique(lambda f: f[0] == 'basemotion', certified)[1:]
+        print(certified)
+        place_movable(certified)
+        free_motion_fn = get_motion_gen(problem, teleport)
+        return free_motion_fn(q0, q1)
+    return fn
+
+#######################################################
 
 def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
     robot = problem.robot
@@ -42,11 +79,13 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
            [('Stove', s) for s in problem.stoves] + \
            [('Connected', b, d) for b, d in problem.buttons] + \
            [('Button', b) for b, _ in problem.buttons]
-    for arm in problem.arms:
+    for arm in ARM_JOINT_NAMES:
+    #for arm in problem.arms:
         joints = get_arm_joints(robot, arm)
         conf = Conf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', arm), ('AConf', arm, conf),
-                 ('HandEmpty', arm), ('AtAConf', arm, conf)]
+        init += [('Arm', arm), ('AConf', arm, conf), ('HandEmpty', arm), ('AtAConf', arm, conf)]
+        if arm in problem.arms:
+            init += [('Controllable', arm)]
     for body in problem.movable:
         pose = Pose(body, get_pose(body))
         init += [('Graspable', body), ('Pose', body, pose),
@@ -70,13 +109,16 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
         'sample-pose': get_stable_gen(problem),
         'sample-grasp': from_list_fn(get_grasp_gen(problem)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
-        'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
-        #'TrajCollision': get_movable_collision_test(),
+
+        #'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
+        'plan-base-motion': empty_gen(),
+        'TrajPoseCollision': fn_from_constant(False),
+        'TrajArmCollision': fn_from_constant(False),
+        'TrajGraspCollision': fn_from_constant(False),
     }
     # get_press_gen(problem, teleport=teleport)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
-
 
 #######################################################
 
@@ -138,10 +180,9 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     synthesizers = [
-        #StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
-        #                  from_fn(get_free_motion_synth(robot, movable, teleport))),
-        #StreamSynthesizer('safe-holding-motion', {'plan-holding-motion': 1, 'trajcollision': 0},
-        #                  from_fn(get_holding_motion_synth(robot, movable, teleport))),
+        StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
+                                               'TrajPoseCollision': 0, 'TrajGraspCollision': 0, 'TrajArmCollision': 0},
+                          from_fn(get_base_motion_synth(problem, teleport))),
     ]
     print('Init:', init)
     print('Goal:', goal)

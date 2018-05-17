@@ -51,8 +51,11 @@ def from_fn(fn):
 def from_test(test):
     return from_fn(lambda *args: tuple() if test(*args) else None)
 
-def from_rule():
-    return from_test(lambda *args: True)
+#def list_gen_from_constant(constant):
+#    return from_fn(lambda *args: constant)
+#
+def fn_from_constant(constant):
+    return lambda *args: constant
 
 def empty_gen():
     return lambda *args: iter([])

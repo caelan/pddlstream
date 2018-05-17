@@ -49,7 +49,7 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
     def __init__(self, name, streams, gen_fn):
         super(StreamSynthesizer, self).__init__(name, StreamInfo())
         self.name = name
-        self.streams = streams # Names of streams. Include counts in the future
+        self.streams = {s.lower(): m for s, m in streams.items()}
         self.gen_fn = gen_fn
     def get_gen_fn(self, inputs, outputs, certified):
         # TODO: take in guess values for inputs?

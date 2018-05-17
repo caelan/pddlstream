@@ -124,10 +124,10 @@ def find_unique(test, sequence):
     for item in sequence:
         if test(item):
             if found:
-                raise RuntimeError('Not unique')
+                raise RuntimeError('Both elements {} and {} satisfy the test'.format(value, item))
             found, value = True, item
     if not found:
-        raise RuntimeError('Unable to find a value')
+        raise RuntimeError('Unable to find an element satisfying the test')
     return value
 
 def str_from_tuple(tup):
