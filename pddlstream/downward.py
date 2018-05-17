@@ -91,7 +91,7 @@ SEARCH_OPTIONS = {
 ##################################################
 
 def parse_lisp(lisp):
-    return pddl_parser.lisp_parser.parse_nested_list(lisp.split())
+    return pddl_parser.lisp_parser.parse_nested_list(lisp.splitlines())
 
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])

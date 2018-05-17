@@ -276,7 +276,7 @@ def parse_function(lisp_list, stream_map):
     return Function(head, fn, domain)
 
 def parse_predicate(lisp_list, stream_map):
-    assert (len(lisp_list) == 3)
+    assert (2 <= len(lisp_list) <= 3)
     head = tuple(lisp_list[1])
     assert (is_head(head))
     name = get_prefix(head)
@@ -286,4 +286,7 @@ def parse_predicate(lisp_list, stream_map):
         if name not in stream_map:
             raise ValueError('Undefined external function: {}'.format(name))
         fn = stream_map[name]
-    return Predicate(head, fn, list_from_conjunction(lisp_list[2]))
+    domain = []
+    if len(lisp_list) == 3:
+        domain = list_from_conjunction(lisp_list[2])
+    return Predicate(head, fn, domain)

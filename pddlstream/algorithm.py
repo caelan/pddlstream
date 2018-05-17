@@ -15,9 +15,10 @@ def parse_constants(domain, constant_map):
         if constant.name.startswith(Object._prefix):
             # TODO: remap names
             raise NotImplementedError('Constants are not currently allowed to begin with {}'.format(Object._prefix))
-        if constant.name not in constant_map:
-            raise ValueError('Undefined constant {}'.format(constant.name))
-        obj = Object(constant_map[constant.name], name=constant.name)
+        #if constant.name not in constant_map:
+        #    raise ValueError('Undefined constant {}'.format(constant.name))
+        value = constant_map.get(constant.name, constant.name)
+        obj = Object(value, name=constant.name)
         # TODO: add object predicate
     del domain.constants[:] # So not set twice
 

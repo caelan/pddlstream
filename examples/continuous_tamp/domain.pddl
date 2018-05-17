@@ -54,7 +54,7 @@
                             (AtPose ?b2 ?p2)))
   )
   (:derived (UnsafeTraj ?t)
-    (exists (?b2 ?p2) (and (Traj ?t) (Pose ?b2 ?p2) (TrajCollision ?t ?b2 ?p2)
+    (exists (?b2 ?p2) (and (Traj ?t) (TrajCollision ?t ?b2 ?p2)
                             (AtPose ?b2 ?p2)))
   )
   (:derived (In ?b ?r)
