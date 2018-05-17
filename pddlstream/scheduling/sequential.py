@@ -12,16 +12,15 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
         raise NotImplementedError()
     # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
-    task = task_from_domain_problem(domain, problem)
-    action_plan, action_cost = solve_from_task(task, **kwargs)
+    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
+    action_plan, action_cost = solve_from_task(opt_task, **kwargs)
     if action_plan is None:
         return None, action_cost
 
     import instantiate
     fluent_facts = MockSet()
     init_facts = set()
-    task.init = get_init(evaluations)
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
 
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     task.actions, stream_result_from_name = get_stream_actions(stream_results)

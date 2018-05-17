@@ -222,11 +222,11 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     import instantiate
 
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
+    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
     real_init = get_init(evaluations)
-    function_assignments = {fact.fluent: fact.expression for fact in task.init  # init_facts
+    function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
     fluent_facts = MockSet()
     init_facts = set()
@@ -234,39 +234,42 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     action_instances = []
     function_plan = set()
     for name, args in action_plan:
-        action = find_unique(lambda a: a.name == name, task.actions)
+        action = find_unique(lambda a: a.name == name, opt_task.actions)
         assert (len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         instance = action.instantiate(variable_mapping, init_facts,
                                       fluent_facts, type_to_objects,
-                                      task.use_min_cost_metric, function_assignments)
+                                      opt_task.use_min_cost_metric, function_assignments)
         assert (instance is not None)
         action_instances.append(instance)
         if not unit_costs:
             function_plan.update(extract_function_results(results_from_head, action, args))
-    action_instances.append(get_goal_instance(task.goal))
+    action_instances.append(get_goal_instance(opt_task.goal))
     # TODO: negative atoms in actions
 
     negative_from_name = {n.name: n for n in negative}
-    task.actions = []
-    opt_state = set(task.init)
+    opt_task.actions = []
+    opt_state = set(opt_task.init)
     real_state = set(real_init)
     preimage_plan = []
     for instance in action_instances:
-        task.init = opt_state
-        original_axioms = task.axioms
+        opt_task.init = opt_state
+        original_axioms = opt_task.axioms
         axiom_from_action = get_necessary_axioms(instance, original_axioms, negative_from_name)
-        task.axioms = []
-        task.actions = axiom_from_action.keys()
+        opt_task.axioms = []
+        opt_task.actions = axiom_from_action.keys()
         # TODO: maybe it would just be better to drop the negative throughout this process until this end
         with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
-        task.axioms = original_axioms
+            model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
+        opt_task.axioms = original_axioms
 
-        fluent_facts = instantiate.get_fluent_facts(task, model) | (opt_state - real_state)
+        fluent_facts = instantiate.get_fluent_facts(opt_task, model) | (opt_state - real_state)
         mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
                                            (item in fluent_facts))
         instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
+        #print(instance)
+        #print(instantiated_axioms)
+        #print(real_state)
         with Verbose(False):
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])
         axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
@@ -307,9 +310,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     # TODO: search in space of partially ordered plans
     # TODO: local optimization - remove one and see if feasible
 
-    task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
-    task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    new_plan, _ = solve_from_task(task, planner='max-astar', debug=False)
+    opt_task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
+    opt_task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    new_plan, _ = solve_from_task(opt_task, planner='max-astar', debug=False)
     # TODO: investigate admissible heuristics
     if new_plan is None:
         return stream_plan + list(function_plan)
