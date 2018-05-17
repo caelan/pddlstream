@@ -9,24 +9,14 @@ This repository is the "third version" of the STRIPStream framework, intended to
 
 ## Installation
 
-Clone PDDLStream:
 ```
 $ git clone https://github.com/caelan/pddlstream.git
 $ cd pddlstream
 $ git submodule update --init --recursive
+$ ./FastDownward/build.py
 ```
 
-Install the FastDownward Planning System by using the following instructions:
-```
-$ git clone https://github.com/caelan/FastDownward.git
-$ cd FastDownward
-$ ./build.py
-$ export FD_PATH=${PWD}/builds/release32/
-```
-
-Add each `export ...` command with the appropriate paths to your `~/.bashrc` (Linux) or `~/.bash_profile` (OS X) file for future use.
-
-If `./build.py` fails, install FastDownward's dependencies using your package manager:
+If `./FastDownward/build.py` fails, install FastDownward's dependencies using your package manager:
 * APT (Linux): `$ sudo apt-get install cmake g++ g++-multilib make python`
 * Homebrew (OS X): TBD
 * MacPorts (OS X): TBD
