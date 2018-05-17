@@ -9,11 +9,11 @@ This repository is the "third version" of the STRIPStream framework, intended to
 
 ## Installation
 
-Clone PDDLStream, and add the repository to your PYTHONPATH.
+Clone PDDLStream:
 ```
 $ git clone https://github.com/caelan/pddlstream.git
 $ cd pddlstream
-$ export PYTHONPATH=${PWD}:${PYTHONPATH}
+$ git submodule update --init --recursive
 ```
 
 Install the FastDownward Planning System by using the following instructions:
