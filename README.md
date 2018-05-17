@@ -51,7 +51,14 @@ These are simple examples that can be run without additional depedencies:
 
 ### PyBullet
 
-These examples require installation of following library:
-https://github.com/caelan/ss-pybullet
+Install PyBullet on OS X or Linux using: 
+```
+pip install pybullet
+```
 
-* TBD
+Examples:
+* Kuka IIWA task and motion planning - ```python -m examples.pybullet.run_kuka```
+
+[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)
+<!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
+
