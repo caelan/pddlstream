@@ -8,9 +8,11 @@ from time import time
 
 from pddlstream.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir
+from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir, get_file_path
 
-FD_BIN = os.path.join(os.environ['FD_PATH'], 'bin')
+#FD_PATH = os.environ['FD_PATH']
+FD_PATH = get_file_path(__file__, '../FastDownward/builds/release32/')
+FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
 DOMAIN_INPUT = 'domain.pddl'
