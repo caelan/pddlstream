@@ -127,6 +127,7 @@ def fact_from_fd(fd):
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def get_init(init_evaluations, negated=False):
+    # TODO: this doesn't include =
     init = []
     for evaluation in init_evaluations:
         name = evaluation.head.function

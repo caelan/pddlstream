@@ -223,7 +223,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    real_init = get_init(evaluations)
+    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
     function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
@@ -250,7 +250,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     negative_from_name = {n.name: n for n in negative}
     opt_task.actions = []
     opt_state = set(opt_task.init)
-    real_state = set(real_init)
+    real_state = set(real_task.init)
     preimage_plan = []
     for instance in action_instances:
         opt_task.init = opt_state
@@ -267,9 +267,6 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
                                            (item in fluent_facts))
         instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
-        #print(instance)
-        #print(instantiated_axioms)
-        #print(real_state)
         with Verbose(False):
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])
         axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
@@ -282,7 +279,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         preimage_plan.append(instance)
 
     preimage = plan_preimage(preimage_plan, set())
-    preimage -= set(real_init)
+    preimage -= set(real_task.init)
     negative_preimage = filter(lambda a: a.predicate in negative_from_name, preimage)
     preimage -= set(negative_preimage)
     preimage = filter(lambda l: not l.negated, preimage)
@@ -310,9 +307,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     # TODO: search in space of partially ordered plans
     # TODO: local optimization - remove one and see if feasible
 
-    opt_task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
-    opt_task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    new_plan, _ = solve_from_task(opt_task, planner='max-astar', debug=False)
+    reschedule_task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
+    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    new_plan, _ = solve_from_task(reschedule_task, planner='max-astar', debug=False)
     # TODO: investigate admissible heuristics
     if new_plan is None:
         return stream_plan + list(function_plan)
