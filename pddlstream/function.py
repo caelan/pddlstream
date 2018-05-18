@@ -261,6 +261,9 @@ class Predicate(Function):
     _default_overhead = None
     #def is_negative(self):
     #    return self._Instance._opt_value is False
+    def __init__(self, *args):
+        super(Predicate, self).__init__(*args)
+        assert(self.info.opt_fn is None)
 
 ##################################################
 
