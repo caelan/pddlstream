@@ -3,7 +3,6 @@ from __future__ import print_function
 import os
 from collections import namedtuple
 
-import numpy as np
 import cProfile
 import pstats
 import math
@@ -11,9 +10,9 @@ import math
 from pddlstream.conversion import And
 from pddlstream.incremental import solve_incremental
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_test, StreamInfo, from_gen_fn
+from pddlstream.stream import from_fn, from_test, StreamInfo
 from pddlstream.function import FunctionInfo
-from pddlstream.utils import print_solution, user_input, read, INF
+from pddlstream.utils import print_solution, read, INF
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
 
@@ -196,11 +195,15 @@ OTHER = 'other'
 def concentrate_belief(loc, d):
     """
     Projects Multinoulli distribution d into a Bernoulli distribution with probability mass concentrated
-    at either a given element or a "generic" element
+    at either a given element or a "generic" element named OTHER
     """
     return d.project(lambda l1: l1 if (l1 == loc) else OTHER)
 
 def get_opt_move_fn(factor):
+    """
+    Optimistic move function
+    :param factor: Boolean that when true, factors d1 before performing updates
+    """
     def fn(control_loc1, control_loc2, d1):
         """
         Move function with perfect transitions
@@ -213,6 +216,10 @@ def get_opt_move_fn(factor):
     return fn
 
 def get_opt_obs_fn(factor):
+    """
+    Optimistic observation function
+    :param factor: Boolean that when true, factors d1 before performing updates
+    """
     def fn(control_loc, d1, obs):
         """
         Look function with perfect observations
