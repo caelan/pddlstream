@@ -133,16 +133,15 @@ def get_collision_test(max_p_collision):
 
 ##################################################
 
-
-def get_transition_fn(control_loc1, control_loc2, p_move_s):
+def get_transition_fn(loc1, loc2, p_move_s):
     # TODO: can factor in collisions within
-    def fn(loc1):
+    def fn(l):
         # P(s2 | s1=loc1, a=(control_loc1, control_loc2))
-        perfect_d = DeltaDist(control_loc2)
-        fail_d = DeltaDist(loc1)
+        perfect_d = DeltaDist(loc2)
+        fail_d = DeltaDist(l)
         # fail_d = UniformDist(locations)
         # return MixtureDD(perfect_d, fail_d, p_move_s)
-        if control_loc1 == loc1:
+        if loc1 == l:
             return MixtureDD(perfect_d, fail_d, p_move_s)
         return fail_d
     return fn
@@ -152,18 +151,18 @@ def move_cost_fn(l1, l2):
     return scale_cost(action_cost)
 
 def get_move_fn(p_move_s):
-    def fn(control_loc1, control_loc2, d1):
+    def fn(d1, loc1, loc2):
         d2 = d1.copy()
-        d2.transitionUpdate(get_transition_fn(control_loc1, control_loc2, p_move_s))
+        d2.transitionUpdate(get_transition_fn(loc1, loc2, p_move_s))
         return (d2,)
     return fn
 
 ##################################################
 
-def get_observation_fn(control_loc, p_look_fp, p_look_fn):
-    def fn(loc1):
+def get_observation_fn(loc, p_look_fp, p_look_fn):
+    def fn(l):
         # P(obs | s1=loc1, a=control_loc)
-        if loc1 == control_loc:
+        if l == loc:
             return DDist({True: 1 - p_look_fn,
                           False: p_look_fn})
         return DDist({True: p_look_fp,
@@ -172,17 +171,17 @@ def get_observation_fn(control_loc, p_look_fp, p_look_fn):
 
 def get_look_cost_fn(p_look_fp, p_look_fn):
     action_cost = 1
-    def fn(control_loc, d, obs):
-        d_obs = totalProbability(d, get_observation_fn(control_loc, p_look_fp, p_look_fn))
+    def fn(d, loc, obs):
+        d_obs = totalProbability(d, get_observation_fn(loc, p_look_fp, p_look_fn))
         p_obs = float(d_obs.prob(obs))
         expected_cost = revisit_mdp_cost(action_cost, action_cost, p_obs)
         return scale_cost(expected_cost)
     return fn
 
 def get_look_fn(p_look_fp, p_look_fn):
-    def fn(control_loc, d1, obs):
+    def fn(d1, loc, obs):
         d2 = d1.copy()
-        d2.obsUpdate(get_observation_fn(control_loc, p_look_fp, p_look_fn), obs)
+        d2.obsUpdate(get_observation_fn(loc, p_look_fp, p_look_fn), obs)
         if not d2.support():
             return None
         return (d2,)
@@ -204,15 +203,15 @@ def get_opt_move_fn(factor):
     Optimistic move function
     :param factor: Boolean that when true, factors d1 before performing updates
     """
-    def fn(control_loc1, control_loc2, d1):
+    def fn(d1, loc1, loc2):
         """
         Move function with perfect transitions
         """
         perfect_move_fn = get_move_fn(1)
         if factor:
-            bernoulli = concentrate_belief(control_loc1, d1)
-            return perfect_move_fn(control_loc1, control_loc2, bernoulli)
-        return perfect_move_fn(control_loc1, control_loc2, d1)
+            bernoulli = concentrate_belief(loc1, d1)
+            return perfect_move_fn(bernoulli, loc1, loc2)
+        return perfect_move_fn(d1, loc1, loc2)
     return fn
 
 def get_opt_obs_fn(factor):
@@ -220,15 +219,15 @@ def get_opt_obs_fn(factor):
     Optimistic observation function
     :param factor: Boolean that when true, factors d1 before performing updates
     """
-    def fn(control_loc, d1, obs):
+    def fn(d1, loc, obs):
         """
         Look function with perfect observations
         """
         perfect_look_fn = get_look_fn(0, 0)
         if factor:
-            bernoulli = concentrate_belief(control_loc, d1)
-            return perfect_look_fn(control_loc, bernoulli, obs)
-        return perfect_look_fn(control_loc, d1, obs)
+            bernoulli = concentrate_belief(loc, d1)
+            return perfect_look_fn(bernoulli, loc, obs)
+        return perfect_look_fn(d1, loc, obs)
     return fn
 
 ##################################################
@@ -274,7 +273,7 @@ def to_pddlstream(belief_problem, collisions=True):
 ##################################################
 
 def main(num_locs=5, deterministic=False, observable=False, collisions=True, focused=True, factor=True):
-    # TODO: search over things
+    # TODO: global search over the state
     belief_problem = get_belief_problem(num_locs, deterministic, observable)
     pddlstream_problem = to_pddlstream(belief_problem, collisions)
 
