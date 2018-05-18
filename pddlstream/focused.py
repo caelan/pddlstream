@@ -28,7 +28,7 @@ from pddlstream.incremental import layered_process_stream_queue
 
 def partition_externals(externals):
     functions = filter(lambda s: type(s) is Function, externals)
-    negative = filter(lambda s: (type(s) is Predicate) and s.is_negative(), externals)
+    negative = filter(lambda s: type(s) is Predicate, externals) # and s.is_negative()
     streams = filter(lambda s: s not in (functions + negative), externals)
     return streams, functions, negative
 

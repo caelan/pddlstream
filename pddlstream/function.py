@@ -19,7 +19,7 @@ def geometric_cost(cost, p):
     return cost/p
 
 class FunctionInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=0, p_success=None, overhead=None):
+    def __init__(self, eager=False, bound_fn=None, p_success=None, overhead=None):
         super(FunctionInfo, self).__init__(eager, p_success, overhead)
         self.bound_fn = bound_fn
         #self.order = 0
@@ -163,7 +163,7 @@ class FunctionResult(Result):
 
 
 class FunctionInstance(Instance):  # Head(Instance):
-    _opt_value = 0
+    #_opt_value = 0
 
     def get_head(self):
         return substitute_expression(self.external.head, self.get_mapping())
@@ -172,7 +172,8 @@ class FunctionInstance(Instance):  # Head(Instance):
         start_time = time.time()
         assert not self.enumerated
         self.enumerated = True
-        value = self.external.fn(*self.get_input_values())
+        input_values = self.get_input_values()
+        value = self.external.fn(*input_values)
         self.value = self.external._codomain(value)
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
@@ -188,7 +189,7 @@ class FunctionInstance(Instance):  # Head(Instance):
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
-        if isinstance(self, PredicateInstance) and (self.value != self._opt_value):
+        if isinstance(self, PredicateInstance) and (self.value != self.external.bound_fn(*input_values)):
             self.update_statistics(start_time, []) # TODO: do this more automatically
         else:
             self.update_statistics(start_time, results)
@@ -197,8 +198,7 @@ class FunctionInstance(Instance):  # Head(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        opt_fn = lambda *args: self._opt_value
-        opt_value = opt_fn(*self.get_input_values())
+        opt_value = self.external.bound_fn(*self.get_input_values())
         return [self.external._Result(self, opt_value, opt_index=self.opt_index)]
 
     def __repr__(self):
@@ -223,6 +223,7 @@ class Function(External):
         if fn == DEBUG:
             fn = lambda *args: self._codomain()
         self.fn = fn
+        self.bound_fn = lambda *args: self._codomain()
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -240,7 +241,7 @@ class PredicateResult(FunctionResult):
 class PredicateInstance(FunctionInstance):
     #_opt_value = True # TODO: make this False to be consistent with Function?
     #_opt_value = Predicate._codomain()
-    _opt_value = False
+    #_opt_value = False
     pass
 
 
@@ -254,8 +255,8 @@ class Predicate(Function):
     _codomain = bool
     _default_p_success = None
     _default_overhead = None
-    def is_negative(self):
-        return self._Instance._opt_value is False
+    #def is_negative(self):
+    #    return self._Instance._opt_value is False
 
 ##################################################
 

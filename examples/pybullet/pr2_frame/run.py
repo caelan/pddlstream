@@ -30,6 +30,12 @@ from pddlstream.utils import print_solution, read, INF, get_file_path, find_uniq
 # TODO: always arm geometry wrt arm frame
 # For base: bt, (arm1, q1, o1, p1), (frame2, q2, o2, p2) # TODO: separate out arm?
 # For arm: bq, (arm1, at, o1, p1), (frame2, q2, o2, p2)
+# TODO: when attempting to generalize, cannot put full kinematic chain in predicates
+# Two strategies:
+# 1) Conditional effects for directly updating world pose of changed variables (still depends on chains)
+# 2) Axioms to update world poses for everything (common frame)
+# TODO: from world pose can rederive relative transform for subcomponents
+# Don't need world pose for holding? But then need pose
 
 #######################################################
 

@@ -4,6 +4,8 @@ import os
 from collections import defaultdict
 
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle
+from pddlstream.function import Function
+from pddlstream.stream import Stream
 
 
 class ActionInfo(object):
@@ -28,6 +30,16 @@ def get_action_info(action_info):
     for name, info in action_info.items():
         action_execution[name] = info
     return action_execution
+
+def update_stream_info(externals, stream_info):
+    stream_info = {k.lower(): v for k, v in stream_info.items()}
+    for external in externals:
+        if external.name in stream_info:
+            external.info = stream_info[external.name]
+            if isinstance(external, Function) and (external.info.bound_fn is not None):
+                external.bound_fn = external.info.bound_fn
+            if isinstance(external, Stream) and (external.info.bound_gen_fn is not None):
+                external.bound_gen_fn = external.info.bound_gen_fn
 
 ##################################################
 
@@ -67,8 +79,3 @@ def write_stream_statistics(stream_name, externals):
     ensure_dir(filename)
     write_pickle(filename, data)
     print('Wrote:', filename)
-
-def update_stream_info(externals, stream_info):
-    for external in externals:
-        if external.name in stream_info:
-            external.info = stream_info[external.name]

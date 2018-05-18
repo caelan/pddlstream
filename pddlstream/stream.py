@@ -78,13 +78,14 @@ def get_shared_fn(stream): # TODO: identify bound
 def create_partial_fn():
     # TODO: indices or names
     raise NotImplementedError()
-    return get_partial_fn
+    #return get_partial_fn
 
 def get_unique_fn(stream):
     def fn(*input_values):
-        input_objects = map(opt_obj_from_value, input_values)
-        stream_instance = stream.get_instance(input_objects)
-        output_values = tuple(UniqueOpt(stream_instance, i) for i in range(len(stream.outputs)))
+        #input_objects = map(opt_obj_from_value, input_values)
+        #stream_instance = stream.get_instance(input_objects)
+        #output_values = tuple(UniqueOpt(stream_instance, i) for i in range(len(stream.outputs)))
+        output_values = tuple(object() for _ in range(len(stream.outputs)))
         return [output_values]
     return fn
 
@@ -103,13 +104,12 @@ class DebugValue(object): # TODO: could just do an object
 # TODO: debug stream functions
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=get_unique_fn,
+    def __init__(self, eager=False, bound_gen_fn=None,
                  p_success=None, overhead=None):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead)
-        self.bound_fn = bound_fn
+        self.bound_gen_fn = bound_gen_fn
         #self.order = 0
-        # TODO: context?
 
 ##################################################
 
@@ -172,7 +172,8 @@ class StreamInstance(Instance):
         # TODO: how do I distinguish between real not real verifications of things?
         opt_fn = self.external.opt_fns[self.opt_index]
         new_optimistic = opt_fn(*self.get_input_values())
-        return [self.external._Result(self, opt_from_values(output_opt), opt_index=self.opt_index) for output_opt in new_optimistic]
+        return [self.external._Result(self, opt_from_values(output_opt),
+                                      opt_index=self.opt_index) for output_opt in new_optimistic]
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -195,8 +196,8 @@ class Stream(External):
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
-        self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
+        self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
+        #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 
