@@ -88,6 +88,8 @@ class Instance(object):
         self.total_overhead = 0
         self.total_successes = 0
         self.results_history = []
+        self.mapping = dict(zip(self.external.inputs, self.input_objects))
+        self.domain = substitute_expression(self.external.domain, self.get_mapping())
 
     def update_statistics(self, start_time, results):
         overhead = time.time() - start_time
@@ -115,10 +117,10 @@ class Instance(object):
         return values_from_objects(self.input_objects)
 
     def get_mapping(self):
-        return dict(zip(self.external.inputs, self.input_objects))
+        return self.mapping
 
     def get_domain(self):
-        return substitute_expression(self.external.domain, self.get_mapping())
+        return self.domain
 
     def next_results(self, verbose=False):
         raise NotImplementedError()

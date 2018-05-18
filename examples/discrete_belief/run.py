@@ -52,8 +52,8 @@ def get_belief_problem(num_locs, deterministic, observable):
         ('o2', l2, p2),
     ]
 
-    goal = [('o1', l1, 0.95)]
-    #goal = [('o1', l0, 0.95)]
+    #goal = [('o1', l1, 0.95)]
+    goal = [('o1', l0, 0.95)]
     #goal = [('o1', l2, 0.95)]
 
     locations = {l0}
@@ -236,27 +236,30 @@ def main(num_locs=5, deterministic=False, observable=False, collisions=True, foc
     belief_problem = get_belief_problem(num_locs, deterministic, observable)
     pddlstream_problem = to_pddlstream(belief_problem, collisions)
 
+    pr = cProfile.Profile()
+    pr.enable()
     if focused:
         stream_info = {
-            'ge': StreamInfo(bound_gen_fn=from_test(ge_fn)),
-            'prob-after-move': StreamInfo(bound_gen_fn=get_move_fn(p_move_s=0)),
-            'MoveCost': FunctionInfo(bound_fn=move_cost_fn),
-            'prob-after-look': StreamInfo(bound_gen_fn=get_look_fn(p_look_fp=0, p_look_fn=0)),
-            'LookCost': FunctionInfo(bound_fn=get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
-
+            'ge': StreamInfo(from_test(ge_fn)),
+            'prob-after-move': StreamInfo(from_fn(get_move_fn(p_move_s=1))),
+            'MoveCost': FunctionInfo(move_cost_fn),
+            'prob-after-look': StreamInfo(from_fn(get_look_fn(p_look_fp=0, p_look_fn=0))),
+            'LookCost': FunctionInfo(get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
             #'plan-motion': StreamInfo(p_success=1),
             #'trajcollision': StreamInfo(p_success=1),
             #'cfree': StreamInfo(eager=True),
         }
         solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner='ff-wastar1', debug=False,
-                                     max_cost=MAX_COST, unit_costs=False)
+                                     max_cost=MAX_COST, unit_costs=False, max_time=30)
     else:
         solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', debug=True,
-                                     max_cost=MAX_COST, unit_costs=False)
+                                     max_cost=MAX_COST, unit_costs=False, max_time=30)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
     print_solution(solution)
     plan, cost, init = solution
     print('Real cost:', float(cost)/SCALE_COST)
 
 if __name__ == '__main__':
-    main(deterministic=True, observable=False, collisions=False, focused=True)
+    main(deterministic=False, observable=False, collisions=False, focused=True)

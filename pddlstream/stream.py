@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict, namedtuple, Sequence
+from collections import Counter, defaultdict, namedtuple, Sequence, Iterator
 from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
@@ -9,7 +9,7 @@ from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF
 import time
 
-class BoundedGenerator(object):
+class BoundedGenerator(Iterator):
     def __init__(self, generator, max_calls=INF):
         self.generator = generator
         self.max_calls = max_calls
@@ -65,27 +65,27 @@ def empty_gen():
 UniqueOpt = namedtuple('UniqueOpt', ['instance', 'output_index'])
 SharedOpt = namedtuple('SharedOpt', ['external', 'output_index'])
 
-def get_empty_fn(stream):
-    # TODO: also use None to designate this
-    return lambda *input_values: []
+#def get_empty_fn(stream):
+#    # TODO: also use None to designate this
+#    return lambda *input_values: iter([])
 
-def get_shared_fn(stream): # TODO: identify bound
-    def fn(*input_values):
+def get_shared_gen_fn(stream): # TODO: identify bound
+    def gen_fn(*input_values):
         output_values = tuple(SharedOpt(stream, i) for i in range(len(stream.outputs)))
-        return [output_values]
-    return fn
+        yield [output_values]
+    return gen_fn
 
 # def create_partial_fn():
 #     # TODO: indices or names
 #     raise NotImplementedError()
 #     #return get_partial_fn
 
-def get_constant_fn(stream, constant):
-    def fn(*input_values):
+def get_constant_gen_fn(stream, constant):
+    def gen_fn(*input_values):
         assert(len(stream.inputs) == len(input_values))
         output_values = tuple(constant for _ in range(len(stream.outputs)))
-        return [output_values]
-    return fn
+        yield [output_values]
+    return gen_fn
 
 # def get_unique_fn(stream):
 #     # TODO: this should take into account the output number...
@@ -110,11 +110,11 @@ class DebugValue(object): # TODO: could just do an object
 ##################################################
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_list_fn=None, eager=False,
+    def __init__(self, opt_gen_fn=None, eager=False,
                  p_success=None, overhead=None):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead)
-        self.opt_list_fn = opt_list_fn
+        self.opt_gen_fn = opt_gen_fn
         #self.order = 0
 
 ##################################################
@@ -123,11 +123,13 @@ class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None):
         super(StreamResult, self).__init__(instance, opt_index)
         self.output_objects = tuple(output_objects)
+        self.mapping = dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
+                            list(zip(self.instance.external.outputs, self.output_objects)))
+        self.certified = substitute_expression(self.instance.external.certified, self.get_mapping())
     def get_mapping(self):
-        return dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
-                    list(zip(self.instance.external.outputs, self.output_objects)))
+        return self.mapping
     def get_certified(self):
-        return substitute_expression(self.instance.external.certified, self.get_mapping())
+        return self.certified
     def get_tuple(self):
         name = self.instance.external.name
         return name, self.instance.input_objects, self.output_objects
@@ -181,7 +183,9 @@ class StreamInstance(Instance):
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real not real verifications of things?
-        new_values = self.external.opt_list_fn(*self.get_input_values())
+        new_values = []
+        for output_list in self.external.opt_gen_fn(*self.get_input_values()):
+            new_values.extend(output_list)
         self._check_output_values(new_values)
         results = []
         for i, output_values in enumerate(new_values):
@@ -190,9 +194,7 @@ class StreamInstance(Instance):
                 #unique = object()
                 unique = (self, i, j)
                 param = unique if (self.opt_index == 0) else value
-                print(value, param)
-                opt = OptimisticObject.from_opt(value, param)
-                output_objects.append(opt)
+                output_objects.append(OptimisticObject.from_opt(value, param))
             results.append(self.external._Result(self, output_objects, opt_index=self.opt_index))
         return results
     def __repr__(self):
@@ -224,11 +226,10 @@ class Stream(External):
         if False:
             self.num_opt_fns = 0
             #self.opt_list_fn = get_unique_fn(self)
-            self.opt_list_fn = get_constant_fn(self, None)
+            self.opt_gen_fn = get_constant_gen_fn(self, None)
         else:
             self.num_opt_fns = 1
-            self.opt_list_fn = get_shared_fn(self) if (self.info.opt_list_fn is None) else self.info.opt_list_fn
-
+            self.opt_gen_fn = get_shared_gen_fn(self) if (self.info.opt_gen_fn is None) else self.info.opt_gen_fn
         #self.bound_list_fn = None
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
         #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
@@ -297,7 +298,6 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     assert('define' == next(stream_iter))
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
-    #debug = (stream_map == DEBUG)
 
     for lisp_list in stream_iter:
         name = lisp_list[0]

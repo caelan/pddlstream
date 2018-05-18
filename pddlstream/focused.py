@@ -74,11 +74,10 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
     num_iterations = 0
     while True:
         num_iterations += 1
-        #print('Iteration: {}'.format(num_iterations))
         stream_results = optimistic_process_streams(evaluations, streams + functions)
         combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
-        #print()
-        print('Attempt: {} | Depth: {} | Success: {}'.format(num_iterations, depth, combined_plan is not None))
+        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(num_iterations, len(stream_results),
+                                                                           depth, combined_plan is not None))
         if (combined_plan is not None) or (depth == 0):
             return combined_plan, cost
 
