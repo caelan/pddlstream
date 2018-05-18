@@ -29,7 +29,7 @@ from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDi
 BeliefProblem = namedtuple('BeliefProblem', ['initial', 'goal', 'locations',
                                              'p_move_s', 'p_look_fp', 'p_look_fn'])
 
-def get_belief_problem(num_locs, deterministic, observable):
+def get_belief_problem(deterministic, observable):
     if observable:
         p1, p2 = 1.0, 1.0
     else:
@@ -76,10 +76,10 @@ def scale_cost(cost):
 #    return min(max(min_p, p), max_p)
 
 
-def log_cost(p):
-    if p == 0:
-        return INF
-    return -math.log(p)
+#def log_cost(p):
+#    if p == 0:
+#        return INF
+#    return -math.log(p)
 
 
 def geometric_cost(cost, p):
@@ -118,13 +118,13 @@ def prob_collision(d1, d2):
     d_collision = d_joint.project(lambda (l1, l2): l1 == l2)
     return float(d_collision.prob(True))
 
-def ge_fn(d, l, p):
+def ge_fn(o, d, l, p):
     return bool(p <= prob_occupied(l, d)) # TODO: numpy boolean
 
 def get_collision_test(max_p_collision):
     # TODO: could include the threshold as a parameter
     # TODO: function that computes this threshold and then test?
-    def test(l, d):
+    def test(l, o, d):
         return max_p_collision < prob_occupied(l, d)
         #return ge_fn(d, l, max_p_collision)
         #return max_p_collision < prob_collision(..., d)
@@ -146,12 +146,13 @@ def get_transition_fn(loc1, loc2, p_move_s):
         return fail_d
     return fn
 
-def move_cost_fn(l1, l2):
+def move_cost_fn():
+#def move_cost_fn(l1, l2):
     action_cost = 1
     return scale_cost(action_cost)
 
 def get_move_fn(p_move_s):
-    def fn(d1, loc1, loc2):
+    def fn(o, d1, loc1, loc2):
         d2 = d1.copy()
         d2.transitionUpdate(get_transition_fn(loc1, loc2, p_move_s))
         return (d2,)
@@ -171,7 +172,7 @@ def get_observation_fn(loc, p_look_fp, p_look_fn):
 
 def get_look_cost_fn(p_look_fp, p_look_fn):
     action_cost = 1
-    def fn(d, loc, obs):
+    def fn(o, d, loc, obs):
         d_obs = totalProbability(d, get_observation_fn(loc, p_look_fp, p_look_fn))
         p_obs = float(d_obs.prob(obs))
         expected_cost = revisit_mdp_cost(action_cost, action_cost, p_obs)
@@ -179,7 +180,7 @@ def get_look_cost_fn(p_look_fp, p_look_fn):
     return fn
 
 def get_look_fn(p_look_fp, p_look_fn):
-    def fn(d1, loc, obs):
+    def fn(o, d1, loc, obs):
         d2 = d1.copy()
         d2.obsUpdate(get_observation_fn(loc, p_look_fp, p_look_fn), obs)
         if not d2.support():
@@ -203,15 +204,14 @@ def get_opt_move_fn(factor):
     Optimistic move function
     :param factor: Boolean that when true, factors d1 before performing updates
     """
-    def fn(d1, loc1, loc2):
+    perfect_move_fn = get_move_fn(1)
+    def fn(o, d1, loc1, loc2):
         """
         Move function with perfect transitions
         """
-        perfect_move_fn = get_move_fn(1)
         if factor:
-            bernoulli = concentrate_belief(loc1, d1)
-            return perfect_move_fn(bernoulli, loc1, loc2)
-        return perfect_move_fn(d1, loc1, loc2)
+            d1 = concentrate_belief(loc1, d1)
+        return perfect_move_fn(o, d1, loc1, loc2)
     return fn
 
 def get_opt_obs_fn(factor):
@@ -219,38 +219,33 @@ def get_opt_obs_fn(factor):
     Optimistic observation function
     :param factor: Boolean that when true, factors d1 before performing updates
     """
-    def fn(d1, loc, obs):
+    perfect_look_fn = get_look_fn(0, 0)
+    def fn(o, d1, loc, obs):
         """
         Look function with perfect observations
         """
-        perfect_look_fn = get_look_fn(0, 0)
         if factor:
-            bernoulli = concentrate_belief(loc, d1)
-            return perfect_look_fn(bernoulli, loc, obs)
-        return perfect_look_fn(d1, loc, obs)
+            d1 = concentrate_belief(loc, d1)
+        return perfect_look_fn(o, d1, loc, obs)
     return fn
 
 ##################################################
 
 def to_pddlstream(belief_problem, collisions=True):
-    objects = {o for (o, _, _) in belief_problem.initial}
     locations = {l for (_, l, _) in belief_problem.initial + belief_problem.goal} | \
                 set(belief_problem.locations)
+    observations = [True, False]
     uniform = UniformDist(locations)
     initial_bel = {o: MixtureDD(DeltaDist(l), uniform, p) for o, l, p in belief_problem.initial}
     max_p_collision = 0.25 if collisions else 1.0
 
     # TODO: separate pick and place for move
-    init = [
-        ('Obs', True), # Positive observation
-        ('Obs', False), # Negative observation
-    ] + \
-        [('Obj', o) for o in objects] + \
-        [('Location', l) for l in locations]
+    init = [('Obs', obs) for obs in observations] + \
+           [('Location', l) for l in locations]
     for o, d in initial_bel.items():
-        init += [('BLoc', o, d), ('Dist', d)]
+        init += [('Dist', o, d), ('BLoc', o, d)]
     for (o, l, p) in belief_problem.goal:
-        init += [('Obj', o), ('Location', l), ('Prob', p)]
+        init += [('Location', l), ('GoalProb', l, p)]
     goal_literals = [('BLocGE', o, l, p) for (o, l, p) in belief_problem.goal]
     goal = And(*goal_literals)
 
@@ -272,13 +267,14 @@ def to_pddlstream(belief_problem, collisions=True):
 
 ##################################################
 
-def main(num_locs=5, deterministic=False, observable=False, collisions=True, focused=True, factor=True):
+def main(deterministic=False, observable=False, collisions=True, focused=True, factor=True):
     # TODO: global search over the state
-    belief_problem = get_belief_problem(num_locs, deterministic, observable)
+    belief_problem = get_belief_problem(deterministic, observable)
     pddlstream_problem = to_pddlstream(belief_problem, collisions)
 
     pr = cProfile.Profile()
     pr.enable()
+    planner = 'ff-wastar1'
     if focused:
         stream_info = {
             'GE': StreamInfo(from_test(ge_fn), eager=False),
@@ -287,10 +283,10 @@ def main(num_locs=5, deterministic=False, observable=False, collisions=True, foc
             'prob-after-look': StreamInfo(from_fn(get_opt_obs_fn(factor=factor))),
             'LookCost': FunctionInfo(get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
         }
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner='ff-wastar1', debug=False,
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner=planner, debug=False,
                                      max_cost=0, unit_costs=False, max_time=30)
     else:
-        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', debug=True,
+        solution = solve_incremental(pddlstream_problem, planner=planner, debug=True,
                                      max_cost=MAX_COST, unit_costs=False, max_time=30)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

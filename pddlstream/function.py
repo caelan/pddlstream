@@ -175,7 +175,10 @@ class FunctionInstance(Instance):  # Head(Instance):
         assert not self.enumerated
         self.enumerated = True
         input_values = self.get_input_values()
-        value = self.external.fn(*input_values)
+        try:
+            value = self.external.fn(*input_values)
+        except TypeError:
+            raise TypeError('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
         self.value = self.external._codomain(value)
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
@@ -267,23 +270,7 @@ class Predicate(Function):
 
 ##################################################
 
-
-def parse_function(lisp_list, stream_map, stream_info):
-    assert (len(lisp_list) == 3)
-    head = tuple(lisp_list[1])
-    assert (is_head(head))
-    # inputs = get_args(head)
-    domain = list_from_conjunction(lisp_list[2])
-    name = get_prefix(head)
-    if stream_map == DEBUG:
-        fn = DEBUG
-    else:
-        if name not in stream_map:
-            raise ValueError('Undefined external function: {}'.format(name))
-        fn = stream_map[name]
-    return Function(head, fn, domain, stream_info.get(name, None))
-
-def parse_predicate(lisp_list, stream_map, stream_info):
+def parse_common(lisp_list, stream_map, stream_info):
     assert (2 <= len(lisp_list) <= 3)
     head = tuple(lisp_list[1])
     assert (is_head(head))
@@ -297,4 +284,11 @@ def parse_predicate(lisp_list, stream_map, stream_info):
     domain = []
     if len(lisp_list) == 3:
         domain = list_from_conjunction(lisp_list[2])
-    return Predicate(head, fn, domain, stream_info.get(name, None))
+    info = stream_info.get(name, None)
+    return head, fn, domain, info
+
+def parse_function(*args):
+    return Function(*parse_common(*args))
+
+def parse_predicate(*args):
+    return Predicate(*parse_common(*args))
