@@ -22,13 +22,13 @@ def parse_constants(domain, constant_map):
         # TODO: add object predicate
     del domain.constants[:] # So not set twice
 
-def parse_problem(problem):
+def parse_problem(problem, stream_info={}):
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
-    stream_name, streams = parse_stream_pddl(stream_pddl, stream_map)
+    stream_name, streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     #evaluations = set(evaluations_from_init(init))
     evaluations = OrderedDict((e, None) for e in evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)

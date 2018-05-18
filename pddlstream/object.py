@@ -78,25 +78,28 @@ class OptimisticObject(object):
     _prefix = '#' # $ % #
     _obj_from_inputs = {}
     _obj_from_name= {}
-    def __init__(self, value):
+    def __init__(self, value, param):
         # TODO: store first created instance
         self.value = value
+        self.param = param
         #stream_instance, output_index = value
         #self.stream_instance = stream_instance
         #self.output_index = output_index
         self.index = len(OptimisticObject._obj_from_inputs)
         #self.name = '{}{}{}'.format(self._prefix, self.parameter[1:], self.index)
         self.name = '{}{}'.format(self._prefix, self.index)
-        OptimisticObject._obj_from_inputs[value] = self
+        key = (value, param)
+        OptimisticObject._obj_from_inputs[key] = self
         OptimisticObject._obj_from_name[self.name] = self
     #@property
     #def parameter(self):
     #    return self.stream_instance.stream.outputs[self.output_index]
     @staticmethod
-    def from_opt(opt):
-        if opt not in OptimisticObject._obj_from_inputs:
-            return OptimisticObject(opt)
-        return OptimisticObject._obj_from_inputs[opt]
+    def from_opt(value, param):
+        key = (value, param)
+        if key not in OptimisticObject._obj_from_inputs:
+            return OptimisticObject(value, param)
+        return OptimisticObject._obj_from_inputs[key]
     @staticmethod
     def from_name(name):
         return OptimisticObject._obj_from_name[name]

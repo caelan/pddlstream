@@ -11,7 +11,7 @@ from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
-from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
+from pddlstream.statistics import get_action_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.skeleton import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
     Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
@@ -109,11 +109,10 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     num_iterations = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)
-    update_stream_info(externals, stream_info)
     load_stream_statistics(stream_name, externals + synthesizers)
     if visualize:
         clear_visualizations()

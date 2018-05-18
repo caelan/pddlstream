@@ -27,7 +27,8 @@ class SynthStream(Stream):
     _Instance = SynthStreamInstance
     _Result = SynthStreamResult
     def __init__(self, synthesizer, gen_fn, inputs, domain, outputs, certified, streams, macro_from_micro):
-        super(SynthStream, self).__init__(synthesizer.name, gen_fn, inputs, domain, outputs, certified)
+        info = None # TODO: stream info
+        super(SynthStream, self).__init__(synthesizer.name, gen_fn, inputs, domain, outputs, certified, info)
         self.synthesizer = synthesizer
         self.streams = streams
         self.macro_from_micro = macro_from_micro
@@ -104,7 +105,6 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
                                   inputs=tuple(inputs), domain=domain,
                                   outputs=tuple(outputs), certified=certified,
                                   streams=streams, macro_from_micro=macro_from_micro)
-        # mega_stream.info = StreamInfo() # TODO: stream info
         mega_instance = mega_stream.get_instance(input_objects)
         self.macro_results[key] = SynthStreamResult(mega_instance, output_objects)
         return self.macro_results[key]

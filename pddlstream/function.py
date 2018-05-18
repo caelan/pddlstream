@@ -19,9 +19,9 @@ def geometric_cost(cost, p):
     return cost/p
 
 class FunctionInfo(ExternalInfo):
-    def __init__(self, eager=False, bound_fn=None, p_success=None, overhead=None):
+    def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None):
         super(FunctionInfo, self).__init__(eager, p_success, overhead)
-        self.bound_fn = bound_fn
+        self.opt_fn = opt_fn
         #self.order = 0
 
 ##################################################
@@ -189,7 +189,7 @@ class FunctionInstance(Instance):  # Head(Instance):
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
-        if isinstance(self, PredicateInstance) and (self.value != self.external.bound_fn(*input_values)):
+        if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
             self.update_statistics(start_time, []) # TODO: do this more automatically
         else:
             self.update_statistics(start_time, results)
@@ -198,7 +198,7 @@ class FunctionInstance(Instance):  # Head(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        opt_value = self.external.bound_fn(*self.get_input_values())
+        opt_value = self.external.opt_fn(*self.get_input_values())
         return [self.external._Result(self, opt_value, opt_index=self.opt_index)]
 
     def __repr__(self):
@@ -216,14 +216,16 @@ class Function(External):
     _codomain = int
     _default_p_success = 1
     _default_overhead = None
-    def __init__(self, head, fn, domain):
-        info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
+    def __init__(self, head, fn, domain, info):
+        if info is None:
+            info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
+        opt_fn = lambda *args: self._codomain()
         if fn == DEBUG:
-            fn = lambda *args: self._codomain()
+            fn = opt_fn
         self.fn = fn
-        self.bound_fn = lambda *args: self._codomain()
+        self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
@@ -261,7 +263,7 @@ class Predicate(Function):
 ##################################################
 
 
-def parse_function(lisp_list, stream_map):
+def parse_function(lisp_list, stream_map, stream_info):
     assert (len(lisp_list) == 3)
     head = tuple(lisp_list[1])
     assert (is_head(head))
@@ -274,9 +276,9 @@ def parse_function(lisp_list, stream_map):
         if name not in stream_map:
             raise ValueError('Undefined external function: {}'.format(name))
         fn = stream_map[name]
-    return Function(head, fn, domain)
+    return Function(head, fn, domain, stream_info.get(name, None))
 
-def parse_predicate(lisp_list, stream_map):
+def parse_predicate(lisp_list, stream_map, stream_info):
     assert (2 <= len(lisp_list) <= 3)
     head = tuple(lisp_list[1])
     assert (is_head(head))
@@ -290,4 +292,4 @@ def parse_predicate(lisp_list, stream_map):
     domain = []
     if len(lisp_list) == 3:
         domain = list_from_conjunction(lisp_list[2])
-    return Predicate(head, fn, domain)
+    return Predicate(head, fn, domain, stream_info.get(name, None))
