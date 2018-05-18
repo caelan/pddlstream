@@ -34,8 +34,8 @@
     (exists (?d) (and (Obj ?o) (GE ?d ?l ?p)
                             (Bloc ?o ?d)))
   )
-  (:derived (Unsafe ?l) ;  Could use the resulting distribution instead
-    (exists (?o ?d) (and (Obj ?o) (BCollision ?l ?d)
+  (:derived (Unsafe ?l) ; Could use the resulting distribution instead
+    (exists (?o ?d) (and (Obj ?o) (BCollision ?l ?d) ; Include object do no self collisions?
                          (BLoc ?o ?d)))
   )
 )

@@ -223,7 +223,8 @@ class Stream(External):
         self.certified = tuple(certified)
 
         # TODO: generalize to a hierarchical sequence
-        if False:
+        always_unique = False
+        if always_unique:
             self.num_opt_fns = 0
             #self.opt_list_fn = get_unique_fn(self)
             self.opt_gen_fn = get_constant_gen_fn(self, None)

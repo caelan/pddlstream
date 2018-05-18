@@ -53,8 +53,8 @@ def get_belief_problem(num_locs, deterministic, observable):
     ]
 
     #goal = [('o1', l1, 0.95)]
-    goal = [('o1', l0, 0.95)]
-    #goal = [('o1', l2, 0.95)]
+    #goal = [('o1', l0, 0.95)]
+    goal = [('o1', l2, 0.95)]
 
     locations = {l0}
 
@@ -72,6 +72,8 @@ def get_belief_problem(num_locs, deterministic, observable):
 
 SCALE_COST = 1000
 MAX_COST = 1e8
+MIN_P = 1e-6
+OTHER = 'other'
 
 def scale_cost(cost):
     # Unfortunately, FastDownward only supports nonnegative, integer functions
@@ -83,7 +85,6 @@ def clip_p(p, min_p=1e-3, max_p=1-1e-3):
     # TODO: round p for clarity as well?
     return min(max(min_p, p), max_p)
 
-MIN_P = 1e-6
 
 def log_cost(p, min_p=MIN_P):
     return -math.log(max(p, min_p))
@@ -161,6 +162,18 @@ def get_move_fn(p_move_s):
 
 ##################################################
 
+def opt_move_fn(control_loc1, control_loc2, d1):
+    d2 = d1.project(lambda l1: l1 if (l1 == control_loc1) else OTHER)
+    d2.transitionUpdate(get_transition_fn(control_loc1, control_loc2, 1))
+    return (d2,)
+
+#def opt_obs_fn(control_loc1, control_loc2, d1):
+#    d2 = d1.project(lambda l1: l1 if (l1 == control_loc1) else OTHER)
+#    d2.transitionUpdate(get_transition_fn(control_loc1, control_loc2, 1))
+#    return (d2,)
+
+##################################################
+
 def get_observation_fn(control_loc, p_look_fp, p_look_fn):
     def fn(loc1):
         # P(o=hit | s1=loc1, a=control_loc)
@@ -232,7 +245,7 @@ def to_pddlstream(belief_problem, collisions=True):
 ##################################################
 
 def main(num_locs=5, deterministic=False, observable=False, collisions=True, focused=True):
-
+    # TODO: search over things
     belief_problem = get_belief_problem(num_locs, deterministic, observable)
     pddlstream_problem = to_pddlstream(belief_problem, collisions)
 
@@ -240,8 +253,9 @@ def main(num_locs=5, deterministic=False, observable=False, collisions=True, foc
     pr.enable()
     if focused:
         stream_info = {
-            'ge': StreamInfo(from_test(ge_fn)),
-            'prob-after-move': StreamInfo(from_fn(get_move_fn(p_move_s=1))),
+            'ge': StreamInfo(from_test(ge_fn), eager=False),
+            #'prob-after-move': StreamInfo(from_fn(get_move_fn(p_move_s=1))),
+            'prob-after-move': StreamInfo(from_fn(opt_move_fn)),
             'MoveCost': FunctionInfo(move_cost_fn),
             'prob-after-look': StreamInfo(from_fn(get_look_fn(p_look_fp=0, p_look_fn=0))),
             'LookCost': FunctionInfo(get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
@@ -250,7 +264,7 @@ def main(num_locs=5, deterministic=False, observable=False, collisions=True, foc
             #'cfree': StreamInfo(eager=True),
         }
         solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner='ff-wastar1', debug=False,
-                                     max_cost=MAX_COST, unit_costs=False, max_time=30)
+                                     max_cost=0, unit_costs=False, max_time=30)
     else:
         solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', debug=True,
                                      max_cost=MAX_COST, unit_costs=False, max_time=30)
@@ -262,4 +276,4 @@ def main(num_locs=5, deterministic=False, observable=False, collisions=True, foc
     print('Real cost:', float(cost)/SCALE_COST)
 
 if __name__ == '__main__':
-    main(deterministic=False, observable=False, collisions=False, focused=True)
+    main(deterministic=False, observable=False, collisions=True, focused=True)
