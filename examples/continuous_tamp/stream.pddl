@@ -20,6 +20,13 @@
     :outputs (?t)
     :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
   )
+  ; (:stream test-region
+  ;  :inputs (?b ?p ?r)
+  ;  :domain (and (Pose ?b ?p) (Region ?r))
+  ;  :outputs ()
+  ;  :certified (Contained ?b ?p ?r)
+  ; )
+
   (:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
     (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
   )

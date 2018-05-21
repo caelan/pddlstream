@@ -62,12 +62,19 @@ def empty_gen():
 
 ##################################################
 
-UniqueOpt = namedtuple('UniqueOpt', ['instance', 'output_index'])
-SharedOpt = namedtuple('SharedOpt', ['external', 'output_index'])
+def get_empty_fn():
+    return lambda *input_values: None
 
-#def get_empty_fn(stream):
-#    # TODO: also use None to designate this
-#    return lambda *input_values: iter([])
+def get_constant_fn(constant):
+    return lambda *input_values: constant
+
+def get_identity_fn(indices):
+    return lambda *input_values: tuple(input_values[i] for i in indices)
+
+##################################################
+
+#UniqueOpt = namedtuple('UniqueOpt', ['instance', 'output_index'])
+SharedOpt = namedtuple('SharedOpt', ['external', 'output_index'])
 
 def get_shared_gen_fn(stream): # TODO: identify bound
     def gen_fn(*input_values):
@@ -293,7 +300,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         return None, streams
     if all(isinstance(e, External) for e in stream_pddl):
         return None, stream_pddl
-    stream_map = {k.lower(): v for k, v in stream_map.items()}
+    if stream_map != DEBUG:
+        stream_map = {k.lower(): v for k, v in stream_map.items()}
     stream_info = {k.lower(): v for k, v in stream_info.items()}
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))

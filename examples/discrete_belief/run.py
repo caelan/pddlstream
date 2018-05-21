@@ -23,6 +23,7 @@ from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDi
 # TODO: mixture of Gaussian's
 # TODO: do we want to control other modalities by this?
 # TODO: reduce to Gaussian around position in approximate belief
+# TODO: factor belief to independent objects being updated. I think the multimodal won't work otheriwse
 
 ##################################################
 

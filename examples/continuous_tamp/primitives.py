@@ -1,8 +1,9 @@
 import math
+from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.viewer import SUCTION_HEIGHT
+from examples.continuous_tamp.viewer import SUCTION_HEIGHT, GROUND
 
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
@@ -122,3 +123,83 @@ def plan_motion(q1, q2):
     t = [q1, q2]
     #t = np.vstack([q1, q2])
     return (t,)
+
+##################################################
+
+TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
+TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
+
+def apply_action(state, action):
+    conf, holding, block_poses = state
+    # TODO: don't mutate block_poses?
+    name, args = action
+    if name == 'move':
+        _, _, conf = args
+    elif name == 'pick':
+        holding, _, _ = args
+        del block_poses[holding]
+    elif name == 'place':
+        block, pose, _ = args
+        holding = None
+        block_poses[block] = pose
+    else:
+        raise ValueError(name)
+    return TAMPState(conf, holding, block_poses)
+
+##################################################
+
+def get_tight_problem(n_blocks=1, n_goals=1):
+    regions = {
+        GROUND: (-15, 15),
+        'red': (5, 10)
+    }
+
+    conf = np.array([0, 5])
+    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
+    poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
+    #poses = [sample_pose(regions[GROUND]) for _ in range(n_blocks)]
+
+    initial = TAMPState(conf, None, dict(zip(blocks, poses)))
+    goal_regions = {block: 'red' for block in blocks[:n_goals]}
+
+    return TAMPProblem(initial, regions, conf, goal_regions)
+
+
+def get_blocked_problem():
+    goal = 'red'
+    regions = {
+        GROUND: (-15, 15),
+        goal: (5, 10)
+    }
+
+    conf = np.array([0, 5])
+    blocks = ['block{}'.format(i) for i in range(2)]
+    poses = [np.zeros(2), np.array([7.5, 0])]
+    block_poses = dict(zip(blocks, poses))
+
+    block_regions = {
+        blocks[0]: GROUND,
+        blocks[1]: goal,
+    }
+    #block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+
+    initial = TAMPState(conf, None, block_poses)
+    goal_regions = {blocks[0]: 'red'}
+
+    return TAMPProblem(initial, regions, conf, goal_regions)
+
+##################################################
+
+def draw_state(viewer, state, colors):
+    viewer.clear_state()
+    viewer.draw_environment()
+    viewer.draw_robot(*state.conf)
+    for block, pose in state.block_poses.items():
+        viewer.draw_block(pose[0], BLOCK_WIDTH, BLOCK_HEIGHT, color=colors[block])
+    if state.holding is not None:
+        viewer.draw_block(state.conf[0], BLOCK_WIDTH, BLOCK_HEIGHT, color=colors[state.holding])
+
+def get_random_seed():
+    import numpy
+    return numpy.random.get_state()[1][0]

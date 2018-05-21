@@ -1,0 +1,52 @@
+(define (stream pick-and-place)
+  (:stream sample-pose
+    :inputs (?b ?r)
+    :domain (Placeable ?b ?r)
+    :outputs (?p)
+    :certified (and (Pose ?b ?p) (Contained ?b ?p ?r))
+  )
+  (:stream inverse-kinematics
+    :inputs (?b ?p)
+    :domain (Pose ?b ?p)
+    :outputs (?q)
+    :certified (and (Conf ?q) (Kin ?b ?q ?p))
+  )
+  (:stream plan-motion
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :outputs (?t)
+    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
+  )
+
+  ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
+  ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+  ;)
+  ;(:predicate (TrajCollision ?t ?b2 ?p2)
+  ;  (and (Traj ?t) (Pose ?b2 ?p2))
+  ;)
+
+  (:stream forward-move ; Fluents in domain to make easier to ground
+    :inputs (?s1 ?t)
+    :domain (and (State ?s1) (Traj ?t))
+    :outputs (?s2)
+    :certified (and (State ?s2) (Move ?s1 ?t ?s2))
+  )
+  (:stream forward-pick
+    :inputs (?s1 ?b ?q ?p)
+    :domain (and (State ?s1) (Kin ?b ?q ?p))
+    :outputs (?s2)
+    :certified (and (State ?s2) (Pick ?s1 ?b ?q ?p ?s2))
+  )
+  (:stream forward-place
+    :inputs (?s1 ?b ?q ?p)
+    :domain (and (State ?s1) (Kin ?b ?q ?p))
+    :outputs (?s2)
+    :certified (and (State ?s2) (Place ?s1 ?b ?q ?p ?s2))
+  )
+  (:stream test-goal
+    :inputs (?s)
+    :domain (State ?s)
+    :outputs ()
+    :certified (SatisfiesGoal ?s)
+  )
+)

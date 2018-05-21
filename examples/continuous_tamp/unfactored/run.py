@@ -9,7 +9,7 @@ import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
-    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, draw_state, \
+    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, draw_state, \
     apply_action, get_random_seed
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
@@ -21,6 +21,67 @@ from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 
+R = 'r'
+H = 'h'
+
+def at_conf(s, q):
+    return np.allclose(s['r'], q)
+
+def at_pose(s, b, p):
+    return (s[b] is not None) and np.allclose(s[b], p)
+
+def holding(s, b):
+    return s['h'] == b
+
+def hand_empty(s):
+    return s['h'] is None
+
+def get_move_fn(regions):
+    def fn(s1, t):
+        q1, q2 = t
+        if not at_conf(s1, q1):
+            return None
+        s2 = s1.copy()
+        s2['r'] = q2
+        return (s2,)
+    return fn
+
+def get_pick_fn(regions):
+    def fn(s1, b, q, p):
+        if (s1['h'] is not None) or (s1[b] is None) or (not np.allclose(s1[b], p)):
+            return None
+        s2 = s1.copy()
+        s2[b] = None
+        s2['h'] = b
+        return (s2,)
+    return fn
+
+def get_place_fn(regions):
+    def fn(s1, b, q, p):
+        if (s1['h'] != b) or (s1[b] is not None):
+            return None
+        #if s1[b] != p:
+        #    return None
+        s2 = s1.copy()
+        s2[b] = p
+        s2['h'] = None
+        return (s2,)
+    return fn
+
+def get_goal_test(tamp_problem):
+    region_test = get_region_test(tamp_problem.regions)
+    def test(s):
+        if not at_conf(s, tamp_problem.goal_conf):
+            return False
+        if not hand_empty(s):
+            return False
+        for b, r in tamp_problem.goal_regions.items():
+            if (s[b] is None) or not region_test(b, s[b], r):
+                return False
+        return True
+    return test
+
+
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
     assert(initial.holding is None)
@@ -29,35 +90,38 @@ def pddlstream_from_tamp(tamp_problem):
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
+    #state = tamp_problem.initial
+    state = {
+        'r': tamp_problem.initial.conf,
+        'h': tamp_problem.initial.holding,
+    }
+    for b, p in tamp_problem.initial.block_poses.items():
+        state[b] = p
+
     init = [
-        ('CanMove',),
-        ('Conf', initial.conf),
-        ('AtConf', initial.conf),
-        ('HandEmpty',),
-        Equal((TOTAL_COST,), 0)] + \
+        ('State', state),
+        ('AtState', state),
+        ('Conf', initial.conf)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('Region', r) for r in tamp_problem.regions.keys()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
-
-    goal_literals = [('HandEmpty',)] + \
-                    [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
-    if tamp_problem.goal_conf is not None:
-        goal_literals += [('AtConf', tamp_problem.goal_conf)]
-    goal = And(*goal_literals)
+    goal = ('AtGoal',)
 
     stream_map = {
         'plan-motion': from_fn(plan_motion),
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
-        'collision-free': from_test(lambda *args: not collision_test(*args)),
-        'cfree': lambda *args: not collision_test(*args),
-        'posecollision': collision_test,
-        'trajcollision': lambda *args: False,
-        'distance': distance_fn,
+        #'posecollision': collision_test,
+        #'trajcollision': lambda *args: False,
+
+        'forward-move': from_fn(get_move_fn(tamp_problem.regions)),
+        'forward-pick': from_fn(get_pick_fn(tamp_problem.regions)),
+        'forward-place': from_fn(get_place_fn(tamp_problem.regions)),
+        'test-goal': from_test(get_goal_test(tamp_problem)),
     }
     #stream_map = 'debug'
 
@@ -65,22 +129,17 @@ def pddlstream_from_tamp(tamp_problem):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=False):
+def main(focused=False, deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
-    action_info = {
-        #'move': ActionInfo(terminal=True),
-        #'pick': ActionInfo(terminal=True),
-        #'place': ActionInfo(terminal=True),
-    }
     stream_info = {
         #'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
@@ -88,25 +147,16 @@ def main(focused=True, deterministic=False, unit_costs=False):
         #'cfree': StreamInfo(eager=True),
     }
 
-    dynamic = [
-        StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-                          gen_fn=from_fn(cfree_motion_fn)),
-        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-        #                           'posecollision': 0, 'distance': 0},
-        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
-    ]
-
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     pr = cProfile.Profile()
     pr.enable()
     if focused:
-        solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
-                                 synthesizers=dynamic,
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                  max_time=10, max_cost=INF, debug=False,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs)
+        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs, verbose=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
