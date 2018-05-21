@@ -10,7 +10,7 @@ import numpy as np
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, draw_state, \
-    apply_action, get_random_seed
+    get_random_seed, TAMPState
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
@@ -131,3 +131,21 @@ def main(focused=True, deterministic=False, unit_costs=False):
 
 if __name__ == '__main__':
     main()
+
+
+def apply_action(state, action):
+    conf, holding, block_poses = state
+    # TODO: don't mutate block_poses?
+    name, args = action
+    if name == 'move':
+        _, _, conf = args
+    elif name == 'pick':
+        holding, _, _ = args
+        del block_poses[holding]
+    elif name == 'place':
+        block, pose, _ = args
+        holding = None
+        block_poses[block] = pose
+    else:
+        raise ValueError(name)
+    return TAMPState(conf, holding, block_poses)

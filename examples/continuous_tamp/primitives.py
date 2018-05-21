@@ -129,25 +129,6 @@ def plan_motion(q1, q2):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def apply_action(state, action):
-    conf, holding, block_poses = state
-    # TODO: don't mutate block_poses?
-    name, args = action
-    if name == 'move':
-        _, _, conf = args
-    elif name == 'pick':
-        holding, _, _ = args
-        del block_poses[holding]
-    elif name == 'place':
-        block, pose, _ = args
-        holding = None
-        block_poses[block] = pose
-    else:
-        raise ValueError(name)
-    return TAMPState(conf, holding, block_poses)
-
-##################################################
-
 def get_tight_problem(n_blocks=1, n_goals=1):
     regions = {
         GROUND: (-15, 15),

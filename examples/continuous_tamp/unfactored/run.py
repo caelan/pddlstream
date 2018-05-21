@@ -7,10 +7,9 @@ import pstats
 
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, draw_state, \
-    apply_action, get_random_seed
+    get_random_seed, TAMPState
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
@@ -36,43 +35,37 @@ def holding(s, b):
 def hand_empty(s):
     return s['h'] is None
 
-def get_move_fn(regions):
-    def fn(s1, t):
-        q1, q2 = t
-        if not at_conf(s1, q1):
-            return None
-        s2 = s1.copy()
-        s2['r'] = q2
-        return (s2,)
-    return fn
+def move_fn(s1, t):
+    q1, q2 = t
+    if not at_conf(s1, q1):
+        return None
+    s2 = s1.copy()
+    s2['r'] = q2
+    return (s2,)
 
-def get_pick_fn(regions):
-    def fn(s1, b, q, p):
-        if (s1['h'] is not None) or (s1[b] is None) or (not np.allclose(s1[b], p)):
-            return None
-        s2 = s1.copy()
-        s2[b] = None
-        s2['h'] = b
-        return (s2,)
-    return fn
+def pick_fn(s1, b, q, p):
+    if not (at_pose(s1, b, p) and at_conf(s1, q)):
+        return None
+    s2 = s1.copy()
+    s2[b] = None
+    s2['h'] = b
+    return (s2,)
 
-def get_place_fn(regions):
-    def fn(s1, b, q, p):
-        if (s1['h'] != b) or (s1[b] is not None):
-            return None
-        #if s1[b] != p:
-        #    return None
-        s2 = s1.copy()
-        s2[b] = p
-        s2['h'] = None
-        return (s2,)
-    return fn
+def place_fn(s1, b, q, p):
+    if not (holding(s1, b) and at_conf(s1, q)):
+        return None
+    s2 = s1.copy()
+    s2[b] = p
+    s2['h'] = None
+    return (s2,)
 
 def get_goal_test(tamp_problem):
     region_test = get_region_test(tamp_problem.regions)
     def test(s):
         if not at_conf(s, tamp_problem.goal_conf):
             return False
+        return holding(s, 'block0')
+
         if not hand_empty(s):
             return False
         for b, r in tamp_problem.goal_regions.items():
@@ -118,9 +111,9 @@ def pddlstream_from_tamp(tamp_problem):
         #'posecollision': collision_test,
         #'trajcollision': lambda *args: False,
 
-        'forward-move': from_fn(get_move_fn(tamp_problem.regions)),
-        'forward-pick': from_fn(get_pick_fn(tamp_problem.regions)),
-        'forward-place': from_fn(get_place_fn(tamp_problem.regions)),
+        'forward-move': from_fn(move_fn),
+        'forward-pick': from_fn(pick_fn),
+        'forward-place': from_fn(place_fn),
         'test-goal': from_test(get_goal_test(tamp_problem)),
     }
     #stream_map = 'debug'
@@ -156,7 +149,8 @@ def main(focused=False, deterministic=False, unit_costs=True):
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs, verbose=False)
+        solution = solve_incremental(pddlstream_problem,
+                                     layers=1, unit_costs=unit_costs, verbose=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
@@ -170,10 +164,11 @@ def main(focused=False, deterministic=False, unit_costs=True):
     print()
     print(state)
     draw_state(viewer, state, colors)
-    for i, action in enumerate(plan):
+    for i, (action, args) in enumerate(plan):
         user_input('Continue?')
-        print(i, *action)
-        state = apply_action(state, action)
+        print(i, action, args)
+        s2 = args[-1]
+        state = TAMPState(s2['r'], s2['h'], {b: s2[b] for b in state.block_poses if s2[b] is not None})
         print(state)
         draw_state(viewer, state, colors)
     user_input('Finish?')
