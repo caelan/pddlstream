@@ -11,12 +11,9 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, draw_state, \
     get_random_seed, TAMPState
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.conversion import And, Equal
-from pddlstream.downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
 from pddlstream.stream import from_fn, from_test, from_gen_fn
-from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 
@@ -24,23 +21,24 @@ R = 'r'
 H = 'h'
 
 def at_conf(s, q):
-    return np.allclose(s['r'], q)
+    return np.allclose(s[R], q)
 
 def at_pose(s, b, p):
     return (s[b] is not None) and np.allclose(s[b], p)
 
 def holding(s, b):
-    return s['h'] == b
+    return s[H] == b
 
 def hand_empty(s):
-    return s['h'] is None
+    return s[H] is None
 
-def move_fn(s1, t):
-    q1, q2 = t
+##################################################
+
+def move_fn(s1, q1, t, q2):
     if not at_conf(s1, q1):
         return None
     s2 = s1.copy()
-    s2['r'] = q2
+    s2[R] = q2
     return (s2,)
 
 def pick_fn(s1, b, q, p):
@@ -48,7 +46,7 @@ def pick_fn(s1, b, q, p):
         return None
     s2 = s1.copy()
     s2[b] = None
-    s2['h'] = b
+    s2[H] = b
     return (s2,)
 
 def place_fn(s1, b, q, p):
@@ -56,7 +54,7 @@ def place_fn(s1, b, q, p):
         return None
     s2 = s1.copy()
     s2[b] = p
-    s2['h'] = None
+    s2[H] = None
     return (s2,)
 
 def get_goal_test(tamp_problem):
@@ -74,6 +72,7 @@ def get_goal_test(tamp_problem):
         return True
     return test
 
+##################################################
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -83,10 +82,11 @@ def pddlstream_from_tamp(tamp_problem):
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
+    # TODO: can always make the state the set of fluents
     #state = tamp_problem.initial
     state = {
-        'r': tamp_problem.initial.conf,
-        'h': tamp_problem.initial.holding,
+        R: tamp_problem.initial.conf,
+        H: tamp_problem.initial.holding,
     }
     for b, p in tamp_problem.initial.block_poses.items():
         state[b] = p
@@ -168,7 +168,7 @@ def main(focused=False, deterministic=False, unit_costs=True):
         user_input('Continue?')
         print(i, action, args)
         s2 = args[-1]
-        state = TAMPState(s2['r'], s2['h'], {b: s2[b] for b in state.block_poses if s2[b] is not None})
+        state = TAMPState(s2[R], s2[H], {b: s2[b] for b in state.block_poses if s2[b] is not None})
         print(state)
         draw_state(viewer, state, colors)
     user_input('Finish?')

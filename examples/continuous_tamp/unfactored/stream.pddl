@@ -18,30 +18,26 @@
     :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
   )
 
-  ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
-  ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-  ;)
-  ;(:predicate (TrajCollision ?t ?b2 ?p2)
-  ;  (and (Traj ?t) (Pose ?b2 ?p2))
-  ;)
-
   (:stream forward-move ; Fluents in domain to make easier to ground
-    :inputs (?s1 ?t)
-    :domain (and (State ?s1) (Traj ?t))
+    :inputs (?s1 ?q1 ?t ?q2)
+    :domain (and (State ?s1) (Motion ?q1 ?t ?q2))
     :outputs (?s2)
-    :certified (and (State ?s2) (Move ?s1 ?t ?s2))
+    :certified (and (State ?s2) (Move ?s1 ?q1 ?t ?q2 ?s2)
+                    (AtConf ?s2 ?q2)) ; Unchanged variables?
   )
   (:stream forward-pick
     :inputs (?s1 ?b ?q ?p)
     :domain (and (State ?s1) (Kin ?b ?q ?p))
     :outputs (?s2)
-    :certified (and (State ?s2) (Pick ?s1 ?b ?q ?p ?s2))
+    :certified (and (State ?s2) (Pick ?s1 ?b ?q ?p ?s2)
+                    (Holding ?s2 ?b) (AtConf ?s2 ?q))
   )
   (:stream forward-place
     :inputs (?s1 ?b ?q ?p)
-    :domain (and (State ?s1) (Kin ?b ?q ?p))
+    :domain (and (State ?s1) (Kin ?b ?q ?p)) ; Add to preconditions?
     :outputs (?s2)
-    :certified (and (State ?s2) (Place ?s1 ?b ?q ?p ?s2))
+    :certified (and (State ?s2) (Place ?s1 ?b ?q ?p ?s2)
+                    (AtPose ?s2 ?b ?p) (HandEmpty ?s2) (AtConf ?s2 ?q))
   )
   (:stream test-goal
     :inputs (?s)
@@ -49,4 +45,5 @@
     :outputs ()
     :certified (SatisfiesGoal ?s)
   )
+  ; Wild stream that maps to fluents?
 )
