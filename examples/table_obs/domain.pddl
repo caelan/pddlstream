@@ -1,57 +1,63 @@
 (define (domain latent-table)
   (:requirements :strips :equality)
   (:predicates
+    (On ?i ?s)
     (Holding ?a ?b)
     (HandEmpty ?a)
 
     (Arm ?a)
-    (Fixed ?s)
-    (Nearby ?s)
-    (Stackable ?i ?s)
-    (On ?i ?s)
+    (Item ?i)
+
+    (Unknown ?s)
     (Localized ?s)
+    (Registered ?s)
+
+    (Nearby ?s)
+    (Graspable ?i)
+    (Stackable ?i ?s)
     (CanMove)
-    (Found ?s)
     (Class ?i ?c)
     (HoldingClass ?c)
   )
   (:functions
     (Distance ?q1 ?q2)
+    (ScanCost ?s ?i)
+    (RegisterCost)
+    (PickCost)
+    (PlaceCost)
   )
-  (:action move
-    :parameters (?s)
-    :precondition (Fixed ?s)
-    :effect (Nearby ?s)
+  ;(:action move
+  ;  :parameters (?s)
+  ;  :precondition (Fixed ?s)
+  ;  :effect (Nearby ?s)
+  ;)
+
+  (:action scan
+    :parameters (?s ?i)
+    :precondition (and (Stackable ?i ?s)
+                   (Localized ?s) (Unknown ?i))
+    :effect (and (Localized ?i) (On ?i ?s))
   )
+  (:action register
+    :parameters (?i) ; Can rooms and tables be registered?
+    :precondition (and (Graspable ?i) (Localized ?i))
+    :effect (Registered ?i)
+  )
+
   (:action pick
     :parameters (?a ?i ?s)
-    :precondition (and (Arm ?a) (Stackable ?i ?s)
-                       (HandEmpty ?a) (On ?i ?s) (Localized ?i)) ; (Nearby ?s)
-    :effect (and (Holding ?a ?i) (CanMove)
-                 (not (On ?i ?s)) (not (HandEmpty ?a)))
+    :precondition (and (Arm ?a) (Stackable ?i ?s) (Graspable ?i)
+                       (On ?i ?s) (HandEmpty ?a) (Registered ?i)) ; (Nearby ?s)
+    :effect (and (Holding ?a ?i) ; (CanMove)
+                 (not (On ?i ?s)) (not (HandEmpty ?a))
+                 (not (Localized ?i)) (not (Registered ?i)))
   )
   (:action place
     :parameters (?a ?i ?s)
-    :precondition (and (Arm ?a) (Stackable ?i ?s)
-                       (Localized ?i) (Holding ?a ?i)) ; (Nearby ?s)
-    :effect (and (On ?i ?s) (HandEmpty ?a) (CanMove)
-                 (not (Holding ?a ?i)))
-  )
-
-  (:action scanroom
-    :parameters (?s)
-    :precondition (and (Fixed ?s) (not (Found ?s)))
-    :effect (Found ?s)
-  )
-  (:action scanfixed
-    :parameters (?s ?i)
-    :precondition (and (Stackable ?i ?s) (not (Found ?i)))
-    :effect (and (Found ?i) (On ?i ?s))
-  )
-  (:action look
-    :parameters (?i)
-    :precondition (Found ?i)
-    :effect (Localized ?i)
+    :precondition (and (Arm ?a) (Stackable ?i ?s) (Graspable ?i)
+                       (Holding ?a ?i)) ; (Nearby ?s)
+    :effect (and (On ?i ?s) (HandEmpty ?a) (Localized ?i); (CanMove)
+                 (not (Holding ?a ?i))) ; TODO: delete Registered?
   )
 
   (:derived (HoldingClass ?c)
