@@ -16,6 +16,7 @@ def pddlstream_from_belief():
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
         'inv-kin': from_fn(lambda p: (p + np.array([0, 1]),)),
+        'motion': from_fn(lambda q1, q2: ([t*(q2-q1) + q1 for t in [0, 1]],)), # linspace, arange
     }
 
     # Options
@@ -26,8 +27,8 @@ def pddlstream_from_belief():
 
     block = 'block1'
     pose = None # Unknown
-    #pose = np.array([0, 0])
-    conf = 0
+    #pose = np.array([1, 0])
+    conf = np.array([0, 1])
 
     init = [
         ('Initial',), # Forces move first
