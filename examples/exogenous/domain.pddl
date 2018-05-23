@@ -15,7 +15,7 @@
   )
   (:action move
     :parameters (?q1 ?q2)
-    :precondition (and (Conf ?q1) (Conf ?q2) (Initial)
+    :precondition (and (Conf ?q1) (Conf ?q2) ; (Initial)
                        (AtConf ?q1))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (Initial)))
@@ -34,7 +34,7 @@
     :effect (and (AtPose ?b ?p) (HandEmpty)
                  (not (Holding ?b)) (not (Initial)))
   )
-   (:action call
+   (:action phone
     :parameters (?b ?p)
     :precondition (and (Block ?b) (Pose ?p))
     :effect (and (Observable ?p)

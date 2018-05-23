@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import cProfile
 import pstats
+import numpy as np
 
 from pddlstream.incremental import solve_incremental
 from pddlstream.utils import print_solution, read, get_file_path
@@ -14,7 +15,7 @@ def pddlstream_from_belief():
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
-        'inverse-kinematics': from_fn(lambda p: (p,)), # TODO: make crash
+        'inv-kin': from_fn(lambda p: (p + np.array([0, 1]),)),
     }
 
     # Options
@@ -25,6 +26,7 @@ def pddlstream_from_belief():
 
     block = 'block1'
     pose = None # Unknown
+    #pose = np.array([0, 0])
     conf = 0
 
     init = [
@@ -36,7 +38,8 @@ def pddlstream_from_belief():
         ('Block', block),
         ('Pose', pose),
         ('AtPose', block, pose),
-        ('Latent', pose),
+        #('Observable', pose),
+        #('Latent', pose),
     ]
 
     goal = ('Holding', block)
@@ -46,6 +49,7 @@ def pddlstream_from_belief():
 ##################################################
 
 def main():
+    # TODO: maybe load problems as a domain explicitly
     pddlstream_problem = pddlstream_from_belief()
     _, _, _, _, init, goal = pddlstream_problem
     print(sorted(init))
