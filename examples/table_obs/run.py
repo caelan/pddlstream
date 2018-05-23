@@ -21,37 +21,6 @@ def is_class(item, cl):
     assert(cl in CLASSES)
     return cl in item
 
-OTHER = 'other'
-
-def get_room_belief(uniform_rooms, uniform_tables, uncertainty):
-    mix = 1 - uncertainty
-    return {
-        'room0': DeltaDist(None),
-        'table0': MixtureDist(DeltaDist('room0'), uniform_rooms, mix),
-        'table1': MixtureDist(DeltaDist('room0'), uniform_rooms, mix),
-        'soup0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
-        'green0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
-    }
-
-def get_table_belief(uniform_tables, uncertainty):
-    mix = 1 - uncertainty
-    return {
-        'room0': DeltaDist(None),
-        'table0': DeltaDist('room0'),
-        'table1': DeltaDist('room0'),
-        'soup0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
-        'green0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
-    }
-
-def get_item_belief():
-    return {
-        'room0': DeltaDist(None),
-        'table0': DeltaDist('room0'),
-        'table1': DeltaDist('room0'),
-        'soup0': DeltaDist('table0'),
-        'green0': DeltaDist('table0'),
-    }
-
 def pddlstream_from_belief(initial_belief):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
@@ -105,6 +74,40 @@ def pddlstream_from_belief(initial_belief):
     goal = And(*goal_literals)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+
+##################################################
+
+WORLD = 'world'
+OTHER = 'other'
+
+def get_room_belief(uniform_rooms, uniform_tables, uncertainty):
+    mix = 1 - uncertainty
+    return {
+        'room0': DeltaDist(WORLD),
+        'table0': MixtureDist(DeltaDist('room0'), uniform_rooms, mix),
+        'table1': MixtureDist(DeltaDist('room0'), uniform_rooms, mix),
+        'soup0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
+        'green0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
+    }
+
+def get_table_belief(uniform_tables, uncertainty):
+    mix = 1 - uncertainty
+    return {
+        'room0': DeltaDist(WORLD),
+        'table0': DeltaDist('room0'),
+        'table1': DeltaDist('room0'),
+        'soup0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
+        'green0': MixtureDist(DeltaDist('table0'), uniform_tables, mix),
+    }
+
+def get_item_belief():
+    return {
+        'room0': DeltaDist(WORLD),
+        'table0': DeltaDist('room0'),
+        'table1': DeltaDist('room0'),
+        'soup0': DeltaDist('table0'),
+        'green0': DeltaDist('table0'),
+    }
 
 ##################################################
 
