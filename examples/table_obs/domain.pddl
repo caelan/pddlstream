@@ -6,8 +6,6 @@
     (HandEmpty ?a)
 
     (Arm ?a)
-    (Item ?i)
-
     (Unknown ?s)
     (Localized ?s)
     (Registered ?s)
@@ -18,6 +16,8 @@
     (CanMove)
     (Class ?i ?c)
     (HoldingClass ?c)
+
+    (FiniteScanCost ?s ?i)
   )
   (:functions
     (Distance ?q1 ?q2)
@@ -34,30 +34,35 @@
 
   (:action scan
     :parameters (?s ?i)
-    :precondition (and (Stackable ?i ?s)
+    :precondition (and (FiniteScanCost ?s ?i)
                    (Localized ?s) (Unknown ?i))
-    :effect (and (Localized ?i) (On ?i ?s))
+    :effect (and (Localized ?i) (On ?i ?s)
+                 (not (Unknown ?i))
+                 (increase (total-cost) (ScanCost ?s ?i)))
   )
   (:action register
     :parameters (?i) ; Can rooms and tables be registered?
     :precondition (and (Graspable ?i) (Localized ?i))
-    :effect (Registered ?i)
+    :effect (and (Registered ?i)
+                 (increase (total-cost) (RegisterCost)))
   )
 
   (:action pick
     :parameters (?a ?i ?s)
     :precondition (and (Arm ?a) (Stackable ?i ?s) (Graspable ?i)
-                       (On ?i ?s) (HandEmpty ?a) (Registered ?i)) ; (Nearby ?s)
+                       (On ?i ?s) (HandEmpty ?a) (Registered ?i) (Localized ?s)) ; (Nearby ?s)
     :effect (and (Holding ?a ?i) ; (CanMove)
                  (not (On ?i ?s)) (not (HandEmpty ?a))
-                 (not (Localized ?i)) (not (Registered ?i)))
+                 (not (Localized ?i)) (not (Registered ?i))
+                 (increase (total-cost) (PickCost)))
   )
   (:action place
     :parameters (?a ?i ?s)
     :precondition (and (Arm ?a) (Stackable ?i ?s) (Graspable ?i)
-                       (Holding ?a ?i)) ; (Nearby ?s)
-    :effect (and (On ?i ?s) (HandEmpty ?a) (Localized ?i); (CanMove)
-                 (not (Holding ?a ?i))) ; TODO: delete Registered?
+                       (Holding ?a ?i) (Localized ?s)) ; (Nearby ?s)
+    :effect (and (On ?i ?s) (HandEmpty ?a) (Localized ?i) ; (CanMove)
+                 (not (Holding ?a ?i))
+                 (increase (total-cost) (PlaceCost)))
   )
 
   (:derived (HoldingClass ?c)
