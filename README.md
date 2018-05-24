@@ -52,3 +52,4 @@ Examples:
 [![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)
 <!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
 
+See https://github.com/caelan/ss-pybullet for more information.
