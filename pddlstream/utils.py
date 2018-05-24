@@ -49,11 +49,6 @@ def ensure_dir(f):
         os.makedirs(d)
 
 
-def safe_rm_file(p):
-    if os.path.exists(p):
-        os.remove(p)
-
-
 def safe_rm_dir(d):
     if os.path.exists(d):
         shutil.rmtree(d)

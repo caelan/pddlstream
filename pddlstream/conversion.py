@@ -109,6 +109,8 @@ def substitute_expression(parent, mapping):
 ##################################################
 
 def pddl_from_object(obj):
+    if isinstance(obj, str):
+        return obj
     return obj.pddl
 
 def pddl_list_from_expression(tree):

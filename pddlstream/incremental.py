@@ -1,10 +1,13 @@
 import time
 
-from pddlstream.algorithm import parse_problem, solve_finite, SolutionStore, add_certified
+from pddlstream.algorithm import parse_problem, SolutionStore, add_certified
 from pddlstream.conversion import revert_solution
-from pddlstream.instantiation import Instantiator
+from pddlstream.exogenous import compile_to_exogenous_actions, compile_to_exogenous_axioms
 from pddlstream.function import FunctionInstance
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.instantiation import Instantiator
+from pddlstream.utils import elapsed_time
+from pddlstream.algorithm import solve_finite
+from pddlstream.utils import INF
 
 def process_stream_queue(instantiator, evaluations, verbose=True):
     stream_instance = instantiator.stream_queue.popleft()
@@ -84,7 +87,9 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
         using stream applications
     """
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, _, streams = parse_problem(problem)
+    compile_to_exogenous_actions(evaluations, domain, streams)
+    #compile_to_exogenous_axioms(evaluations, domain, streams)
     instantiator = Instantiator(evaluations, streams)
     num_iterations = 0
     while not store.is_terminated():
