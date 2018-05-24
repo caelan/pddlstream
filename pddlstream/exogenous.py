@@ -1,10 +1,12 @@
 from collections import defaultdict
 from itertools import count
 
-from pddlstream.conversion import get_prefix, get_args, objects_from_evaluations, is_atom, Evaluation, Head
+from pddlstream.conversion import get_prefix, get_args, objects_from_evaluations, evaluation_from_fact, \
+    is_atom, Evaluation, Head
 from pddlstream.downward import fd_from_fact, TOTAL_COST
 from pddlstream.stream import Stream, from_fn
 from pddlstream.utils import int_ceil
+from pddlstream.object import Object
 
 
 class FutureValue(object):
@@ -29,44 +31,45 @@ def replace_gen_fn(stream):
         return gen_fn(*input_values)
     stream.gen_fn = new_gen_fn
 
-def compile_to_exogenous(evaluations, domain, streams):
-    import pddl
-    # TODO: automatically derive fluents
-    # TODO: prevent application for not latent
-    # TODO: version of this that operates on fluents of length one?
-    # TODO: better instantiation when have full parameters
-    # TODO: conversion from stream cost to real cost units?
-    # TODO: more generically would create something for each parameter
-
+def get_fluents(domain):
     fluent_predicates = set()
     for action in domain.actions:
         for effect in action.effects:
             fluent_predicates.add(effect.literal.predicate)
     for axiom in domain.axioms:
         fluent_predicates.add(axiom.name)
+    return fluent_predicates
 
+def get_future_fn(stream, evaluations):
+    def fn(*input_values):
+        # The stream certified predicates become fluents here
+        input_objects = tuple(map(Object.from_value, input_values))
+        instance = stream.get_instance(input_objects)
+        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
+            return None
+        return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
+    return fn
+
+def compile_to_exogenous_actions(evaluations, domain, streams):
+    import pddl
+    # TODO: automatically derive fluents
+    # TODO: version of this that operates on fluents of length one?
+    # TODO: better instantiation when have full parameters
+    # TODO: conversion from stream cost to real cost units?
+    # TODO: any predicates derived would need to be replaced as well
+
+    fluent_predicates = get_fluents(domain)
     domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
     if not (domain_predicates & fluent_predicates):
         return
-    print(fluent_predicates)
-    print(domain_predicates)
-    # TODO: can also map to real and fake
-    # TODO: any predicates derived would need to be replaced as well
-
-    #objects = objects_from_evaluations(evaluations)
-    #print(objects)
 
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
-    print(certified_predicates)
-
-    def get_evaluation_future(atom):
-        if not is_atom(atom):
-            return atom
-        if atom.head.function not in certified_predicates:
-            return atom
-        new_function = 'f-{}'.format(atom.head.function)
-        new_head = Head(new_function, atom.head.args)
-        return Evaluation(new_head, atom.value)
+    for evaluation in filter(is_atom, evaluations):
+        if evaluation.head.function in certified_predicates:
+            new_function = 'f-{}'.format(evaluation.head.function)
+            new_head = Head(new_function, evaluation.head.args)
+            new_evaluation = Evaluation(new_head, evaluation.value)
+            evaluations[new_evaluation] = None
 
     def get_future(atom):
         name = get_prefix(atom)
@@ -75,21 +78,15 @@ def compile_to_exogenous(evaluations, domain, streams):
         new_name = 'f-{}'.format(name)
         return (new_name,) + get_args(atom)
 
-    print(len(evaluations))
-    for evaluation in evaluations.keys():
-        evaluations[get_evaluation_future(evaluation)] = None
-    print(len(evaluations))
-
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
-        fluent_domain = list(filter(lambda a: get_prefix(a) in fluent_predicates, stream.domain))
-        static_domain = list(set(stream.domain) - set(fluent_domain))
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
 
         stream_name = 'future-{}'.format(stream.name)
-        gen_fn = from_fn(lambda *args: tuple(FutureValue(stream.name, args, o) for o in stream.outputs))
+        gen_fn = from_fn(get_future_fn(stream, evaluations))
         parameters = tuple(stream.inputs + stream.outputs)
+        static_domain = list(filter(lambda a: get_prefix(a) not in fluent_predicates, stream.domain))
         new_domain = list(map(get_future, static_domain))
         stream_atom = ('{}-result'.format(stream.name),) + parameters
         new_graph = [stream_atom] + list(map(get_future, stream.certified))
@@ -98,7 +95,7 @@ def compile_to_exogenous(evaluations, domain, streams):
 
         action_parameters = [pddl.TypedObject(p, 'object') for p in parameters]
         action_name = 'call-{}'.format(stream.name)
-        precondition = pddl.Conjunction(tuple(map(fd_from_fact, new_graph + list(stream.domain))))
+        precondition = pddl.Conjunction(tuple(map(fd_from_fact, [stream_atom] + list(stream.domain))))
         effects = [pddl.Effect(parameters=[], condition=pddl.Truth(),
                                literal=fd_from_fact(fact)) for fact in stream.certified]
         effort = 1 # TODO: use stream info
@@ -112,5 +109,91 @@ def compile_to_exogenous(evaluations, domain, streams):
                                  num_external_parameters=len(action_parameters),
                                  precondition=precondition, effects=effects, cost=cost))
 
-        #replace_gen_fn(stream)
         stream.certified = tuple(set(stream.certified) | set(map(get_future, stream.certified)))
+
+def replace_predicates(predicate_map, expression):
+    import pddl.conditions
+    if isinstance(expression, pddl.conditions.ConstantCondition):
+        return expression
+    if isinstance(expression, pddl.conditions.JunctorCondition):
+        return expression.__class__([replace_predicates(predicate_map, p) for p in expression.parts])
+    if isinstance(expression, pddl.conditions.QuantifiedCondition):
+        return expression.__class__(expression.parameters, [replace_predicates(predicate_map, p) for p in expression.parts])
+    if isinstance(expression, pddl.conditions.Literal):
+        new_predicate = predicate_map.get(expression.predicate, expression.predicate)
+        return expression.__class__(new_predicate, expression.args)
+    raise ValueError(expression)
+
+def remap_atom(atom, mapping):
+    name = get_prefix(atom)
+    if name not in mapping:
+        return atom
+    return (mapping[name],) + get_args(atom)
+
+def stuff(stream, evaluations, fluent_predicates, get_future):
+    stream_name = 'future-{}'.format(stream.name)
+    gen_fn = from_fn(get_future_fn(stream, evaluations))
+    static_domain = list(filter(lambda a: get_prefix(a) not in fluent_predicates, stream.domain))
+    new_domain = list(map(get_future, static_domain))
+    stream_atom = ('{}-result'.format(stream.name),) + tuple(stream.inputs + stream.outputs)
+    new_certified = [stream_atom] + list(map(get_future, stream.certified))
+    return Stream(stream_name, gen_fn, stream.inputs, new_domain,
+                          stream.outputs, new_certified, stream.info)
+
+def update_evaluations(evaluations, future_map):
+    for evaluation in filter(is_atom, evaluations):
+        name = evaluation.head.function
+        if name in future_map:
+            new_head = Head(future_map[name], evaluation.head.args)
+            new_evaluation = Evaluation(new_head, evaluation.value)
+            evaluations[new_evaluation] = None
+
+def compile_to_exogenous(evaluations, domain, streams):
+    import pddl
+    fluent_predicates = get_fluents(domain)
+    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
+    if not (domain_predicates & fluent_predicates):
+        return
+
+    certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
+    future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
+    get_future = lambda a: remap_atom(a, future_map)
+    update_evaluations(evaluations, future_map)
+
+    derived_map = {p: 'd-{}'.format(p) for p in certified_predicates}
+    get_derived = lambda a: remap_atom(a, derived_map)
+
+    for action in domain.actions:
+        action.precondition = replace_predicates(derived_map, action.precondition)
+        for effect in action.effects:
+            assert(isinstance(effect, pddl.Effect))
+            effect.condition = replace_predicates(derived_map, effect.condition)
+    for axiom in domain.axioms:
+        axiom.condition = replace_predicates(derived_map, axiom.condition)
+
+    #fluent_predicates.update(certified_predicates)
+    for stream in list(streams):
+        if not isinstance(stream, Stream):
+            raise NotImplementedError(stream)
+        streams.append(stuff(stream, evaluations, fluent_predicates, get_future))
+        precondition = pddl.Conjunction(tuple(map(fd_from_fact, streams[-1].certified[:1] +
+                                                  tuple(map(get_derived, stream.domain)))))
+        for fact in stream.certified:
+            derived_fact = fd_from_fact(get_derived(fact))
+            external_params = derived_fact.args
+            internal_params = tuple(p for p in (stream.inputs + stream.outputs)
+                                        if p not in derived_fact.args)
+            parameters = tuple(pddl.TypedObject(p, 'object')
+                                     for p in (external_params + internal_params))
+            #precondition = pddl.Conjunction(tuple(map(fd_from_fact, [stream_atom] +
+            #                                        list(map(get_derived, stream.domain)))))
+            #precondition = pddl.Disjunction([fd_from_fact(fact), precondition]) # TODO: quantifier
+            domain.axioms.extend([
+                pddl.Axiom(name=derived_fact.predicate, parameters=parameters,
+                           num_external_parameters=len(external_params),
+                           condition=precondition),
+                pddl.Axiom(name=derived_fact.predicate,  parameters=parameters[:len(external_params)],
+                           num_external_parameters=len(external_params),
+                           condition=fd_from_fact(fact))])
+        stream.certified = tuple(set(stream.certified) |
+                                 set(map(get_future, stream.certified)))
