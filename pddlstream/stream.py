@@ -22,6 +22,7 @@ class BoundedGenerator(Iterator):
             raise StopIteration()
         self.calls += 1
         return next(self.generator)
+    __next__ = next
 
 ##################################################
 

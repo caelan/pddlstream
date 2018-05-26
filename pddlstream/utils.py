@@ -90,12 +90,16 @@ class Verbose(object):
             self.stdout = sys.stdout
             self.devnull = open(os.devnull, 'w')
             sys.stdout = self.devnull
+            #self.stderr = sys.stderr
+            #self.devnull = open(os.devnull, 'w')
+            #sys.stderr = self.stderr
         return self
     def __exit__(self, type, value, traceback):
         if not self.verbose:
             sys.stdout = self.stdout
             self.devnull.close()
-
+            #sys.stderr = self.stderr
+            #self.devnull.close()
 
 class TmpCWD(object):
     def __init__(self, temp_cwd):
@@ -171,3 +175,10 @@ def argmax(function, sequence):
 def get_file_path(file, rel_path):
     directory = os.path.dirname(os.path.abspath(file))
     return os.path.join(directory, rel_path)
+
+class HeapElement(object):
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+    def __lt__(self, other):
+        return self.key < other.key
