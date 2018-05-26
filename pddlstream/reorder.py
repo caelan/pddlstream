@@ -9,7 +9,7 @@ from pddlstream.function import PredicateResult, Result
 from pddlstream.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies
+from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies, HeapElement
 
 
 def get_partial_orders(stream_plan):
@@ -30,14 +30,14 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
     queue = []
     for v in vertices:
         if not incoming_edges[v]:
-            heappush(queue, (priority_fn(v), v))
+            heappush(queue, HeapElement(priority_fn(v), v))
     while queue:
-        _, v1 = heappop(queue)
+        v1 = heappop(queue).value
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
-                heappush(queue, (priority_fn(v2), v2))
+                heappush(queue, HeapElement(priority_fn(v2), v2))
     return ordering
 
 ##################################################

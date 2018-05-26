@@ -7,7 +7,7 @@ from pddlstream.downward import get_problem, task_from_domain_problem, instantia
     parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd, solve_from_task
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies, argmax
+from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies, argmax, HeapElement
 from pddlstream.function import PredicateResult
 from pddlstream.algorithm import neighbors_from_orders
 from pddlstream.scheduling.simultaneous import get_stream_actions
@@ -48,11 +48,12 @@ Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
 def get_achieving_streams(evaluations, stream_results, op=sum):
     # TODO: could do this with bound_stream_instances instead
     unprocessed_from_atom = defaultdict(list)
-    node_from_atom = {None: Node(0, None)}
+    none = (None,) # None
+    node_from_atom = {none: Node(0, None)}
     conditions_from_stream = {}
     remaining_from_stream = {}
     for stream_result in stream_results:
-        conditions_from_stream[stream_result] = stream_result.instance.get_domain() + (None,)
+        conditions_from_stream[stream_result] = stream_result.instance.get_domain() + (none,)
         remaining_from_stream[stream_result] = len(conditions_from_stream[stream_result])
         for atom in conditions_from_stream[stream_result]:
             unprocessed_from_atom[atom].append(stream_result)
@@ -60,9 +61,9 @@ def get_achieving_streams(evaluations, stream_results, op=sum):
         if is_atom(atom):
             node_from_atom[fact_from_evaluation(atom)] = Node(0, None)
 
-    queue = [(node.effort, atom) for atom, node in node_from_atom.items()]
+    queue = [HeapElement(node.effort, atom) for atom, node in node_from_atom.items()]
     while queue:
-        _, atom = heappop(queue)
+        atom = heappop(queue).value
         if atom not in unprocessed_from_atom:
             continue
         for stream_result in unprocessed_from_atom[atom]:
@@ -74,9 +75,9 @@ def get_achieving_streams(evaluations, stream_results, op=sum):
             for new_atom in stream_result.get_certified():
                 if (new_atom not in node_from_atom) or (total_effort < node_from_atom[new_atom].effort):
                     node_from_atom[new_atom] = Node(total_effort, stream_result)
-                    heappush(queue, (total_effort, new_atom))
+                    heappush(queue, HeapElement(total_effort, new_atom))
         del unprocessed_from_atom[atom]
-    del node_from_atom[None]
+    del node_from_atom[none]
     return node_from_atom
 
 def extract_stream_plan(node_from_atom, facts, stream_plan):
@@ -180,7 +181,7 @@ def get_achieving_axioms(state, axioms, axiom_init, negated_from_name={}):
         axiom_from_atom[atom] = None
     queue = deque(axiom_from_atom.keys())
     for axiom in axioms:
-        conditions = filter(lambda a: a.predicate not in negated_from_name, axiom.condition)
+        conditions = list(filter(lambda a: a.predicate not in negated_from_name, axiom.condition))
         for atom in conditions:
             #if atom.negate() not in axiom_init:
             unprocessed_from_atom[atom].append(axiom)
@@ -280,9 +281,8 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
     preimage = plan_preimage(preimage_plan, set())
     preimage -= set(real_task.init)
-    negative_preimage = filter(lambda a: a.predicate in negative_from_name, preimage)
-    preimage -= set(negative_preimage)
-    preimage = filter(lambda l: not l.negated, preimage)
+    negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, preimage))
+    preimage -= negative_preimage
     # visualize_constraints(map(fact_from_fd, preimage))
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
@@ -298,7 +298,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             function_plan.add(PredicateResult(instance, value))
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
-    preimage_facts = map(fact_from_fd, preimage)
+    preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, preimage)))
     stream_plan = []
     extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
     if not optimize: # TODO: detect this based on unique or not

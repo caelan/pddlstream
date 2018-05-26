@@ -27,9 +27,9 @@ from pddlstream.incremental import layered_process_stream_queue
 # TODO: make a subroutine that does commit
 
 def partition_externals(externals):
-    functions = filter(lambda s: type(s) is Function, externals)
-    negative = filter(lambda s: type(s) is Predicate, externals) # and s.is_negative()
-    streams = filter(lambda s: s not in (functions + negative), externals)
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    streams = list(filter(lambda s: s not in (functions + negative), externals))
     return streams, functions, negative
 
 ##################################################
@@ -115,7 +115,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     load_stream_statistics(stream_name, externals + synthesizers)
     if visualize:
         clear_visualizations()
-    eager_externals = filter(lambda e: e.info.eager, externals)
+    eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
     queue = []
     # TODO: switch to searching if believe chance of search better than sampling
