@@ -2,6 +2,14 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
+
+  (:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
+    (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+  )
+  (:predicate (TrajCollision ?t ?b2 ?p2)
+    (and (Traj ?t) (Pose ?b2 ?p2))
+  )
+
   (:stream sample-pose
     :inputs (?b ?r)
     :domain (Placeable ?b ?r)
@@ -27,10 +35,7 @@
   ;  :certified (Contained ?b ?p ?r)
   ; )
 
-  (:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
-    (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-  )
-  (:predicate (TrajCollision ?t ?b2 ?p2)
-    (and (Traj ?t) (Pose ?b2 ?p2))
-  )
+  ;(:fluent-stream (Valid) ; state-stream
+  ;  ; :predicates AtPose
+  ;)
 )

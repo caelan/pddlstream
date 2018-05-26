@@ -9,8 +9,8 @@ import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
-    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, draw_state, \
-    get_random_seed, TAMPState
+    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, \
+    draw_state, get_random_seed, TAMPState
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
@@ -20,6 +20,13 @@ from pddlstream.stream import from_fn, from_test, from_gen_fn
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
+
+#def valid_state_fn(fluents, parameters):
+#    new_fluents = set(fluents)
+#    # TODO: could return action descriptions or could just return fluents
+#    return
+
+##################################################
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -58,6 +65,7 @@ def pddlstream_from_tamp(tamp_problem):
         'posecollision': collision_test,
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
+        #'Valid': valid_state_fn,
     }
     #stream_map = 'debug'
 
@@ -65,14 +73,33 @@ def pddlstream_from_tamp(tamp_problem):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=False):
+def apply_action(state, action):
+    conf, holding, block_poses = state
+    # TODO: don't mutate block_poses?
+    name, args = action
+    if name == 'move':
+        _, _, conf = args
+    elif name == 'pick':
+        holding, _, _ = args
+        del block_poses[holding]
+    elif name == 'place':
+        block, pose, _ = args
+        holding = None
+        block_poses[block] = pose
+    else:
+        raise ValueError(name)
+    return TAMPState(conf, holding, block_poses)
+
+##################################################
+
+def main(focused=False, deterministic=False, unit_costs=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -131,21 +158,3 @@ def main(focused=True, deterministic=False, unit_costs=False):
 
 if __name__ == '__main__':
     main()
-
-
-def apply_action(state, action):
-    conf, holding, block_poses = state
-    # TODO: don't mutate block_poses?
-    name, args = action
-    if name == 'move':
-        _, _, conf = args
-    elif name == 'pick':
-        holding, _, _ = args
-        del block_poses[holding]
-    elif name == 'place':
-        block, pose, _ = args
-        holding = None
-        block_poses[block] = pose
-    else:
-        raise ValueError(name)
-    return TAMPState(conf, holding, block_poses)
