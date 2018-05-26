@@ -18,9 +18,9 @@ $ ./FastDownward/build.py
 
 If `./FastDownward/build.py` fails, install FastDownward's dependencies using your package manager:
 * APT (Linux): `$ sudo apt-get install cmake g++ g++-multilib make python`
-* Homebrew (OS X): TBD
+<!--* Homebrew (OS X): TBD
 * MacPorts (OS X): TBD
-* N/A (Windows): install each dependency manually
+* N/A (Windows): install each dependency manually-->
 
 If necessary, see FastDownward's documentation for more detailed installation instructions:
 
@@ -31,11 +31,14 @@ http://www.fast-downward.org/ObtainingAndRunningFastDownward
 ### Pure Python
 
 These are simple examples that can be run without additional depedencies:
-* Blocksworld: `$ python examples/pddl/blocksworld.py` (alternatively `python -m examples.pddl.blocksworld`)
-* Blocksworld with Derived Predicates: `$ python examples/pddl/blocksworld_derived.py`
-* Discrete TAMP: `$ python examples/discrete_tamp/run.py`
-* 1D Continuous TAMP: `$ python examples/continuous_tamp/run.py`
-* 2D Motion Planning: `$ python examples/motion/run.py`
+* Blocksworld: `$ python -m examples.blocksworld.blocksworld`
+* Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.blocksworld_derived`
+* Discrete TAMP: `$ python -m examples.discrete_tamp.run`
+* 1D Continuous TAMP: `$ python -m examples.continuous_tamp.run`
+* 2D Motion Planning: `$ python -m examples.motion.run`
+* Discrete Belief Space: `$ python -m examples.discrete_belief.run`
+* Rovers: `$ python -m examples.rovers.run`
+* Satellites: `$ python -m examples.satellites.run`
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
 
@@ -45,9 +48,11 @@ Install PyBullet on OS X or Linux using:
 ```
 pip install pybullet
 ```
+<!-- Numpy as well -->
 
 Examples:
-* Kuka IIWA task and motion planning - ```python -m examples.pybullet.run_kuka```
+* Kuka IIWA task and motion planning - ```python -m examples.pybullet.kuka.run```
+* PR2 task and motion planning - ```python -m examples.pybullet.pr2.run```
 
 [![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)
 <!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
