@@ -1,13 +1,14 @@
 from collections import defaultdict
 from itertools import count
 
-from pddlstream.conversion import get_prefix, get_args, objects_from_evaluations, evaluation_from_fact, \
+from pddlstream.conversion import get_prefix, get_args, evaluation_from_fact, \
     is_atom, Evaluation, Head
 from pddlstream.downward import fd_from_fact, TOTAL_COST
 from pddlstream.stream import Stream, from_fn
 from pddlstream.utils import int_ceil
 from pddlstream.object import Object
 
+# TODO: can do this whole story within the focused algorithm as well
 
 class FutureValue(object):
     # TODO: use this instead of debug value?
