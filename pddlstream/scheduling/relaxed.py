@@ -1,16 +1,14 @@
-import os
-from collections import defaultdict, deque, namedtuple, OrderedDict
+from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
-from pddlstream.downward import get_problem, task_from_domain_problem, instantiate_task, run_search, safe_rm_dir, \
-    parse_solution, pddl_to_sas, clear_dir, TEMP_DIR, TRANSLATE_OUTPUT, apply_action, get_init, fact_from_fd, solve_from_task
+from pddlstream.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
+    solve_from_task, get_literals
+from pddlstream.function import PredicateResult
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
-from pddlstream.utils import Verbose, INF, MockSet, find_unique, implies, argmax, HeapElement
-from pddlstream.function import PredicateResult
-from pddlstream.algorithm import neighbors_from_orders
 from pddlstream.scheduling.simultaneous import get_stream_actions
+from pddlstream.utils import Verbose, MockSet, find_unique, HeapElement
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -136,8 +134,7 @@ def get_necessary_axioms(instance, axioms, negative_from_name):
                 continue
             partial_instantiations.add(key)
             parts = []
-            assert (isinstance(axiom.condition, pddl.Conjunction))
-            for literal in axiom.condition.parts:
+            for literal in get_literals(axiom.condition):
                 if literal.predicate in negative_from_name:
                     continue
                 parts.append(literal.rename_variables(var_mapping))
@@ -212,6 +209,7 @@ def get_goal_instance(goal):
     #name = '@goal-reachable'
     name = '@goal'
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
+    #precondition = get_literals(goal)
     return pddl.PropositionalAction(name, precondition, [], None)
 
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
