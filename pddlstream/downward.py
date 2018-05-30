@@ -180,7 +180,7 @@ def get_literals(condition):
         return [condition]
     if isinstance(condition, pddl.Conjunction):
         literals = []
-        for c in condition.parts():
+        for c in condition.parts:
             literals.extend(get_literals(c))
         return literals
     raise ValueError(condition)
