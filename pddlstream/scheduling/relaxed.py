@@ -295,7 +295,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         if instance.enumerated:
             assert (instance.value == value)
         else:
-            function_plan.add(PredicateResult(instance, value))
+            function_plan.add(PredicateResult(instance, value, opt_index=instance.opt_index))
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, preimage)))

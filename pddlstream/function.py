@@ -170,7 +170,7 @@ class FunctionInstance(Instance):  # Head(Instance):
     def get_head(self):
         return substitute_expression(self.external.head, self.get_mapping())
 
-    def next_results(self, stream_plan=None, verbose=False):
+    def next_results(self, verbose=False):
         start_time = time.time()
         assert not self.enumerated
         self.enumerated = True
