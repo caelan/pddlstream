@@ -174,6 +174,19 @@ def task_from_domain_problem(domain, problem):
 
 ##################################################
 
+def get_literals(condition):
+    import pddl
+    if isinstance(condition, pddl.Literal):
+        return [condition]
+    if isinstance(condition, pddl.Conjunction):
+        literals = []
+        for c in condition.parts:
+            literals.extend(get_literals(c))
+        return literals
+    raise ValueError(condition)
+
+##################################################
+
 def translate_paths(domain_path, problem_path):
     #pddl_parser.parse_pddl_file('domain', domain_path)
     #pddl_parser.parse_pddl_file('task', problem_path)
@@ -303,6 +316,7 @@ def instantiate_task(task, simplify_axioms=False):
     relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
     if not relaxed_reachable:
        return None
+    #goal_list = get_literals(task.goal)
     goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
     # TODO: this removes the axioms for some reason
     if simplify_axioms:
