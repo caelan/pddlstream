@@ -24,13 +24,10 @@
     :certified (and (BTraj ?t) (BaseMotion ?q1 ?t ?q2))
   )
 
-  (:predicate (TrajPoseCollision ?t ?o2 ?p2)
-    (and (BTraj ?t) (Pose ?o2 ?p2))
-  )
-  (:predicate (TrajArmCollision ?t ?a ?q)
-    (and (BTraj ?t) (AConf ?a ?q))
-  )
-  (:predicate (TrajGraspCollision ?t ?a ?o ?g)
-    (and (BTraj ?t) (Arm ?a) (Grasp ?o ?g))
+  (:stream inverse-visibility
+    :inputs (?o ?p)
+    :domain (Pose ?o ?p)
+    :outputs (?q)
+    :certified (and (BConf ?q) (Vis ?o ?p ?q))
   )
 )

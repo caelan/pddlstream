@@ -15,7 +15,7 @@ from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, i
 
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, get_press_gen, Attach, Detach, Clean, Cook, Trajectory, control_commands, step_commands
-from examples.pybullet.utils.pr2_utils import ARM_JOINT_NAMES, get_arm_joints
+from examples.pybullet.utils.pr2_utils import get_arm_joints, ARM_NAMES
 from examples.pybullet.utils.pr2_problems import holding_problem, stacking_problem, cleaning_problem, cooking_problem, \
     cleaning_button_problem, cooking_button_problem
 
@@ -70,7 +70,7 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
            [('Stove', s) for s in problem.stoves] + \
            [('Connected', b, d) for b, d in problem.buttons] + \
            [('Button', b) for b, _ in problem.buttons]
-    for arm in ARM_JOINT_NAMES:
+    for arm in ARM_NAMES:
     #for arm in problem.arms:
         joints = get_arm_joints(robot, arm)
         conf = Conf(robot, joints, get_joint_positions(robot, joints))
@@ -112,6 +112,8 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 #######################################################
+
+# TODO: avoid copying this?
 
 def post_process(problem, plan):
     if plan is None:

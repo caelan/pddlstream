@@ -92,14 +92,14 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=False, deterministic=False, unit_costs=False):
+def main(focused=True, deterministic=False, unit_costs=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 

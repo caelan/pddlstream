@@ -2,14 +2,17 @@
   (:requirements :strips :equality)
   (:predicates
     (Arm ?a)
+    (Graspable ?o)
     (Stackable ?o ?r)
     (Sink ?r)
     (Stove ?r)
 
+    (Pose ?o ?p)
     (Grasp ?o ?g)
     (Kin ?a ?o ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
     (Supported ?o ?p ?r)
+    (Vis ?o ?p ?q)
 
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
@@ -21,7 +24,11 @@
 
     (On ?o ?r)
     (Holding ?a ?o)
-    (UnsafeBTraj ?t)
+
+    (Unknown ?o)
+    (Scanned ?o)
+    (Localized ?o)
+    (Registered ?o)
   )
 
   (:action move_base
@@ -46,18 +53,25 @@
                  (not (AtGrasp ?a ?o ?g)))
   )
 
-  (:action clean
-    :parameters (?o ?r)
-    :precondition (and (Stackable ?o ?r) (Sink ?r)
-                       (On ?o ?r))
-    :effect (Cleaned ?o)
+  ;(:action scan
+  ;  :parameters (?r)
+  ;  :precondition (Localized ?r)
+  ;  :effect (Scanned ?o)
+  ;)
+  (:action localize
+    :parameters (?r ?o ?p)
+    :precondition (and (Stackable ?o ?r) (Pose ?o ?p) ; (FiniteScanCost ?r ?o)
+                   (Localized ?r) (Unknown ?o))
+    :effect (and (Localized ?o) ;(On ?o ?r)
+                 (not (Unknown ?o)))
+                 ;(increase (total-cost) (ScanCost ?r ?o)))
   )
-  (:action cook
-    :parameters (?o ?r)
-    :precondition (and (Stackable ?o ?r) (Stove ?r)
-                       (On ?o ?r) (Cleaned ?o))
-    :effect (and (Cooked ?o)
-                 (not (Cleaned ?o)))
+  (:action register
+    :parameters (?o ?p ?q)
+    :precondition (and (Vis ?o ?p ?q)
+                       (AtPose ?o ?p) (AtBConf ?q) (Localized ?o))
+    :effect (and (Registered ?o))
+                 ;(increase (total-cost) (RegisterCost)))
   )
 
   (:derived (On ?o ?r)
