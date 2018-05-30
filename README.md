@@ -26,6 +26,11 @@ If necessary, see FastDownward's documentation for more detailed installation in
 
 http://www.fast-downward.org/ObtainingAndRunningFastDownward
 
+## Resources
+
+* Planning Domain Description Language (PDDL): http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html
+* Derived Predicates: https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html
+
 ## Examples
 
 ### Pure Python
@@ -58,3 +63,15 @@ Examples:
 <!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
 
 See https://github.com/caelan/ss-pybullet for more information.
+
+## Publications
+
+STRIPStream: Integrating Symbolic Planners and Blackbox Samplers
+https://arxiv.org/abs/1802.08705
+
+STRIPStream: Planning In Infinite Domains
+https://arxiv.org/abs/1701.00287
+
+## Citation
+
+Caelan R. Garrett, Tomas Lozano-Perez, Leslie P. Kaelbling. STRIPStream: Integrating Symbolic Planners and Blackbox Samplers, 2018.
