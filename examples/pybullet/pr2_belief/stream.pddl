@@ -27,7 +27,7 @@
   (:stream inverse-visibility
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
-    :outputs (?q)
-    :certified (and (BConf ?q) (Vis ?o ?p ?q))
+    :outputs (?bq ?hq)
+    :certified (and (BConf ?bq) (Vis ?o ?p ?bq ?hq))
   )
 )

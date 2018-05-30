@@ -12,7 +12,7 @@
     (Kin ?a ?o ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
     (Supported ?o ?p ?r)
-    (Vis ?o ?p ?q)
+    (Vis ?o ?p ?bq ?hq)
 
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
@@ -37,6 +37,8 @@
                        (AtBConf ?q1))
     :effect (and (AtBConf ?q2)
                  (not (AtBConf ?q1)))
+                 ; (forall (?o) (not (Registered ?o))))
+                 ; (forall (?o) (when (Graspable ?o) (not (Registered ?o)))))
   )
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)
@@ -67,9 +69,9 @@
                  ;(increase (total-cost) (ScanCost ?r ?o)))
   )
   (:action register
-    :parameters (?o ?p ?q)
-    :precondition (and (Vis ?o ?p ?q)
-                       (AtPose ?o ?p) (AtBConf ?q) (Localized ?o))
+    :parameters (?o ?p ?bq ?hq)
+    :precondition (and (Vis ?o ?p ?bq ?hq)
+                       (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
     :effect (and (Registered ?o))
                  ;(increase (total-cost) (RegisterCost)))
   )

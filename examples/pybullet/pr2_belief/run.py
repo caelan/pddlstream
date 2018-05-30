@@ -10,12 +10,12 @@ except ImportError:
 import cProfile
 import pstats
 
-from examples.pybullet.utils.utils import connect, get_pose, Pose, is_placement, clone_world, \
+from examples.pybullet.utils.utils import connect, get_pose, is_placement, clone_world, \
     disconnect, load_model, set_client, \
-    user_input, add_data_path
+    user_input, add_data_path, WorldSaver
 
-from examples.pybullet.utils.pr2_primitives import Pose, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
-    get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach
+from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
+    get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory
 from examples.pybullet.utils.pr2_problems import create_kitchen, create_pr2
 
 from pddlstream.focused import solve_focused
@@ -24,14 +24,16 @@ from pddlstream.utils import print_solution, read, INF, get_file_path
 
 from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_arm, \
     close_arm, get_carry_conf, arm_conf, get_other_arm, set_group_conf, visible_base_generator, PR2_GROUPS, \
-    get_kinect_registrations, get_visual_detections
+    get_kinect_registrations, get_visual_detections, inverse_visibility
 from examples.pybullet.utils.utils import create_box, set_base_values, set_point, set_pose, get_pose, get_bodies, z_rotation, \
-    load_model, load_pybullet, point_from_pose, pairwise_collision, set_joint_positions, joints_from_names, get_body_name
+    load_model, load_pybullet, point_from_pose, pairwise_collision, set_joint_positions, joints_from_names, \
+    get_body_name, get_joint_positions, plan_joint_motion
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.0)):
     robot = problem.robot
     fixed = get_fixed_bodies(problem)
     base_joints = joints_from_names(robot, PR2_GROUPS['base'])
+    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
     def gen(o, p):
         #default_conf = arm_conf(a, g.carry)
         #joints = get_arm_joints(robot, a)
@@ -46,8 +48,12 @@ def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.0)):
                 #set_joint_positions(robot, base_joints, base_conf)
                 if any(pairwise_collision(robot, b) for b in fixed):
                     continue
+                head_conf = inverse_visibility(robot, target_point)
+                if head_conf is None: # TODO: test if visible
+                    continue
                 bp = Pose(robot, get_pose(robot))
-                yield (bp,)
+                hq = Conf(robot, head_joints, head_conf)
+                yield (bp, hq)
                 break
             else:
                 yield None
@@ -127,7 +133,6 @@ class BeliefState(object):
         self.localized = localized
         #self.registered = registered
 
-
 def get_localized_rooms(problem):
     raise NotImplementedError()
 
@@ -160,11 +165,14 @@ def get_problem(arm='left', grasp_type='top'):
 
 #######################################################
 
+# TODO: pass in state for all these commands
+
 class Detect(object):
     vacuum = True
     def __init__(self, robot):
         self.robot = robot
     def step(self):
+        # TODO: draw cone
         return get_visual_detections(self.robot)
     control = step
     def __repr__(self):
@@ -184,7 +192,9 @@ class Register(object):
 def post_process(problem, plan):
     if plan is None:
         return None
+    # TODO: refine
     robot = problem.robot
+    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
     commands = []
     for i, (name, args) in enumerate(plan):
         print(i, name, args)
@@ -200,30 +210,29 @@ def post_process(problem, plan):
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'register':
-            o, p, bq = args
-            #new_commands = [t, detach, t.reverse()]
-            new_commands = []
+            o, p, bq, hq = args
+            #head_conf = get_joint_positions(robot, head_joints)
+            #head_path = [head_conf, hq.values]
+            head_path = plan_joint_motion(robot, head_joints, hq.values, obstacles=None, self_collisions=False, direct=True)
+            ht = Trajectory(Conf(robot, head_joints, q) for q in head_path)
+            register = Register(robot, o)
+            #new_commands = [ht, register]
+            new_commands = [ht]
         else:
             raise ValueError(name)
+        # TODO: execute these here?
         commands += new_commands
     return commands
 
 #######################################################
 
-pr2_urdf = "models/drake/pr2_description/urdf/pr2_simplified.urdf"
-
-def main(teleport=False):
-    # TODO: closed world and open world
-    real_world = connect(use_gui=True)
-    add_data_path()
-    problem, initial = get_problem()
-
+def plan_commands(problem, initial, teleport=False):
     sim_world = connect(use_gui=False)
     clone_world(client=sim_world, exclude=[problem.robot])
     set_client(sim_world)
     pr2 = load_model(pr2_urdf, fixed_base=True)
-    user_input('Begin?')
-
+    # user_input('Plan?')
+    saved_world = WorldSaver()  # StateSaver()
 
     pddlstream_problem = pddlstream_from_problem(problem, initial, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
@@ -238,12 +247,30 @@ def main(teleport=False):
     plan, cost, evaluations = solution
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    if plan is None:
+
+    saved_world.restore()
+    commands = post_process(problem, plan)
+    disconnect()
+    return commands
+
+#######################################################
+
+pr2_urdf = "models/drake/pr2_description/urdf/pr2_simplified.urdf"
+
+def main():
+    # TODO: closed world and open world
+    real_world = connect(use_gui=True)
+    add_data_path()
+    problem, initial = get_problem()
+
+    commands = plan_commands(problem, initial)
+    if commands is None:
+        print('Failed to produce a plan')
+        disconnect()
         return
 
     set_client(real_world)
-    user_input('Execute?')
-    commands = post_process(problem, plan)
+    #user_input('Execute?')
     step_commands(commands, time_step=0.01)
     user_input('Finish?')
     disconnect()
