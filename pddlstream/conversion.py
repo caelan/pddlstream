@@ -24,7 +24,7 @@ CONNECTIVES = (AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN, IMPLIES)
 
-Problem = namedtuple('Problem', ['init', 'goal', 'domain', 'streams', 'constants'])
+Problem = namedtuple('Problem', ['domain_pddl', 'constant_map', 'stream_pddl', 'stream_map', 'init', 'goal'])
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
 Atom = lambda head: Evaluation(head, True)

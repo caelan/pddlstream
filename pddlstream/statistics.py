@@ -52,8 +52,9 @@ def load_stream_statistics(stream_name, externals):
             external.total_successes += statistics['successes']
 
 
-def write_stream_statistics(stream_name, externals):
-    print('\nExternal Statistics')
+def write_stream_statistics(stream_name, externals, verbose):
+    if verbose:
+        print('\nExternal Statistics')
     data = {}
     for external in externals:
         data[external.name] = {
@@ -61,9 +62,11 @@ def write_stream_statistics(stream_name, externals):
             'overhead': external.total_overhead,
             'successes': external.total_successes,
         }
-        print('External: {} | p_success: {:.3f} | overhead: {:.3f}'.format(
-            external.name, external.get_p_success(), external.get_overhead())) #, external.get_effort()) #, data[external.name])
+        if verbose:
+            print('External: {} | p_success: {:.3f} | overhead: {:.3f}'.format(
+                external.name, external.get_p_success(), external.get_overhead())) #, external.get_effort()) #, data[external.name])
     filename = get_stream_data_filename(stream_name)
     ensure_dir(filename)
     write_pickle(filename, data)
-    print('Wrote:', filename)
+    if verbose:
+        print('Wrote:', filename)

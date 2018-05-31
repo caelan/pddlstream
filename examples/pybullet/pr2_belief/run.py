@@ -14,6 +14,7 @@ import time
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
+from pddlstream.conversion import Equal, Problem
 
 from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_arm, \
     close_arm, get_carry_conf, arm_conf, get_other_arm, visible_base_generator, PR2_GROUPS, \
@@ -22,12 +23,15 @@ from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_
 from examples.pybullet.utils.utils import set_base_values, set_pose, get_pose, get_bodies, load_model, point_from_pose, \
     pairwise_collision, joints_from_names, get_body_name, plan_joint_motion, connect, is_placement, clone_world, \
     disconnect, set_client, user_input, add_data_path, WorldSaver, link_from_name, create_mesh, get_link_pose, \
-    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions, get_configuration, set_configuration
+    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions, get_configuration, \
+    set_configuration, ClientSaver, HideOutput, get_aabb, PoseSaver, unit_pose
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory, State, apply_commands, \
     Command
 from examples.pybullet.utils.pr2_problems import create_kitchen, create_pr2
 
+from examples.discrete_belief.dist import DDist, DeltaDist, MixtureDist, UniformDist
+from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, continue_mdp_cost
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
     robot = problem.robot
@@ -76,6 +80,12 @@ def pddlstream_from_problem(problem, initial, teleport=False):
     init = [
         ('BConf', initial_poses[robot]),
         ('AtBConf', initial_poses[robot]),
+        Equal(('MoveCost',), scale_cost(1)),
+        Equal(('PickCost',), scale_cost(1)),
+        Equal(('PlaceCost',), scale_cost(1)),
+        Equal(('ScanCost',), scale_cost(1)),
+        #Equal(('LocalizeCost',), scale_cost(1)),
+        Equal(('RegisterCost',), scale_cost(1)),
     ]
     holding_arms = set()
     holding_bodies = set()
@@ -101,7 +111,8 @@ def pddlstream_from_problem(problem, initial, teleport=False):
     for body in problem.movable:
         init += [('Graspable', body)]
         for surface in problem.surfaces:
-            init += [('Stackable', body, surface)]
+            init += [('Stackable', body, surface),
+                     Equal(('LocalizeCost', surface, body), scale_cost(1))]
             if is_placement(body, surface):
                 if body in holding_bodies:
                     continue
@@ -128,7 +139,7 @@ def pddlstream_from_problem(problem, initial, teleport=False):
         'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
     }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 
 #######################################################
@@ -173,17 +184,15 @@ def get_localized_movable(problem):
 
 
 def get_problem(arm='left', grasp_type='top'):
-    table, cabbage, sink, stove = create_kitchen()
-    # TODO: bug if I change the order?
-
-    pr2 = create_pr2()
+    with HideOutput():
+        pr2 = create_pr2()
     set_arm_conf(pr2, arm, get_carry_conf(arm, grasp_type))
     open_arm(pr2, arm)
-
     other_arm = get_other_arm(arm)
     set_arm_conf(pr2, other_arm, arm_conf(other_arm, REST_LEFT_ARM))
     close_arm(pr2, other_arm)
 
+    table, cabbage, sink, stove = create_kitchen()
     class_from_body = {
         table: 'table',
         cabbage: 'cabbage',
@@ -200,6 +209,7 @@ def get_problem(arm='left', grasp_type='top'):
     # initial = get_localized_rooms(task)
     initial = get_localized_surfaces(task)
     # initial = get_localized_movable(task)
+    # TODO: construct supporting here
 
     return task, initial
 
@@ -321,33 +331,34 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
 
 #######################################################
 
-def plan_commands(task, state, teleport=False, profile=False):
-    sim_world = connect(use_gui=False)
-    clone_world(client=sim_world, exclude=[task.robot])
+def plan_commands(task, state, teleport=False, profile=False, verbose=False):
+    # TODO: could make indices into set of bodies to ensure the same...
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)
+    sim_world = connect(use_gui=False)
+    with ClientSaver(sim_world):
+        with HideOutput():
+            robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
+        set_pose(robot, robot_pose)
+        set_configuration(robot, robot_conf)
+    clone_world(client=sim_world, exclude=[task.robot])
     set_client(sim_world)
-    robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
-    set_pose(robot, robot_pose)
-    set_configuration(robot, robot_conf)
-
     saved_world = WorldSaver() # StateSaver()
 
     pddlstream_problem = pddlstream_from_problem(task, state, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
-    print('Init:', init)
-    print('Goal:', goal)
-    print('Streams:', stream_map.keys())
+    if verbose:
+        print('Init:', init)
+        print('Goal:', goal)
+        print('Streams:', stream_map.keys())
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, max_cost=INF)
+    solution = solve_focused(pddlstream_problem, max_cost=INF, verbose=verbose)
     pr.disable()
     if profile:
         print_solution(solution)
         pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-
-    print('\n')
     plan, cost, evaluations = solution
     saved_world.restore()
     commands = post_process(task, plan)
@@ -357,21 +368,44 @@ def plan_commands(task, state, teleport=False, profile=False):
 
 #######################################################
 
+def add_debug_text(text, position=(0, 0, 0), color=(0, 0, 0), lifetime=None, parent=-1):
+    if lifetime is None:
+        lifetime = 0
+    return p.addUserDebugText(text, textPosition=position, textColorRGB=color, # textSize=1,
+                       lifeTime=lifetime, parentObjectUniqueId=parent)
+
+def add_body_name(body, **kwargs):
+    with PoseSaver(body):
+        set_pose(body, unit_pose())
+        lower, upper = get_aabb(body)
+    #position = (0, 0, upper[2])
+    position = upper
+    return add_debug_text(get_name(body), position=position, parent=body, **kwargs)  # removeUserDebugItem
+
+#def add_body_names(**kwargs):
+#    return {body: add_body_name(body, **kwargs) for body in get_bodies()}
+
 def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
     task, state = get_problem()
-    print(state)
+    for body in (task.movable + task.surfaces):
+        add_body_name(body)
+    #wait_for_interrupt()
 
     # TODO: automatically determine an action/command cannot be applied
     # TODO: convert numpy arrays into what they are close to
-
     # TODO: compute whether a plan will still achieve a goal and do that
     # TODO: update the initial state directly and then just redraw it to ensure uniqueness
+    step = 0
     while True:
-        commands = plan_commands(task, state)
-        set_client(real_world)
+        step += 1
+        print('\n' + 50 * '-')
+        print(step, state)
+        with ClientSaver():
+            commands = plan_commands(task, state)
+        print()
         if commands is None:
             print('Failed')
             break
@@ -380,8 +414,8 @@ def main(time_step=0.01):
             break
         #step_commands(commands, time_step=time_step)
         apply_commands(state, commands, time_step=time_step)
-        print(state)
 
+    print(state)
     wait_for_interrupt()
     disconnect()
 

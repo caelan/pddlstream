@@ -153,5 +153,5 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
     if postprocess and (not unit_costs):
         locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
-    write_stream_statistics(stream_name, externals + synthesizers)
+    write_stream_statistics(stream_name, externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)
