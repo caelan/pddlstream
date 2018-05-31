@@ -3,7 +3,7 @@
     :inputs (?o ?r)
     :domain (Stackable ?o ?r)
     :outputs (?p)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r))
+    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r) (Observable ?p))
   )
   (:stream sample-grasp
     :inputs (?o)
@@ -13,7 +13,7 @@
   )
   (:stream inverse-kinematics
     :inputs (?a ?o ?p ?g)
-    :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g))
+    :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g) (Observable ?p))
     :outputs (?q ?t)
     :certified (and (BConf ?q) (Traj ?a ?t) (Kin ?a ?o ?p ?g ?q ?t))
   )

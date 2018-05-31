@@ -71,6 +71,8 @@ def scale_cost(cost):
     Unfortunately, FastDownward only supports nonnegative, integer functions
     This function scales all costs, so decimals can be factored into the cost
     """
+    if cost == INF:
+        return MAX_COST
     return int(min(math.ceil(SCALE_COST * cost), MAX_COST))
 
 #def clip_p(p, min_p=1e-3, max_p=1-1e-3):
@@ -116,7 +118,7 @@ def prob_collision(d1, d2):
     # 2) Choose threshold but incorporate into cost
     # 3) Choose threshold but incorporate into transitions (most general but might use collisions)
     d_joint = JDist(d1, lambda _: d2)
-    d_collision = d_joint.project(lambda (l1, l2): l1 == l2)
+    d_collision = d_joint.project(lambda pair: pair[0] == pair[1])
     return float(d_collision.prob(True))
 
 def ge_fn(o, d, l, p):

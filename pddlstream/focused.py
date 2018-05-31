@@ -126,7 +126,9 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             num_iterations, len(queue), len(evaluations), store.best_cost, store.elapsed_time()))
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
-                                                            negative, max_cost=store.best_cost,
+                                                            negative,
+                                                            max_cost=store.best_cost,
+                                                            #max_cost=min(store.best_cost, max_cost),
                                                             unit_costs=unit_costs, **search_kwargs)
         #combined_plan, cost = solve_stream_plan(populate_results(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)

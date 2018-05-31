@@ -1,12 +1,14 @@
 from __future__ import print_function
 
-from miscUtil import prettyString, makeDiag, argmaxWithVal
+from .miscUtil import prettyString, makeDiag, argmaxWithVal
+from . import miscUtil
+
+from functools import reduce
 from numpy import *
 import random
 import operator as op
 import copy
 import scipy.stats
-import miscUtil
 import scipy.special as ss
 import scipy.stats as stats
 import operator
@@ -59,7 +61,7 @@ class DiscreteDist:
             total += self.prob(v)
             if r < total:
                 return v
-        raise Exception, 'Failed to draw from:' + str(self)
+        raise Exception('Failed to draw from:' + str(self))
 
     def expectation(self, vals):
         return sum([self.prob(x) * vals[x] for x in self.support()])
@@ -134,7 +136,7 @@ class DDist(DiscreteDist):
         self.mpe = self.computeMPE()
 
     def computeMPE(self):
-        return max(self.__d.items(), key=lambda (k, p): p)
+        return max(self.__d.items(), key=lambda pair: pair[1])
 
     def maxProbElt(self):
         # returns pair: (element, prob)
@@ -162,7 +164,7 @@ class DDist(DiscreteDist):
         """
         @returns: the probability associated with C{elt}
         """
-        if self.__d.has_key(elt):
+        if elt in self.__d:
             return self.__d[elt]
         else:
             return 0
@@ -471,7 +473,7 @@ def bayesEvidence(PA, PBgA, b):
 
 
 def totalProbability(PA, PBgA):
-    return JDist(PA, PBgA).project(lambda (a, b): b)
+    return JDist(PA, PBgA).project(lambda pair: pair[1])
 
 
 ######################################################################
@@ -491,7 +493,7 @@ class GaussianDistribution:
             self.stdev = stdev
             self.var = stdev ** 2
         else:
-            raise Exception, 'Have to specify variance or stdev'
+            raise Exception('Have to specify variance or stdev')
 
     def __str__(self):
         return 'Normal(' + prettyString(self.mean) + ', ' + \
@@ -583,7 +585,7 @@ def fixSigma(sigma, ridge=1e-20):
     if any([type(eig) in (complex, complex128) for eig in eigs]):
         trAlways('Complex eigs', eigs)
         # Real symmetrix matrix should have real eigenvalues!
-        raise Exception, 'Complex eigenvalues in COV'
+        raise Exception('Complex eigenvalues in COV')
     minEig = min(eigs)
     if minEig < ridge:
         if minEig < 0:
@@ -883,7 +885,7 @@ class GMU:
     def mlc(self):
         # Most likely mixture component;  returns None if uniform
         if len(self.components) > 0:
-            return miscUtil.argmax(self.components, lambda (d, p): p)
+            return miscUtil.argmax(self.components, lambda pair: pair[1])
         else:
             return None
 
@@ -891,7 +893,7 @@ class GMU:
     def mld(self):
         # Most likely mixture component;  returns None if uniform
         if len(self.components) > 0:
-            return miscUtil.argmax(self.components, lambda (d, p): p)[0]
+            return miscUtil.argmax(self.components, lambda pair: pair[1])[0]
         else:
             return None
 
@@ -1079,7 +1081,7 @@ def incrDictEntry(d, k, v):
     @param k: legal dictionary key (doesn't have to be in C{d})
     @param v: numeric value
     """
-    if d.has_key(k):
+    if k in d:
         d[k] += v
     else:
         d[k] = v

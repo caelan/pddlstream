@@ -69,7 +69,9 @@ def pddlstream_from_problem(problem, state, teleport=False):
         if body in holding_bodies:
             continue
         pose = state.poses[body]
-        init += [('Pose', body, pose), ('AtPose', body, pose)]
+        init += [('Pose', body, pose), ('AtPose', body, pose),
+                 ('Observable', pose),
+        ]
 
     for body in problem.movable:
         init += [('Graspable', body)]
@@ -188,8 +190,11 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
     pr.enable()
     solution = solve_focused(pddlstream_problem, max_cost=MAX_COST, verbose=verbose)
     pr.disable()
-    print_solution(solution)
     plan, cost, evaluations = solution
+    if MAX_COST <= cost:
+        plan = None
+    print_solution(solution)
+    print('Finite cost:', cost < MAX_COST)
     print('Real cost:', float(cost)/SCALE_COST)
     if profile:
         pstats.Stats(pr).sort_stats('tottime').print_stats(10)

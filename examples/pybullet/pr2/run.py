@@ -11,7 +11,7 @@ import cProfile
 import pstats
 
 from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, is_placement, \
-    disconnect, input, get_joint_positions, enable_gravity, set_pose
+    disconnect, user_input, get_joint_positions, enable_gravity, set_pose
 
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, get_press_gen, Attach, Detach, Clean, Cook, Trajectory, control_commands, step_commands
@@ -205,7 +205,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         control_commands(commands)
     else:
         step_commands(commands, time_step=0.01)
-    input('Finish?')
+    user_input('Finish?')
     disconnect()
 
 if __name__ == '__main__':

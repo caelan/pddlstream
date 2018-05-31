@@ -14,7 +14,7 @@ from examples.pybullet.utils.kuka_primitives import BodyPose, BodyConf, Command,
     get_holding_motion_gen, get_movable_collision_test
 from examples.pybullet.utils.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, Point, set_default_camera, stable_z, \
     BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, wait_for_interrupt, is_placement, get_body_name, \
-    disconnect, DRAKE_IIWA_URDF, get_bodies, input
+    disconnect, DRAKE_IIWA_URDF, get_bodies, user_input
 
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen
@@ -199,7 +199,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         load_world()
     saved_world.restore()
 
-    input('Execute?')
+    user_input('Execute?')
     if simulate:
         command.control()
     else:
@@ -207,7 +207,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         command.refine(num_steps=10).execute(time_step=0.005)
 
     #wait_for_interrupt()
-    input('Finish?')
+    user_input('Finish?')
     disconnect()
 
 if __name__ == '__main__':
