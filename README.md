@@ -58,9 +58,10 @@ pip install pybullet
 Examples:
 * Kuka IIWA task and motion planning - ```python -m examples.pybullet.kuka.run```
 * PR2 task and motion planning - ```python -m examples.pybullet.pr2.run```
-
 [![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)
 <!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
+* PR2 planning and execution - ```python -m examples.pybullet.pr2_belief.run```
+<img src="images/pybullet_belief.png" height="200">
 
 See https://github.com/caelan/ss-pybullet for more information.
 
