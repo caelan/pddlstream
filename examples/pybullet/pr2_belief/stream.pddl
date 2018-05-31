@@ -23,7 +23,6 @@
     :outputs (?t)
     :certified (and (BTraj ?t) (BaseMotion ?q1 ?t ?q2))
   )
-
   (:stream inverse-visibility
     :inputs (?o ?p)
     :domain (Pose ?o ?p)

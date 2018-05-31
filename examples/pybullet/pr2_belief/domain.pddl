@@ -14,13 +14,12 @@
     (Supported ?o ?p ?r)
     (Vis ?o ?p ?bq ?hq)
 
+    (CanMove) ; Do I still want this?
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
     (HandEmpty ?a)
-    (AtBConf ?q)
+    (AtBConf ?q) ; Pass in part name for simplicity
     (AtAConf ?a ?q)
-    (Cleaned ?o)
-    (Cooked ?o)
 
     (On ?o ?r)
     (Holding ?a ?o)
@@ -55,16 +54,17 @@
                  (not (AtGrasp ?a ?o ?g)))
   )
 
-  ;(:action scan
-  ;  :parameters (?r)
-  ;  :precondition (Localized ?r)
-  ;  :effect (Scanned ?o)
-  ;)
+  (:action scan
+    :parameters (?o ?p ?bq ?hq)
+    :precondition (and (Vis ?o ?p ?bq ?hq)
+                       (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
+    :effect (and (Scanned ?o))
+  )
   (:action localize
-    :parameters (?r ?o ?p)
-    :precondition (and (Stackable ?o ?r) (Pose ?o ?p) ; (FiniteScanCost ?r ?o)
-                   (Localized ?r) (Unknown ?o))
-    :effect (and (Localized ?o) ;(On ?o ?r)
+    :parameters (?r ?p1 ?o ?p2)
+    :precondition (and (Stackable ?o ?r) (Pose ?r ?p1) (Pose ?o ?p2) ; (FiniteScanCost ?r ?o)
+                   (AtPose ?o ?p2) (Scanned ?r) (Unknown ?o))
+    :effect (and (Localized ?o) (Supported ?o ?p2 ?r)
                  (not (Unknown ?o)))
                  ;(increase (total-cost) (ScanCost ?r ?o)))
   )

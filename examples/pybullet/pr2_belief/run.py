@@ -69,10 +69,10 @@ def pddlstream_from_problem(problem, initial, teleport=False):
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
-    initial_bq = Pose(robot, get_pose(robot))
+    initial_poses = {body: Pose(body, get_pose(body)) for body in get_bodies()}
     init = [
-        ('BConf', initial_bq),
-        ('AtBConf', initial_bq),
+        ('BConf', initial_poses[robot]),
+        ('AtBConf', initial_poses[robot]),
     ]
     #for arm in ARM_JOINT_NAMES:
     #for arm in problem.arms:
@@ -82,14 +82,16 @@ def pddlstream_from_problem(problem, initial, teleport=False):
     #             ('HandEmpty', arm), ('AtAConf', arm, conf)]
     #    if arm in problem.arms:
     #        init += [('Controllable', arm)]
+    for body in problem.movable + problem.surfaces:
+        pose = initial_poses[body]
+        init += [('Pose', body, pose), ('AtPose', body, pose)]
+
     for body in problem.movable:
-        pose = Pose(body, get_pose(body))
-        init += [('Graspable', body), ('Pose', body, pose),
-                 ('AtPose', body, pose)]
+        init += [('Graspable', body)]
         for surface in problem.surfaces:
             init += [('Stackable', body, surface)]
             if is_placement(body, surface):
-                init += [('Supported', body, pose, surface)]
+                init += [('Supported', body, initial_poses[body], surface)]
     for body in (problem.movable + problem.surfaces):
         if body in initial.localized:
             init.append(('Localized', body))
@@ -158,8 +160,8 @@ def get_problem(arm='left', grasp_type='top'):
                          surfaces=[table, sink, stove], goal_registered=[cabbage])
 
     #initial = get_localized_rooms(problem)
-    #initial = get_localized_surfaces(problem)
-    initial = get_localized_movable(problem)
+    initial = get_localized_surfaces(problem)
+    #initial = get_localized_movable(problem)
 
     return problem, initial
 
@@ -189,12 +191,19 @@ class Register(object):
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot), get_body_name(self.body))
 
+def plan_head_traj(robot, head_conf):
+    # head_conf = get_joint_positions(robot, head_joints)
+    # head_path = [head_conf, hq.values]
+    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
+    head_path = plan_joint_motion(robot, head_joints, head_conf,
+                                  obstacles=None, self_collisions=False, direct=True)
+    return Trajectory(Conf(robot, head_joints, q) for q in head_path)
+
 def post_process(problem, plan):
     if plan is None:
         return None
     # TODO: refine
     robot = problem.robot
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
     commands = []
     for i, (name, args) in enumerate(plan):
         print(i, name, args)
@@ -209,12 +218,15 @@ def post_process(problem, plan):
             a, b, p, g, _, t = args
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
+        elif name == 'scan':
+            o, p, bq, hq = args
+            ht = plan_head_traj(robot, hq.values)
+            new_commands = [ht]
+        elif name == 'localize':
+            new_commands = []
         elif name == 'register':
             o, p, bq, hq = args
-            #head_conf = get_joint_positions(robot, head_joints)
-            #head_path = [head_conf, hq.values]
-            head_path = plan_joint_motion(robot, head_joints, hq.values, obstacles=None, self_collisions=False, direct=True)
-            ht = Trajectory(Conf(robot, head_joints, q) for q in head_path)
+            ht = plan_head_traj(robot, hq.values)
             register = Register(robot, o)
             #new_commands = [ht, register]
             new_commands = [ht]
