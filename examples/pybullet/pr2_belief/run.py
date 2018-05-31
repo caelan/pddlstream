@@ -18,11 +18,11 @@ from pddlstream.utils import print_solution, read, INF, get_file_path
 from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_arm, \
     close_arm, get_carry_conf, arm_conf, get_other_arm, visible_base_generator, PR2_GROUPS, \
     get_kinect_registrations, get_visual_detections, inverse_visibility, HEAD_LINK_NAME, get_cone_mesh, \
-    MAX_VISUAL_DISTANCE, MAX_KINECT_DISTANCE, get_detection_cone
+    MAX_VISUAL_DISTANCE, MAX_KINECT_DISTANCE, get_detection_cone, DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
 from examples.pybullet.utils.utils import set_base_values, set_pose, get_pose, get_bodies, load_model, point_from_pose, \
     pairwise_collision, joints_from_names, get_body_name, plan_joint_motion, connect, is_placement, clone_world, \
     disconnect, set_client, user_input, add_data_path, WorldSaver, link_from_name, create_mesh, get_link_pose, \
-    remove_body, wait_for_duration, wait_for_interrupt, get_name
+    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory, State, apply_commands, \
     Command
@@ -77,15 +77,24 @@ def pddlstream_from_problem(problem, initial, teleport=False):
         ('BConf', initial_poses[robot]),
         ('AtBConf', initial_poses[robot]),
     ]
-    # for arm in ARM_JOINT_NAMES:
-    # for arm in problem.arms:
-    #    joints = get_arm_joints(robot, arm)
-    #    conf = Conf(robot, joints, get_joint_positions(robot, joints))
-    #    init += [('Arm', arm), ('AConf', arm, conf),
-    #             ('HandEmpty', arm), ('AtAConf', arm, conf)]
-    #    if arm in problem.arms:
-    #        init += [('Controllable', arm)]
+    holding_arms = set()
+    holding_bodies = set()
+    for attach in initial.attachments.values():
+        holding_arms.add(attach.arm)
+        holding_bodies.add(attach.body)
+        init += [('Grasp', attach.body, attach.grasp),
+                 ('AtGrasp', attach.arm, attach.body, attach.grasp)]
+    for arm in ARM_NAMES:
+       joints = get_arm_joints(robot, arm)
+       conf = Conf(robot, joints, get_joint_positions(robot, joints))
+       init += [('Arm', arm), ('AConf', arm, conf), ('AtAConf', arm, conf)]
+       if arm in problem.arms:
+           init += [('Controllable', arm)]
+       if arm not in holding_arms:
+           init += [('HandEmpty', arm)]
     for body in problem.movable + problem.surfaces:
+        if body in holding_bodies:
+            continue
         pose = initial_poses[body]
         init += [('Pose', body, pose), ('AtPose', body, pose)]
 
@@ -94,12 +103,16 @@ def pddlstream_from_problem(problem, initial, teleport=False):
         for surface in problem.surfaces:
             init += [('Stackable', body, surface)]
             if is_placement(body, surface):
+                if body in holding_bodies:
+                    continue
                 init += [('Supported', body, initial_poses[body], surface)]
     for body in (problem.movable + problem.surfaces):
         if body in initial.localized:
             init.append(('Localized', body))
         else:
             init.append(('Unknown', body))
+        if body in initial.registered:
+            init.append(('Registered', body))
 
     goal = ['and'] + \
            [('Holding', a, b) for a, b in problem.goal_holding] + \
@@ -176,11 +189,13 @@ def get_problem(arm='left', grasp_type='top'):
         cabbage: 'cabbage',
         sink: 'sink',
         stove: 'stove',
-    }
+    } # TODO: use for debug
 
     task = BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
                          class_from_body=class_from_body, movable=[cabbage],  surfaces=[table, sink, stove],
-                         goal_registered=[cabbage])
+                         #goal_registered=[cabbage],
+                      goal_holding=[(arm, cabbage)],
+                      )
 
     # initial = get_localized_rooms(task)
     initial = get_localized_surfaces(task)
@@ -203,20 +218,14 @@ class Detect(Command):
         return get_visual_detections(self.robot)
 
     def apply(self, state, **kwargs):
-        #state.localized.add()
-        #raise NotImplementedError()
-        cones = []
-        head_pose = get_link_pose(self.robot, self.link)
-        for detection in get_visual_detections(self.robot):
-            mesh = get_cone_mesh()
-            assert(mesh is not None)
-            cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
-            set_pose(cone, head_pose)
-            cones.append(cone)
+        mesh = get_cone_mesh()
+        assert (mesh is not None)
+        cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
+        set_pose(cone, get_link_pose(self.robot, self.link))
         wait_for_duration(1.0)
-        #time.sleep(1.0)
-        for cone in cones:
-            remove_body(cone)
+        remove_body(cone)
+        for detection in get_visual_detections(self.robot):
+            state.localized.add(detection.body)
 
     control = step
 
@@ -260,22 +269,28 @@ def plan_head_traj(robot, head_conf):
     return Trajectory(Conf(robot, head_joints, q) for q in head_path)
 
 
-def post_process(problem, plan):
+def post_process(problem, plan, stuff=False):
     if plan is None:
         return None
-    # TODO: refine
+    # TODO: refine actions
     robot = problem.robot
     commands = []
+    delocalized = False
     for i, (name, args) in enumerate(plan):
         print(i, name, args)
         if name == 'move_base':
             t = args[-1]
             new_commands = [t]
+            delocalized = True
         elif name == 'pick':
+            if stuff and delocalized:
+                break
             a, b, p, g, _, t = args
             attach = Attach(robot, a, g, b)
             new_commands = [t, attach, t.reverse()]
         elif name == 'place':
+            if stuff and delocalized:
+                break
             a, b, p, g, _, t = args
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
@@ -300,13 +315,12 @@ def post_process(problem, plan):
 
 #######################################################
 
-def plan_commands(task, initial, teleport=False):
+def plan_commands(task, initial, teleport=False, profile=False):
     sim_world = connect(use_gui=False)
     clone_world(client=sim_world, exclude=[task.robot])
     set_client(sim_world)
-    pr2 = load_model(pr2_urdf, fixed_base=True)
-    # user_input('Plan?')
-    saved_world = WorldSaver()  # StateSaver()
+    load_model(DRAKE_PR2_URDF, fixed_base=True)
+    saved_world = WorldSaver() # StateSaver()
 
     pddlstream_problem = pddlstream_from_problem(task, initial, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
@@ -317,11 +331,13 @@ def plan_commands(task, initial, teleport=False):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(pddlstream_problem, max_cost=INF)
-    print_solution(solution)
-    plan, cost, evaluations = solution
     pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    if profile:
+        print_solution(solution)
+        pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
+    print('\n')
+    plan, cost, evaluations = solution
     saved_world.restore()
     commands = post_process(task, plan)
     disconnect()
@@ -330,28 +346,31 @@ def plan_commands(task, initial, teleport=False):
 
 #######################################################
 
-pr2_urdf = "models/drake/pr2_description/urdf/pr2_simplified.urdf"
-
-
-def main():
+def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, initial = get_problem()
-    print(initial)
+    task, state = get_problem()
+    print(state)
 
-    commands = plan_commands(task, initial)
-    if commands is None:
-        print('Failed to produce a plan')
-        disconnect()
-        return
+    # TODO: automatically determine an action/command cannot be applied
+    # TODO: convert numpy arrays into what they are close to
 
-    set_client(real_world)
-    # user_input('Execute?')
-    time_step = 0.01
-    #step_commands(commands, time_step=time_step)
-    apply_commands(initial, commands, time_step=time_step)
-    print(initial)
+    # TODO: compute whether a plan will still achieve a goal and do that
+    # TODO: update the initial state directly and then just redraw it to ensure uniqueness
+    while True:
+        commands = plan_commands(task, state)
+        set_client(real_world)
+        if commands is None:
+            print('Failed')
+            break
+        if not commands:
+            print('Succeeded')
+            break
+        #step_commands(commands, time_step=time_step)
+        apply_commands(state, commands, time_step=time_step)
+        print(state)
+
     wait_for_interrupt()
     disconnect()
 

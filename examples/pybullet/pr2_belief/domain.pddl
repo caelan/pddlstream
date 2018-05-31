@@ -20,6 +20,7 @@
     (HandEmpty ?a)
     (AtBConf ?q) ; Pass in part name for simplicity
     (AtAConf ?a ?q)
+    ; One conf for all of this?
 
     (On ?o ?r)
     (Holding ?a ?o)
