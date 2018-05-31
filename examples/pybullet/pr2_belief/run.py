@@ -2,6 +2,9 @@
 
 from __future__ import print_function
 
+from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj
+from examples.pybullet.pr2_belief.problems import get_problem1
+
 try:
     import pybullet as p
 except ImportError:
@@ -9,64 +12,21 @@ except ImportError:
 
 import cProfile
 import pstats
-import time
 
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_arm, \
-    close_arm, get_carry_conf, arm_conf, get_other_arm, visible_base_generator, PR2_GROUPS, \
-    get_kinect_registrations, get_visual_detections, inverse_visibility, HEAD_LINK_NAME, get_cone_mesh, \
-    MAX_VISUAL_DISTANCE, MAX_KINECT_DISTANCE, get_detection_cone, DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
-from examples.pybullet.utils.utils import set_base_values, set_pose, get_pose, get_bodies, load_model, point_from_pose, \
-    pairwise_collision, joints_from_names, get_body_name, plan_joint_motion, connect, is_placement, clone_world, \
-    disconnect, set_client, user_input, add_data_path, WorldSaver, link_from_name, create_mesh, get_link_pose, \
-    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions, get_configuration, \
-    set_configuration, ClientSaver, HideOutput, get_aabb, PoseSaver, unit_pose, is_center_stable
+from examples.pybullet.utils.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
+from examples.pybullet.utils.utils import set_pose, get_pose, get_bodies, load_model, connect, clone_world, \
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, get_configuration, \
+    set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
-    get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory, State, apply_commands, \
-    Command
-from examples.pybullet.utils.pr2_problems import create_kitchen, create_pr2
+    get_grasp_gen, Attach, Detach, apply_commands
 
-from examples.discrete_belief.dist import DDist, DeltaDist, MixtureDist, UniformDist
-from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, continue_mdp_cost, SCALE_COST
+from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST
 
-def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
-    robot = problem.robot
-    fixed = get_fixed_bodies(problem)
-    #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
-
-    def gen(o, p):
-        # default_conf = arm_conf(a, g.carry)
-        # joints = get_arm_joints(robot, a)
-        # TODO: check collisions with fixed links
-        target_point = point_from_pose(p.value)
-        base_generator = visible_base_generator(robot, target_point, base_range)
-        while True:
-            for _ in range(max_attempts):
-                set_pose(o, p.value)
-                base_conf = next(base_generator)
-                set_base_values(robot, base_conf)  # TODO: use pose or joint?
-                # set_joint_positions(robot, base_joints, base_conf)
-                if any(pairwise_collision(robot, b) for b in fixed):
-                    continue
-                head_conf = inverse_visibility(robot, target_point)
-                if head_conf is None:  # TODO: test if visible
-                    continue
-                bp = Pose(robot, get_pose(robot))
-                hq = Conf(robot, head_joints, head_conf)
-                yield (bp, hq)
-                break
-            else:
-                yield None
-
-    return gen
-
-
-#######################################################
 
 def pddlstream_from_problem(problem, state, teleport=False):
     robot = problem.robot
@@ -146,190 +106,13 @@ def pddlstream_from_problem(problem, state, teleport=False):
 
 #######################################################
 
-class BeliefTask(object):
-    def __init__(self, robot, arms=tuple(), grasp_types=tuple(),
-                 class_from_body={}, movable=tuple(), surfaces=tuple(),
-                 goal_localized=tuple(), goal_registered=tuple(),
-                 goal_holding=tuple(), goal_on=tuple()):
-        self.robot = robot
-        self.arms = arms
-        self.grasp_types = grasp_types
-        self.class_from_body = class_from_body
-        self.movable = movable
-        self.surfaces = surfaces
-        self.goal_holding = goal_holding
-        self.goal_on = goal_on
-        self.goal_localized = goal_localized
-        self.goal_registered = goal_registered
-
-
-class BeliefState(State):
-    def __init__(self, task, b_on={}, localized=tuple(), registered=tuple(), **kwargs):
-        super(BeliefState, self).__init__(**kwargs)
-        self.task = task
-        self.b_on = b_on
-        self.localized = set(localized) # TODO: infer localized from this?
-        self.registered = set(registered)
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__,
-                                  list(map(get_name, self.localized)),
-                                  list(map(get_name, self.registered)))
-
-def get_localized_rooms(task):
-    raise NotImplementedError()
-
-
-def get_localized_surfaces(task):
-    b_on = {}
-    for movable in task.movable:
-        b_on[movable] =  UniformDist(task.surfaces)
-    return BeliefState(task, b_on=b_on, localized=task.surfaces)
-
-def get_localized_movable(task):
-    b_on = {} # TODO: delta
-    #for movable in problem.movable:
-    #    b_on[movable] =  UniformDist(problem.surfaces)
-    return BeliefState(task, b_on=b_on, localized=task.surfaces + task.movable)
-
-#######################################################
-
-def get_problem(arm='left', grasp_type='top'):
-    with HideOutput():
-        pr2 = create_pr2()
-    set_arm_conf(pr2, arm, get_carry_conf(arm, grasp_type))
-    open_arm(pr2, arm)
-    other_arm = get_other_arm(arm)
-    set_arm_conf(pr2, other_arm, arm_conf(other_arm, REST_LEFT_ARM))
-    close_arm(pr2, other_arm)
-
-    table, cabbage, sink, stove = create_kitchen()
-    class_from_body = {
-        table: 'table',
-        cabbage: 'cabbage',
-        sink: 'sink',
-        stove: 'stove',
-    } # TODO: use for debug
-
-    task = BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
-                      class_from_body=class_from_body,
-                      movable=[cabbage],  surfaces=[table, sink, stove],
-                         #goal_registered=[cabbage],
-                      goal_holding=[(arm, cabbage)],
-                      )
-
-    # initial = get_localized_rooms(task)
-    initial = get_localized_surfaces(task)
-    #initial = get_localized_movable(task)
-    # TODO: construct supporting here
-
-    return task, initial
-
-
-#######################################################
-
-# TODO: make a class for other detected things
-
-def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
-    def fn(s):
-        # P(obs | s1=loc1, a=control_loc)
-        if s == surface:
-            return DDist({True: 1 - p_look_fn,
-                          False: p_look_fn})
-        return DDist({True: p_look_fp,
-                      False: 1 - p_look_fp})
-    return fn
-
-class Scan(Command):
-    def __init__(self, robot, surface):
-        self.robot = robot
-        self.surface = surface
-        self.link = link_from_name(robot, HEAD_LINK_NAME)
-
-    def apply(self, state, **kwargs):
-        # TODO: identify surface automatically
-        mesh = get_cone_mesh()
-        assert (mesh is not None)
-        cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
-        set_pose(cone, get_link_pose(self.robot, self.link))
-        wait_for_duration(1.0)
-        remove_body(cone)
-
-        # TODO: maybe do this all here?
-        #detections = get_visual_detections(self.robot)
-        #for body, dist in state.b_on.items():
-        #    obs = (body in detections)
-        #    dist.obsUpdate(get_observation_fn(dist), obs)
-        #state.localized.update(detections)
-        # TODO: pose for each object that can be real or fake
-
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, get_body_name(self.robot))
-
-class Detect(Command):
-    def __init__(self, robot, surface, body):
-        self.robot = robot
-        self.surface = surface
-        self.body = body
-
-    def apply(self, state, **kwargs):
-        # TODO: need to be careful that we don't move in between this...
-        detections = get_visual_detections(self.robot)
-        print('Detections:', detections)
-        dist = state.b_on[self.body]
-        obs = (self.body in detections)
-        dist.obsUpdate(get_observation_fn(self.surface), obs)
-        if obs:
-            state.localized.add(self.body)
-        # TODO: pose for each object that can be real or fake
-
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, get_name(self.surface), get_name(self.body))
-
-
-class Register(Command):
-    def __init__(self, robot, body):
-        self.robot = robot
-        self.body = body
-        self.link = link_from_name(robot, HEAD_LINK_NAME)
-
-    def step(self):
-        # TODO: filter for target object and location?
-        return get_kinect_registrations(self.robot)
-
-    def apply(self, state, **kwargs):
-        mesh, _ = get_detection_cone(self.robot, self.body, depth=MAX_KINECT_DISTANCE)
-        assert(mesh is not None)
-        cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
-        set_pose(cone, get_link_pose(self.robot, self.link))
-        wait_for_duration(1.0)
-        # time.sleep(1.0)
-        remove_body(cone)
-        state.registered.add(self.body)
-
-    control = step
-
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot),
-                                  get_name(self.body))
-
-#######################################################
-
-def plan_head_traj(robot, head_conf):
-    # head_conf = get_joint_positions(robot, head_joints)
-    # head_path = [head_conf, hq.values]
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
-    head_path = plan_joint_motion(robot, head_joints, head_conf,
-                                  obstacles=None, self_collisions=False, direct=True)
-    return Trajectory(Conf(robot, head_joints, q) for q in head_path)
-
-
 def post_process(problem, plan, replan_obs=True, replan_base=False):
     if plan is None:
         return None
     # TODO: refine actions
     robot = problem.robot
     commands = []
-    delocalized = False
+    uncertain_base = False
     expecting_obs = False
     for i, (name, args) in enumerate(plan):
         if replan_obs and expecting_obs:
@@ -339,15 +122,15 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
             t = args[-1]
             new_commands = [t]
             if replan_base:
-                delocalized = True
+                uncertain_base = True
         elif name == 'pick':
-            if delocalized:
+            if uncertain_base:
                 break
             a, b, p, g, _, t = args
             attach = Attach(robot, a, g, b)
             new_commands = [t, attach, t.reverse()]
         elif name == 'place':
-            if delocalized:
+            if uncertain_base:
                 break
             a, b, p, g, _, t = args
             detach = Detach(robot, a, b)
@@ -392,8 +175,9 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
 
     pddlstream_problem = pddlstream_from_problem(task, state, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
+    print('Init:', sorted(init))
     if verbose:
-        print('Init:', init)
+        print('Init:', sorted(init))
         print('Goal:', goal)
         print('Streams:', stream_map.keys())
 
@@ -414,28 +198,11 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
 
 #######################################################
 
-def add_debug_text(text, position=(0, 0, 0), color=(0, 0, 0), lifetime=None, parent=-1):
-    if lifetime is None:
-        lifetime = 0
-    return p.addUserDebugText(text, textPosition=position, textColorRGB=color, # textSize=1,
-                       lifeTime=lifetime, parentObjectUniqueId=parent)
-
-def add_body_name(body, **kwargs):
-    with PoseSaver(body):
-        set_pose(body, unit_pose())
-        lower, upper = get_aabb(body)
-    #position = (0, 0, upper[2])
-    position = upper
-    return add_debug_text(get_name(body), position=position, parent=body, **kwargs)  # removeUserDebugItem
-
-#def add_body_names(**kwargs):
-#    return {body: add_body_name(body, **kwargs) for body in get_bodies()}
-
 def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, state = get_problem()
+    task, state = get_problem1()
     for body in (task.movable + task.surfaces):
         add_body_name(body)
     #wait_for_interrupt()
@@ -458,7 +225,6 @@ def main(time_step=0.01):
         if not commands:
             print('Success!')
             break
-        #step_commands(commands, time_step=time_step)
         apply_commands(state, commands, time_step=time_step)
 
     print(state)
