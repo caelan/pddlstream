@@ -24,12 +24,12 @@ from examples.pybullet.utils.utils import set_pose, get_pose, get_bodies, load_m
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands
-from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST
+from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
 
 
 def pddlstream_from_problem(problem, state, teleport=False):
     robot = problem.robot
-    # TODO: infer from task as well
+    # TODO: infer open world from task
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -41,11 +41,9 @@ def pddlstream_from_problem(problem, state, teleport=False):
     }
 
     scan_cost = 1
-    #initial_poses = {body: Pose(body, get_pose(body)) for body in get_bodies()}
-    initial_poses = state.poses
     init = [
-        ('BConf', initial_poses[robot]),
-        ('AtBConf', initial_poses[robot]),
+        ('BConf', state.poses[robot]),
+        ('AtBConf', state.poses[robot]),
         Equal(('MoveCost',), scale_cost(1)),
         Equal(('PickCost',), scale_cost(1)),
         Equal(('PlaceCost',), scale_cost(1)),
@@ -70,7 +68,7 @@ def pddlstream_from_problem(problem, state, teleport=False):
     for body in problem.movable + problem.surfaces:
         if body in holding_bodies:
             continue
-        pose = initial_poses[body]
+        pose = state.poses[body]
         init += [('Pose', body, pose), ('AtPose', body, pose)]
 
     for body in problem.movable:
@@ -84,7 +82,8 @@ def pddlstream_from_problem(problem, state, teleport=False):
             if is_center_stable(body, surface):
                 if body in holding_bodies:
                     continue
-                init += [('Supported', body, initial_poses[body], surface)]
+                pose = state.poses[body]
+                init += [('Supported', body, pose, surface)]
     for body in (problem.movable + problem.surfaces):
         if body in state.localized:
             init.append(('Localized', body))
@@ -165,6 +164,7 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
 
 def plan_commands(task, state, teleport=False, profile=False, verbose=False):
     # TODO: could make indices into set of bodies to ensure the same...
+    # TODO: populate the bodies here from state
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)
     sim_world = connect(use_gui=False)
@@ -181,13 +181,12 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', sorted(init))
     if verbose:
-        print('Init:', sorted(init))
         print('Goal:', goal)
         print('Streams:', stream_map.keys())
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, max_cost=INF, verbose=verbose)
+    solution = solve_focused(pddlstream_problem, max_cost=MAX_COST, verbose=verbose)
     pr.disable()
     print_solution(solution)
     plan, cost, evaluations = solution
