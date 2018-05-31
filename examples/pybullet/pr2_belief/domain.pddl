@@ -43,14 +43,14 @@
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                       (AtPose ?o ?p) (HandEmpty ?a) (AtBConf ?q))
+                       (Registered ?o) (AtPose ?o ?p) (HandEmpty ?a) (AtBConf ?q))
     :effect (and (AtGrasp ?a ?o ?g)
                  (not (AtPose ?o ?p)) (not (HandEmpty ?a)))
   )
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                       (AtGrasp ?a ?o ?g) (AtBConf ?q))
+                       (Localized ?o) (AtGrasp ?a ?o ?g) (AtBConf ?q))
     :effect (and (AtPose ?o ?p) (HandEmpty ?a)
                  (not (AtGrasp ?a ?o ?g)))
   )

@@ -22,7 +22,7 @@ from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_
 from examples.pybullet.utils.utils import set_base_values, set_pose, get_pose, get_bodies, load_model, point_from_pose, \
     pairwise_collision, joints_from_names, get_body_name, plan_joint_motion, connect, is_placement, clone_world, \
     disconnect, set_client, user_input, add_data_path, WorldSaver, link_from_name, create_mesh, get_link_pose, \
-    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions
+    remove_body, wait_for_duration, wait_for_interrupt, get_name, get_joint_positions, get_configuration, set_configuration
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory, State, apply_commands, \
     Command
@@ -269,27 +269,31 @@ def plan_head_traj(robot, head_conf):
     return Trajectory(Conf(robot, head_joints, q) for q in head_path)
 
 
-def post_process(problem, plan, stuff=False):
+def post_process(problem, plan, replan_obs=True, replan_base=False):
     if plan is None:
         return None
     # TODO: refine actions
     robot = problem.robot
     commands = []
     delocalized = False
+    expecting_obs = False
     for i, (name, args) in enumerate(plan):
+        if replan_obs and expecting_obs:
+            break
         print(i, name, args)
         if name == 'move_base':
             t = args[-1]
             new_commands = [t]
-            delocalized = True
+            if replan_base:
+                delocalized = True
         elif name == 'pick':
-            if stuff and delocalized:
+            if delocalized:
                 break
             a, b, p, g, _, t = args
             attach = Attach(robot, a, g, b)
             new_commands = [t, attach, t.reverse()]
         elif name == 'place':
-            if stuff and delocalized:
+            if delocalized:
                 break
             a, b, p, g, _, t = args
             detach = Detach(robot, a, b)
@@ -299,6 +303,7 @@ def post_process(problem, plan, stuff=False):
             ht = plan_head_traj(robot, hq.values)
             detect = Detect(robot)
             new_commands = [ht, detect]
+            expecting_obs = True
         elif name == 'localize':
             new_commands = []
         elif name == 'register':
@@ -306,6 +311,7 @@ def post_process(problem, plan, stuff=False):
             ht = plan_head_traj(robot, hq.values)
             register = Register(robot, o)
             new_commands = [ht, register]
+            expecting_obs = True
         else:
             raise ValueError(name)
         # TODO: execute these here?
@@ -315,14 +321,19 @@ def post_process(problem, plan, stuff=False):
 
 #######################################################
 
-def plan_commands(task, initial, teleport=False, profile=False):
+def plan_commands(task, state, teleport=False, profile=False):
     sim_world = connect(use_gui=False)
     clone_world(client=sim_world, exclude=[task.robot])
+    robot_conf = get_configuration(task.robot)
+    robot_pose = get_pose(task.robot)
     set_client(sim_world)
-    load_model(DRAKE_PR2_URDF, fixed_base=True)
+    robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
+    set_pose(robot, robot_pose)
+    set_configuration(robot, robot_conf)
+
     saved_world = WorldSaver() # StateSaver()
 
-    pddlstream_problem = pddlstream_from_problem(task, initial, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(task, state, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
