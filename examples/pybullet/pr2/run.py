@@ -46,7 +46,6 @@ def get_base_motion_synth(problem, teleport=False):
     def fn(outputs, certified):
         assert(len(outputs) == 1)
         q0, _, q1 = find_unique(lambda f: f[0] == 'basemotion', certified)[1:]
-        print(certified)
         place_movable(certified)
         free_motion_fn = get_motion_gen(problem, teleport)
         return free_motion_fn(q0, q1)
