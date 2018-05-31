@@ -22,17 +22,17 @@ from examples.pybullet.utils.pr2_utils import set_arm_conf, REST_LEFT_ARM, open_
 from examples.pybullet.utils.utils import set_base_values, set_pose, get_pose, get_bodies, load_model, point_from_pose, \
     pairwise_collision, joints_from_names, get_body_name, plan_joint_motion, connect, is_placement, clone_world, \
     disconnect, set_client, user_input, add_data_path, WorldSaver, link_from_name, create_mesh, get_link_pose, \
-    remove_body, wait_for_duration, wait_for_interrupt
+    remove_body, wait_for_duration, wait_for_interrupt, get_name
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, step_commands, get_fixed_bodies, Attach, Detach, Trajectory, State, apply_commands, \
     Command
 from examples.pybullet.utils.pr2_problems import create_kitchen, create_pr2
 
 
-def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.0)):
+def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
     robot = problem.robot
     fixed = get_fixed_bodies(problem)
-    base_joints = joints_from_names(robot, PR2_GROUPS['base'])
+    #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
     head_joints = joints_from_names(robot, PR2_GROUPS['head'])
 
     def gen(o, p):
@@ -121,13 +121,15 @@ def pddlstream_from_problem(problem, initial, teleport=False):
 #######################################################
 
 class BeliefTask(object):
-    def __init__(self, robot, arms=tuple(), movable=tuple(), grasp_types=tuple(),
-                 surfaces=tuple(), goal_localized=tuple(), goal_registered=tuple(),
+    def __init__(self, robot, arms=tuple(), grasp_types=tuple(),
+                 class_from_body={}, movable=tuple(), surfaces=tuple(),
+                 goal_localized=tuple(), goal_registered=tuple(),
                  goal_holding=tuple(), goal_on=tuple()):
         self.robot = robot
         self.arms = arms
-        self.movable = movable
         self.grasp_types = grasp_types
+        self.class_from_body = class_from_body
+        self.movable = movable
         self.surfaces = surfaces
         self.goal_holding = goal_holding
         self.goal_on = goal_on
@@ -140,7 +142,10 @@ class BeliefState(State):
         super(BeliefState, self).__init__(**kwargs)
         self.localized = set(localized)
         self.registered = set(registered)
-
+    def __repr__(self):
+        return '{}({},{})'.format(self.__class__.__name__,
+                                  list(map(get_name, self.localized)),
+                                  list(map(get_name, self.registered)))
 
 def get_localized_rooms(problem):
     raise NotImplementedError()
@@ -166,19 +171,27 @@ def get_problem(arm='left', grasp_type='top'):
     set_arm_conf(pr2, other_arm, arm_conf(other_arm, REST_LEFT_ARM))
     close_arm(pr2, other_arm)
 
-    problem = BeliefTask(robot=pr2, movable=[cabbage], arms=[arm], grasp_types=[grasp_type],
-                         surfaces=[table, sink, stove], goal_registered=[cabbage])
+    class_from_body = {
+        table: 'table',
+        cabbage: 'cabbage',
+        sink: 'sink',
+        stove: 'stove',
+    }
 
-    # initial = get_localized_rooms(problem)
-    initial = get_localized_surfaces(problem)
-    # initial = get_localized_movable(problem)
+    task = BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
+                         class_from_body=class_from_body, movable=[cabbage],  surfaces=[table, sink, stove],
+                         goal_registered=[cabbage])
 
-    return problem, initial
+    # initial = get_localized_rooms(task)
+    initial = get_localized_surfaces(task)
+    # initial = get_localized_movable(task)
+
+    return task, initial
 
 
 #######################################################
 
-# TODO: pass in state for all these commands
+# TODO: make a class for other detected things
 
 class Detect(Command):
     def __init__(self, robot):
@@ -192,21 +205,23 @@ class Detect(Command):
     def apply(self, state, **kwargs):
         #state.localized.add()
         #raise NotImplementedError()
-        mesh = get_cone_mesh(depth=MAX_VISUAL_DISTANCE)
-        assert(mesh is not None)
-        cone = create_mesh(mesh, color=(1, 0, 0, 0.25))
-        set_pose(cone, get_link_pose(self.robot, self.link))
+        cones = []
+        head_pose = get_link_pose(self.robot, self.link)
+        for detection in get_visual_detections(self.robot):
+            mesh = get_cone_mesh()
+            assert(mesh is not None)
+            cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
+            set_pose(cone, head_pose)
+            cones.append(cone)
         wait_for_duration(1.0)
         #time.sleep(1.0)
-        remove_body(cone)
+        for cone in cones:
+            remove_body(cone)
 
     control = step
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, get_body_name(self.robot))
-
-
-
 
 class Register(Command):
     def __init__(self, robot, body):
@@ -221,7 +236,7 @@ class Register(Command):
     def apply(self, state, **kwargs):
         mesh, _ = get_detection_cone(self.robot, self.body, depth=MAX_KINECT_DISTANCE)
         assert(mesh is not None)
-        cone = create_mesh(mesh, color=(0, 1, 0, 0.25))
+        cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
         set_pose(cone, get_link_pose(self.robot, self.link))
         wait_for_duration(1.0)
         # time.sleep(1.0)
@@ -231,8 +246,10 @@ class Register(Command):
     control = step
 
     def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot), get_body_name(self.body))
+        return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot),
+                                  get_name(self.body))
 
+#######################################################
 
 def plan_head_traj(robot, head_conf):
     # head_conf = get_joint_positions(robot, head_joints)
@@ -283,15 +300,15 @@ def post_process(problem, plan):
 
 #######################################################
 
-def plan_commands(problem, initial, teleport=False):
+def plan_commands(task, initial, teleport=False):
     sim_world = connect(use_gui=False)
-    clone_world(client=sim_world, exclude=[problem.robot])
+    clone_world(client=sim_world, exclude=[task.robot])
     set_client(sim_world)
     pr2 = load_model(pr2_urdf, fixed_base=True)
     # user_input('Plan?')
     saved_world = WorldSaver()  # StateSaver()
 
-    pddlstream_problem = pddlstream_from_problem(problem, initial, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(task, initial, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
@@ -306,7 +323,7 @@ def plan_commands(problem, initial, teleport=False):
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
     saved_world.restore()
-    commands = post_process(problem, plan)
+    commands = post_process(task, plan)
     disconnect()
     return commands
 
@@ -320,9 +337,10 @@ def main():
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    problem, initial = get_problem()
+    task, initial = get_problem()
+    print(initial)
 
-    commands = plan_commands(problem, initial)
+    commands = plan_commands(task, initial)
     if commands is None:
         print('Failed to produce a plan')
         disconnect()
@@ -333,6 +351,7 @@ def main():
     time_step = 0.01
     #step_commands(commands, time_step=time_step)
     apply_commands(initial, commands, time_step=time_step)
+    print(initial)
     wait_for_interrupt()
     disconnect()
 
