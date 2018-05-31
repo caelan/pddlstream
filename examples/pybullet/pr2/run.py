@@ -118,7 +118,6 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
 def post_process(problem, plan):
     if plan is None:
         return None
-    robot = problem.robot
     commands = []
     for i, (name, args) in enumerate(plan):
         print(i, name, args)
@@ -127,13 +126,11 @@ def post_process(problem, plan):
             new_commands = [t]
         elif name == 'pick':
             a, b, p, g, _, t = args
-            #link = link_from_name(robot, ARM_LINK_NAMES[a])
-            attach = Attach(robot, a, g, b)
+            attach = Attach(problem.robot, a, g, b)
             new_commands = [t, attach, t.reverse()]
         elif name == 'place':
             a, b, p, g, _, t = args
-            #link = link_from_name(robot, ARM_LINK_NAMES[a])
-            detach = Detach(robot, a, b)
+            detach = Detach(problem.robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'clean': # TODO: add text or change color?
             body, sink = args
@@ -202,7 +199,6 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         connect(use_gui=True)
         problem = problem_fn()  # TODO: way of doing this without reloading?
 
-    input('Execute?')
     commands = post_process(problem, plan)
     if simulate:
         enable_gravity()
