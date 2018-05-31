@@ -15,7 +15,7 @@ from pddlstream.statistics import get_action_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.skeleton import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
     Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
-from pddlstream.utils import INF
+from pddlstream.utils import INF, HeapElement
 from pddlstream.visualization import clear_visualizations, create_visualizations
 from pddlstream.incremental import layered_process_stream_queue
 
@@ -149,7 +149,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            heappush(queue, (SkeletonKey(0, len(stream_plan)),
+            heappush(queue, HeapElement(SkeletonKey(0, len(stream_plan)),
                              Skeleton(instantiate_first({}, stream_plan), 0, {}, stream_plan, action_plan, cost)))
             greedily_process_queue(queue, evaluations, store, sampling_time)
 

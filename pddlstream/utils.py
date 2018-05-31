@@ -182,3 +182,5 @@ class HeapElement(object):
         self.value = value
     def __lt__(self, other):
         return self.key < other.key
+    def __iter__(self):
+        return iter([self.key, self.value])

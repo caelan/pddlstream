@@ -9,7 +9,7 @@ from pddlstream.function import FunctionResult, PredicateResult
 from pddlstream.instantiation import Instantiator
 from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.stream import StreamResult
-from pddlstream.utils import elapsed_time
+from pddlstream.utils import elapsed_time, HeapElement
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:
@@ -93,19 +93,19 @@ def proccess_stream_plan(key, sampling_problem, queue, evaluations, store):
         new_key = SkeletonKey(0, len(new_stream_plan))
         new_skeleton = Skeleton(instantiate_first(new_bindings, new_stream_plan), 0,
                                 new_bindings, new_stream_plan, action_plan, new_cost)
-        heappush(queue, (new_key, new_skeleton))
+        heappush(queue, HeapElement(new_key, new_skeleton))
 
     if (key.attempts == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
         new_stream_plan = opt_result.decompose() + stream_plan[1:]
         new_key = SkeletonKey(0, len(new_stream_plan))
         new_skeleton = Skeleton(instantiate_first(bindings, new_stream_plan), 0,
                                 bindings, new_stream_plan, action_plan, cost)
-        heappush(queue, (new_key, new_skeleton))
+        heappush(queue, HeapElement(new_key, new_skeleton))
     if not instance.enumerated:
         new_key = SkeletonKey(key.attempts + 1, len(stream_plan)) # TODO: compute expected sampling effort required
         new_skeleton = Skeleton(instance, len(instance.results_history),
                                bindings, stream_plan, action_plan, cost)
-        heappush(queue, (new_key, new_skeleton))
+        heappush(queue, HeapElement(new_key, new_skeleton))
 
 ##################################################
 

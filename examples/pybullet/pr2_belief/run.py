@@ -181,7 +181,7 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
 
     pddlstream_problem = pddlstream_from_problem(task, state, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
-    print('Init:', sorted(init))
+    print('Init:', sorted(init, key=lambda f: f[0]))
     if verbose:
         print('Goal:', goal)
         print('Streams:', stream_map.keys())
