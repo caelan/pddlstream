@@ -51,17 +51,17 @@ These are simple examples that can be run without additional depedencies:
 
 Install PyBullet on OS X or Linux using: 
 ```
-pip install pybullet
+pip install numpy pybullet
 ```
-<!-- Numpy as well -->
 
 Examples:
 * Kuka IIWA task and motion planning - ```python -m examples.pybullet.kuka.run```
 * PR2 task and motion planning - ```python -m examples.pybullet.pr2.run```
-[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)
-<!--[![PR2](https://img.youtube.com/vi/oWr6m12nXcM/0.jpg)](https://www.youtube.com/watch?v=oWr6m12nXcM)-->
 * PR2 planning and execution - ```python -m examples.pybullet.pr2_belief.run```
-<img src="images/pybullet_belief.png" height="200">
+<!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
+[<img src="https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg" height="150">](https://www.youtube.com/watch?v=3HJrkgIGK7c)
+&emsp;[<img src="https://img.youtube.com/vi/oWr6m12nXcM/0.jpg" height="150">](https://www.youtube.com/watch?v=oWr6m12nXcM)
+&emsp;<img src="images/pybullet_belief.png" height="150">
 
 See https://github.com/caelan/ss-pybullet for more information.
 
