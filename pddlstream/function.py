@@ -3,6 +3,7 @@ from collections import Counter
 from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, is_parameter, str_from_head
 from pddlstream.utils import str_from_tuple, INF
+from pddlstream.object import Object
 import time
 
 DEBUG = 'debug'
@@ -89,6 +90,8 @@ class Instance(object):
         self.total_successes = 0
         self.results_history = []
         self.mapping = dict(zip(self.external.inputs, self.input_objects))
+        for constant in self.external.constants:
+            self.mapping[constant] = Object.from_name(constant)
         self.domain = substitute_expression(self.external.domain, self.get_mapping())
 
     def update_statistics(self, start_time, results):
@@ -132,10 +135,12 @@ class External(Performance):
         for p, c in Counter(inputs).items():
             if c != 1:
                 raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
-        for p in {a for i in domain for a in get_args(i) if is_parameter(a)} - set(inputs):
+        parameters = {a for i in domain for a in get_args(i) if is_parameter(a)}
+        for p in (parameters - set(inputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
+        self.constants = {a for i in domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
 
     def get_instance(self, input_objects):

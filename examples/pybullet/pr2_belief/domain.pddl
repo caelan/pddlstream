@@ -1,5 +1,6 @@
 (define (domain pr2-tamp)
   (:requirements :strips :equality)
+  (:constants base left right head)
   (:predicates
     (Arm ?a)
     (Graspable ?o)
@@ -18,9 +19,8 @@
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
     (HandEmpty ?a)
-    (AtBConf ?q) ; Pass in part name for simplicity
-    (AtAConf ?a ?q)
-    ; One conf for all of this?
+    (AtBConf ?q)
+    (AtConf ?a ?q) ; TODO: a single conf predicate
 
     (On ?o ?r)
     (Holding ?a ?o)

@@ -24,7 +24,6 @@ from examples.pybullet.utils.utils import set_pose, get_pose, get_bodies, load_m
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name
 from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands
-
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST
 
 
@@ -34,10 +33,16 @@ def pddlstream_from_problem(problem, state, teleport=False):
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    constant_map = {}
+    constant_map = {
+        'base': 'base',
+        'left': 'left',
+        'right': 'right',
+        'head': 'head',
+    }
 
     scan_cost = 1
-    initial_poses = {body: Pose(body, get_pose(body)) for body in get_bodies()}
+    #initial_poses = {body: Pose(body, get_pose(body)) for body in get_bodies()}
+    initial_poses = state.poses
     init = [
         ('BConf', initial_poses[robot]),
         ('AtBConf', initial_poses[robot]),
@@ -117,7 +122,6 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
     for i, (name, args) in enumerate(plan):
         if replan_obs and expecting_obs:
             break
-        #print(i, name, args)
         if name == 'move_base':
             t = args[-1]
             new_commands = [t]

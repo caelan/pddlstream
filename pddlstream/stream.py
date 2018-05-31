@@ -131,8 +131,8 @@ class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None):
         super(StreamResult, self).__init__(instance, opt_index)
         self.output_objects = tuple(output_objects)
-        self.mapping = dict(list(zip(self.instance.external.inputs, self.instance.input_objects)) +
-                            list(zip(self.instance.external.outputs, self.output_objects)))
+        self.mapping = dict(zip(self.instance.external.outputs, self.output_objects))
+        self.mapping.update(instance.mapping)
         self.certified = substitute_expression(self.instance.external.certified, self.get_mapping())
     def get_mapping(self):
         return self.mapping
@@ -219,7 +219,8 @@ class Stream(External):
                 raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
         for p in set(inputs) & set(outputs):
             raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
-        for p in {a for i in certified for a in get_args(i) if is_parameter(a)} - set(inputs + outputs):
+        parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
+        for p in (parameters - set(inputs + outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, info, inputs, domain)
         # Each stream could certify a stream-specific fact as well
@@ -229,6 +230,7 @@ class Stream(External):
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
+        self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
 
         # TODO: generalize to a hierarchical sequence
         always_unique = False

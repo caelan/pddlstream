@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from examples.discrete_belief.dist import DDist
 from examples.pybullet.utils.pr2_primitives import Command, Pose, Conf, Trajectory
 from examples.pybullet.utils.pr2_problems import get_fixed_bodies
@@ -50,6 +52,7 @@ def plan_head_traj(robot, head_conf):
 #######################################################
 
 def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
+    # TODO: clip probabilities so doesn't become zero
     def fn(s):
         # P(obs | s1=loc1, a=control_loc)
         if s == surface:
@@ -59,6 +62,7 @@ def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
                       False: 1 - p_look_fp})
     return fn
 
+# TODO: update whether localized on scene
 
 class Scan(Command):
     def __init__(self, robot, surface):

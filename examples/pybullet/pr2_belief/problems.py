@@ -1,9 +1,11 @@
+from __future__ import print_function
+
 from examples.discrete_belief.dist import UniformDist
-from examples.pybullet.utils.pr2_primitives import State
+from examples.pybullet.utils.pr2_primitives import State, Pose, Conf
 from examples.pybullet.utils.pr2_problems import create_pr2, create_kitchen
 from examples.pybullet.utils.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, arm_conf, \
     REST_LEFT_ARM, close_arm
-from examples.pybullet.utils.utils import get_name, HideOutput
+from examples.pybullet.utils.utils import get_name, HideOutput, get_pose, get_bodies
 
 
 class BeliefTask(object):
@@ -21,8 +23,11 @@ class BeliefTask(object):
         self.goal_on = goal_on
         self.goal_localized = goal_localized
         self.goal_registered = goal_registered
+    def get_bodies(self):
+        return self.movable + self.surfaces
 
 
+# TODO: operate on histories to do open-world
 class BeliefState(State):
     def __init__(self, task, b_on={}, localized=tuple(), registered=tuple(), **kwargs):
         super(BeliefState, self).__init__(**kwargs)
@@ -30,6 +35,13 @@ class BeliefState(State):
         self.b_on = b_on
         self.localized = set(localized) # TODO: infer localized from this?
         self.registered = set(registered)
+        # TODO: store configurations
+        #for body in task.get_bodies():
+        #    if body not in localized:
+        #        del self.poses[body]
+        #    elif body not in registered:
+        #        point, quat = self.poses[body].value
+        #        self.poses[body] = Pose(body, (point, None))
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__,
                                   list(map(get_name, self.localized)),

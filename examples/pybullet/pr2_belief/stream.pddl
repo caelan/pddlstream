@@ -15,7 +15,7 @@
     :inputs (?a ?o ?p ?g)
     :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g))
     :outputs (?q ?t)
-    :certified (and (BConf ?q) (ATraj ?t) (Kin ?a ?o ?p ?g ?q ?t))
+    :certified (and (BConf ?q) (Traj ?a ?t) (Kin ?a ?o ?p ?g ?q ?t))
   )
   (:stream plan-base-motion
     :inputs (?q1 ?q2)
@@ -27,6 +27,6 @@
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
     :outputs (?bq ?hq)
-    :certified (and (BConf ?bq) (Vis ?o ?p ?bq ?hq))
+    :certified (and (BConf ?bq) (Conf head ?hq) (Vis ?o ?p ?bq ?hq))
   )
 )
