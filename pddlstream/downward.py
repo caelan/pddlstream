@@ -153,24 +153,23 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs):
 
 
 def task_from_domain_problem(domain, problem):
-    domain_name, domain_requirements, types, type_dict, constants, predicates, predicate_dict, functions, actions, axioms \
-                 = domain
+    domain_name, domain_requirements, types, type_dict, constants, \
+        predicates, predicate_dict, functions, actions, axioms = domain
     task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
 
     assert domain_name == task_domain_name
-    requirements = pddl.Requirements(sorted(set(
-                domain_requirements.requirements +
-                task_requirements.requirements)))
+    requirements = pddl.Requirements(sorted(set(domain_requirements.requirements +
+                                                task_requirements.requirements)))
     objects = constants + objects
-    check_for_duplicates(
-        [o.name for o in objects],
+    check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init += [pddl.Atom("=", (obj.name, obj.name)) for obj in objects]
 
-    return pddl.Task(
-        domain_name, task_name, requirements, types, objects,
-        predicates, functions, init, goal, actions, axioms, use_metric)
+    task = pddl.Task(domain_name, task_name, requirements, types, objects,
+                     predicates, functions, init, goal, actions, axioms, use_metric)
+    normalize.normalize(task)
+    return task
 
 ##################################################
 
@@ -187,13 +186,13 @@ def get_literals(condition):
 
 ##################################################
 
-def translate_paths(domain_path, problem_path):
-    #pddl_parser.parse_pddl_file('domain', domain_path)
-    #pddl_parser.parse_pddl_file('task', problem_path)
-    task = pddl_parser.open(
-        domain_filename=domain_path, task_filename=problem_path)
-    normalize.normalize(task)
-    return task
+# def translate_paths(domain_path, problem_path):
+#     #pddl_parser.parse_pddl_file('domain', domain_path)
+#     #pddl_parser.parse_pddl_file('task', problem_path)
+#     task = pddl_parser.open(
+#         domain_filename=domain_path, task_filename=problem_path)
+#     normalize.normalize(task)
+#     return task
 
 def translate_task(task, temp_dir):
     #sas_task = pddl_to_sas(instantiate_task(task))
@@ -307,24 +306,26 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
 
 ##################################################
 
-GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params', 'original_axioms',
-                                       'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
+#GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params', 'original_axioms',
+#                                       'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
+#
+# def instantiate_task(task, simplify_axioms=False):
+#     # TODO: map parameters to actions and then select which list of atomic supports it
+#     normalize.normalize(task)
+#     relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
+#     if not relaxed_reachable:
+#        return None
+#     #goal_list = get_literals(task.goal)
+#     goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
+#     # TODO: this removes the axioms for some reason
+#     if simplify_axioms:
+#         axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
+#     else:
+#         axioms, axiom_init, axiom_layer_dict = [], [], {}
+#     return GroundTask(task, atoms, actions, reachable_action_params, original_axioms,
+#                       axioms, axiom_init, axiom_layer_dict, goal_list)
 
-def instantiate_task(task, simplify_axioms=False):
-    # TODO: map parameters to actions and then select which list of atomic supports it
-    normalize.normalize(task)
-    relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
-    if not relaxed_reachable:
-       return None
-    #goal_list = get_literals(task.goal)
-    goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
-    # TODO: this removes the axioms for some reason
-    if simplify_axioms:
-        axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
-    else:
-        axioms, axiom_init, axiom_layer_dict = [], [], {}
-    return GroundTask(task, atoms, actions, reachable_action_params, original_axioms,
-                      axioms, axiom_init, axiom_layer_dict, goal_list)
+##################################################
 
 def conditions_hold(state, conditions):
     return all((cond in state) != cond.negated for cond in conditions)
@@ -334,8 +335,7 @@ def is_applicable(state, action):
         return conditions_hold(state, action.precondition)
     elif isinstance(action, pddl.PropositionalAxiom):
         return conditions_hold(state, action.condition)
-    else:
-        raise ValueError(action)
+    raise ValueError(action)
 
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
@@ -350,11 +350,11 @@ def apply_axiom(state, axiom):
     assert(isinstance(state, pddl.PropositionalAxiom))
     state.add(axiom.effect)
 
-def apply_lifted_action(state, action):
-    assert(isinstance(state, pddl.Action))
-    assert(not action.parameters)
-    for effect in state.effects:
-        assert(not effect.parameters)
+#def apply_lifted_action(state, action):
+#    assert(isinstance(state, pddl.Action))
+#    assert(not action.parameters)
+#    for effect in state.effects:
+#        assert(not effect.parameters)
 
 def plan_cost(plan):
     cost = 0
@@ -391,7 +391,8 @@ def pddl_to_sas(ground_task):
         sas_task = translate.translate_task(
             strips_to_sas, ranges, translation_key,
             mutex_dict, mutex_ranges, mutex_key,
-            ground_task.task.init, ground_task.goal_list, ground_task.actions, ground_task.original_axioms,
+            ground_task.task.init, ground_task.goal_list,
+            ground_task.actions, ground_task.original_axioms,
             ground_task.task.use_min_cost_metric,
             implied_facts)
 

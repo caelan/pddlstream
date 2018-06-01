@@ -5,6 +5,7 @@ from __future__ import print_function
 from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
 from pddlstream.utils import print_solution
+from pddlstream.conversion import Or
 
 DOMAIN_PDDL = """
 (define (domain debug)
@@ -13,6 +14,7 @@ DOMAIN_PDDL = """
     (A)
     (B)
     (Goal)
+    (Unachievable)
   )
   (:action action
     :parameters ()
@@ -24,7 +26,7 @@ DOMAIN_PDDL = """
 
 ##################################################
 
-def get_problem():
+def get_problem1():
     constant_map = {}
     stream_pddl = None
     stream_map = {}
@@ -37,8 +39,27 @@ def get_problem():
 
     return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
 
+def get_problem2():
+    constant_map = {}
+    stream_pddl = None
+    stream_map = {}
+
+    init = [
+        #('A',),
+        ('B',),
+    ]
+    goal =  Or(
+        ('Goal',),
+        ('Unachievable',),
+    )
+
+    return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
+
+##################################################
+
 def solve_pddlstream(focused=True):
-    pddlstream_problem = get_problem()
+    problem_fn = get_problem2 # get_problem1 | get_problem2
+    pddlstream_problem = problem_fn()
     if focused:
         solution = solve_focused(pddlstream_problem, unit_costs=True)
     else:

@@ -35,6 +35,9 @@ NegatedAtom = lambda head: Evaluation(head, False)
 def And(*expressions):
     return (AND,) + tuple(expressions)
 
+def Or(*expressions):
+    return (OR,) + tuple(expressions)
+
 def Not(expression):
     return (NOT, expression)
 
