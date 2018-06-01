@@ -227,31 +227,30 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
-    fluent_facts = MockSet()
-    init_facts = set()
-
-    action_instances = []
-    function_plan = set()
-    for name, args in action_plan:
-        action = find_unique(lambda a: a.name == name, opt_task.actions)
-        assert (len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                                      fluent_facts, type_to_objects,
-                                      opt_task.use_min_cost_metric, function_assignments)
-        assert (instance is not None)
-        action_instances.append(instance)
-        if not unit_costs:
-            function_plan.update(extract_function_results(results_from_head, action, args))
-    action_instances.append(get_goal_instance(opt_task.goal))
-    # TODO: negative atoms in actions
 
     negative_from_name = {n.name: n for n in negative}
+    actions = opt_task.actions
     opt_task.actions = []
     opt_state = set(opt_task.init)
     real_state = set(real_task.init)
     preimage_plan = []
-    for instance in action_instances:
+    function_plan = set()
+    for i in range(len(action_plan) + 1):
+        if i != len(action_plan):
+            name, args = action_plan[i]
+            action = find_unique(lambda a: a.name == name, actions)
+            assert (len(action.parameters) == len(args))
+            variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+            instance = action.instantiate(variable_mapping, set(),
+                                          MockSet(), type_to_objects,
+                                          opt_task.use_min_cost_metric, function_assignments)
+            assert (instance is not None)
+            if not unit_costs:
+                function_plan.update(extract_function_results(results_from_head, action, args))
+        else:
+            instance = get_goal_instance(opt_task.goal)
+        # TODO: negative atoms in actions
+
         opt_task.init = opt_state
         original_axioms = opt_task.axioms
         axiom_from_action = get_necessary_axioms(instance, original_axioms, negative_from_name)
