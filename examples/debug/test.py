@@ -30,8 +30,8 @@ def get_problem():
     stream_map = {}
 
     init = [
-        ('A',),
-        #('B',),
+        #('A',),
+        ('B',),
     ]
     goal =  ('Goal',)
 

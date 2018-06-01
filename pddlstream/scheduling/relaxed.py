@@ -3,7 +3,7 @@ from heapq import heappush, heappop
 
 from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
 from pddlstream.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    solve_from_task, get_literals
+    solve_from_task, get_literals, conditions_hold
 from pddlstream.function import PredicateResult
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head
@@ -103,12 +103,16 @@ def instantiate_axioms(model, init_facts, fluent_facts, axiom_remap={}):
 
 ##################################################
 
-def get_necessary_axioms(instance, axioms, negative_from_name):
-    import pddl
+def get_derived_predicates(axioms):
     axioms_from_name = defaultdict(list)
     for axiom in axioms:
         axioms_from_name[axiom.name].append(axiom)
+    return axioms_from_name
 
+def get_necessary_axioms(instance, axioms, negative_from_name):
+    import pddl
+
+    axioms_from_name = get_derived_predicates(axioms)
     atom_queue = []
     processed_atoms = set()
     def add_literals(literals):
@@ -228,53 +232,67 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
 
-    negative_from_name = {n.name: n for n in negative}
-    actions = opt_task.actions
-    opt_task.actions = []
-    opt_state = set(opt_task.init)
-    real_state = set(real_task.init)
-    preimage_plan = []
-    function_plan = set()
-    for i in range(len(action_plan) + 1):
-        if i != len(action_plan):
-            name, args = action_plan[i]
-            action = find_unique(lambda a: a.name == name, actions)
+    action_instances = []
+    for name, args in action_plan: # TODO: negative atoms in actions
+        candidates = []
+        for action in opt_task.actions:
+            if action.name != name:
+                continue
             assert (len(action.parameters) == len(args))
             variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
             instance = action.instantiate(variable_mapping, set(),
                                           MockSet(), type_to_objects,
                                           opt_task.use_min_cost_metric, function_assignments)
             assert (instance is not None)
-            if not unit_costs:
-                function_plan.update(extract_function_results(results_from_head, action, args))
+            candidates.append(((action, args), instance))
+        if not candidates:
+            raise RuntimeError('Could not find an applicable action {}'.format(name))
+        action_instances.append(candidates)
+    action_instances.append([(None, get_goal_instance(opt_task.goal))])
+
+    axioms_from_name = get_derived_predicates(opt_task.axioms)
+    negative_from_name = {n.name: n for n in negative}
+    opt_task.actions = []
+    opt_state = set(opt_task.init)
+    real_state = set(real_task.init)
+    preimage_plan = []
+    function_plan = set()
+    for layer in action_instances:
+        for pair, instance in layer:
+            nonderived_preconditions = [l for l in instance.precondition if l.predicate not in axioms_from_name]
+            #nonderived_preconditions = instance.precondition
+            if not conditions_hold(opt_state, nonderived_preconditions):
+                continue
+            opt_task.init = opt_state
+            original_axioms = opt_task.axioms
+            axiom_from_action = get_necessary_axioms(instance, original_axioms, negative_from_name)
+            opt_task.axioms = []
+            opt_task.actions = axiom_from_action.keys()
+            # TODO: maybe it would just be better to drop the negative throughout this process until this end
+            with Verbose(False):
+                model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
+            opt_task.axioms = original_axioms
+
+            opt_facts = instantiate.get_fluent_facts(opt_task, model) | (opt_state - real_state)
+            mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
+                                               (item in opt_facts))
+            instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
+            with Verbose(False):
+                helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])
+            axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
+            axiom_plan = []  # Could always add all conditions
+            extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
+            # TODO: test if no derived solution
+
+            # TODO: add axiom init to reset state?
+            apply_action(opt_state, instance)
+            apply_action(real_state, instance)
+            preimage_plan.extend(axiom_plan + [instance])
+            if not unit_costs and (pair is not None):
+                function_plan.update(extract_function_results(results_from_head, *pair))
+            break
         else:
-            instance = get_goal_instance(opt_task.goal)
-        # TODO: negative atoms in actions
-
-        opt_task.init = opt_state
-        original_axioms = opt_task.axioms
-        axiom_from_action = get_necessary_axioms(instance, original_axioms, negative_from_name)
-        opt_task.axioms = []
-        opt_task.actions = axiom_from_action.keys()
-        # TODO: maybe it would just be better to drop the negative throughout this process until this end
-        with Verbose(False):
-            model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
-        opt_task.axioms = original_axioms
-
-        fluent_facts = instantiate.get_fluent_facts(opt_task, model) | (opt_state - real_state)
-        mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
-                                           (item in fluent_facts))
-        instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
-        with Verbose(False):
-            helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])
-        axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
-        axiom_plan = []  # Could always add all conditions
-        extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
-        # TODO: add axiom init to reset state?
-        preimage_plan += axiom_plan
-        apply_action(opt_state, instance)
-        apply_action(real_state, instance)
-        preimage_plan.append(instance)
+            raise RuntimeError('No action instances are applicable')
 
     preimage = plan_preimage(preimage_plan, set())
     preimage -= set(real_task.init)

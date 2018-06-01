@@ -53,6 +53,8 @@ def load_stream_statistics(stream_name, externals):
 
 
 def write_stream_statistics(stream_name, externals, verbose):
+    if not externals:
+        return
     if verbose:
         print('\nExternal Statistics')
     data = {}
