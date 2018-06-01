@@ -2,9 +2,6 @@
 
 from __future__ import print_function
 
-from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj
-from examples.pybullet.pr2_belief.problems import get_problem1
-
 try:
     import pybullet as p
 except ImportError:
@@ -15,14 +12,16 @@ import pstats
 
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
-from pddlstream.utils import print_solution, read, INF, get_file_path
+from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.utils.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
-from examples.pybullet.utils.utils import set_pose, get_pose, get_bodies, load_model, connect, clone_world, \
+from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj
+from examples.pybullet.pr2_belief.problems import get_problem1
+from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
+from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
     disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, get_configuration, \
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name
-from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
 

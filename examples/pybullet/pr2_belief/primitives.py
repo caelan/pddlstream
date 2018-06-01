@@ -1,13 +1,16 @@
 from __future__ import print_function
 
+
 from examples.discrete_belief.dist import DDist
-from examples.pybullet.utils.pr2_primitives import Command, Pose, Conf, Trajectory
-from examples.pybullet.utils.pr2_problems import get_fixed_bodies
-from examples.pybullet.utils.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, PR2_GROUPS, \
-    visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, MAX_KINECT_DISTANCE
-from examples.pybullet.utils.utils import link_from_name, create_mesh, set_pose, get_link_pose, wait_for_duration, \
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory
+from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, \
+    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, MAX_KINECT_DISTANCE
+from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
+from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
+    wait_for_duration, \
     remove_body, is_center_stable, get_body_name, get_name, joints_from_names, point_from_pose, set_base_values, \
     pairwise_collision, get_pose, plan_joint_motion
+
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
     robot = problem.robot

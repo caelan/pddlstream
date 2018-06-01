@@ -10,18 +10,17 @@ except ImportError:
 import cProfile
 import pstats
 
-from examples.pybullet.utils.utils import connect, dump_world, get_pose, Pose, is_placement, \
-    disconnect, input, get_joint_positions, enable_gravity, set_pose
-from examples.pybullet.utils.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
-    get_grasp_gen, get_press_gen, Attach, Detach, Clean, Cook, Trajectory, control_commands, step_commands
-from examples.pybullet.utils.pr2_utils import ARM_JOINT_NAMES, get_arm_joints
-from examples.pybullet.utils.pr2_problems import holding_problem, stacking_problem, cleaning_problem, cooking_problem, \
-    cleaning_button_problem, cooking_button_problem
+from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, Pose, is_placement, \
+    disconnect, user_input, get_joint_positions, enable_gravity
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
+    get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints
+from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen, from_list_fn, fn_from_constant
-from pddlstream.synthesizer import StreamSynthesizer
-from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
+from pddlstream.stream import from_fn, from_gen_fn, from_list_fn, fn_from_constant
+from pddlstream.utils import print_solution, read, INF, get_file_path
+
 
 # TODO: make a fixed body for each object (or one environment body)
 # TODO: make no grasp a type of grasp for simplicity
@@ -44,7 +43,9 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    constant_map = {}
+    constant_map = {
+        'world': 'world',
+    }
 
     world = 'world'
     initial_bq = Pose(robot, get_pose(robot))
@@ -187,14 +188,14 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         connect(use_gui=True)
         problem = problem_fn()  # TODO: way of doing this without reloading?
 
-    input('Execute?')
+    user_input('Execute?')
     commands = post_process(problem, plan)
     if simulate:
         enable_gravity()
         control_commands(commands)
     else:
         step_commands(commands, time_step=0.01)
-    input('Finish?')
+    user_input('Finish?')
     disconnect()
 
 if __name__ == '__main__':

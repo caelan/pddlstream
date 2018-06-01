@@ -1,11 +1,12 @@
 from __future__ import print_function
 
+
 from examples.discrete_belief.dist import UniformDist
-from examples.pybullet.utils.pr2_primitives import State, Pose, Conf
-from examples.pybullet.utils.pr2_problems import create_pr2, create_kitchen
-from examples.pybullet.utils.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, arm_conf, \
-    REST_LEFT_ARM, close_arm
-from examples.pybullet.utils.utils import get_name, HideOutput, get_pose, get_bodies
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import State
+from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
+    arm_conf, REST_LEFT_ARM, close_arm
+from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput
+from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
 
 class BeliefTask(object):

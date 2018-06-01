@@ -10,14 +10,14 @@ except ImportError:
 import cProfile
 import pstats
 
-from examples.pybullet.utils.kuka_primitives import BodyPose, BodyConf, Command, get_grasp_gen, get_stable_gen, get_ik_fn, get_free_motion_gen, \
+from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, BodyConf, Command, get_grasp_gen, get_stable_gen, get_ik_fn, get_free_motion_gen, \
     get_holding_motion_gen, get_movable_collision_test
-from examples.pybullet.utils.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, Point, set_default_camera, stable_z, \
-    BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, wait_for_interrupt, is_placement, get_body_name, \
+from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, Point, set_default_camera, stable_z, \
+    BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, user_input
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, StreamInfo, from_gen_fn, empty_gen
+from pddlstream.stream import from_fn, from_gen_fn, empty_gen
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
@@ -204,7 +204,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         command.control()
     else:
         #command.step()
-        command.refine(num_steps=10).execute(time_step=0.005)
+        command.refine(num_steps=10).execute(time_step=0.001)
 
     #wait_for_interrupt()
     user_input('Finish?')
