@@ -223,6 +223,10 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     import pddl
     import axiom_rules
     import instantiate
+    # Universally quantified conditions are converted into negative axioms
+    # Existentially quantified conditions are made additional preconditions
+    # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
+    # Added effects cancel out removed effects
 
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
@@ -238,7 +242,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         for action in opt_task.actions:
             if action.name != name:
                 continue
-            assert (len(action.parameters) == len(args))
+            if len(action.parameters) != len(args):
+                raise NotImplementedError('Existential quantifiers are not currently '
+                                          'supported in preconditions: {}'.format(name))
             variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
             instance = action.instantiate(variable_mapping, set(),
                                           MockSet(), type_to_objects,
@@ -283,6 +289,23 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             axiom_plan = []  # Could always add all conditions
             extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
             # TODO: test if no derived solution
+
+            # TODO: compute required stream facts in a forward way and allow opt facts that are already known required
+            for effects in [instance.add_effects, instance.del_effects]:
+                for i, (conditions, effect) in enumerate(effects[::-1]):
+                    if any(c.predicate in axioms_from_name for c in conditions):
+                        raise NotImplementedError('Conditional effects cannot currently involve derived predicates')
+                    if conditions_hold(real_state, conditions):
+                        # Holds in real state
+                        effects[i] = ([], effect)
+                    elif not conditions_hold(opt_state, conditions):
+                        # Does not hold in optimistic state
+                        effects.pop(i)
+                    else:
+                        # TODO: handle more general case where can choose to achieve particular conditional effects
+                        raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
+            #if any(conditions for conditions, _ in instance.add_effects + instance.del_effects):
+            #    raise NotImplementedError('Conditional effects are not currently supported: {}'.format(instance.name))
 
             # TODO: add axiom init to reset state?
             apply_action(opt_state, instance)

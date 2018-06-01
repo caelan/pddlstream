@@ -13,7 +13,7 @@ NOT = 'not'
 EXISTS = 'exists'
 FORALL = 'forall'
 WHEN = 'when'
-IMPLIES = 'implies'
+#IMPLIES = 'implies' # TODO: FastDownward doesn't support this
 MINIMIZE = 'minimize'
 MAXIMIZE = 'maximize'
 
@@ -22,7 +22,7 @@ TYPE = '-'
 
 CONNECTIVES = (AND, OR, NOT)
 QUANTIFIERS = (FORALL, EXISTS)
-OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN, IMPLIES)
+OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
 
 Problem = namedtuple('Problem', ['domain_pddl', 'constant_map', 'stream_pddl', 'stream_map', 'init', 'goal'])
 Head = namedtuple('Head', ['function', 'args'])
@@ -49,6 +49,12 @@ def Minimize(expression):
 
 def Type(param, ty):
     return (param, TYPE, ty)
+
+def Exists(args, expression):
+    return (EXISTS, args, expression)
+
+def ForAll(args, expression):
+    return (FORALL, args, expression)
 
 ##################################################
 
@@ -85,7 +91,7 @@ def replace_expression(parent, fn):
     return (name,) + tuple(map(fn, args))
 
 def obj_from_value_expression(parent):
-    return replace_expression(parent, Object.from_value)
+    return replace_expression(parent, lambda o: o if is_parameter(o) else Object.from_value(o))
 
 def value_from_obj_expression(parent):
     return replace_expression(parent, lambda o: o.value)

@@ -2,69 +2,110 @@
 
 from __future__ import print_function
 
+from pddlstream.downward import solve_from_pddl
 from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
 from pddlstream.utils import print_solution
-from pddlstream.conversion import Or
+from pddlstream.conversion import Or, And, Exists, ForAll, Problem
 
 DOMAIN_PDDL = """
 (define (domain debug)
-  (:requirements :strips :equality)
+  (:requirements :strips :equality :adl)
+  ;(:constants c1)
   (:predicates 
     (A)
     (B)
+    (P1 ?o)
+    (P2 ?o)
     (Goal)
     (Unachievable)
   )
-  (:action action
+  (:action or-act
     :parameters ()
     :precondition (or (A) (B))
     :effect (Goal)
   )
+  ;(:action conditional-act
+  ;  :parameters ()
+  ;  :precondition ()
+  ;  :effect (when (B) (Goal))
+  ;)
+  (:action forall-cond-act
+    :parameters ()
+    :precondition ()
+    :effect (forall (?o) (when (P1 ?o) (P2 ?o)))
+  )
+  ;(:action exists-act
+  ;  :parameters ()
+  ;  :precondition (exists (?o) (P1 ?o))
+  ;  :effect (Goal)
+  ;)
+  ;(:action forall-act
+  ;  :parameters ()
+  ;  :precondition (forall (?o) (P1 ?o))
+  ;  :effect (Goal)
+  ;)
+  ;(:action implies-act
+  ;  :parameters ()
+  ;  :precondition (implies (A) (B)) ; FD doesn't support this
+  ;  :effect (Goal)
+  ;)
 )
 """
 
 ##################################################
 
 def get_problem1():
-    constant_map = {}
+    value = 10
+    constant_map = {
+        #'c1': value,
+    }
     stream_pddl = None
     stream_map = {}
 
     init = [
+        #('Goal',),
         #('A',),
         ('B',),
-    ]
-    goal =  ('Goal',)
-
-    return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
-
-def get_problem2():
-    constant_map = {}
-    stream_pddl = None
-    stream_map = {}
-
-    init = [
-        #('A',),
-        ('B',),
+        ('P1', value),
+        #('P2', value),
     ]
     goal =  Or(
-        ('Goal',),
+        #('Goal',),
+        #Exists([], ('P2', value)),
+        Exists(['?p'], ('P2', '?p')),
         ('Unachievable',),
     )
 
-    return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
+    return Problem(DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal)
+
+##################################################
+
+PROBLEM_PDDL = """
+(define (problem debug)
+   (:domain debug)
+   (:objects c1)
+   (:init 
+     (P1 c1)
+     ;(P2 c1)
+   )
+   (:goal (exists (?p) (P2 ?p)))
+)
+"""
 
 ##################################################
 
 def solve_pddlstream(focused=True):
-    problem_fn = get_problem2 # get_problem1 | get_problem2
+    problem_fn = get_problem1 # get_problem1 | get_problem2
     pddlstream_problem = problem_fn()
+    print('Init:', pddlstream_problem.init)
+    print('Goal:', pddlstream_problem.goal)
     if focused:
         solution = solve_focused(pddlstream_problem, unit_costs=True)
     else:
         solution = solve_incremental(pddlstream_problem, unit_costs=True)
     print_solution(solution)
+    #print(*solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL))
 
 ##################################################
 
