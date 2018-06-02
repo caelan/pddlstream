@@ -17,7 +17,7 @@ from pddlstream.conversion import Equal, Problem, And
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen, inspect_trajectory
 from examples.pybullet.pr2_belief.problems import get_problem1
-from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
+from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints, attach_viewcone
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
     disconnect, set_client, add_data_path, WorldSaver, BodySaver, wait_for_interrupt, get_joint_positions, \
     get_configuration, \
@@ -240,9 +240,10 @@ def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, state = get_problem1(localized='surfaces', p_other=0.5)
+    task, state = get_problem1(localized='rooms', p_other=0.5)
     for body in task.get_bodies():
         add_body_name(body)
+    attach_viewcone(task.robot)
     draw_base_limits(BASE_LIMITS)
     #wait_for_interrupt()
     # TODO: could attach the cone extents to the pr2 all the time (or just the center)

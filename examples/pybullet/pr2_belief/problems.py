@@ -55,9 +55,14 @@ class BeliefState(State):
     def is_localized(self, body):
         return len(self.b_on[body].support()) == 1
     def __repr__(self):
+        items = []
+        for b in sorted(self.b_on.keys()):
+            d = self.b_on[b]
+            support_items = ['{}: {:.2f}'.format(s, d.prob(s)) for s in sorted(d.support())]
+            items.append('{}: {{{}}}'.format(b, ', '.join(support_items)))
         return '{}({},{})'.format(self.__class__.__name__,
-                                  self.b_on,
-                                  #{b: repr(d) for b, d in self.b_on.items()},
+                                  #self.b_on,
+                                  '{{{}}}'.format(', '.join(items)),
                                   list(map(get_name, self.registered)))
 
 #######################################################

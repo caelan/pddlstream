@@ -4,8 +4,8 @@ import numpy as np
 
 from examples.discrete_belief.dist import DDist
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Grasp, Trajectory, create_trajectory, Attach, Detach
-from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, \
-    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone,\
+from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
+    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, get_viewcone, \
     MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path, get_group_joints, get_group_conf, set_group_conf
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
@@ -114,6 +114,37 @@ def inspect_trajectory(robot, trajectory):
 
 #######################################################
 
+class AttachCone(Command): # TODO: make extend Attach?
+    def __init__(self, robot):
+        self.robot = robot
+        self.group = 'head'
+    def apply(self, state, **kwargs):
+        cone = get_viewcone(color=(1, 0, 0, 0.5))
+        state.poses[cone] = None
+        attach = Attach(self.robot, self.group, Pose(cone, unit_pose()), cone)
+        attach.apply(state,  **kwargs)
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
+
+class DetachCone(Command): # TODO: make extend Detach?
+    def __init__(self, attach):
+        self.attach = attach
+    def apply(self, state, **kwargs):
+        cone = self.attach.cone
+        detach = Detach(self.attach.robot, self.attach.group, cone)
+        detach.apply(state,  **kwargs)
+        del state.poses[cone]
+        remove_body(cone)
+    def __repr__(self):
+        return '{}()'.format(self.__class__.__name__)
+
+def get_cone_commands(robot):
+    attach = AttachCone(robot)
+    detach = DetachCone(attach)
+    return attach, detach
+
+#######################################################
+
 def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
     # TODO: clip probabilities so doesn't become zero
     def fn(s):
@@ -138,9 +169,7 @@ class Scan(Command):
     def apply(self, state, **kwargs):
         # TODO: identify surface automatically
 
-        mesh = get_cone_mesh()
-        assert (mesh is not None)
-        cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
+        cone = get_viewcone(color=(1, 0, 0, 0.5))
         set_pose(cone, get_link_pose(self.robot, self.link))
         wait_for_duration(self._duration) # TODO: don't sleep if no viewer?
         remove_body(cone)
@@ -176,11 +205,7 @@ class ScanRoom(Command):
         #                                   plan_pause_scan_path(robot, tilt=self._tilt))
 
     def apply(self, state, **kwargs):
-        # TODO: make the cone "held" by the scan movement
-        mesh = get_cone_mesh()
-        assert (mesh is not None)
-        cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
-
+        cone = get_viewcone(color=(1, 0, 0, 0.5))
         state.poses[cone] = None
         attach = Attach(self.robot, 'head', Pose(cone, unit_pose()), cone)
         attach.apply(state,  **kwargs)
@@ -190,7 +215,6 @@ class ScanRoom(Command):
         detach.apply(state,  **kwargs)
         del state.poses[cone]
         remove_body(cone)
-        # TODO: could sample points on the trajectory and see if visible
 
         assert(self.surface in state.task.rooms)
         obs_fn = get_observation_fn(self.surface)
@@ -206,6 +230,7 @@ class ScanRoom(Command):
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, get_body_name(self.surface))
 
+#######################################################
 
 class Detect(Command):
     def __init__(self, robot, surface, body):
