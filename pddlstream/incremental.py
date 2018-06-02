@@ -69,6 +69,7 @@ def function_process_stream_queue(instantiator, evaluations, store):
             instantiator.stream_queue.rotate(-1)
 
 def layered_process_stream_queue(instantiator, evaluations, store, num_layers):
+    # TODO: priority queue and iteratively increase max stream max or add effort
     for _ in range(num_layers):
         for _ in range(len(instantiator.stream_queue)):
             if store.is_terminated():

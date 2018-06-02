@@ -87,7 +87,7 @@ class Scan(Command):
         for body, dist in state.b_on.items():
             obs = (body in detections) and (is_center_stable(body, self.surface))
             dist.obsUpdate(get_observation_fn(self.surface), obs)
-        state.localized.update(detections)
+        #state.localized.update(detections)
         # TODO: pose for each object that can be real or fake
 
     def __repr__(self):

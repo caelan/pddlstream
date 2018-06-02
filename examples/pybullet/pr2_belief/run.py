@@ -26,8 +26,9 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_i
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
 
 
-def pddlstream_from_problem(problem, state, teleport=False):
-    robot = problem.robot
+def pddlstream_from_state(state, teleport=False):
+    task = state.task
+    robot = task.robot
     # TODO: infer open world from task
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -60,11 +61,11 @@ def pddlstream_from_problem(problem, state, teleport=False):
        joints = get_arm_joints(robot, arm)
        conf = Conf(robot, joints, get_joint_positions(robot, joints))
        init += [('Arm', arm), ('AConf', arm, conf), ('AtAConf', arm, conf)]
-       if arm in problem.arms:
+       if arm in task.arms:
            init += [('Controllable', arm)]
        if arm not in holding_arms:
            init += [('HandEmpty', arm)]
-    for body in problem.movable + problem.surfaces:
+    for body in task.movable + task.surfaces:
         if body in holding_bodies:
             continue
         pose = state.poses[body]
@@ -72,9 +73,9 @@ def pddlstream_from_problem(problem, state, teleport=False):
                  ('Observable', pose),
         ]
 
-    for body in problem.movable:
+    for body in task.movable:
         init += [('Graspable', body)]
-        for surface in problem.surfaces:
+        for surface in task.get_supports(body):
             p_obs = state.b_on[body].prob(surface)
             cost = revisit_mdp_cost(0, scan_cost, p_obs)  # TODO: imperfect observation model
             init += [('Stackable', body, surface),
@@ -85,25 +86,25 @@ def pddlstream_from_problem(problem, state, teleport=False):
                     continue
                 pose = state.poses[body]
                 init += [('Supported', body, pose, surface)]
-    for body in (problem.movable + problem.surfaces):
-        if body in state.localized:
+    for body in (task.movable + task.surfaces):
+        if state.is_localized(body):
             init.append(('Localized', body))
         else:
             init.append(('Unknown', body))
         if body in state.registered:
             init.append(('Registered', body))
 
-    goal = And(*[('Holding', a, b) for a, b in problem.goal_holding] + \
-           [('On', b, s) for b, s in problem.goal_on] + \
-           [('Localized', b) for b in problem.goal_localized] + \
-           [('Registered', b) for b in problem.goal_registered])
+    goal = And(*[('Holding', a, b) for a, b in task.goal_holding] + \
+           [('On', b, s) for b, s in task.goal_on] + \
+           [('Localized', b) for b in task.goal_localized] + \
+           [('Registered', b) for b in task.goal_registered])
 
     stream_map = {
-        'sample-pose': get_stable_gen(problem),
-        'sample-grasp': from_list_fn(get_grasp_gen(problem)),
-        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
-        'inverse-visibility': from_gen_fn(get_vis_gen(problem)),
-        'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
+        'sample-pose': get_stable_gen(task),
+        'sample-grasp': from_list_fn(get_grasp_gen(task)),
+        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
+        'inverse-visibility': from_gen_fn(get_vis_gen(task)),
+        'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
     }
 
     return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -178,7 +179,7 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
     set_client(sim_world)
     saved_world = WorldSaver() # StateSaver()
 
-    pddlstream_problem = pddlstream_from_problem(task, state, teleport=teleport)
+    pddlstream_problem = pddlstream_from_state(state, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', sorted(init, key=lambda f: f[0]))
     if verbose:
