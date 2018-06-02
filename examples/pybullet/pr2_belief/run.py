@@ -65,9 +65,10 @@ def pddlstream_from_state(state, teleport=False):
            init += [('Controllable', arm)]
        if arm not in holding_arms:
            init += [('HandEmpty', arm)]
-    for body in task.movable + task.surfaces:
+    for body in task.get_bodies():
         if body in holding_bodies:
             continue
+        # TODO: no notion whether observable actually corresponds to the correct thing
         pose = state.poses[body]
         init += [('Pose', body, pose), ('AtPose', body, pose),
                  ('Observable', pose),
@@ -75,7 +76,11 @@ def pddlstream_from_state(state, teleport=False):
 
     for body in task.movable:
         init += [('Graspable', body)]
-        for surface in task.get_supports(body):
+    for body in task.get_bodies():
+        supports = task.get_supports(body)
+        if supports is None:
+            continue
+        for surface in supports:
             p_obs = state.b_on[body].prob(surface)
             cost = revisit_mdp_cost(0, scan_cost, p_obs)  # TODO: imperfect observation model
             init += [('Stackable', body, surface),
@@ -86,7 +91,8 @@ def pddlstream_from_state(state, teleport=False):
                     continue
                 pose = state.poses[body]
                 init += [('Supported', body, pose, surface)]
-    for body in (task.movable + task.surfaces):
+
+    for body in task.get_bodies():
         if state.is_localized(body):
             init.append(('Localized', body))
         else:
@@ -211,7 +217,7 @@ def main(time_step=0.01):
     real_world = connect(use_gui=True)
     add_data_path()
     task, state = get_problem1()
-    for body in (task.movable + task.surfaces):
+    for body in task.get_bodies():
         add_body_name(body)
     #wait_for_interrupt()
 

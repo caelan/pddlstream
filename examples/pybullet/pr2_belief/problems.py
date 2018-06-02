@@ -26,7 +26,7 @@ class BeliefTask(object):
         self.goal_localized = goal_localized
         self.goal_registered = goal_registered
     def get_bodies(self):
-        return self.movable + self.surfaces
+        return self.movable + self.surfaces + self.rooms
     def get_supports(self, body):
         if body in self.movable:
             return self.surfaces
@@ -64,7 +64,7 @@ class BeliefState(State):
 
 OTHER = 'other'
 
-def set_uniform_belief(task, b_on, body, p_other=1):
+def set_uniform_belief(task, b_on, body, p_other=0.5):
     # TODO: option to bias towards particular bottom
     other = DeltaDist(OTHER)
     uniform = UniformDist(task.get_supports(body))
@@ -73,7 +73,7 @@ def set_uniform_belief(task, b_on, body, p_other=1):
 def set_delta_belief(task, b_on, body):
     supports = task.get_supports(body)
     if supports is None:
-        b_on[supports] = DeltaDist(None)
+        b_on[body] = DeltaDist(supports)
         return
     for bottom in task.get_supports(body):
         if is_center_stable(body, bottom):
@@ -89,7 +89,7 @@ def get_localized_rooms(task):
     b_on = {}
     for body in (task.surfaces + task.movable):
         set_uniform_belief(task, b_on, body)
-    for body in (task.rooms + task.surfaces):
+    for body in task.rooms:
         set_delta_belief(task, b_on, body)
     return BeliefState(task, b_on=b_on)
 
@@ -141,12 +141,14 @@ def get_kitchen_task(arm='left', grasp_type='top'):
                       goal_on=[(cabbage, sink)],
                       )
 
-def get_problem1():
+def get_problem1(localized='movable'):
     task = get_kitchen_task()
-
-    #initial = get_localized_rooms(task)
-    initial = get_localized_surfaces(task)
-    #initial = get_localized_movable(task)
-    # TODO: construct supporting here
-
+    if localized == 'rooms':
+        initial = get_localized_rooms(task)
+    elif localized == 'surfaces':
+        initial = get_localized_surfaces(task)
+    elif localized == 'movable':
+        initial = get_localized_movable(task)
+    else:
+        raise ValueError(localized)
     return task, initial
