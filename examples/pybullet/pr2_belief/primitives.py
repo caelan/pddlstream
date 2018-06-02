@@ -6,19 +6,19 @@ from examples.discrete_belief.dist import DDist
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Grasp, Trajectory, create_trajectory, Attach, Detach
 from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, \
     PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone,\
-    MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path
+    MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path, get_group_joints, get_group_conf, set_group_conf
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
-    wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, point_from_pose, set_base_values, \
-    pairwise_collision, get_pose, plan_joint_motion, BodySaver
+    wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
+    point_from_pose, set_base_values, plan_waypoints_joint_motion, \
+    pairwise_collision, get_pose, plan_joint_motion, BodySaver, get_center_extent
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
     robot = problem.robot
     fixed = get_fixed_bodies(problem)
     #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
-
+    head_joints = get_group_joints(robot, 'head')
     def gen(o, p):
         # default_conf = arm_conf(a, g.carry)
         # joints = get_arm_joints(robot, a)
@@ -49,7 +49,7 @@ def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
     task = state.task
     robot = task.robot
     #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
+    head_joints = get_group_joints(robot, 'head')
     vis_gen = get_vis_gen(task, max_attempts=max_attempts, base_range=base_range)
     def gen(o, p):
         if o in task.rooms:
@@ -68,14 +68,49 @@ def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
                 yield bp, ht.path[0], ht
     return gen
 
+#######################################################
+
 def plan_head_traj(robot, head_conf):
     # head_conf = get_joint_positions(robot, head_joints)
     # head_path = [head_conf, hq.values]
-    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
+    head_joints = get_group_joints(robot, 'head')
     head_path = plan_joint_motion(robot, head_joints, head_conf,
                                   obstacles=None, self_collisions=False, direct=True)
     assert(head_path is not None)
-    return Trajectory(Conf(robot, head_joints, q) for q in head_path)
+    return create_trajectory(robot, head_joints, head_path)
+
+def get_target_point(conf):
+    with BodySaver(conf.body):
+        conf.step()
+        center, _ = get_center_extent(conf.body)
+        return center
+
+def get_target_path(trajectory):
+    # TODO: only do bounding boxes for moving links on the trajectory
+    target_path = []
+    for conf in trajectory.path:
+        # TODO: could draw the target point path sequence
+        target_path.append(get_target_point(conf))
+    return target_path
+
+def inspect_trajectory(robot, trajectory):
+    # TODO: center of mass instead?
+    # TODO: look at first conf that is visible
+
+    # TODO: minimum distance of some sort (to prevent from looking at the bottom)
+    head_waypoints = []
+    for target_point in get_target_path(trajectory):
+        head_conf = inverse_visibility(robot, target_point)
+        # TODO: could also draw the sequence of inspected points as the head moves
+        if head_conf is None:
+            continue
+        head_waypoints.append(head_conf)
+    head_joints = get_group_joints(robot, 'head')
+    #return create_trajectory(robot, head_joints, head_waypoints)
+    head_path = plan_waypoints_joint_motion(robot, head_joints, head_waypoints,
+                                            obstacles=None, self_collisions=False)
+    assert(head_path is not None)
+    return create_trajectory(robot, head_joints, head_path)
 
 #######################################################
 
@@ -107,7 +142,7 @@ class Scan(Command):
         assert (mesh is not None)
         cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
         set_pose(cone, get_link_pose(self.robot, self.link))
-        wait_for_duration(self._duration)
+        wait_for_duration(self._duration) # TODO: don't sleep if no viewer?
         remove_body(cone)
 
         detections = get_visual_detections(self.robot)
@@ -142,8 +177,6 @@ class ScanRoom(Command):
 
     def apply(self, state, **kwargs):
         # TODO: make the cone "held" by the scan movement
-
-
         mesh = get_cone_mesh()
         assert (mesh is not None)
         cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
@@ -197,6 +230,8 @@ class Detect(Command):
 
 
 class Register(Command):
+    _duration = 1.0
+
     def __init__(self, robot, body):
         self.robot = robot
         self.body = body
@@ -211,7 +246,7 @@ class Register(Command):
         assert(mesh is not None)
         cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
         set_pose(cone, get_link_pose(self.robot, self.link))
-        wait_for_duration(1.0)
+        wait_for_duration(self._duration)
         # time.sleep(1.0)
         remove_body(cone)
         state.registered.add(self.body)
