@@ -19,7 +19,7 @@ from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, R
 from examples.pybullet.pr2_belief.problems import get_problem1
 from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, get_configuration, \
+    disconnect, set_client, add_data_path, WorldSaver, BodySaver, wait_for_interrupt, get_joint_positions, get_configuration, \
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands
@@ -111,7 +111,7 @@ def pddlstream_from_state(state, teleport=False):
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
         'inverse-visibility': from_gen_fn(get_vis_gen(task)),
-        'plan-scan': from_gen_fn(get_scan_gen(task)),
+        'plan-scan': from_gen_fn(get_scan_gen(state)),
     }
 
     return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -148,11 +148,14 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
-            o, p, bq, hq, cmd = args
-            ht = plan_head_traj(robot, hq.values)
-            #detect = Scan(robot, o)
-            #new_commands = [ht, detect]
-            new_commands = [ht] + cmd
+            o, p, bq, hq, st = args
+            new_commands = []
+            with BodySaver(robot):
+                for hq2 in st.path:
+                    ht = plan_head_traj(robot, hq2.values)
+                    new_commands += [ht, Scan(robot, o)]
+                    hq2.step()
+            # TODO: return to start conf?
         elif name == 'localize':
             r, _, o, _ = args
             new_commands = [Detect(robot, r, o)]
