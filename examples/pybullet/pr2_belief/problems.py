@@ -141,7 +141,7 @@ def get_kitchen_task(arm='left', grasp_type='top'):
                       goal_on=[(cabbage, sink)],
                       )
 
-def get_problem1(localized='movable'):
+def get_problem1(localized='rooms'):
     task = get_kitchen_task()
     if localized == 'rooms':
         initial = get_localized_rooms(task)

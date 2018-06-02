@@ -1,13 +1,15 @@
 from __future__ import print_function
 
+import numpy as np
 
 from examples.discrete_belief.dist import DDist
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory
 from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, \
-    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, MAX_KINECT_DISTANCE
+    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone,\
+    MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
-    wait_for_duration, \
+    wait_for_duration, unit_pose, \
     remove_body, is_center_stable, get_body_name, get_name, joints_from_names, point_from_pose, set_base_values, \
     pairwise_collision, get_pose, plan_joint_motion
 
@@ -42,6 +44,28 @@ def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
             else:
                 yield None
 
+    return gen
+
+def get_scan_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
+    robot = problem.robot
+    base_joints = joints_from_names(robot, PR2_GROUPS['base'])
+    head_joints = joints_from_names(robot, PR2_GROUPS['head'])
+    vis_gen = get_vis_gen(problem, max_attempts=max_attempts, base_range=base_range)
+    def gen(o, p):
+        if o in problem.rooms:
+            bp = Pose(robot, unit_pose()) # Get the start pose?
+            hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
+
+            #plan_pause_scan_path()
+            #print(plan_scan_path(problem.robot))
+            #raw_input('aewf')
+            ht = [Scan(problem.robot, o)]
+            #print(plan_scan_path(robot))
+            yield bp, hq, ht
+        else:
+            for bp, hq in vis_gen(o, p):
+                ht = [Scan(problem.robot, o)]
+                yield bp, hq, ht
     return gen
 
 def plan_head_traj(robot, head_conf):

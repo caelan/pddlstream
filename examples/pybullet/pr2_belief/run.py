@@ -15,7 +15,7 @@ from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj
+from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen
 from examples.pybullet.pr2_belief.problems import get_problem1
 from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
@@ -109,8 +109,9 @@ def pddlstream_from_state(state, teleport=False):
         'sample-pose': get_stable_gen(task),
         'sample-grasp': from_list_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
-        'inverse-visibility': from_gen_fn(get_vis_gen(task)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
+        'inverse-visibility': from_gen_fn(get_vis_gen(task)),
+        'plan-scan': from_gen_fn(get_scan_gen(task)),
     }
 
     return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -147,10 +148,11 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
-            o, p, bq, hq = args
+            o, p, bq, hq, cmd = args
             ht = plan_head_traj(robot, hq.values)
-            detect = Scan(robot, o)
-            new_commands = [ht, detect]
+            #detect = Scan(robot, o)
+            #new_commands = [ht, detect]
+            new_commands = [ht] + cmd
         elif name == 'localize':
             r, _, o, _ = args
             new_commands = [Detect(robot, r, o)]

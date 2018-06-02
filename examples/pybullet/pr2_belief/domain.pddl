@@ -13,6 +13,7 @@
     (Kin ?a ?o ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
     (Supported ?o ?p ?r)
+    (Scan ?o ?p ?bq ?hq ?ht)
     (Vis ?o ?p ?bq ?hq)
 
     (CanMove) ; Do I still want this?
@@ -67,8 +68,8 @@
   )
 
   (:action scan
-    :parameters (?o ?p ?bq ?hq)
-    :precondition (and (Vis ?o ?p ?bq ?hq)
+    :parameters (?o ?p ?bq ?hq ?ht)
+    :precondition (and (Scan ?o ?p ?bq ?hq ?ht)
                        (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
     :effect (and (Scanned ?o)
                  (increase (total-cost) (ScanCost)))
