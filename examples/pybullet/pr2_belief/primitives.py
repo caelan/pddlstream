@@ -3,14 +3,14 @@ from __future__ import print_function
 import numpy as np
 
 from examples.discrete_belief.dist import DDist
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory, create_trajectory
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Grasp, Trajectory, create_trajectory, Attach, Detach
 from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_cone_mesh, get_visual_detections, \
     PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone,\
     MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, point_from_pose, set_base_values, \
-    pairwise_collision, get_pose, plan_joint_motion
+    pairwise_collision, get_pose, plan_joint_motion, BodySaver
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
@@ -119,6 +119,56 @@ class Scan(Command):
                 dist.obsUpdate(get_observation_fn(self.surface), obs)
         #state.localized.update(detections)
         # TODO: pose for each object that can be real or fake
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, get_body_name(self.surface))
+
+
+class ScanRoom(Command):
+    _tilt = np.pi / 6
+
+    def __init__(self, robot, surface):
+        self.robot = robot
+        self.surface = surface
+        self.link = link_from_name(robot, HEAD_LINK_NAME)
+        self.trajectories = []
+        with BodySaver(robot):
+            for hq in plan_scan_path(robot, tilt=self._tilt):
+                traj = plan_head_traj(robot, hq)
+                self.trajectories.append(traj)
+                traj.path[-1].step()
+        #self.head_traj = create_trajectory(robot, joints_from_names(robot, PR2_GROUPS['head']),
+        #                                   plan_pause_scan_path(robot, tilt=self._tilt))
+
+    def apply(self, state, **kwargs):
+        # TODO: make the cone "held" by the scan movement
+
+
+        mesh = get_cone_mesh()
+        assert (mesh is not None)
+        cone = create_mesh(mesh, color=(1, 0, 0, 0.5))
+
+        state.poses[cone] = None
+        attach = Attach(self.robot, 'head', Pose(cone, unit_pose()), cone)
+        attach.apply(state,  **kwargs)
+        for traj in self.trajectories:
+            traj.apply(state,  **kwargs)
+        detach = Detach(self.robot, 'head', cone)
+        detach.apply(state,  **kwargs)
+        del state.poses[cone]
+        remove_body(cone)
+        # TODO: could sample points on the trajectory and see if visible
+
+        assert(self.surface in state.task.rooms)
+        obs_fn = get_observation_fn(self.surface)
+        for body, dist in state.b_on.items():
+            if 0 < dist.prob(self.surface):
+                dist.obsUpdate(obs_fn, True)
+        # detections = get_visual_detections(self.robot)
+        #print('Detections:', detections)
+        #for body, dist in state.b_on.items():
+        #    obs = (body in detections) and (is_center_stable(body, self.surface))
+        #    dist.obsUpdate(obs_fn, obs)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, get_body_name(self.surface))

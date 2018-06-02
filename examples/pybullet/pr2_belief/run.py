@@ -15,7 +15,7 @@ from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.pr2_belief.primitives import Scan, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen
+from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen
 from examples.pybullet.pr2_belief.problems import get_problem1
 from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
@@ -119,7 +119,8 @@ def pddlstream_from_state(state, teleport=False):
 
 #######################################################
 
-def post_process(problem, plan, replan_obs=True, replan_base=False):
+def post_process(state, plan, replan_obs=True, replan_base=False):
+    problem = state.task
     if plan is None:
         return None
     # TODO: refine actions
@@ -132,6 +133,8 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
             break
         if name == 'move_base':
             t = args[-1]
+            # TODO: look at the trajectory (endpoint or path) to ensure fine
+            # TODO: I should probably move base and keep looking at the path
             new_commands = [t]
             if replan_base:
                 uncertain_base = True
@@ -150,11 +153,15 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
         elif name == 'scan':
             o, p, bq, hq, st = args
             new_commands = []
-            with BodySaver(robot):
-                for hq2 in st.path:
-                    ht = plan_head_traj(robot, hq2.values)
-                    new_commands += [ht, Scan(robot, o)]
-                    hq2.step()
+            if o in problem.rooms:
+                scan = ScanRoom(robot, o)
+                new_commands += [scan]
+            else:
+                with BodySaver(robot):
+                    for hq2 in st.path:
+                        ht = plan_head_traj(robot, hq2.values)
+                        new_commands += [ht, Scan(robot, o)]
+                        hq2.step()
             # TODO: return to start conf?
         elif name == 'localize':
             r, _, o, _ = args
@@ -175,9 +182,10 @@ def post_process(problem, plan, replan_obs=True, replan_base=False):
 
 #######################################################
 
-def plan_commands(task, state, teleport=False, profile=False, verbose=False):
+def plan_commands(state, teleport=False, profile=False, verbose=False):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state
+    task = state.task
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)
     sim_world = connect(use_gui=False)
@@ -210,7 +218,7 @@ def plan_commands(task, state, teleport=False, profile=False, verbose=False):
     if profile:
         pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     saved_world.restore()
-    commands = post_process(task, plan)
+    commands = post_process(state, plan)
     disconnect()
     return commands
 
@@ -221,7 +229,7 @@ def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, state = get_problem1()
+    task, state = get_problem1(localized='rooms', p_other=0.5)
     for body in task.get_bodies():
         add_body_name(body)
     #wait_for_interrupt()
@@ -236,7 +244,7 @@ def main(time_step=0.01):
         print('\n' + 50 * '-')
         print(step, state)
         with ClientSaver():
-            commands = plan_commands(task, state)
+            commands = plan_commands(state)
         print()
         if commands is None:
             print('Failure!')

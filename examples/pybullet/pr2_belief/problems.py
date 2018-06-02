@@ -83,20 +83,20 @@ def set_delta_belief(task, b_on, body):
 
 #######################################################
 
-def get_localized_rooms(task):
+def get_localized_rooms(task, **kwargs):
     # TODO: I support that in a closed world, it would automatically know where they are
     # TODO: difference between knowing position confidently and where it is
     b_on = {}
     for body in (task.surfaces + task.movable):
-        set_uniform_belief(task, b_on, body)
+        set_uniform_belief(task, b_on, body, **kwargs)
     for body in task.rooms:
         set_delta_belief(task, b_on, body)
     return BeliefState(task, b_on=b_on)
 
-def get_localized_surfaces(task):
+def get_localized_surfaces(task, **kwargs):
     b_on = {}
     for body in task.movable:
-        set_uniform_belief(task, b_on, body)
+        set_uniform_belief(task, b_on, body, **kwargs)
     for body in (task.rooms + task.surfaces):
         set_delta_belief(task, b_on, body)
     return BeliefState(task, b_on=b_on)
@@ -141,12 +141,12 @@ def get_kitchen_task(arm='left', grasp_type='top'):
                       goal_on=[(cabbage, sink)],
                       )
 
-def get_problem1(localized='rooms'):
+def get_problem1(localized='rooms', **kwargs):
     task = get_kitchen_task()
     if localized == 'rooms':
-        initial = get_localized_rooms(task)
+        initial = get_localized_rooms(task, **kwargs)
     elif localized == 'surfaces':
-        initial = get_localized_surfaces(task)
+        initial = get_localized_surfaces(task, **kwargs)
     elif localized == 'movable':
         initial = get_localized_movable(task)
     else:
