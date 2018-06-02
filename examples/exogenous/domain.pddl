@@ -4,6 +4,7 @@
     (Conf ?q)
     (Block ?b)
     (Pose ?p)
+    (Booth ?q)
     (Kin ?q ?p)
     (Motion ?q1 ?t ?q2)
     (AtPose ?p ?q)
@@ -28,16 +29,10 @@
     :effect (and (Holding ?b)
                  (not (AtPose ?b ?p)) (not (HandEmpty)) (not (Initial)))
   )
-  ; (:action place
-  ;  :parameters (?b ?p ?q)
-  ;  :precondition (and (Block ?b) (Kin ?q ?p)
-  ;                     (AtConf ?q) (Observable ?p) (Holding ?b))
-  ;  :effect (and (AtPose ?b ?p) (HandEmpty)
-  ;               (not (Holding ?b)) (not (Initial)))
-  ;)
-   (:action phone
-    :parameters (?b ?p)
-    :precondition (and (Block ?b) (Pose ?p))
+  (:action phone
+    :parameters (?b ?p ?q)
+    :precondition (and (Block ?b) (Pose ?p) (Booth ?q)
+                       (AtConf ?q))
     :effect (and (Observable ?p)
                  (not (Latent ?p)) (not (Initial)))
   )

@@ -30,10 +30,13 @@ def pddlstream_from_belief():
     pose = None # Unknown
     #pose = np.array([1, 0])
     conf = np.array([0, 1])
+    booth = np.array([0, 2])
 
     init = [
         ('Initial',), # Forces move first
         ('Conf', conf),
+        ('Conf', booth),
+        ('Booth', booth),
         ('AtConf', conf),
         ('HandEmpty',),
 
@@ -54,7 +57,7 @@ def main(focused=True):
     # TODO: maybe load problems as a domain explicitly
     pddlstream_problem = pddlstream_from_belief()
     _, _, _, _, init, goal = pddlstream_problem
-    print(sorted(init))
+    print(sorted(init, key=lambda f: f[0]))
     print(goal)
     pr = cProfile.Profile()
     pr.enable()

@@ -160,8 +160,9 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
         streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
-        precondition = pddl.Conjunction(tuple(map(fd_from_fact, streams[-1].certified[:1] +
-                                                  tuple(map(rename_derived, stream.domain)))))
+        stream_atom = streams[-1].certified[0]
+        domain.predicate_dict[get_prefix(stream_atom)] = pddl.Predicate(get_prefix(stream_atom), get_args(stream_atom))
+        precondition = pddl.Conjunction(tuple(map(fd_from_fact, (stream_atom,) + tuple(map(rename_derived, stream.domain)))))
         for fact in stream.certified:
             derived_fact = fd_from_fact(rename_derived(fact))
             external_params = derived_fact.args
@@ -184,7 +185,7 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
 
 ##################################################
 
-def compile_to_exogenous(evaluations, domain, streams, use_axioms=False):
+def compile_to_exogenous(evaluations, domain, streams, use_axioms=True):
     if use_axioms:
         return compile_to_exogenous_axioms(evaluations, domain, streams)
     return compile_to_exogenous_actions(evaluations, domain, streams)
