@@ -15,7 +15,7 @@ from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen, inspect_trajectory
+from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands
 from examples.pybullet.pr2_belief.problems import get_problem1
 from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints, attach_viewcone
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
@@ -23,7 +23,7 @@ from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, loa
     get_configuration, \
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, add_segments
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
-    get_grasp_gen, Attach, Detach, apply_commands, BASE_LIMITS
+    get_grasp_gen, Attach, Detach, apply_commands, BASE_LIMITS, Trajectory
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
 
 
@@ -132,6 +132,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
     for i, (name, args) in enumerate(plan):
         if replan_obs and expecting_obs:
             break
+        saved_world = WorldSaver() # StateSaver()
         if name == 'move_base':
             t = args[-1]
             # TODO: look at the trajectory (endpoint or path) to ensure fine
@@ -157,16 +158,18 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
             o, p, bq, hq, st = args
-            new_commands = []
+            ht0 = plan_head_traj(robot, hq.values)
+            new_commands = [ht0]
             if o in problem.rooms:
-                scan = ScanRoom(robot, o)
-                new_commands += [scan]
+                attach, detach = get_cone_commands(robot)
+                new_commands += [attach, st, ScanRoom(robot, o), detach]
             else:
-                with BodySaver(robot):
-                    for hq2 in st.path:
-                        ht = plan_head_traj(robot, hq2.values)
-                        new_commands += [ht, Scan(robot, o)]
-                        hq2.step()
+                new_commands += [st, Scan(robot, o)]
+                #with BodySaver(robot):
+                #    for hq2 in st.path:
+                #        ht = plan_head_traj(robot, hq2.values)
+                #        new_commands += [ht, Scan(robot, o)]
+                #        hq2.step()
             # TODO: return to start conf?
         elif name == 'localize':
             r, _, o, _ = args
@@ -174,14 +177,16 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             expecting_obs = True
         elif name == 'register':
             o, p, bq, hq = args
-            ht = plan_head_traj(robot, hq.values)
+            ht0 = plan_head_traj(robot, hq.values)
             register = Register(robot, o)
-            new_commands = [ht, register]
+            new_commands = [ht0, register]
             expecting_obs = True
         else:
             raise ValueError(name)
-        # TODO: execute these here?
-        # TODO: just step the trajectories
+        saved_world.restore()
+        for command in new_commands:
+            if isinstance(command, Trajectory) and command.path:
+                command.path[-1].step()
         commands += new_commands
     return commands
 

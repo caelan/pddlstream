@@ -11,7 +11,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
     point_from_pose, set_base_values, plan_waypoints_joint_motion, \
-    pairwise_collision, get_pose, plan_joint_motion, BodySaver, get_center_extent
+    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
@@ -51,15 +51,17 @@ def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
     #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
     head_joints = get_group_joints(robot, 'head')
     vis_gen = get_vis_gen(task, max_attempts=max_attempts, base_range=base_range)
+    tilt = np.pi / 6
     def gen(o, p):
         if o in task.rooms:
             #bp = Pose(robot, unit_pose())
             bp = state.poses[robot]
             #hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
-            #ht = Trajectory([hq])
-            #path = plan_scan_path(problem.robot)
-            tilt = np.pi/6
-            path = plan_pause_scan_path(robot, tilt=tilt)
+            #ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
+            waypoints = plan_scan_path(task.robot, tilt=tilt)
+            set_group_conf(robot, 'head', waypoints[0])
+            path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
+                                          obstacles=None, self_collisions=False)
             ht = create_trajectory(robot, head_joints, path)
             yield bp, ht.path[0], ht
         else:
@@ -74,8 +76,8 @@ def plan_head_traj(robot, head_conf):
     # head_conf = get_joint_positions(robot, head_joints)
     # head_path = [head_conf, hq.values]
     head_joints = get_group_joints(robot, 'head')
-    head_path = plan_joint_motion(robot, head_joints, head_conf,
-                                  obstacles=None, self_collisions=False, direct=True)
+    head_path = plan_direct_joint_motion(robot, head_joints, head_conf,
+                                  obstacles=None, self_collisions=False)
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
 
@@ -119,10 +121,10 @@ class AttachCone(Command): # TODO: make extend Attach?
         self.robot = robot
         self.group = 'head'
     def apply(self, state, **kwargs):
-        cone = get_viewcone(color=(1, 0, 0, 0.5))
-        state.poses[cone] = None
-        attach = Attach(self.robot, self.group, Pose(cone, unit_pose()), cone)
-        attach.apply(state,  **kwargs)
+        self.cone = get_viewcone(color=(1, 0, 0, 0.5))
+        state.poses[self.cone] = None
+        attach = Attach(self.robot, self.group, Pose(self.cone, unit_pose()), self.cone)
+        attach.apply(state, **kwargs)
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
 
@@ -132,7 +134,7 @@ class DetachCone(Command): # TODO: make extend Detach?
     def apply(self, state, **kwargs):
         cone = self.attach.cone
         detach = Detach(self.attach.robot, self.attach.group, cone)
-        detach.apply(state,  **kwargs)
+        detach.apply(state, **kwargs)
         del state.poses[cone]
         remove_body(cone)
     def __repr__(self):
@@ -168,7 +170,6 @@ class Scan(Command):
 
     def apply(self, state, **kwargs):
         # TODO: identify surface automatically
-
         cone = get_viewcone(color=(1, 0, 0, 0.5))
         set_pose(cone, get_link_pose(self.robot, self.link))
         wait_for_duration(self._duration) # TODO: don't sleep if no viewer?
@@ -194,28 +195,8 @@ class ScanRoom(Command):
     def __init__(self, robot, surface):
         self.robot = robot
         self.surface = surface
-        self.link = link_from_name(robot, HEAD_LINK_NAME)
-        self.trajectories = []
-        with BodySaver(robot):
-            for hq in plan_scan_path(robot, tilt=self._tilt):
-                traj = plan_head_traj(robot, hq)
-                self.trajectories.append(traj)
-                traj.path[-1].step()
-        #self.head_traj = create_trajectory(robot, joints_from_names(robot, PR2_GROUPS['head']),
-        #                                   plan_pause_scan_path(robot, tilt=self._tilt))
 
     def apply(self, state, **kwargs):
-        cone = get_viewcone(color=(1, 0, 0, 0.5))
-        state.poses[cone] = None
-        attach = Attach(self.robot, 'head', Pose(cone, unit_pose()), cone)
-        attach.apply(state,  **kwargs)
-        for traj in self.trajectories:
-            traj.apply(state,  **kwargs)
-        detach = Detach(self.robot, 'head', cone)
-        detach.apply(state,  **kwargs)
-        del state.poses[cone]
-        remove_body(cone)
-
         assert(self.surface in state.task.rooms)
         obs_fn = get_observation_fn(self.surface)
         for body, dist in state.b_on.items():
