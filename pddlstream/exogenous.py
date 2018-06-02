@@ -57,22 +57,33 @@ def rename_atom(atom, mapping):
     return (mapping[name],) + get_args(atom)
 
 def create_static_stream(stream, evaluations, fluent_predicates, get_future):
-    def fn(*input_values):
-        # The stream certified predicates become fluents here
-        input_objects = tuple(map(Object.from_value, input_values))
-        instance = stream.get_instance(input_objects)
+    def static_fn(*input_values):
+        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
         if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
             return None
         return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
 
+    #opt_evaluations = None
+    def static_opt_gen_fn(*input_values):
+        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
+        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
+            return
+        for output_values in stream.opt_gen_fn(*input_values):
+            yield output_values
+        # TODO: need to replace regular opt_gen_fn to update opt_evaluations
+        # if I want to prevent switch from normal to static in opt
+
+    # Focused algorithm naturally biases against using future because of axiom layers
     stream_name = 'future-{}'.format(stream.name)
-    gen_fn = from_fn(fn)
+    gen_fn = from_fn(static_fn)
     static_domain = list(filter(lambda a: get_prefix(a) not in fluent_predicates, stream.domain))
     new_domain = list(map(get_future, static_domain))
     stream_atom = ('{}-result'.format(stream.name),) + tuple(stream.inputs + stream.outputs)
     new_certified = [stream_atom] + list(map(get_future, stream.certified))
-    return Stream(stream_name, gen_fn, stream.inputs, new_domain,
+    static_stream = Stream(stream_name, gen_fn, stream.inputs, new_domain,
                           stream.outputs, new_certified, stream.info)
+    static_stream.opt_gen_fn = static_opt_gen_fn
+    return static_stream
 
 def compile_to_exogenous_actions(evaluations, domain, streams):
     import pddl
