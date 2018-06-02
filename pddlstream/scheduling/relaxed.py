@@ -345,7 +345,8 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     # TODO: search in space of partially ordered plans
     # TODO: local optimization - remove one and see if feasible
 
-    reschedule_task = task_from_domain_problem(domain, get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True))
+    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
+    reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
     new_plan, _ = solve_from_task(reschedule_task, planner='max-astar', debug=False)
     # TODO: investigate admissible heuristics
@@ -360,10 +361,12 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
-    task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
+    problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
+    task = task_from_domain_problem(domain, problem)
     action_plan, action_cost = solve_from_task(task, **kwargs)
     if action_plan is None:
         return None, action_cost
+    # TODO: just use solve finite?
 
     stream_plan = recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan,
                                       negative, unit_costs)

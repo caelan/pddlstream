@@ -6,7 +6,8 @@ import cProfile
 import pstats
 import numpy as np
 
-from pddlstream.incremental import solve_incremental
+from pddlstream.incremental import solve_current, solve_exhaustive, solve_incremental
+from pddlstream.focused import solve_focused
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.stream import from_fn
 
@@ -49,7 +50,7 @@ def pddlstream_from_belief():
 
 ##################################################
 
-def main():
+def main(focused=True):
     # TODO: maybe load problems as a domain explicitly
     pddlstream_problem = pddlstream_from_belief()
     _, _, _, _, init, goal = pddlstream_problem
@@ -57,7 +58,11 @@ def main():
     print(goal)
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    if focused:
+        solution = solve_focused(pddlstream_problem, unit_costs=False)
+    else:
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+        solution = solve_incremental(pddlstream_problem, unit_costs=False)
     print_solution(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

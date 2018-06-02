@@ -2,7 +2,7 @@ import time
 
 from pddlstream.algorithm import parse_problem, SolutionStore, add_certified
 from pddlstream.conversion import revert_solution
-from pddlstream.exogenous import compile_to_exogenous_actions, compile_to_exogenous_axioms
+from pddlstream.exogenous import compile_to_exogenous
 from pddlstream.function import FunctionInstance
 from pddlstream.instantiation import Instantiator
 from pddlstream.utils import elapsed_time
@@ -31,7 +31,8 @@ def solve_current(problem, **search_kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
+    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
+    compile_to_exogenous(evaluations, domain, externals)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -50,8 +51,9 @@ def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
         using stream applications
     """
     start_time = time.time()
-    evaluations, goal_expression, domain, stream_name, streams = parse_problem(problem)
-    instantiator = Instantiator(evaluations, streams)
+    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
+    compile_to_exogenous(evaluations, domain, externals)
+    instantiator = Instantiator(evaluations, externals)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
@@ -87,10 +89,9 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
         using stream applications
     """
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, _, streams = parse_problem(problem)
-    compile_to_exogenous_actions(evaluations, domain, streams)
-    #compile_to_exogenous_axioms(evaluations, domain, streams)
-    instantiator = Instantiator(evaluations, streams)
+    evaluations, goal_expression, domain, _, externals = parse_problem(problem)
+    compile_to_exogenous(evaluations, domain, externals)
+    instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
     while not store.is_terminated():
         num_iterations += 1

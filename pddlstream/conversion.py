@@ -13,14 +13,14 @@ NOT = 'not'
 EXISTS = 'exists'
 FORALL = 'forall'
 WHEN = 'when'
-#IMPLIES = 'implies' # TODO: FastDownward doesn't support this
+IMPLY = 'imply'
 MINIMIZE = 'minimize'
 MAXIMIZE = 'maximize'
 
 PARAMETER = '?'
 TYPE = '-'
 
-CONNECTIVES = (AND, OR, NOT)
+CONNECTIVES = (AND, OR, NOT, IMPLY)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
 

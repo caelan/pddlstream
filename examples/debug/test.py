@@ -20,21 +20,21 @@ DOMAIN_PDDL = """
     (Goal)
     (Unachievable)
   )
-  (:action or-act
-    :parameters ()
-    :precondition (or (A) (B))
-    :effect (Goal)
-  )
+  ;(:action or-act
+  ;  :parameters ()
+  ;  :precondition (or (A) (B))
+  ;  :effect (Goal)
+  ;)
   ;(:action conditional-act
   ;  :parameters ()
   ;  :precondition ()
   ;  :effect (when (B) (Goal))
   ;)
-  (:action forall-cond-act
-    :parameters ()
-    :precondition ()
-    :effect (forall (?o) (when (P1 ?o) (P2 ?o)))
-  )
+  ;(:action forall-cond-act
+  ;  :parameters ()
+  ;  :precondition ()
+  ;  :effect (forall (?o) (when (P1 ?o) (P2 ?o)))
+  ;)
   ;(:action exists-act
   ;  :parameters ()
   ;  :precondition (exists (?o) (P1 ?o))
@@ -45,11 +45,11 @@ DOMAIN_PDDL = """
   ;  :precondition (forall (?o) (P1 ?o))
   ;  :effect (Goal)
   ;)
-  ;(:action implies-act
-  ;  :parameters ()
-  ;  :precondition (implies (A) (B)) ; FD doesn't support this
-  ;  :effect (Goal)
-  ;)
+  (:action imply-act
+    :parameters ()
+    :precondition (imply (A) (B))
+    :effect (Goal)
+  )
 )
 """
 
@@ -71,9 +71,9 @@ def get_problem1():
         #('P2', value),
     ]
     goal =  Or(
-        #('Goal',),
+        ('Goal',),
         #Exists([], ('P2', value)),
-        Exists(['?p'], ('P2', '?p')),
+        #Exists(['?p'], ('P2', '?p')),
         ('Unachievable',),
     )
 

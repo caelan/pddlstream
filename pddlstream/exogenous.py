@@ -90,15 +90,16 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
     rename_future = lambda a: rename_atom(a, future_map)
-
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
         streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
-        parameters = [pddl.TypedObject(p, 'object') for p in (stream.inputs + stream.outputs)]
-        precondition = pddl.Conjunction(tuple(map(fd_from_fact, streams[-1].certified[:1] +
-                                                  tuple(stream.domain))))
+        stream_atom = streams[-1].certified[0]
+        parameters = [pddl.TypedObject(p, 'object') for p in get_args(stream_atom)]
+        # TODO: add to predicates as well?
+        domain.predicate_dict[get_prefix(stream_atom)] = pddl.Predicate(get_prefix(stream_atom), parameters)
+        precondition = pddl.Conjunction(tuple(map(fd_from_fact, (stream_atom,) + tuple(stream.domain))))
         effects = [pddl.Effect(parameters=[], condition=pddl.Truth(),
                                literal=fd_from_fact(fact)) for fact in stream.certified]
         effort = 1 # TODO: use stream info
@@ -180,3 +181,10 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
                            condition=fd_from_fact(fact))])
         stream.certified = tuple(set(stream.certified) |
                                  set(map(rename_future, stream.certified)))
+
+##################################################
+
+def compile_to_exogenous(evaluations, domain, streams, use_axioms=False):
+    if use_axioms:
+        return compile_to_exogenous_axioms(evaluations, domain, streams)
+    return compile_to_exogenous_actions(evaluations, domain, streams)

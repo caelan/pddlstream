@@ -7,6 +7,7 @@ from pddlstream.instantiation import Instantiator
 from pddlstream.conversion import revert_solution
 from pddlstream.function import Function, Predicate
 from pddlstream.synthesizer import get_synthetic_stream_plan
+from pddlstream.exogenous import compile_to_exogenous
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
@@ -109,6 +110,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     num_iterations = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
+    compile_to_exogenous(evaluations, domain, externals)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)

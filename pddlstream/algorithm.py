@@ -52,10 +52,7 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
-    for i, item in enumerate(domain + problem):
-        print(i, item)
     task = task_from_domain_problem(domain, problem)
-    task.dump()
     plan_pddl, cost = solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
