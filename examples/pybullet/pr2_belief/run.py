@@ -90,7 +90,7 @@ def pddlstream_from_state(state, teleport=False):
         if state.is_localized(body):
             init.append(('Localized', body))
         else:
-            init.append(('Unknown', body))
+            init.append(('Uncertain', body))
         if body in state.registered:
             init.append(('Registered', body))
 

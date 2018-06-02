@@ -13,7 +13,7 @@
   )
   (:stream inverse-kinematics
     :inputs (?a ?o ?p ?g)
-    :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g) (Observable ?p))
+    :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g));  (Observable ?p))
     :outputs (?q ?t)
     :certified (and (BConf ?q) (Traj ?a ?t) (Kin ?a ?o ?p ?g ?q ?t))
   )

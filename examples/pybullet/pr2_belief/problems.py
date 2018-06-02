@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 
-from examples.discrete_belief.dist import UniformDist, DeltaDist
+from examples.discrete_belief.dist import UniformDist, DeltaDist, MixtureDist, MixtureDD
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import State
 from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
     arm_conf, REST_LEFT_ARM, close_arm
@@ -62,8 +62,13 @@ class BeliefState(State):
 
 #######################################################
 
-def set_uniform_belief(task, b_on, body):
-    b_on[body] = UniformDist(task.get_supports(body))
+OTHER = 'other'
+
+def set_uniform_belief(task, b_on, body, p_other=1):
+    # TODO: option to bias towards particular bottom
+    other = DeltaDist(OTHER)
+    uniform = UniformDist(task.get_supports(body))
+    b_on[body] = MixtureDD(other, uniform, p_other)
 
 def set_delta_belief(task, b_on, body):
     supports = task.get_supports(body)
@@ -75,6 +80,8 @@ def set_delta_belief(task, b_on, body):
             b_on[body] = DeltaDist(bottom)
             return
     raise RuntimeError('No support for body {}'.format(body))
+
+#######################################################
 
 def get_localized_rooms(task):
     # TODO: I support that in a closed world, it would automatically know where they are
@@ -103,7 +110,7 @@ def get_localized_movable(task):
 
 #######################################################
 
-def get_problem1(arm='left', grasp_type='top'):
+def get_kitchen_task(arm='left', grasp_type='top'):
     with HideOutput():
         pr2 = create_pr2()
     set_arm_conf(pr2, arm, get_carry_conf(arm, grasp_type))
@@ -124,7 +131,7 @@ def get_problem1(arm='left', grasp_type='top'):
     surfaces = [table, sink, stove]
     rooms = [floor]
 
-    task = BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
+    return BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
                       class_from_body=class_from_body,
                       movable=movable, surfaces=surfaces, rooms=rooms,
                       #goal_localized=[cabbage],
@@ -133,6 +140,9 @@ def get_problem1(arm='left', grasp_type='top'):
                       #goal_on=[(cabbage, table)],
                       goal_on=[(cabbage, sink)],
                       )
+
+def get_problem1():
+    task = get_kitchen_task()
 
     #initial = get_localized_rooms(task)
     initial = get_localized_surfaces(task)

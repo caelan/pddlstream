@@ -25,7 +25,7 @@
     (On ?o ?r)
     (Holding ?a ?o)
 
-    (Unknown ?o)
+    (Uncertain ?o)
     (Scanned ?o)
     (Localized ?o)
     (Registered ?o)
@@ -60,7 +60,7 @@
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                       (Localized ?o) (AtGrasp ?a ?o ?g) (AtBConf ?q))
+                       (AtGrasp ?a ?o ?g) (AtBConf ?q)) ; (Localized ?o)
     :effect (and (AtPose ?o ?p) (HandEmpty ?a)
                  (not (AtGrasp ?a ?o ?g))
                  (increase (total-cost) (PlaceCost)))
@@ -76,9 +76,9 @@
   (:action localize
     :parameters (?r ?p1 ?o ?p2)
     :precondition (and (Stackable ?o ?r) (Pose ?r ?p1) (Pose ?o ?p2) ; (FiniteScanCost ?r ?o)
-                   (AtPose ?o ?p2) (Scanned ?r) (Unknown ?o))
+                   (AtPose ?o ?p2) (Scanned ?r) (Uncertain ?o))
     :effect (and (Localized ?o) (Supported ?o ?p2 ?r)
-                 (not (Unknown ?o))
+                 (not (Uncertain ?o))
                  (increase (total-cost) (LocalizeCost ?r ?o)))
   )
   (:action register
