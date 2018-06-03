@@ -8,6 +8,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_c
 from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, get_bodies, is_center_stable
 from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
+USE_DRAKE_PR2 = True
 
 class BeliefTask(object):
     def __init__(self, robot, arms=tuple(), grasp_types=tuple(),
@@ -117,7 +118,7 @@ def get_localized_movable(task):
 
 def get_kitchen_task(arm='left', grasp_type='top'):
     with HideOutput():
-        pr2 = create_pr2()
+        pr2 = create_pr2(use_drake=USE_DRAKE_PR2)
     set_arm_conf(pr2, arm, get_carry_conf(arm, grasp_type))
     open_arm(pr2, arm)
     other_arm = get_other_arm(arm)

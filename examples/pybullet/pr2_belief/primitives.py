@@ -82,6 +82,8 @@ def plan_head_traj(robot, head_conf):
     return create_trajectory(robot, head_joints, head_path)
 
 def get_target_point(conf):
+    # TODO: center of mass instead?
+    # TODO: look such that cone bottom touches at bottom
     with BodySaver(conf.body):
         conf.step()
         center, _ = get_center_extent(conf.body)
@@ -95,10 +97,10 @@ def get_target_path(trajectory):
         target_path.append(get_target_point(conf))
     return target_path
 
-def inspect_trajectory(robot, trajectory):
-    # TODO: center of mass instead?
-    # TODO: look at first conf that is visible
-
+def inspect_trajectory(trajectory):
+    if not trajectory.path:
+        return
+    robot = trajectory.path[0].body
     # TODO: minimum distance of some sort (to prevent from looking at the bottom)
     head_waypoints = []
     for target_point in get_target_path(trajectory):
@@ -113,6 +115,34 @@ def inspect_trajectory(robot, trajectory):
                                             obstacles=None, self_collisions=False)
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
+
+def move_look_trajectory(trajectory):
+    base_path = [pose.to_base_conf() for pose in trajectory.path]
+    if not base_path:
+        return trajectory
+    robot = base_path[0].body
+    target_path = get_target_path(trajectory)
+    waypoints = []
+    index = 0
+    with BodySaver(robot):
+        for i, conf in enumerate(base_path): # TODO: just do two loops?
+            conf.step()
+            while index < len(target_path):
+                if i < index:
+                    # Don't look at past or current conf
+                    target_point = target_path[index]
+                    head_conf = inverse_visibility(robot, target_point)
+                    if head_conf is not None:
+                        break
+                index += 1
+            else:
+                head_conf = get_group_conf(robot, 'head')
+            print(conf.values, head_conf)
+            waypoints.append(np.array([conf.values, head_conf]))
+    joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
+    path = plan_waypoints_joint_motion(robot, joints, waypoints,
+                                       obstacles=None, self_collisions=False)
+    return create_trajectory(robot, joints, path)
 
 #######################################################
 

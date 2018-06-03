@@ -15,13 +15,14 @@ from pddlstream.stream import from_fn, from_gen_fn, from_list_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
-from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands
-from examples.pybullet.pr2_belief.problems import get_problem1
-from examples.pybullet.utils.pybullet_tools.pr2_utils import DRAKE_PR2_URDF, ARM_NAMES, get_arm_joints, attach_viewcone
-from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, load_model, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, BodySaver, wait_for_interrupt, get_joint_positions, \
-    get_configuration, \
-    set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, add_segments
+from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, \
+    plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands
+from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
+from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
+    is_drake_pr2
+from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, \
+    get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, add_segments
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, BASE_LIMITS, Trajectory
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
@@ -140,8 +141,9 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             # TODO: I could keep updating the head goal as the base moves along the path
             new_commands = []
             if look_move:
-                new_commands.append(inspect_trajectory(robot, t))
+                new_commands.append(inspect_trajectory(t))
             new_commands.append(t)
+            #new_commands = [move_look_trajectory(t)]
             if replan_base:
                 uncertain_base = True
         elif name == 'pick':
@@ -202,7 +204,8 @@ def plan_commands(state, teleport=False, profile=False, verbose=False):
     sim_world = connect(use_gui=False)
     with ClientSaver(sim_world):
         with HideOutput():
-            robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
+            robot = create_pr2(use_drake=USE_DRAKE_PR2)
+            #robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
         set_pose(robot, robot_pose)
         set_configuration(robot, robot_conf)
     clone_world(client=sim_world, exclude=[task.robot])
@@ -238,7 +241,8 @@ def plan_commands(state, teleport=False, profile=False, verbose=False):
 
 def draw_base_limits(limits, z=1e-2, **kwargs):
     lower, upper = limits
-    vertices = [(lower[0], lower[1], z), (lower[0], upper[1], z), (upper[0], upper[1], z), (upper[0], lower[1], z)]
+    vertices = [(lower[0], lower[1], z), (lower[0], upper[1], z),
+                (upper[0], upper[1], z), (upper[0], lower[1], z)]
     return add_segments(vertices, closed=True, **kwargs)
 
 def main(time_step=0.01):
@@ -248,10 +252,11 @@ def main(time_step=0.01):
     task, state = get_problem1(localized='rooms', p_other=0.5)
     for body in task.get_bodies():
         add_body_name(body)
-    attach_viewcone(task.robot)
+    #dump_body(task.robot)
+    assert(USE_DRAKE_PR2 == is_drake_pr2(task.robot))
+    attach_viewcone(task.robot) # Doesn't work for the normal pr2?
     draw_base_limits(BASE_LIMITS)
     #wait_for_interrupt()
-    # TODO: could attach the cone extents to the pr2 all the time (or just the center)
 
     # TODO: automatically determine an action/command cannot be applied
     # TODO: convert numpy arrays into what they are close to
