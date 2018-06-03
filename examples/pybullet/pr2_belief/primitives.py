@@ -11,13 +11,13 @@ from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
     point_from_pose, set_base_values, plan_waypoints_joint_motion, base_values_from_pose, \
-    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent
+    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent, set_joint_positions
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
     robot = problem.robot
     fixed = get_fixed_bodies(problem)
-    #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
+    base_joints = get_group_joints(robot, 'base')
     head_joints = get_group_joints(robot, 'head')
     def gen(o, p):
         # default_conf = arm_conf(a, g.carry)
@@ -29,16 +29,17 @@ def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
             for _ in range(max_attempts):
                 set_pose(o, p.value)
                 base_conf = next(base_generator)
-                set_base_values(robot, base_conf)  # TODO: use pose or joint?
-                # set_joint_positions(robot, base_joints, base_conf)
+                #set_base_values(robot, base_conf)
+                set_joint_positions(robot, base_joints, base_conf)
                 if any(pairwise_collision(robot, b) for b in fixed):
                     continue
                 head_conf = inverse_visibility(robot, target_point)
                 if head_conf is None:  # TODO: test if visible
                     continue
-                bp = Pose(robot, get_pose(robot))
+                #bq = Pose(robot, get_pose(robot))
+                bq = Conf(robot, base_joints, base_conf)
                 hq = Conf(robot, head_joints, head_conf)
-                yield (bp, hq)
+                yield (bq, hq)
                 break
             else:
                 yield None
@@ -48,14 +49,15 @@ def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
 def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
     task = state.task
     robot = task.robot
-    #base_joints = joints_from_names(robot, PR2_GROUPS['base'])
+    base_joints = get_group_joints(robot, 'base')
     head_joints = get_group_joints(robot, 'head')
     vis_gen = get_vis_gen(task, max_attempts=max_attempts, base_range=base_range)
     tilt = np.pi / 6
     def gen(o, p):
         if o in task.rooms:
-            #bp = Pose(robot, unit_pose())
-            bp = state.poses[robot]
+            #bq = Pose(robot, unit_pose())
+            #bq = state.poses[robot]
+            bq = Conf(robot, base_joints, np.zeros(len(base_joints)))
             #hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
             #ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
             waypoints = plan_scan_path(task.robot, tilt=tilt)
@@ -63,11 +65,11 @@ def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
             path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
                                           obstacles=None, self_collisions=False)
             ht = create_trajectory(robot, head_joints, path)
-            yield bp, ht.path[0], ht
+            yield bq, ht.path[0], ht
         else:
-            for bp, hq in vis_gen(o, p):
+            for bq, hq in vis_gen(o, p):
                 ht = Trajectory([hq])
-                yield bp, ht.path[0], ht
+                yield bq, ht.path[0], ht
     return gen
 
 #######################################################

@@ -19,7 +19,7 @@ from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_
     plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands, move_look_trajectory
 from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
-    is_drake_pr2
+    is_drake_pr2, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
     disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, \
     get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, add_segments
@@ -42,10 +42,12 @@ def pddlstream_from_state(state, teleport=False):
         'head': 'head',
     }
 
+    #base_conf = state.poses[robot]
+    base_conf = Conf(robot, get_group_joints(robot, 'base'), get_group_conf(robot, 'base'))
     scan_cost = 1
     init = [
-        ('BConf', state.poses[robot]),
-        ('AtBConf', state.poses[robot]),
+        ('BConf', base_conf),
+        ('AtBConf', base_conf),
         Equal(('MoveCost',), scale_cost(1)),
         Equal(('PickCost',), scale_cost(1)),
         Equal(('PlaceCost',), scale_cost(1)),
@@ -195,7 +197,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
 
 #######################################################
 
-def plan_commands(state, teleport=False, profile=False, verbose=False):
+def plan_commands(state, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state
     task = state.task
@@ -258,6 +260,7 @@ def main(time_step=0.01):
     draw_base_limits(BASE_LIMITS)
     #wait_for_interrupt()
 
+    # TODO: do everything in local coordinate frame
     # TODO: automatically determine an action/command cannot be applied
     # TODO: convert numpy arrays into what they are close to
     # TODO: compute whether a plan will still achieve a goal and do that
@@ -267,6 +270,7 @@ def main(time_step=0.01):
         step += 1
         print('\n' + 50 * '-')
         print(step, state)
+        #print({b: p.value for b, p in state.poses.items()})
         with ClientSaver():
             commands = plan_commands(state)
         print()
