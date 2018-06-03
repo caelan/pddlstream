@@ -16,7 +16,7 @@ from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, \
-    plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands
+    plan_head_traj, get_scan_gen, inspect_trajectory, get_cone_commands, move_look_trajectory
 from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2

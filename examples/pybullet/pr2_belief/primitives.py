@@ -10,7 +10,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
-    point_from_pose, set_base_values, plan_waypoints_joint_motion, \
+    point_from_pose, set_base_values, plan_waypoints_joint_motion, base_values_from_pose, \
     pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent
 
 
@@ -117,6 +117,7 @@ def inspect_trajectory(trajectory):
     return create_trajectory(robot, head_joints, head_path)
 
 def move_look_trajectory(trajectory):
+    # TODO: pr2 movement restrictions
     base_path = [pose.to_base_conf() for pose in trajectory.path]
     if not base_path:
         return trajectory
@@ -125,6 +126,7 @@ def move_look_trajectory(trajectory):
     waypoints = []
     index = 0
     with BodySaver(robot):
+        current_conf = base_values_from_pose(get_pose(robot))
         for i, conf in enumerate(base_path): # TODO: just do two loops?
             conf.step()
             while index < len(target_path):
@@ -137,12 +139,19 @@ def move_look_trajectory(trajectory):
                 index += 1
             else:
                 head_conf = get_group_conf(robot, 'head')
-            print(conf.values, head_conf)
-            waypoints.append(np.array([conf.values, head_conf]))
-    joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
-    path = plan_waypoints_joint_motion(robot, joints, waypoints,
-                                       obstacles=None, self_collisions=False)
-    return create_trajectory(robot, joints, path)
+            #print(conf.values, head_conf)
+            waypoints.append(np.concatenate([conf.values, head_conf]))
+        #joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
+        joints = get_group_joints(robot, 'base') + get_group_joints(robot, 'head')
+        set_pose(robot, unit_pose())
+        set_group_conf(robot, 'base', current_conf)
+        path = plan_waypoints_joint_motion(robot, joints, waypoints,
+                                           obstacles=None, self_collisions=False)
+    new_traj = create_trajectory(robot, joints, path)
+    #Pose(robot, pose_from_base_values(q, bq1.value))
+    #new_traj.path.append(Pose(...))
+    # TODO: need to convert add Pose commands for the switch from joints to pose...
+    raise NotImplementedError()
 
 #######################################################
 
