@@ -21,7 +21,7 @@ from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, c
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, \
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, dump_body, \
     get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, add_segments
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, BASE_LIMITS, Trajectory
@@ -141,11 +141,11 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             # TODO: look at the trajectory (endpoint or path) to ensure fine
             # TODO: I should probably move base and keep looking at the path
             # TODO: I could keep updating the head goal as the base moves along the path
-            new_commands = []
-            if look_move:
-                new_commands.append(inspect_trajectory(t))
-            new_commands.append(t)
-            #new_commands = [move_look_trajectory(t)]
+            #new_commands = []
+            #if look_move:
+            #    new_commands.append(inspect_trajectory(t))
+            #new_commands.append(t)
+            new_commands = [move_look_trajectory(t)]
             if replan_base:
                 uncertain_base = True
         elif name == 'pick':

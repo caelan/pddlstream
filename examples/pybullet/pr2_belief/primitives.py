@@ -10,8 +10,8 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
-    point_from_pose, set_base_values, plan_waypoints_joint_motion, base_values_from_pose, \
-    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent, set_joint_positions
+    point_from_pose, set_base_values, plan_waypoints_joint_motion, base_values_from_pose, get_joint_positions, \
+    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent, set_joint_positions, get_aabb
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
@@ -84,11 +84,16 @@ def plan_head_traj(robot, head_conf):
     return create_trajectory(robot, head_joints, head_path)
 
 def get_target_point(conf):
+    # TODO: use full body aabb
+    robot = conf.body
+    link = link_from_name(robot, 'torso_lift_link')
     # TODO: center of mass instead?
     # TODO: look such that cone bottom touches at bottom
     with BodySaver(conf.body):
         conf.step()
-        center, _ = get_center_extent(conf.body)
+        lower, upper = get_aabb(robot, link)
+        center = np.average([lower, upper], axis=0)
+        #center, _ = get_center_extent(conf.body)
         return center
 
 def get_target_path(trajectory):
@@ -120,7 +125,8 @@ def inspect_trajectory(trajectory):
 
 def move_look_trajectory(trajectory):
     # TODO: pr2 movement restrictions
-    base_path = [pose.to_base_conf() for pose in trajectory.path]
+    #base_path = [pose.to_base_conf() for pose in trajectory.path]
+    base_path = trajectory.path
     if not base_path:
         return trajectory
     robot = base_path[0].body
@@ -128,7 +134,7 @@ def move_look_trajectory(trajectory):
     waypoints = []
     index = 0
     with BodySaver(robot):
-        current_conf = base_values_from_pose(get_pose(robot))
+        #current_conf = base_values_from_pose(get_pose(robot))
         for i, conf in enumerate(base_path): # TODO: just do two loops?
             conf.step()
             while index < len(target_path):
@@ -136,24 +142,23 @@ def move_look_trajectory(trajectory):
                     # Don't look at past or current conf
                     target_point = target_path[index]
                     head_conf = inverse_visibility(robot, target_point)
+                    #print(index, target_point, head_conf)
                     if head_conf is not None:
                         break
                 index += 1
             else:
                 head_conf = get_group_conf(robot, 'head')
-            #print(conf.values, head_conf)
+            #print(i, index, conf.values, head_conf) #, get_pose(robot))
             waypoints.append(np.concatenate([conf.values, head_conf]))
-        #joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
-        joints = get_group_joints(robot, 'base') + get_group_joints(robot, 'head')
-        set_pose(robot, unit_pose())
-        set_group_conf(robot, 'base', current_conf)
-        path = plan_waypoints_joint_motion(robot, joints, waypoints,
-                                           obstacles=None, self_collisions=False)
-    new_traj = create_trajectory(robot, joints, path)
+    joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
+    #joints = get_group_joints(robot, 'base') + get_group_joints(robot, 'head')
+    #set_pose(robot, unit_pose())
+    #set_group_conf(robot, 'base', current_conf)
+    path = plan_waypoints_joint_motion(robot, joints, waypoints,
+                                       obstacles=None, self_collisions=False)
+    return create_trajectory(robot, joints, path)
     #Pose(robot, pose_from_base_values(q, bq1.value))
     #new_traj.path.append(Pose(...))
-    # TODO: need to convert add Pose commands for the switch from joints to pose...
-    raise NotImplementedError()
 
 #######################################################
 
