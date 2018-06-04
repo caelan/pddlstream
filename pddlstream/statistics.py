@@ -53,6 +53,7 @@ def load_stream_statistics(stream_name, externals):
 
 
 def write_stream_statistics(stream_name, externals, verbose):
+    # TODO: change file based on python2 vs python3
     if not externals:
         return
     if verbose:

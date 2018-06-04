@@ -3,15 +3,15 @@ from __future__ import print_function
 import numpy as np
 
 from examples.discrete_belief.dist import DDist
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Grasp, Trajectory, create_trajectory, Attach, Detach
-from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
-    PR2_GROUPS, visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, get_viewcone, \
-    MAX_KINECT_DISTANCE, plan_scan_path, plan_pause_scan_path, get_group_joints, get_group_conf, set_group_conf
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory, \
+    create_trajectory, Attach, Detach, get_target_path
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
+from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
+    visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, get_viewcone, \
+    MAX_KINECT_DISTANCE, plan_scan_path, get_group_joints, get_group_conf, set_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
-    wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, joints_from_names, \
-    point_from_pose, set_base_values, plan_waypoints_joint_motion, base_values_from_pose, get_joint_positions, \
-    pairwise_collision, get_pose, plan_direct_joint_motion, BodySaver, get_center_extent, set_joint_positions, get_aabb
+    wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
+    plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, INF
 
 
 def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
@@ -83,32 +83,12 @@ def plan_head_traj(robot, head_conf):
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
 
-def get_target_point(conf):
-    # TODO: use full body aabb
-    robot = conf.body
-    link = link_from_name(robot, 'torso_lift_link')
-    # TODO: center of mass instead?
-    # TODO: look such that cone bottom touches at bottom
-    with BodySaver(conf.body):
-        conf.step()
-        lower, upper = get_aabb(robot, link)
-        center = np.average([lower, upper], axis=0)
-        #center, _ = get_center_extent(conf.body)
-        return center
-
-def get_target_path(trajectory):
-    # TODO: only do bounding boxes for moving links on the trajectory
-    target_path = []
-    for conf in trajectory.path:
-        # TODO: could draw the target point path sequence
-        target_path.append(get_target_point(conf))
-    return target_path
-
 def inspect_trajectory(trajectory):
     if not trajectory.path:
         return
     robot = trajectory.path[0].body
     # TODO: minimum distance of some sort (to prevent from looking at the bottom)
+    # TODO: custom lower limit as well
     head_waypoints = []
     for target_point in get_target_path(trajectory):
         head_conf = inverse_visibility(robot, target_point)
@@ -123,7 +103,8 @@ def inspect_trajectory(trajectory):
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
 
-def move_look_trajectory(trajectory):
+def move_look_trajectory(trajectory, max_tilt=np.pi / 6):  # max_tilt=INF):
+    # TODO: implement a minimum distance instead of max_tilt
     # TODO: pr2 movement restrictions
     #base_path = [pose.to_base_conf() for pose in trajectory.path]
     base_path = trajectory.path
@@ -143,11 +124,12 @@ def move_look_trajectory(trajectory):
                     target_point = target_path[index]
                     head_conf = inverse_visibility(robot, target_point)
                     #print(index, target_point, head_conf)
-                    if head_conf is not None:
+                    if (head_conf is not None) and (head_conf[1] < max_tilt):
                         break
                 index += 1
             else:
                 head_conf = get_group_conf(robot, 'head')
+            set_group_conf(robot, 'head', head_conf)
             #print(i, index, conf.values, head_conf) #, get_pose(robot))
             waypoints.append(np.concatenate([conf.values, head_conf]))
     joints = tuple(base_path[0].joints) + tuple(get_group_joints(robot, 'head'))
