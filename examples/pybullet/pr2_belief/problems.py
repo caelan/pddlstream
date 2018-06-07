@@ -59,7 +59,7 @@ class BeliefState(State):
         items = []
         for b in sorted(self.b_on.keys()):
             d = self.b_on[b]
-            support_items = ['{}: {:.2f}'.format(s, d.prob(s)) for s in sorted(d.support())]
+            support_items = ['{}: {:.2f}'.format(s, d.prob(s)) for s in sorted(d.support(), key=lambda s: str(s))]
             items.append('{}: {{{}}}'.format(b, ', '.join(support_items)))
         return '{}({},{})'.format(self.__class__.__name__,
                                   #self.b_on,

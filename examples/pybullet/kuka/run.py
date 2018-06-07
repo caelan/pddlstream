@@ -2,11 +2,6 @@
 
 from __future__ import print_function
 
-try:
-    import pybullet as p
-except ImportError:
-    raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
-
 import cProfile
 import pstats
 
@@ -14,7 +9,7 @@ from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, Bod
     get_holding_motion_gen, get_movable_collision_test
 from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, Point, set_default_camera, stable_z, \
     BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
-    disconnect, DRAKE_IIWA_URDF, get_bodies, user_input
+    disconnect, DRAKE_IIWA_URDF, get_bodies, user_input, HideOutput
 
 from pddlstream.focused import solve_focused
 from pddlstream.stream import from_fn, from_gen_fn, empty_gen
@@ -181,7 +176,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         return
 
     if (not display) or (plan is None):
-        p.disconnect()
+        disconnect()
         return
 
     paths = []
@@ -197,7 +192,8 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         disconnect()
         connect(use_gui=True)
         load_world()
-    saved_world.restore()
+    else:
+        saved_world.restore()
 
     user_input('Execute?')
     if simulate:

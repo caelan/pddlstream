@@ -2,20 +2,15 @@
 
 from __future__ import print_function
 
-try:
-    import pybullet as p
-except ImportError:
-    raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
-
 import cProfile
 import pstats
 
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, Pose, is_placement, \
-    disconnect, user_input, get_joint_positions, enable_gravity
+    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
-from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES
+from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cooking_problem
 
 from pddlstream.focused import solve_focused
@@ -59,7 +54,8 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
-    initial_bq = Pose(robot, get_pose(robot))
+    #initial_bq = Pose(robot, get_pose(robot))
+    initial_bq = Conf(robot, get_group_joints(robot, 'base'), get_group_conf(robot, 'base'))
     init = [
         ('CanMove',),
         ('BConf', initial_bq),
@@ -160,8 +156,9 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     problem_fn = cooking_problem
     # holding_problem | stacking_problem | cleaning_problem | cooking_problem
     # cleaning_button_problem | cooking_button_problem
-    problem = problem_fn()
-    state_id = p.saveState()
+    with HideOutput():
+        problem = problem_fn()
+    state_id = save_state()
     #saved_world = WorldSaver()
     dump_world()
 
@@ -187,17 +184,18 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     if plan is None:
         return
     if (not display) or (plan is None):
-        p.disconnect()
+        disconnect()
         return
 
+    commands = post_process(problem, plan)
     if viewer:
-        p.restoreState(state_id)
+        restore_state(state_id)
     else:
         disconnect()
         connect(use_gui=True)
-        problem = problem_fn()  # TODO: way of doing this without reloading?
+        with HideOutput():
+            problem = problem_fn()  # TODO: way of doing this without reloading?
 
-    commands = post_process(problem, plan)
     if simulate:
         enable_gravity()
         control_commands(commands)
