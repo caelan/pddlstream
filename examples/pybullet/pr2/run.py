@@ -160,7 +160,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         problem = problem_fn()
     state_id = save_state()
     #saved_world = WorldSaver()
-    dump_world()
+    #dump_world()
 
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem

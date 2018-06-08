@@ -11,12 +11,14 @@
     :outputs (?g)
     :certified (Grasp ?o ?g)
   )
+  ; TODO: only set (BConf ?q1) on the final step for movements
+
   (:stream inverse-kinematics
     :inputs (?a ?o ?p ?g)
     :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g));  (Observable ?p))
-    :outputs (?q ?t)
-    :certified (and (BConf ?q) (Traj ?a ?t)
-                    (Kin ?a ?o ?p ?g ?q ?t))
+    :outputs (?bq ?t)
+    :certified (and (BConf ?bq) (Traj ?a ?t) (ScanRange ?o ?p ?bq) ; (LookRange ?o ?p ?bq)
+                    (Kin ?a ?o ?p ?g ?bq ?t))
   )
   (:stream plan-base-motion
     :inputs (?q1 ?q2)
@@ -29,14 +31,14 @@
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
     :outputs (?bq ?hq)
-    :certified (and (BConf ?bq) (Conf head ?hq)
+    :certified (and (BConf ?bq) (Conf head ?hq) (LookRange ?o ?p ?bq)
                     (Vis ?o ?p ?bq ?hq))
   )
   (:stream plan-scan
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
     :outputs (?bq ?hq ?ht)
-    :certified (and (BConf ?bq) (Conf head ?hq) (Traj head ?ht)
+    :certified (and (BConf ?bq) (Conf head ?hq) (Traj head ?ht) (ScanRange ?o ?p ?bq)
                     (Scan ?o ?p ?bq ?hq ?ht))
   )
 )

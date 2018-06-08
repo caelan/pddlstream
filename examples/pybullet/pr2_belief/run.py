@@ -141,11 +141,11 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             # TODO: look at the trajectory (endpoint or path) to ensure fine
             # TODO: I should probably move base and keep looking at the path
             # TODO: I could keep updating the head goal as the base moves along the path
-            #new_commands = []
-            #if look_move:
-            #    new_commands.append(inspect_trajectory(t))
-            #new_commands.append(t)
-            new_commands = [move_look_trajectory(t)]
+            if look_move:
+                new_commands = [move_look_trajectory(t)]
+                #new_commands = [inspect_trajectory(t), t]
+            else:
+                new_commands = [t]
             if replan_base:
                 uncertain_base = True
         elif name == 'pick':

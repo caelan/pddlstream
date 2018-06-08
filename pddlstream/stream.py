@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict, namedtuple, Sequence, Iterator
+from collections import Counter, defaultdict, namedtuple, Sequence, Iterator, deque
 from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
@@ -24,16 +24,32 @@ class BoundedGenerator(Iterator):
         return next(self.generator)
     __next__ = next
 
+def get_next(generator):
+    new_values = []
+    enumerated = False
+    try:
+        new_values = next(generator)
+    except StopIteration:
+        enumerated = True
+    if isinstance(generator, BoundedGenerator):
+        enumerated |= generator.enumerated
+    return new_values, enumerated
+
 ##################################################
 
 def from_list_gen_fn(list_gen_fn):
     return list_gen_fn
-    #return lambda *args: ListGenerator(list_gen_fn(*args))
-
 
 def from_gen_fn(gen_fn):
     return from_list_gen_fn(lambda *args: ([] if output_values is None else [output_values]
                                            for output_values in gen_fn(*args)))
+
+def from_sampler(sampler, max_attempts=INF):
+    def gen_fn(*input_values):
+        attempts = count()
+        while next(attempts) < max_attempts:
+            yield sampler(*input_values)
+    return from_gen_fn(gen_fn)
 
 ##################################################
 
@@ -60,6 +76,54 @@ def fn_from_constant(constant):
 
 def empty_gen():
     return lambda *args: iter([])
+
+##################################################
+
+def accelerate_gen_fn(gen_fn, num_elements=1, max_attempts=1, max_time=INF):
+    def list_gen_fn(*inputs):
+        generator = gen_fn(*inputs)
+        terminated = False
+        while terminated:
+            elements = []
+            for i in range(max_attempts):
+                if terminated or (num_elements <= len(elements)):
+                    break
+                outputs, terminated = get_next(generator)
+                if outputs is not None:
+                    elements.append(elements)
+            yield elements
+    return list_gen_fn
+
+##################################################
+
+Composed = namedtuple('Composed', ['outputs', 'step', 'generator'])
+
+def compose_gen_fns(gen_fns):
+    assert gen_fns
+    # Assumes consistent ordering of inputs/outputs
+    # Samplers are a special case where only the first needs to be a generator
+    # TODO: info about what to compose
+    # TODO: alternatively, make a new stream that composes
+    def gen_fn(*input_values):
+        queue = deque([Composed([], 0, gen_fns[0](*input_values))])
+        while queue:
+            composed = queue.popleft()
+            if len(gen_fns) <= composed.step:
+                yield composed.outputs
+            else:
+                new_outputs_list, terminated = get_next(composed.generator)
+                for new_outputs in new_outputs_list:
+                    outputs = composed.outputs + new_outputs
+                    if composed.step == (len(gen_fns) - 1):
+                        yield outputs
+                    else:
+                        next_step = composed.step + 1
+                        gen = gen_fns[next_step](*(input_values + composed.output_values))
+                        queue.append(Composed(outputs, next_step, gen))
+                # TODO: if None...
+                if not terminated:
+                    queue.append(composed)
+    return gen_fn
 
 ##################################################
 
@@ -164,13 +228,7 @@ class StreamInstance(Instance):
     def _next_outputs(self):
         if self._generator is None:
             self._generator = self.external.gen_fn(*self.get_input_values())
-        new_values = []
-        try:
-            new_values = next(self._generator)
-        except StopIteration:
-            self.enumerated = True
-        if isinstance(self._generator, BoundedGenerator):
-            self.enumerated = self._generator.enumerated
+        new_values, self.enumerated = get_next(self._generator)
         return new_values
     def next_results(self, verbose=False):
         start_time = time.time()
