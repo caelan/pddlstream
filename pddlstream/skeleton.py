@@ -37,6 +37,43 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None):
 
 ##################################################
 
+def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_evaluations, immediate=False):
+    # TODO: combination for domain predicates
+    evaluation_set = set(evaluations)
+    opt_instances = []
+    input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
+    for combo in product(*input_objects):
+        mapping = dict(zip(stream_instance.input_objects, combo))
+        domain = set(map(evaluation_from_fact, substitute_expression(
+            stream_instance.get_domain(), mapping))) # TODO: could just instantiate first
+        if domain <= opt_evaluations:
+            instance = stream_instance.external.get_instance(combo)
+            if (instance.opt_index != 0) and (not immediate or (domain <= evaluation_set)):
+                instance.opt_index -= 1
+            opt_instances.append(instance)
+    return opt_instances
+
+def optimistic_process_stream_plan(evaluations, stream_plan):
+    # TODO: can also use the instantiator and operate directly on the outputs
+    # TODO: could bind by just using new_evaluations
+    evaluations = set(evaluations)
+    opt_evaluations = set(evaluations)
+    opt_bindings = defaultdict(list)
+    opt_results = []
+    for opt_result in stream_plan:
+        # TODO: could just do first step
+        for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings, evaluations, opt_evaluations):
+            results = instance.next_optimistic()
+            opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
+            opt_results += results
+            for result in results:
+                if isinstance(result, StreamResult): # Could not add if same value
+                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                        opt_bindings[opt].append(obj)
+    return opt_results, opt_bindings
+
+##################################################
+
 # TODO: can either entirely replace arguments on plan or just pass bindings
 # TODO: handle this in a partially ordered way
 # TODO: no point not doing all at once if unique
@@ -91,43 +128,6 @@ def process_stream_plan(key, skeleton, queue, accelerate=1):
         queue.add_skeleton(bindings, new_stream_plan, action_plan, cost)
     if not instance.enumerated:
         queue.increment_skeleton(key, skeleton)
-
-##################################################
-
-def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_evaluations, immediate=False):
-    # TODO: combination for domain predicates
-    evaluation_set = set(evaluations)
-    opt_instances = []
-    input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
-    for combo in product(*input_objects):
-        mapping = dict(zip(stream_instance.input_objects, combo))
-        domain = set(map(evaluation_from_fact, substitute_expression(
-            stream_instance.get_domain(), mapping))) # TODO: could just instantiate first
-        if domain <= opt_evaluations:
-            instance = stream_instance.external.get_instance(combo)
-            if (instance.opt_index != 0) and (not immediate or (domain <= evaluation_set)):
-                instance.opt_index -= 1
-            opt_instances.append(instance)
-    return opt_instances
-
-def optimistic_process_stream_plan(evaluations, stream_plan):
-    # TODO: can also use the instantiator and operate directly on the outputs
-    # TODO: could bind by just using new_evaluations
-    evaluations = set(evaluations)
-    opt_evaluations = set(evaluations)
-    opt_bindings = defaultdict(list)
-    opt_results = []
-    for opt_result in stream_plan:
-        # TODO: could just do first step
-        for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings, evaluations, opt_evaluations):
-            results = instance.next_optimistic()
-            opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
-            opt_results += results
-            for result in results:
-                if isinstance(result, StreamResult): # Could not add if same value
-                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
-                        opt_bindings[opt].append(obj)
-    return opt_results, opt_bindings
 
 ##################################################
 
