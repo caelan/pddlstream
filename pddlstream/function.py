@@ -1,10 +1,11 @@
+import time
 from collections import Counter
 
 from pddlstream.conversion import values_from_objects, substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, is_parameter, str_from_head
-from pddlstream.utils import str_from_tuple, INF
 from pddlstream.object import Object
-import time
+from pddlstream.statistics import Performance, geometric_cost
+from pddlstream.utils import str_from_tuple
 
 DEBUG = 'debug'
 
@@ -14,58 +15,11 @@ class ExternalInfo(object):
         self.p_success = p_success
         self.overhead = overhead
 
-def geometric_cost(cost, p):
-    if p == 0:
-        return INF
-    return cost/p
-
 class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None):
         super(FunctionInfo, self).__init__(eager, p_success, overhead)
         self.opt_fn = opt_fn
         #self.order = 0
-
-##################################################
-
-class Performance(object):
-    def __init__(self, name, info):
-        self.name = name.lower()
-        self.info = info
-        self.total_calls = 0
-        self.total_overhead = 0
-        self.total_successes = 0
-
-    def update_statistics(self, overhead, success):
-        self.total_calls += 1
-        self.total_overhead += overhead
-        self.total_successes += success
-
-    def _estimate_p_success(self, reg_p_success=1, reg_calls=1):
-        calls = self.total_calls + reg_calls
-        if calls == 0:
-            return reg_p_success
-        # TODO: use prior from info instead?
-        return float(self.total_successes + reg_p_success*reg_calls) / calls
-
-    def _estimate_overhead(self, reg_overhead=0, reg_calls=1):
-        calls = self.total_calls + reg_calls
-        if calls == 0:
-            return reg_overhead
-        # TODO: use prior from info instead?
-        return float(self.total_overhead + reg_overhead*reg_calls) / calls
-
-    def get_p_success(self):
-        if self.info.p_success is None:
-            return self._estimate_p_success()
-        return self.info.p_success
-
-    def get_overhead(self):
-        if self.info.overhead is None:
-            return self._estimate_overhead()
-        return self.info.overhead
-
-    def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
 
 ##################################################
 
@@ -86,8 +40,8 @@ class Instance(object):
         self.disabled = False
         self.opt_index = 0
         self.total_calls = 0
-        self.total_overhead = 0
-        self.total_successes = 0
+        #self.total_overhead = 0
+        #self.total_successes = 0
         self.results_history = []
         self.mapping = dict(zip(self.external.inputs, self.input_objects))
         for constant in self.external.constants:
@@ -98,8 +52,8 @@ class Instance(object):
         overhead = time.time() - start_time
         success = len(results) != 0
         self.total_calls += 1
-        self.total_overhead += overhead
-        self.total_successes += success
+        #self.total_overhead += overhead
+        #self.total_successes += success
         self.external.update_statistics(overhead, success)
         self.results_history.append(results)
         # TODO: update the global as well
@@ -109,6 +63,21 @@ class Instance(object):
         # TODO: use the external as a prior
         # TODO: Bayesian estimation of likelihood that has result
         # Model hidden state of whether has values or if will produce values?
+        # TODO: direct estimation of different buckets in which it will finish
+        # TODO: we have samples from the CDF or something
+
+    def update_belief(self, success):
+        # Belief that remaining sequence is non-empty
+        # Belief only degrades in this case
+        nonempty = 0.9
+        p_success_nonempty = 0.5
+        if success:
+            p_success = p_success_nonempty*nonempty
+        else:
+            p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
+
+
+
 
     def get_overhead(self):
         return self.external.get_overhead()
@@ -125,7 +94,7 @@ class Instance(object):
     def get_domain(self):
         return self.domain
 
-    def next_results(self, verbose=False):
+    def next_results(self, accelerate=1, verbose=False):
         raise NotImplementedError()
 
 class External(Performance):
@@ -175,7 +144,7 @@ class FunctionInstance(Instance):  # Head(Instance):
     def get_head(self):
         return substitute_expression(self.external.head, self.get_mapping())
 
-    def next_results(self, verbose=False):
+    def next_results(self, accelerate=1, verbose=False):
         start_time = time.time()
         assert not self.enumerated
         self.enumerated = True

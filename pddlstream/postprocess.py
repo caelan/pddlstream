@@ -5,7 +5,7 @@ import time
 from pddlstream.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.downward import task_from_domain_problem, get_problem, fact_from_fd
 from pddlstream.synthesizer import SynthStreamResult, get_synthetic_stream_plan
-from pddlstream.skeleton import optimistic_process_streams, greedily_process_queue, SkeletonKey, Skeleton, instantiate_first
+from pddlstream.skeleton import optimistic_process_streams, SkeletonKey, Skeleton, SkeletonQueue, instantiate_first
 from pddlstream.reorder import get_action_instances, replace_derived, topological_sort, reorder_stream_plan
 from pddlstream.scheduling.relaxed import get_goal_instance, plan_preimage, recover_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
@@ -82,10 +82,9 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     store.max_cost = store.best_cost
     #sampling_time = 10
     sampling_time = 0
-    queue = []
-    heappush(queue, (SkeletonKey(0, len(stream_plan)),
-                     Skeleton(instantiate_first({}, stream_plan), 0, {}, stream_plan, opt_action_plan, opt_cost)))
-    greedily_process_queue(queue, evaluations, store, sampling_time)
+    queue = SkeletonQueue(evaluations, store)
+    queue.new_skeleton(stream_plan, opt_action_plan, opt_cost)
+    queue.greedily_process(sampling_time)
     # TODO: compare solution cost and validity?
     # TODO: select which binding
     # TODO: repeatedly do this

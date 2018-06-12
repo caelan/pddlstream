@@ -15,7 +15,7 @@ from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluat
 from pddlstream.statistics import get_action_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.skeleton import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
-    Skeleton, SkeletonKey, greedily_process_queue, fairly_process_queue, get_stream_plan_index
+    Skeleton, SkeletonKey, SkeletonQueue, get_stream_plan_index
 from pddlstream.utils import INF, HeapElement
 from pddlstream.visualization import clear_visualizations, create_visualizations
 from pddlstream.incremental import layered_process_stream_queue
@@ -119,7 +119,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         clear_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
-    queue = []
+    queue = SkeletonQueue(store, evaluations)
     # TODO: switch to searching if believe chance of search better than sampling
     while not store.is_terminated():
         num_iterations += 1
@@ -145,15 +145,14 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
         if stream_plan is None:
             if queue:
-                 fairly_process_queue(queue, evaluations, store)
+                queue.fairly_process()
             else:
                 break
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
-            heappush(queue, HeapElement(SkeletonKey(0, len(stream_plan)),
-                             Skeleton(instantiate_first({}, stream_plan), 0, {}, stream_plan, action_plan, cost)))
-            greedily_process_queue(queue, evaluations, store, sampling_time)
+            queue.new_skeleton(stream_plan, action_plan, cost)
+            queue.greedily_process(sampling_time)
 
     if postprocess and (not unit_costs):
         locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)

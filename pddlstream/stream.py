@@ -6,7 +6,7 @@ from pddlstream.downward import parse_lisp
 from pddlstream.function import Result, Instance, External, ExternalInfo, parse_function, \
     parse_predicate, DEBUG
 from pddlstream.object import Object, OptimisticObject
-from pddlstream.utils import str_from_tuple, INF
+from pddlstream.utils import str_from_tuple, INF, elapsed_time
 import time
 
 class BoundedGenerator(Iterator):
@@ -79,50 +79,48 @@ def empty_gen():
 
 ##################################################
 
-def accelerate_gen_fn(gen_fn, num_elements=1, max_attempts=1, max_time=INF):
-    def list_gen_fn(*inputs):
-        generator = gen_fn(*inputs)
+def accelerate_list_gen_fn(list_gen_fn, num_elements=1, max_attempts=1, max_time=INF):
+    def new_list_gen_fn(*inputs):
+        generator = list_gen_fn(*inputs)
         terminated = False
         while terminated:
+            start_time = time.time()
             elements = []
             for i in range(max_attempts):
-                if terminated or (num_elements <= len(elements)):
+                if terminated or (num_elements <= len(elements)) or (max_time <= elapsed_time(start_time)):
                     break
-                outputs, terminated = get_next(generator)
-                if outputs is not None:
-                    elements.append(elements)
+                new_elements, terminated = get_next(generator)
+                elements.extend(elements)
             yield elements
-    return list_gen_fn
+    return new_list_gen_fn
 
 ##################################################
 
 Composed = namedtuple('Composed', ['outputs', 'step', 'generator'])
 
-def compose_gen_fns(gen_fns):
+def compose_gen_fns(*gen_fns):
     assert gen_fns
     # Assumes consistent ordering of inputs/outputs
     # Samplers are a special case where only the first needs to be a generator
-    # TODO: info about what to compose
-    # TODO: alternatively, make a new stream that composes
-    def gen_fn(*input_values):
-        queue = deque([Composed([], 0, gen_fns[0](*input_values))])
+    # TODO: specify info about what to compose
+    # TODO: alternatively, make a new stream that composes several
+    def gen_fn(*inputs):
+        queue = deque([Composed([], 0, gen_fns[0](*inputs))])
         while queue:
             composed = queue.popleft()
-            if len(gen_fns) <= composed.step:
-                yield composed.outputs
-            else:
-                new_outputs_list, terminated = get_next(composed.generator)
-                for new_outputs in new_outputs_list:
-                    outputs = composed.outputs + new_outputs
-                    if composed.step == (len(gen_fns) - 1):
-                        yield outputs
-                    else:
-                        next_step = composed.step + 1
-                        gen = gen_fns[next_step](*(input_values + composed.output_values))
-                        queue.append(Composed(outputs, next_step, gen))
-                # TODO: if None...
-                if not terminated:
-                    queue.append(composed)
+            new_outputs_list, terminated = get_next(composed.generator)
+            for new_outputs in new_outputs_list:
+                outputs = composed.outputs + new_outputs
+                if composed.step == (len(gen_fns) - 1):
+                    yield outputs
+                else:
+                    next_step = composed.step + 1
+                    generator = gen_fns[next_step](*(inputs + composed.output_values))
+                    queue.append(Composed(outputs, next_step, generator))
+            if not new_outputs_list:
+                yield None
+            if not terminated:
+                queue.append(composed)
     return gen_fn
 
 ##################################################
@@ -230,20 +228,25 @@ class StreamInstance(Instance):
             self._generator = self.external.gen_fn(*self.get_input_values())
         new_values, self.enumerated = get_next(self._generator)
         return new_values
-    def next_results(self, verbose=False):
-        start_time = time.time()
-        assert not self.enumerated
-        new_values = self._next_outputs()
+    def next_results(self, accelerate=1, verbose=False):
+        all_new_values = []
+        all_results = []
+        start_calls = self.total_calls
+        for attempt in range(accelerate):
+            if all_results or self.enumerated:
+                break
+            start_time = time.time()
+            new_values = self._next_outputs()
+            self._check_output_values(new_values)
+            results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
+            all_new_values.extend(new_values)
+            all_results.extend(results)
+            self.update_statistics(start_time, results)
         if verbose:
-            print('{}:{}->[{}]'.format(self.external.name, str_from_tuple(self.get_input_values()),
-                                       ', '.join(map(str_from_tuple, new_values))))
-        self._check_output_values(new_values)
-        results = []
-        for output_values in new_values:
-            output_objects = tuple(map(Object.from_value, output_values))
-            results.append(self.external._Result(self, output_objects))
-        self.update_statistics(start_time, results)
-        return results
+            print('{}-{}) {}:{}->[{}]'.format(start_calls, self.total_calls, self.external.name,
+                                           str_from_tuple(self.get_input_values()),
+                                       ', '.join(map(str_from_tuple, all_new_values))))
+        return all_results
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []

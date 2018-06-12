@@ -1,5 +1,5 @@
 import time
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
@@ -42,10 +42,6 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None):
 # TODO: no point not doing all at once if unique
 # TODO: alternatively store just preimage and reachieve
 
-SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
-Skeleton = namedtuple('Skeleton', ['instance', 'num_processed', 'bindings',
-                                   'stream_plan', 'action_plan', 'cost'])
-
 def instantiate_first(bindings, stream_plan):
     if not stream_plan:
         return None
@@ -55,30 +51,28 @@ def instantiate_first(bindings, stream_plan):
     instance.disabled = True
     return instance
 
-def bind_plan(bindings, plan):
-    return [(name, tuple(bindings.get(o, o) for o in args)) for name, args in plan]
-
-def proccess_stream_plan(key, sampling_problem, queue, evaluations, store):
-    instance, num_processed, bindings, stream_plan, action_plan, cost = sampling_problem
+def process_stream_plan(key, skeleton, queue, accelerate=1):
+    instance, num_processed, bindings, stream_plan, action_plan, cost = skeleton
     if not stream_plan:
-        store.add_plan(bind_plan(bindings, action_plan), cost)
+        bound_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
+        queue.store.add_plan(bound_plan, cost)
         return
-    if store.best_cost <= cost:
+    if queue.store.best_cost <= cost:
         instance.disabled = False # TODO: only disable if not used elsewhere
         # TODO: could just hash instances
         return
     opt_result = stream_plan[0] # TODO: could do several at once but no real point
-    assert(not any(evaluation_from_fact(f) not in evaluations for f in instance.get_domain()))
+    assert(not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
     # TODO: hash combinations to prevent repeats
 
     results = []
     for i in range(num_processed, len(instance.results_history)):
         results.extend(instance.results_history[i])
-    if not results and not instance.enumerated:
-        #print(key.attempts, key.length)
-        results = instance.next_results(verbose=store.verbose)
+    #accelerate = 25 # TODO: can compute this policy using the initial prior
+    # TODO: need to apply this to plan skeletons
+    results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
     for result in results:
-        add_certified(evaluations, result)
+        add_certified(queue.evaluations, result)
         if (type(result) is PredicateResult) and (opt_result.value != result.value):
             continue # TODO: check if satisfies target certified
         new_bindings = bindings.copy()
@@ -90,47 +84,13 @@ def proccess_stream_plan(key, sampling_problem, queue, evaluations, store):
         new_cost = cost
         if type(result) is FunctionResult:
             new_cost += (result.value - opt_result.value)
-        new_key = SkeletonKey(0, len(new_stream_plan))
-        new_skeleton = Skeleton(instantiate_first(new_bindings, new_stream_plan), 0,
-                                new_bindings, new_stream_plan, action_plan, new_cost)
-        heappush(queue, HeapElement(new_key, new_skeleton))
+        queue.add_skeleton(new_bindings, new_stream_plan, action_plan, new_cost)
 
     if (key.attempts == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
         new_stream_plan = opt_result.decompose() + stream_plan[1:]
-        new_key = SkeletonKey(0, len(new_stream_plan))
-        new_skeleton = Skeleton(instantiate_first(bindings, new_stream_plan), 0,
-                                bindings, new_stream_plan, action_plan, cost)
-        heappush(queue, HeapElement(new_key, new_skeleton))
+        queue.add_skeleton(bindings, new_stream_plan, action_plan, cost)
     if not instance.enumerated:
-        new_key = SkeletonKey(key.attempts + 1, len(stream_plan)) # TODO: compute expected sampling effort required
-        new_skeleton = Skeleton(instance, len(instance.results_history),
-                               bindings, stream_plan, action_plan, cost)
-        heappush(queue, HeapElement(new_key, new_skeleton))
-
-##################################################
-
-def greedily_process_queue(queue, evaluations, store, max_time):
-    # TODO: search until new disabled or new evaluation?
-    start_time = time.time()
-    while queue and not store.is_terminated():
-        key, skeleton = queue[0]
-        if (key.attempts != 0) and (max_time <= elapsed_time(start_time)):
-            break
-        heappop(queue)
-        proccess_stream_plan(key, skeleton, queue, evaluations, store)
-
-def fairly_process_queue(queue, evaluations, store):
-    # TODO: max queue attempts?
-    old_queue = list(queue)
-    queue[:] = []
-    for key, skeleton in old_queue:
-        if store.is_terminated():
-            break
-        print('Attempts: {} | Length: {}'.format(key.attempts, key.length))
-        proccess_stream_plan(key, skeleton, queue, evaluations, store)
-        if store.is_terminated():
-            break
-        greedily_process_queue(queue, evaluations, store, 0)
+        queue.increment_skeleton(key, skeleton)
 
 ##################################################
 
@@ -168,3 +128,64 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
                     for opt, obj in zip(opt_result.output_objects, result.output_objects):
                         opt_bindings[opt].append(obj)
     return opt_results, opt_bindings
+
+##################################################
+
+# TODO: identify streams that are bottlenecks (i.e. need to sample certainly)
+# TODO: estimate sequence-level events (or gauge success on downstream events)
+# TODO: don't sample from things that are satisfied downstream
+# TODO: want to minimize number of new sequences as they induce overhead
+
+SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
+Skeleton = namedtuple('Skeleton', ['instance', 'num_processed', 'bindings',
+                                   'stream_plan', 'action_plan', 'cost'])
+
+class SkeletonQueue(Sized):
+    def __init__(self, store, evaluations):
+        self.store = store
+        self.evaluations = evaluations
+        self.queue = []
+
+    def add_skeleton(self, bindings, stream_plan, action_plan, cost):
+        key = SkeletonKey(0, len(stream_plan))
+        instance = instantiate_first(bindings, stream_plan)
+        skeleton = Skeleton(instance, 0, bindings, stream_plan, action_plan, cost)
+        heappush(self.queue, HeapElement(key, skeleton))
+
+    def new_skeleton(self, stream_plan, action_plan, cost):
+        self.add_skeleton({}, stream_plan, action_plan, cost)
+
+    def increment_skeleton(self, key, skeleton):
+        # TODO: compute expected sampling effort required
+        instance, num_processed, bindings, stream_plan, action_plan, cost = skeleton
+        new_key = SkeletonKey(key.attempts + 1, len(stream_plan))
+        new_skeleton = Skeleton(instance, len(instance.results_history),
+                               bindings, stream_plan, action_plan, cost)
+        heappush(self.queue, HeapElement(new_key, new_skeleton))
+
+    def greedily_process(self, max_time):
+        # TODO: search until new disabled or new evaluation?
+        start_time = time.time()
+        while self.queue and (not self.store.is_terminated()):
+            key, skeleton = self.queue[0]
+            if (key.attempts != 0) and (max_time <= elapsed_time(start_time)):
+                break
+            heappop(self.queue)
+            process_stream_plan(key, skeleton, self)
+
+    def fairly_process(self):
+        # TODO: max queue attempts?
+        # TODO: use greedily process queue with some boost parameter to focus sampling
+        old_queue = list(self.queue)
+        self.queue[:] = []
+        for key, skeleton in old_queue:
+            if self.store.is_terminated():
+                break
+            #print('Attempts: {} | Length: {}'.format(key.attempts, key.length))
+            process_stream_plan(key, skeleton, self)
+            if self.store.is_terminated():
+                break
+            self.greedily_process(0)
+
+    def __len__(self):
+        return len(self.queue)
