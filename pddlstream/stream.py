@@ -3,8 +3,9 @@ from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
 from pddlstream.downward import parse_lisp
-from pddlstream.function import Result, Instance, External, ExternalInfo, parse_function, \
+from pddlstream.function import parse_function, \
     parse_predicate, DEBUG
+from pddlstream.external import ExternalInfo, Result, Instance, External
 from pddlstream.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple, INF, elapsed_time
 import time
