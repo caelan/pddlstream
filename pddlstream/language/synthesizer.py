@@ -118,6 +118,8 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
 
 ##################################################
 
+# TODO: factor this into algorithms
+
 def get_synthetic_stream_plan(stream_plan, synthesizers):
     if (stream_plan is None) or (not synthesizers):
         return stream_plan
