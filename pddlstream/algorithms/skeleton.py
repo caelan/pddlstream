@@ -6,7 +6,7 @@ from itertools import product
 from pddlstream.algorithms.algorithm import add_certified
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import get_stream_stats
-from pddlstream.conversion import evaluation_from_fact, substitute_expression
+from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
 from pddlstream.language.stream import StreamResult

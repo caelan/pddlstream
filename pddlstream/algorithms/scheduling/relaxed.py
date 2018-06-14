@@ -3,11 +3,10 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     solve_from_task, get_literals, conditions_hold
-from pddlstream.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
+from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
+    get_results_from_head, get_stream_actions
+from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
 from pddlstream.language.function import PredicateResult
-from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
-    get_results_from_head
-from pddlstream.scheduling.simultaneous import get_stream_actions
 from pddlstream.utils import Verbose, MockSet, HeapElement
 
 

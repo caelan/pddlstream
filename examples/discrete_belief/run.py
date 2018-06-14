@@ -12,7 +12,7 @@ from pddlstream.generator import from_fn, from_test
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.conversion import And
+from pddlstream.language.conversion import And
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, read, INF
 

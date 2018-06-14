@@ -8,7 +8,7 @@ import pstats
 from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
 from examples.discrete_belief.run import scale_cost, revisit_mdp_cost
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.conversion import And, Equal
+from pddlstream.language.conversion import And, Equal
 from pddlstream.utils import print_solution, read, get_file_path, INF
 
 ROOM = 'room'

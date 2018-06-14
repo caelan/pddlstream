@@ -6,9 +6,9 @@ import sys
 from collections import namedtuple
 from time import time
 
-from pddlstream.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
+from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir, get_file_path
+from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path
 
 #FD_PATH = os.environ['FD_PATH']
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')

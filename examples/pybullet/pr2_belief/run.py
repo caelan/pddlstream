@@ -13,7 +13,7 @@ import pstats
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn
 from pddlstream.utils import print_solution, read, get_file_path
-from pddlstream.conversion import Equal, Problem, And
+from pddlstream.language.conversion import Equal, Problem, And
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, \
     plan_head_traj, get_scan_gen, get_cone_commands, move_look_trajectory

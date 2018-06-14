@@ -8,16 +8,16 @@ from pddlstream.skeleton import optimistic_process_streams, eagerly_evaluate
 
 from experimental.stream_plan import reset_disabled, process_stream_plan
 from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.algorithms.scheduling import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling import relaxed_stream_plan
+from pddlstream.algorithms.scheduling import simultaneous_stream_plan
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
-from pddlstream.conversion import revert_solution
+from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import update_stream_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 
 

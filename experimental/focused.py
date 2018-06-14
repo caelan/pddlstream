@@ -6,11 +6,11 @@ from pddlstream.skeleton import optimistic_process_stream_queue, eagerly_evaluat
 from experimental.context import ConstraintSolver
 from experimental.stream_plan import reset_disabled, disable_stream_instance
 from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.algorithms.scheduling import sequential_stream_plan
+from pddlstream.algorithms.scheduling import simultaneous_stream_plan
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations, get_optimistic_constraints
-from pddlstream.conversion import evaluation_from_fact, revert_solution
+from pddlstream.language.conversion import evaluation_from_fact, revert_solution
 from pddlstream.language.statistics import update_stream_info
-from pddlstream.scheduling.sequential import sequential_stream_plan
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
 from pddlstream.utils import INF, elapsed_time
 
 

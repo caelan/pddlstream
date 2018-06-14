@@ -5,7 +5,7 @@ from __future__ import print_function
 from pddlstream.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.conversion import Or, Problem
+from pddlstream.language.conversion import Or, Problem
 from pddlstream.utils import print_solution
 
 DOMAIN_PDDL = """

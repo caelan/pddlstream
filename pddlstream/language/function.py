@@ -1,6 +1,6 @@
 import time
 
-from pddlstream.conversion import substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
+from pddlstream.language.conversion import substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, str_from_head
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
 from pddlstream.utils import str_from_tuple

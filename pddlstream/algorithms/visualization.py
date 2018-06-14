@@ -1,7 +1,7 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.conversion import get_args, EQ, get_prefix, fact_from_evaluation
+from pddlstream.language.conversion import get_args, EQ, get_prefix, fact_from_evaluation
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import str_from_tuple, clear_dir

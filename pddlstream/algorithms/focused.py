@@ -5,18 +5,18 @@ from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
+from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
+from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.algorithms.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
     SkeletonQueue, get_stream_plan_index
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
-from pddlstream.conversion import revert_solution
+from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.utils import INF
 
 
