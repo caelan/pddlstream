@@ -6,6 +6,10 @@ from pddlstream.utils import INF, elapsed_time
 
 
 class BoundedGenerator(Iterator):
+    """
+    A generator with a fixed length.
+    The generator tracks its number of calls, allowing it to terminate with one fewer call
+    """
     def __init__(self, generator, max_calls=INF):
         self.generator = generator
         self.max_calls = max_calls
@@ -34,13 +38,15 @@ def get_next(generator):
 
 ##################################################
 
+# Methods that convert some procedure -> function to a generator of lists
+
 def from_list_gen_fn(list_gen_fn):
+    # Purposefully redundant for now
     return list_gen_fn
 
 
 def from_gen_fn(gen_fn):
-    return from_list_gen_fn(lambda *args: ([] if output_values is None else [output_values]
-                                           for output_values in gen_fn(*args)))
+    return from_list_gen_fn(lambda *args: ([] if ov is None else [ov] for ov in gen_fn(*args)))
 
 
 def from_sampler(sampler, max_attempts=INF):
@@ -50,6 +56,9 @@ def from_sampler(sampler, max_attempts=INF):
             yield sampler(*input_values)
     return from_gen_fn(gen_fn)
 
+##################################################
+
+# Methods that convert some procedure -> function to a BoundedGenerator
 
 def from_list_fn(list_fn):
     #return lambda *args: iter([list_fn(*args)])
@@ -67,10 +76,6 @@ def from_test(test):
     return from_fn(lambda *args: tuple() if test(*args) else None)
 
 
-def fn_from_constant(constant):
-    return lambda *args: constant
-
-
 def from_constant(constant):
     return from_fn(fn_from_constant(constant))
 
@@ -80,11 +85,21 @@ def empty_gen():
 
 ##################################################
 
+# Methods that convert some procedure -> function
+
+def fn_from_constant(constant):
+    return lambda *args: constant
+
+##################################################
+
 def accelerate_list_gen_fn(list_gen_fn, num_elements=1, max_attempts=1, max_time=INF):
+    """
+    Accelerates a list_gen_fn by eagerly generating num_elements at a time if possible
+    """
     def new_list_gen_fn(*inputs):
         generator = list_gen_fn(*inputs)
         terminated = False
-        while terminated:
+        while not terminated:
             start_time = time.time()
             elements = []
             for i in range(max_attempts):
