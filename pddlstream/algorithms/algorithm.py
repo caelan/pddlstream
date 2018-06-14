@@ -7,8 +7,8 @@ from pddlstream.conversion import evaluations_from_init, obj_from_value_expressi
     evaluation_from_fact
 from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate
+from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream
-from pddlstream.object import Object
 from pddlstream.utils import elapsed_time, INF
 
 

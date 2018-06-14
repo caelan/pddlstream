@@ -3,7 +3,7 @@ from __future__ import print_function
 import collections
 from collections import namedtuple
 
-from pddlstream.object import Object, OptimisticObject
+from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
 
 EQ = '=' # xnor

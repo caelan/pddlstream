@@ -5,8 +5,8 @@ from pddlstream.algorithms.downward import fd_from_fact, TOTAL_COST
 from pddlstream.conversion import get_prefix, get_args, evaluation_from_fact, \
     is_atom, Evaluation, Head
 from pddlstream.language.generator import from_fn
+from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
-from pddlstream.object import Object
 from pddlstream.utils import int_ceil
 
 

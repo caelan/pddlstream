@@ -184,3 +184,7 @@ class HeapElement(object):
         return self.key < other.key
     def __iter__(self):
         return iter([self.key, self.value])
+
+
+def get_python_version():
+    return sys.version_info[0]

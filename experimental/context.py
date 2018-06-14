@@ -1,5 +1,5 @@
 from pddlstream.conversion import value_from_obj_expression, obj_from_value_expression, values_from_objects
-from pddlstream.object import Object
+from pddlstream.language.object import Object
 
 
 # TODO: other streams?

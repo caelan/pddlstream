@@ -1,42 +1,13 @@
 from __future__ import print_function
 
 import os
-import sys
-from collections import defaultdict
 
-from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle
-
-class ActionInfo(object):
-    def __init__(self, terminal=False, p_success=None, overhead=None):
-        """
-        :param terminal: Indicates the action may require replanning after use
-        """
-        self.terminal = terminal # TODO: infer from p_success?
-        if self.terminal:
-            self.p_success, self.overhead = 1e-3, 0
-        else:
-            self.p_success, self.overhead = 1, INF
-        if p_success is not None:
-            self.p_success = p_success
-        if overhead is not None:
-            self.overhead = overhead
-        # TODO: should overhead just be cost here then?
-
-
-def get_action_info(action_info):
-    action_execution = defaultdict(ActionInfo)
-    for name, info in action_info.items():
-        action_execution[name] = info
-    return action_execution
-
-##################################################
+from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
 DATA_DIR = 'data{:d}/'
 
-def get_python_version():
-    return sys.version_info[0]
 
 def get_data_directory():
     return DATA_DIR.format(get_python_version())

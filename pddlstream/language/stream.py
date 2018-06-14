@@ -2,11 +2,10 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.language.generator import get_next, from_fn
-
 from pddlstream.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
-from pddlstream.object import Object, OptimisticObject
+from pddlstream.language.generator import get_next, from_fn
+from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
 
 
