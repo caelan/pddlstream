@@ -1,6 +1,6 @@
 from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import evaluation_from_fact
-from pddlstream.function import Function
+from pddlstream.language.function import Function
 from pddlstream.utils import INF
 
 

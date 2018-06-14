@@ -4,12 +4,13 @@ from __future__ import print_function
 
 import cProfile
 import pstats
+
 import numpy as np
 
-from pddlstream.incremental import solve_current, solve_exhaustive, solve_incremental
 from pddlstream.focused import solve_focused
+from pddlstream.incremental import solve_incremental
+from pddlstream.language.generator import from_fn
 from pddlstream.utils import print_solution, read, get_file_path
-from pddlstream.generator import from_fn
 
 
 def pddlstream_from_belief():

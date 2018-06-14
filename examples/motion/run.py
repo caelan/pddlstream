@@ -1,16 +1,16 @@
 from __future__ import print_function
 
 import cProfile
-import pstats
-import math
 import os
+import pstats
+
 import numpy as np
 
 from examples.motion.viewer import sample_box, get_distance, is_collision_free, \
-    contains, create_box, draw_solution, draw_roadmap
+    create_box, draw_solution, draw_roadmap
 from pddlstream.incremental import solve_incremental
+from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import read, print_solution, user_input
-from pddlstream.generator import from_gen_fn, from_test
 
 
 def scale_distance(distance):

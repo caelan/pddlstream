@@ -1,11 +1,13 @@
 from collections import deque, Counter
 
-from pddlstream.conversion import substitute_expression, Minimize
-from pddlstream.function import PredicateResult, FunctionResult
-from pddlstream.statistics import Performance
-from pddlstream.reorder import get_partial_orders, topological_sort
+from pddlstream.language.function import PredicateResult, FunctionResult
+
 from pddlstream.algorithm import neighbors_from_orders
-from pddlstream.stream import Stream, StreamInstance, StreamResult, StreamInfo
+from pddlstream.conversion import substitute_expression, Minimize
+from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
+from pddlstream.reorder import get_partial_orders
+from pddlstream.statistics import Performance
+
 
 class SynthStreamResult(StreamResult):
     def decompose(self):

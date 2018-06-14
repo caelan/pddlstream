@@ -1,13 +1,14 @@
 import time
 
 from pddlstream.algorithm import parse_problem, SolutionStore, add_certified
+from pddlstream.algorithm import solve_finite
 from pddlstream.conversion import revert_solution
 from pddlstream.exogenous import compile_to_exogenous
-from pddlstream.function import FunctionInstance
 from pddlstream.instantiation import Instantiator
-from pddlstream.utils import elapsed_time
-from pddlstream.algorithm import solve_finite
+from pddlstream.language.function import FunctionInstance
 from pddlstream.utils import INF
+from pddlstream.utils import elapsed_time
+
 
 def process_stream_queue(instantiator, evaluations, verbose=True):
     stream_instance = instantiator.stream_queue.popleft()

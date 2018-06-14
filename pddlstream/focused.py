@@ -1,24 +1,22 @@
 from __future__ import print_function
 
-from heapq import heappush
-
 from pddlstream.algorithm import parse_problem, SolutionStore, has_costs
-from pddlstream.instantiation import Instantiator
 from pddlstream.conversion import revert_solution
-from pddlstream.function import Function, Predicate
-from pddlstream.synthesizer import get_synthetic_stream_plan
 from pddlstream.exogenous import compile_to_exogenous
+from pddlstream.incremental import layered_process_stream_queue
+from pddlstream.instantiation import Instantiator
+from pddlstream.language.function import Function, Predicate
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
+from pddlstream.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
+    SkeletonQueue, get_stream_plan_index
 from pddlstream.statistics import get_action_info, load_stream_statistics, \
     write_stream_statistics
-from pddlstream.skeleton import optimistic_process_streams, instantiate_first, optimistic_process_stream_plan, \
-    Skeleton, SkeletonKey, SkeletonQueue, get_stream_plan_index
-from pddlstream.utils import INF, HeapElement
+from pddlstream.synthesizer import get_synthetic_stream_plan
+from pddlstream.utils import INF
 from pddlstream.visualization import clear_visualizations, create_visualizations
-from pddlstream.incremental import layered_process_stream_queue
 
 
 # TODO: compute total stream plan p_success and overhead

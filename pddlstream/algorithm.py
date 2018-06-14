@@ -1,15 +1,16 @@
 import time
 from collections import OrderedDict, defaultdict
 
+from pddlstream.language.function import parse_function, parse_predicate
+from pddlstream.language.stream import parse_stream
+
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact
 from pddlstream.downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task, parse_lisp
-from pddlstream.external import External, DEBUG
-from pddlstream.function import parse_function, parse_predicate
+from pddlstream.language.external import External, DEBUG
 from pddlstream.object import Object
-from pddlstream.stream import parse_stream
-from pddlstream.utils import get_length, elapsed_time, INF
+from pddlstream.utils import elapsed_time, INF
 
 
 def parse_constants(domain, constant_map):

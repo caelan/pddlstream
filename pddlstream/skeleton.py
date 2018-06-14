@@ -3,15 +3,17 @@ from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
+from pddlstream.language.function import FunctionResult, PredicateResult
+
 from pddlstream.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
-from pddlstream.function import FunctionResult, PredicateResult
 from pddlstream.instantiation import Instantiator
-from pddlstream.synthesizer import SynthStreamResult
-from pddlstream.stream import StreamResult
+from pddlstream.language.stream import StreamResult
 from pddlstream.reorder import get_stream_stats
 from pddlstream.statistics import geometric_cost
+from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
+
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:

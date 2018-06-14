@@ -5,18 +5,15 @@ from __future__ import print_function
 import cProfile
 import pstats
 
-from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, Pose, is_placement, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
-
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
+    get_stable_gen, \
     get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.pr2_problems import cooking_problem, holding_problem, \
-    stacking_problem, cleaning_problem
-
+from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, \
+    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
 from pddlstream.focused import solve_focused
-from pddlstream.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
-from pddlstream.synthesizer import StreamSynthesizer
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
 

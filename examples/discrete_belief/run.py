@@ -1,21 +1,20 @@
 from __future__ import print_function
 
+import cProfile
+import math
 import os
+import pstats
 from collections import namedtuple
 
-import cProfile
-import pstats
-import math
-
-from pddlstream.conversion import And
-from pddlstream.incremental import solve_incremental
-from pddlstream.focused import solve_focused
-from pddlstream.stream import StreamInfo
-from pddlstream.generator import from_fn, from_test
 from pddlstream.function import FunctionInfo
-from pddlstream.utils import print_solution, read, INF
+from pddlstream.generator import from_fn, from_test
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
+from pddlstream.conversion import And
+from pddlstream.focused import solve_focused
+from pddlstream.incremental import solve_incremental
+from pddlstream.language.stream import StreamInfo
+from pddlstream.utils import print_solution, read, INF
 
 # TODO: would be helpful if I could use <= here
 # TODO: could use fixed threshold or the max of the ones met

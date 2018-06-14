@@ -9,17 +9,18 @@ import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
-    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, \
-    draw_state, get_random_seed, TAMPState
+    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, draw_state, get_random_seed, \
+    TAMPState
+from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
-from pddlstream.generator import from_gen_fn, from_fn, from_test
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
+
 
 #def valid_state_fn(fluents, parameters):
 #    new_fluents = set(fluents)

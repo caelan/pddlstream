@@ -10,12 +10,11 @@ import numpy as np
 
 from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
-from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
-from pddlstream.generator import from_gen_fn, from_fn, from_test
+from pddlstream.incremental import solve_incremental
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
-
 
 # TODO: Can infer domain from usage or from specification
 

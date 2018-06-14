@@ -11,7 +11,7 @@ import cProfile
 import pstats
 
 from pddlstream.focused import solve_focused
-from pddlstream.generator import from_gen_fn, from_list_fn, from_fn
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.conversion import Equal, Problem, And
 

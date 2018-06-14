@@ -7,15 +7,15 @@ import pstats
 
 import numpy as np
 
-from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
-    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, get_tight_problem, draw_state, \
+from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
+    get_tight_problem, draw_state, \
     get_random_seed, TAMPState
+from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
-from pddlstream.generator import from_gen_fn, from_fn, from_test
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 
 R = 'r'
 H = 'h'
