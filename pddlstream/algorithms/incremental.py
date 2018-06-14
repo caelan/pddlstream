@@ -1,10 +1,11 @@
 import time
 
-from pddlstream.algorithm import parse_problem, SolutionStore, add_certified
-from pddlstream.algorithm import solve_finite
+from pddlstream.algorithms.instantiation import Instantiator
+
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_certified
+from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.conversion import revert_solution
 from pddlstream.exogenous import compile_to_exogenous
-from pddlstream.instantiation import Instantiator
 from pddlstream.language.function import FunctionInstance
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time

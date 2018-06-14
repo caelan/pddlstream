@@ -2,9 +2,11 @@
 
 from __future__ import print_function
 
-from pddlstream.downward import solve_from_pddl
-from pddlstream.utils import read, get_length
 import os
+
+from pddlstream.algorithms.downward import solve_from_pddl
+from pddlstream.utils import read, get_length
+
 
 def read_pddl(filename):
     directory = os.path.dirname(os.path.abspath(__file__))

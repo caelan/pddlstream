@@ -11,7 +11,7 @@ from pddlstream.conversion import is_atom, is_negated_atom, objects_from_evaluat
 from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, TmpCWD, clear_dir, get_file_path
 
 #FD_PATH = os.environ['FD_PATH']
-FD_PATH = get_file_path(__file__, '../FastDownward/builds/release32/')
+FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 

@@ -2,11 +2,11 @@
 
 from __future__ import print_function
 
-from pddlstream.downward import solve_from_pddl
-from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
+
+from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.conversion import Or, Problem
 from pddlstream.utils import print_solution
-from pddlstream.conversion import Or, And, Exists, ForAll, Problem
 
 DOMAIN_PDDL = """
 (define (domain debug)

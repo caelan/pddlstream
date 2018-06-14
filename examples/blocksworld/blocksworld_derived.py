@@ -2,10 +2,11 @@
 
 from __future__ import print_function
 
-from pddlstream.incremental import solve_incremental, solve_exhaustive
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.downward import solve_from_pddl
+from pddlstream.algorithms.focused import solve_focused
+
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.utils import print_solution
-from pddlstream.downward import solve_from_pddl
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)

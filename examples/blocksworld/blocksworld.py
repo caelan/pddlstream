@@ -2,11 +2,14 @@
 
 from __future__ import print_function
 
-from pddlstream.downward import solve_from_pddl
-from pddlstream.incremental import solve_incremental, solve_exhaustive
-from pddlstream.focused import solve_focused
-from pddlstream.utils import print_solution, read
 import os
+
+from pddlstream.algorithms.downward import solve_from_pddl
+from pddlstream.algorithms.focused import solve_focused
+
+from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.utils import print_solution, read
+
 
 def read_pddl(filename):
     directory = os.path.dirname(os.path.abspath(__file__))

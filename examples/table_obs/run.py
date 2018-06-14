@@ -5,11 +5,11 @@ from __future__ import print_function
 import cProfile
 import pstats
 
+from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
+from examples.discrete_belief.run import scale_cost, revisit_mdp_cost
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.conversion import And, Equal
-from pddlstream.incremental import solve_incremental
 from pddlstream.utils import print_solution, read, get_file_path, INF
-from examples.discrete_belief.dist import DDist, DeltaDist, MixtureDist, UniformDist
-from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, continue_mdp_cost
 
 ROOM = 'room'
 TABLE = 'table'

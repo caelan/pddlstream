@@ -2,12 +2,12 @@ from collections import defaultdict, deque
 from itertools import product
 
 from pddlstream.function import PredicateResult
+from pddlstream.skeleton import get_stream_plan_index
 
-from pddlstream.algorithm import add_certified
+from pddlstream.algorithms.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
 from pddlstream.object import Object
-from pddlstream.skeleton import get_stream_plan_index
 from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.utils import INF, implies
 

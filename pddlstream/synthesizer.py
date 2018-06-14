@@ -1,11 +1,11 @@
 from collections import deque, Counter
 
-from pddlstream.language.function import PredicateResult, FunctionResult
+from pddlstream.algorithms.reorder import get_partial_orders
 
-from pddlstream.algorithm import neighbors_from_orders
+from pddlstream.algorithms.algorithm import neighbors_from_orders
 from pddlstream.conversion import substitute_expression, Minimize
+from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
-from pddlstream.reorder import get_partial_orders
 from pddlstream.statistics import Performance
 
 

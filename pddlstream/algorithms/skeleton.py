@@ -3,13 +3,13 @@ from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
-from pddlstream.language.function import FunctionResult, PredicateResult
+from pddlstream.algorithms.instantiation import Instantiator
+from pddlstream.algorithms.reorder import get_stream_stats
 
-from pddlstream.algorithm import add_certified
+from pddlstream.algorithms.algorithm import add_certified
 from pddlstream.conversion import evaluation_from_fact, substitute_expression
-from pddlstream.instantiation import Instantiator
+from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.reorder import get_stream_stats
 from pddlstream.statistics import geometric_cost
 from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF

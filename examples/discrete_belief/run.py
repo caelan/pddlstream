@@ -6,13 +6,13 @@ import os
 import pstats
 from collections import namedtuple
 
+from pddlstream.focused import solve_focused
 from pddlstream.function import FunctionInfo
 from pddlstream.generator import from_fn, from_test
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.conversion import And
-from pddlstream.focused import solve_focused
-from pddlstream.incremental import solve_incremental
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, read, INF
 

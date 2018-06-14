@@ -2,16 +2,17 @@ from __future__ import print_function
 
 import time
 
-from experimental.stream_plan import reset_disabled, process_stream_plan
-from pddlstream.algorithm import parse_problem
-from pddlstream.conversion import revert_solution
-from pddlstream.language.function import Function, Predicate
 from pddlstream.postprocess import locally_optimize
 from pddlstream.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
+from pddlstream.skeleton import optimistic_process_streams, eagerly_evaluate
+
+from experimental.stream_plan import reset_disabled, process_stream_plan
+from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.conversion import revert_solution
+from pddlstream.language.function import Function, Predicate
 from pddlstream.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.skeleton import optimistic_process_streams, eagerly_evaluate
 from pddlstream.statistics import get_action_info, update_stream_info, load_stream_statistics, \
     write_stream_statistics
 from pddlstream.synthesizer import get_synthetic_stream_plan

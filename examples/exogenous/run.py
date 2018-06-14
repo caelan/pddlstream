@@ -6,9 +6,9 @@ import cProfile
 import pstats
 
 import numpy as np
-
 from pddlstream.focused import solve_focused
-from pddlstream.incremental import solve_incremental
+
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_fn
 from pddlstream.utils import print_solution, read, get_file_path
 
