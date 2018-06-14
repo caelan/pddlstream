@@ -21,6 +21,19 @@ def get_partial_orders(stream_plan):
                 partial_orders.add((stream1, stream2))
     return partial_orders
 
+# def get_ancestors(stream_result, stream_plan):
+#     orders = get_partial_orders(stream_plan)
+#     incoming_edges, _ = neighbors_from_orders(orders)
+#     ancestors = {stream_result}
+#     queue = deque([stream_result])
+#     while queue:
+#         v1 = queue.popleft()
+#         for v2 in incoming_edges[v1]:
+#             if v2 not in ancestors:
+#                 ancestors.add(v2)
+#                 queue.append(v1)
+#     return ancestors
+
 ##################################################
 
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):

@@ -9,7 +9,9 @@ from pddlstream.function import FunctionResult, PredicateResult
 from pddlstream.instantiation import Instantiator
 from pddlstream.synthesizer import SynthStreamResult
 from pddlstream.stream import StreamResult
-from pddlstream.utils import elapsed_time, HeapElement
+from pddlstream.reorder import get_stream_stats
+from pddlstream.statistics import geometric_cost
+from pddlstream.utils import elapsed_time, HeapElement, INF
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:
@@ -88,9 +90,26 @@ def instantiate_first(bindings, stream_plan):
     instance.disabled = True
     return instance
 
+def instantiate_plan(bindings, stream_plan):
+    new_stream_plan = []
+    for result in stream_plan:
+        input_objects = [bindings.get(i, i) for i in result.instance.input_objects]
+        new_instance = result.instance.external.get_instance(input_objects)
+        new_instance.disabled = True
+        if isinstance(result, StreamResult):
+            new_result = result.__class__(new_instance, result.output_objects, result.opt_index)
+        elif isinstance(result, FunctionResult):
+            new_result = result.__class__(new_instance, result.value, result.opt_index)
+        else:
+            raise ValueError(result)
+            #new_result = result.__class__(new_instance, result.opt_index)
+        new_stream_plan.append(new_result)
+    return new_stream_plan
+
 def process_stream_plan(key, skeleton, queue, accelerate=1):
-    instance, num_processed, bindings, stream_plan, action_plan, cost = skeleton
+    instance, num_processed, bindings, stream_plan, plan_index, cost = skeleton
     if not stream_plan:
+        action_plan = queue.skeleton_plans[plan_index].action_plan
         bound_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
         queue.store.add_plan(bound_plan, cost)
         return
@@ -121,15 +140,25 @@ def process_stream_plan(key, skeleton, queue, accelerate=1):
         new_cost = cost
         if type(result) is FunctionResult:
             new_cost += (result.value - opt_result.value)
-        queue.add_skeleton(new_bindings, new_stream_plan, action_plan, new_cost)
+        queue.add_skeleton(new_bindings, new_stream_plan, plan_index, new_cost)
 
     if (key.attempts == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
         new_stream_plan = opt_result.decompose() + stream_plan[1:]
-        queue.add_skeleton(bindings, new_stream_plan, action_plan, cost)
+        queue.add_skeleton(bindings, new_stream_plan, plan_index, cost)
     if not instance.enumerated:
         queue.increment_skeleton(key, skeleton)
 
 ##################################################
+
+def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
+    # TODO: we are in a POMDP. If not the case, then the geometric cost policy is optimal
+    if stream_plan is None:
+        return INF
+    expected_cost = 0
+    for result in reversed(stream_plan):
+        p_success, overhead = stats_fn(result)
+        expected_cost += geometric_cost(overhead, p_success)
+    return expected_cost
 
 # TODO: identify streams that are bottlenecks (i.e. need to sample certainly)
 # TODO: estimate sequence-level events (or gauge success on downstream events)
@@ -138,27 +167,70 @@ def process_stream_plan(key, skeleton, queue, accelerate=1):
 
 SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
 Skeleton = namedtuple('Skeleton', ['instance', 'num_processed', 'bindings',
-                                   'stream_plan', 'action_plan', 'cost'])
+                                   'stream_plan', 'plan_index', 'cost'])
+
+SkeletonPlan = namedtuple('Skeleton', ['stream_plan', 'action_plan', 'cost'])
+
+# TODO: the heapq ordering probably assumes the comparison is constant
+# def lt(skeleton1, skeleton2):
+#     if skeleton1.plan_index != skeleton2.plan_index:
+#         return key1 < key2
+#     # if the head of skeleton2 is not in the ancestors of 1 and it is further
+#     # TODO: pairwise prunning of streams in the priority queue
+#     # What if a sampler runs out, how would these catch up anyways?
+#     # TODO: no I think I need to have more than one active at a time
+#     # It really is only do descendants. Cannot just have only one
 
 class SkeletonQueue(Sized):
     def __init__(self, store, evaluations):
         self.store = store
         self.evaluations = evaluations
         self.queue = []
+        self.skeleton_plans = []
+        #self.activated_indices = []
+        #self.activators_from_activated = defaultdict(set)
 
-    def add_skeleton(self, bindings, stream_plan, action_plan, cost):
+        # TODO: activated streams to prune within fairly
+        # TODO: activate when either no children or thing after it
+        # TODO: use partial order to find ancestors
+
+        # TODO: activate all instances along the plan skeleton to use their num_attempts in the cost
+        # The bindings are only used when actually instantiating things
+        # TODO: maybe automatically spawn all combinations of things resulting from a sampled value
+        # No matter the actual underlying values, these are the same
+        # TODO: the eager instantiating idea would handle the row of things
+        # Choose the best in the set of possible options recursively
+
+    def add_skeleton(self, bindings, stream_plan, plan_index, cost):
+        #self.activated_indices[plan_index] = max(self.activated_indices[plan_index], len(stream_plan))
+        stream_plan = instantiate_plan(bindings, stream_plan)
+        #print(bindings)
+        #print(stream_plan)
         key = SkeletonKey(0, len(stream_plan))
         instance = instantiate_first(bindings, stream_plan)
-        skeleton = Skeleton(instance, 0, bindings, stream_plan, action_plan, cost)
+        skeleton = Skeleton(instance, 0, bindings, stream_plan, plan_index, cost)
+        #skeleton = Skeleton(instance, len(instance.results_history), bindings, stream_plan, plan_index, cost)
         heappush(self.queue, HeapElement(key, skeleton))
+        # TODO: could instantiate all combinations as soon as they started
+        # TODO: could also make the first iteration check for exising values free
+        # TODO: maybe I should be able to choose values from easiest to hardest (dynamic rescheduling of things)
+        # Yeah, this way I could take advantage of new combinations easily
+        #print(len(stream_plan), compute_sampling_cost(stream_plan))
+        #print(stream_plan)
 
     def new_skeleton(self, stream_plan, action_plan, cost):
-        self.add_skeleton({}, stream_plan, action_plan, cost)
+        #stream_index = 0
+        plan_index = len(self.skeleton_plans)
+        self.skeleton_plans.append(SkeletonPlan(stream_plan, action_plan, cost))
+        #self.activated_indices.append(0)
+        self.add_skeleton({}, stream_plan, plan_index, cost)
 
     def increment_skeleton(self, key, skeleton):
         # TODO: compute expected sampling effort required
         instance, num_processed, bindings, stream_plan, action_plan, cost = skeleton
-        new_key = SkeletonKey(key.attempts + 1, len(stream_plan))
+        #attempts = key.attempts + 1
+        attempts = len(instance.results_history)
+        new_key = SkeletonKey(attempts, len(stream_plan))
         new_skeleton = Skeleton(instance, len(instance.results_history),
                                bindings, stream_plan, action_plan, cost)
         heappush(self.queue, HeapElement(new_key, new_skeleton))

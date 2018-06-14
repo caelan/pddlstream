@@ -1,11 +1,10 @@
 from __future__ import print_function
 
 import os
+import sys
 from collections import defaultdict
 
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle
-
-import sys
 
 class ActionInfo(object):
     def __init__(self, terminal=False, p_success=None, overhead=None):
@@ -32,6 +31,7 @@ def get_action_info(action_info):
 
 ##################################################
 
+# TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
 DATA_DIR = 'data{:d}/'
 
@@ -42,16 +42,19 @@ def get_data_directory():
     return DATA_DIR.format(get_python_version())
 
 
-def get_stream_data_filename(stream_name):
+def get_data_path(stream_name):
     return os.path.join(get_data_directory(), '{}.pp'.format(stream_name))
 
 
+def load_data(stream_name):
+    filename = get_data_path(stream_name)
+    if not os.path.exists(filename):
+        return {}
+    return read_pickle(filename)
+
 def load_stream_statistics(stream_name, externals):
     # TODO: fresh restart flag
-    filename = get_stream_data_filename(stream_name)
-    if not os.path.exists(filename):
-        return
-    data = read_pickle(filename)
+    data = load_data(stream_name)
     for external in externals:
         if external.name in data:
             statistics = data[external.name]
@@ -60,38 +63,56 @@ def load_stream_statistics(stream_name, externals):
             external.total_successes += statistics['successes']
 
 
+def dump_statistics(externals):
+    print('\nLocal External Statistics')
+    overall_calls = 0
+    overall_overhead = 0
+    for external in externals:
+        external.dump_local()
+        overall_calls += external.online_calls
+        overall_overhead += external.online_overhead
+    print('Overall calls: {} | Overall overhead: {}'.format(overall_calls, overall_overhead))
+
+    print('\nTotal External Statistics')
+    for external in externals:
+        external.dump_total()
+        # , external.get_effort()) #, data[external.name])
+
 def write_stream_statistics(stream_name, externals, verbose):
     if not externals:
         return
     if verbose:
-        print('\nLocal External Statistics')
-        overall_calls = 0
-        overall_overhead = 0
-        for external in externals:
-            external.dump_local()
-            overall_calls += external.online_calls
-            overall_overhead += external.online_overhead
-        print('Overall calls: {} | Overall overhead: {}'.format(overall_calls, overall_overhead))
-
-        print('\nTotal External Statistics')
-        for external in externals:
-            external.dump_total()
-        # , external.get_effort()) #, data[external.name])
-
+        dump_statistics(externals)
+    previous_data = load_data(stream_name)
     data = {}
     for external in externals:
+        #total_calls = 0 # TODO: compute these values
+        previous_statistics = previous_data.get(external.name, {})
+        # TODO: compute distribution of successes given feasible
+        # TODO: can estimate probability of success given feasible
+        # TODO: single tail hypothesis testing (probability that came from this distribution)
+        # for instance in external.instances.values():
+        #     if instance.results_history:
+        #         attempts = len(instance.results_history)
+        #         successes = sum(map(bool, instance.results_history))
+        #         print(instance, successes, attempts)
+        #         # TODO: also first attempt, first success
+
         data[external.name] = {
             'calls': external.total_calls,
             'overhead': external.total_overhead,
             'successes': external.total_successes,
         }
-    filename = get_stream_data_filename(stream_name)
+
+    filename = get_data_path(stream_name)
     ensure_dir(filename)
     write_pickle(filename, data)
     if verbose:
         print('Wrote:', filename)
 
 ##################################################
+
+# TODO: online learning vs offline learning
 
 def compute_ratio(numerator, denomenator, undefined=None):
     if denomenator == 0:
@@ -100,6 +121,8 @@ def compute_ratio(numerator, denomenator, undefined=None):
 
 def geometric_cost(cost, p):
     return compute_ratio(cost, p, undefined=INF)
+
+# TODO: cannot easily do Bayesian hypothesis testing because might never receive groundtruth when empty
 
 class Performance(object):
     # TODO: estimate conditional to affecting history on skeleton
@@ -116,7 +139,6 @@ class Performance(object):
     # TODO: estimate a parameter conditioned on successful streams?
     # Need a transition fn as well because generating a sample might change state
     # Problem with estimating prior. Don't always have data on failed streams
-
 
     # Goal: estimate P(Success | History)
     # P(Success | History) = P(Success | Samples) * P(Samples | History)
@@ -138,12 +160,6 @@ class Performance(object):
         self.online_calls += 1
         self.online_overhead += overhead
         self.online_success += success
-
-    #def is_first_call(self): # TODO: use in streams
-    #    return self.online_calls == 0
-    #
-    #def has_previous_success(self):
-    #    return self.online_success != 0
 
     def _estimate_p_success(self, reg_p_success=1, reg_calls=1):
         # TODO: use prior from info instead?

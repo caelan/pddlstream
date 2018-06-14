@@ -242,7 +242,7 @@ class StreamInstance(Instance):
             all_new_values.extend(new_values)
             all_results.extend(results)
             self.update_statistics(start_time, results)
-        if verbose:
+        if verbose and all_new_values:
             print('{}-{}) {}:{}->[{}]'.format(start_calls, self.total_calls, self.external.name,
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))

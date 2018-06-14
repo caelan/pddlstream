@@ -23,6 +23,8 @@ class FunctionInfo(ExternalInfo):
 
 ##################################################
 
+# TODO: make a result file
+
 class Result(object):
     def __init__(self, instance, opt_index):
         self.instance = instance
@@ -51,33 +53,46 @@ class Instance(object):
     def update_statistics(self, start_time, results):
         overhead = time.time() - start_time
         success = len(results) != 0
-        self.total_calls += 1
+        self.total_calls += 1 # TODO: can infer from results_history
         #self.total_overhead += overhead
         #self.total_successes += success
         self.external.update_statistics(overhead, success)
         self.results_history.append(results)
-        # TODO: update the global as well
+
+    def get_belief(self):
+        #return 1.
+        #prior = self.external.prior
+        prior = 1. - 1e-2
+        n = self.total_calls
+        p_obs_given_state = self.external.get_p_success()
+        p_state = prior
+        for i in range(n):
+            p_nobs_and_state = (1-p_obs_given_state)*p_state
+            p_nobs_and_nstate = (1-p_state)
+            p_nobs = p_nobs_and_state + p_nobs_and_nstate
+            p_state = p_nobs_and_state/p_nobs
+        return p_state
 
     def get_p_success(self):
-        return self.external.get_p_success()
+        p_success_belief = self.external.get_p_success()
+        #return p_success_belief
+        belief = self.get_belief()
+        return p_success_belief*belief
         # TODO: use the external as a prior
         # TODO: Bayesian estimation of likelihood that has result
         # Model hidden state of whether has values or if will produce values?
         # TODO: direct estimation of different buckets in which it will finish
         # TODO: we have samples from the CDF or something
 
-    def update_belief(self, success):
-        # Belief that remaining sequence is non-empty
-        # Belief only degrades in this case
-        nonempty = 0.9
-        p_success_nonempty = 0.5
-        if success:
-            p_success = p_success_nonempty*nonempty
-        else:
-            p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
-
-
-
+    # def update_belief(self, success):
+    #     # Belief that remaining sequence is non-empty
+    #     # Belief only degrades in this case
+    #     nonempty = 0.9
+    #     p_success_nonempty = 0.5
+    #     if success:
+    #         p_success = p_success_nonempty*nonempty
+    #     else:
+    #         p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
 
     def get_overhead(self):
         return self.external.get_overhead()
@@ -93,6 +108,12 @@ class Instance(object):
 
     def get_domain(self):
         return self.domain
+
+    #def is_first_call(self): # TODO: use in streams
+    #    return self.online_calls == 0
+    #
+    #def has_previous_success(self):
+    #    return self.online_success != 0
 
     def next_results(self, accelerate=1, verbose=False):
         raise NotImplementedError()
@@ -224,6 +245,9 @@ class PredicateInstance(FunctionInstance):
     #_opt_value = Predicate._codomain()
     #_opt_value = False
     pass
+    #def was_successful(self, results):
+    #    #self.external.opt_fn(*input_values)
+    #    return any(r.value for r in results)
 
 
 class Predicate(Function):
