@@ -4,9 +4,11 @@ from collections import OrderedDict, defaultdict
 from pddlstream.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact
 from pddlstream.downward import parse_domain, get_problem, task_from_domain_problem, \
-    solve_from_task
+    solve_from_task, parse_lisp
+from pddlstream.external import External, DEBUG
+from pddlstream.function import parse_function, parse_predicate
 from pddlstream.object import Object
-from pddlstream.stream import parse_stream_pddl
+from pddlstream.stream import parse_stream
 from pddlstream.utils import get_length, elapsed_time, INF
 
 
@@ -101,3 +103,39 @@ def add_certified(evaluations, result):
             evaluations[evaluation] = result
             new_evaluations.append(evaluation)
     return new_evaluations
+
+
+def parse_stream_pddl(stream_pddl, stream_map, stream_info):
+    streams = []
+    if stream_pddl is None:
+        return None, streams
+    if all(isinstance(e, External) for e in stream_pddl):
+        return None, stream_pddl
+    if stream_map != DEBUG:
+        stream_map = {k.lower(): v for k, v in stream_map.items()}
+    stream_info = {k.lower(): v for k, v in stream_info.items()}
+    stream_iter = iter(parse_lisp(stream_pddl))
+    assert('define' == next(stream_iter))
+    pddl_type, stream_name = next(stream_iter)
+    assert('stream' == pddl_type)
+
+    for lisp_list in stream_iter:
+        name = lisp_list[0]
+        if name == ':stream':
+            external = parse_stream(lisp_list, stream_map, stream_info)
+        elif name == ':wild':
+            raise NotImplementedError(name)
+        elif name == ':rule':
+            continue
+            # TODO: implement rules
+            # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
+        elif name == ':function':
+            external = parse_function(lisp_list, stream_map, stream_info)
+        elif name == ':predicate': # Cannot just use args if want a bound
+            external = parse_predicate(lisp_list, stream_map, stream_info)
+        else:
+            raise ValueError(name)
+        if any(e.name == external.name for e in streams):
+            raise ValueError('Stream [{}] is not unique'.format(external.name))
+        streams.append(external)
+    return stream_name, streams

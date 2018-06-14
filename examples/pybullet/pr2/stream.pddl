@@ -1,4 +1,4 @@
-(define (stream kuka-tamp)
+(define (stream pr2-tamp)
   (:stream sample-pose
     :inputs (?o ?r)
     :domain (Stackable ?o ?r)

@@ -13,7 +13,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
-from pddlstream.stream import from_fn, from_test, from_gen_fn
+from pddlstream.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 

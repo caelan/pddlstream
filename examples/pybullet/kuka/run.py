@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     disconnect, DRAKE_IIWA_URDF, get_bodies, user_input, HideOutput
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_gen_fn, empty_gen
+from pddlstream.generator import from_gen_fn, from_fn, empty_gen
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 

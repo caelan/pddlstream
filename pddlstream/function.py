@@ -2,10 +2,8 @@ import time
 
 from pddlstream.conversion import substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, str_from_head
-from pddlstream.external import ExternalInfo, Result, Instance, External
+from pddlstream.external import ExternalInfo, Result, Instance, External, DEBUG
 from pddlstream.utils import str_from_tuple
-
-DEBUG = 'debug'
 
 
 class FunctionInfo(ExternalInfo):

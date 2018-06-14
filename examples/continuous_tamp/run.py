@@ -16,7 +16,7 @@ from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
 from pddlstream.focused import solve_focused
 from pddlstream.incremental import solve_incremental
-from pddlstream.stream import from_fn, from_test, from_gen_fn
+from pddlstream.generator import from_gen_fn, from_fn, from_test
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND

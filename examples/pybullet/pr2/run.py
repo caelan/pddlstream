@@ -11,10 +11,11 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, ge
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.pr2_problems import cooking_problem
+from examples.pybullet.utils.pybullet_tools.pr2_problems import cooking_problem, holding_problem, \
+    stacking_problem, cleaning_problem
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_gen_fn, empty_gen, from_list_fn, fn_from_constant
+from pddlstream.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
@@ -95,8 +96,8 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
         'sample-grasp': from_list_fn(get_grasp_gen(problem)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
 
-        #'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
-        'plan-base-motion': empty_gen(),
+        'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
+        #'plan-base-motion': empty_gen(),
         'TrajPoseCollision': fn_from_constant(False),
         'TrajArmCollision': fn_from_constant(False),
         'TrajGraspCollision': fn_from_constant(False),
@@ -153,7 +154,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     #args = parser.parse_args()
 
     connect(use_gui=viewer)
-    problem_fn = cooking_problem
+    problem_fn = cleaning_problem
     # holding_problem | stacking_problem | cleaning_problem | cooking_problem
     # cleaning_button_problem | cooking_button_problem
     with HideOutput():
@@ -165,9 +166,11 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     synthesizers = [
-        StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
-                                               'TrajPoseCollision': 0, 'TrajGraspCollision': 0, 'TrajArmCollision': 0},
-                          from_fn(get_base_motion_synth(problem, teleport))),
+        #StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
+        #                                       'TrajPoseCollision': 0,
+        #                                       'TrajGraspCollision': 0,
+        #                                       'TrajArmCollision': 0},
+        #                  from_fn(get_base_motion_synth(problem, teleport))),
     ]
     print('Init:', init)
     print('Goal:', goal)
@@ -176,7 +179,8 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF)
+    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF,
+                             sampling_time=0)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

@@ -13,7 +13,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, get
 from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_gen_fn, from_list_fn, fn_from_constant
+from pddlstream.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 

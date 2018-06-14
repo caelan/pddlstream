@@ -10,7 +10,8 @@ import math
 from pddlstream.conversion import And
 from pddlstream.incremental import solve_incremental
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_fn, from_test, StreamInfo
+from pddlstream.stream import StreamInfo
+from pddlstream.generator import from_fn, from_test
 from pddlstream.function import FunctionInfo
 from pddlstream.utils import print_solution, read, INF
 

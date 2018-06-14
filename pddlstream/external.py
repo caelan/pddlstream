@@ -129,3 +129,4 @@ class External(Performance):
         return self.instances[input_objects]
 
 
+DEBUG = 'debug'

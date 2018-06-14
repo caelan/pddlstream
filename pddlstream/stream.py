@@ -1,130 +1,12 @@
-from collections import Counter, defaultdict, namedtuple, Sequence, Iterator, deque
+import time
+from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
-from pddlstream.downward import parse_lisp
-from pddlstream.function import parse_function, \
-    parse_predicate, DEBUG
-from pddlstream.external import ExternalInfo, Result, Instance, External
+from pddlstream.external import ExternalInfo, Result, Instance, External, DEBUG
+from pddlstream.generator import get_next, from_fn
 from pddlstream.object import Object, OptimisticObject
-from pddlstream.utils import str_from_tuple, INF, elapsed_time
-import time
-
-class BoundedGenerator(Iterator):
-    def __init__(self, generator, max_calls=INF):
-        self.generator = generator
-        self.max_calls = max_calls
-        self.calls = 0
-    @property
-    def enumerated(self):
-        return self.max_calls <= self.calls
-    def next(self):
-        if self.enumerated:
-            raise StopIteration()
-        self.calls += 1
-        return next(self.generator)
-    __next__ = next
-
-def get_next(generator):
-    new_values = []
-    enumerated = False
-    try:
-        new_values = next(generator)
-    except StopIteration:
-        enumerated = True
-    if isinstance(generator, BoundedGenerator):
-        enumerated |= generator.enumerated
-    return new_values, enumerated
-
-##################################################
-
-def from_list_gen_fn(list_gen_fn):
-    return list_gen_fn
-
-def from_gen_fn(gen_fn):
-    return from_list_gen_fn(lambda *args: ([] if output_values is None else [output_values]
-                                           for output_values in gen_fn(*args)))
-
-def from_sampler(sampler, max_attempts=INF):
-    def gen_fn(*input_values):
-        attempts = count()
-        while next(attempts) < max_attempts:
-            yield sampler(*input_values)
-    return from_gen_fn(gen_fn)
-
-##################################################
-
-def from_list_fn(list_fn):
-    #return lambda *args: iter([list_fn(*args)])
-    return lambda *args: BoundedGenerator(iter([list_fn(*args)]), max_calls=1)
-
-
-def from_fn(fn):
-    def list_fn(*args):
-        outputs = fn(*args)
-        return [] if outputs is None else [outputs]
-    return from_list_fn(list_fn)
-
-
-def from_test(test):
-    return from_fn(lambda *args: tuple() if test(*args) else None)
-
-#def list_gen_from_constant(constant):
-#    return from_fn(lambda *args: constant)
-#
-def fn_from_constant(constant):
-    return lambda *args: constant
-
-def empty_gen():
-    return lambda *args: iter([])
-
-##################################################
-
-def accelerate_list_gen_fn(list_gen_fn, num_elements=1, max_attempts=1, max_time=INF):
-    def new_list_gen_fn(*inputs):
-        generator = list_gen_fn(*inputs)
-        terminated = False
-        while terminated:
-            start_time = time.time()
-            elements = []
-            for i in range(max_attempts):
-                if terminated or (num_elements <= len(elements)) or (max_time <= elapsed_time(start_time)):
-                    break
-                new_elements, terminated = get_next(generator)
-                elements.extend(elements)
-            yield elements
-    return new_list_gen_fn
-
-##################################################
-
-Composed = namedtuple('Composed', ['outputs', 'step', 'generator'])
-
-def compose_gen_fns(*gen_fns):
-    assert gen_fns
-    # Assumes consistent ordering of inputs/outputs
-    # Samplers are a special case where only the first needs to be a generator
-    # TODO: specify info about what to compose
-    # TODO: alternatively, make a new stream that composes several
-    def gen_fn(*inputs):
-        queue = deque([Composed([], 0, gen_fns[0](*inputs))])
-        while queue:
-            composed = queue.popleft()
-            new_outputs_list, terminated = get_next(composed.generator)
-            for new_outputs in new_outputs_list:
-                outputs = composed.outputs + new_outputs
-                if composed.step == (len(gen_fns) - 1):
-                    yield outputs
-                else:
-                    next_step = composed.step + 1
-                    generator = gen_fns[next_step](*(inputs + composed.output_values))
-                    queue.append(Composed(outputs, next_step, generator))
-            if not new_outputs_list:
-                yield None
-            if not terminated:
-                queue.append(composed)
-    return gen_fn
-
-##################################################
+from pddlstream.utils import str_from_tuple
 
 def get_empty_fn():
     return lambda *input_values: None
@@ -187,8 +69,6 @@ class StreamInfo(ExternalInfo):
         super(StreamInfo, self).__init__(eager, p_success, overhead)
         self.opt_gen_fn = opt_gen_fn
         #self.order = 0
-
-##################################################
 
 class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None):
@@ -311,37 +191,6 @@ class Stream(External):
 
 ##################################################
 
-# TODO: WildStream, FactStream
-
-# class WildResult(object):
-#     def __init__(self, stream_instance, output_objects):
-#         self.stream_instance = stream_instance
-#         #mapping = dict(list(zip(self.stream_instance.stream.inputs, self.stream_instance.input_objects)) +
-#         #            list(zip(self.stream_instance.stream.outputs, output_objects)))
-#         #self.certified = substitute_expression(self.stream_instance.stream.certified, mapping)
-#     def get_certified(self):
-#         #return self.certified
-#     def __repr__(self):
-#         #return '{}:{}->{}'.format(self.stream_instance.stream.name,
-#         #                          str_from_tuple(self.stream_instance.input_objects),
-#         #                          list(self.certified))
-#
-# def next_certified(self, **kwargs):
-#     if self._generator is None:
-#         self._generator = self.stream.gen_fn(*self.get_input_values())
-#     new_certified = []
-#     if isinstance(self._generator, FactGenerator):
-#         new_certified += list(map(obj_from_value_expression, self._generator.generate(context=None)))
-#         self.enumerated = self._generator.enumerated
-#     else:
-#         for output_objects in self.next_outputs(**kwargs):
-#             mapping = dict(list(zip(self.stream.inputs, self.input_objects)) +
-#                            list(zip(self.stream.outputs, output_objects)))
-#             new_certified += substitute_expression(self.stream.certified, mapping)
-#     return new_certified
-
-##################################################
-
 STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 
 def parse_stream(lisp_list, stream_map, stream_info):
@@ -357,39 +206,3 @@ def parse_stream(lisp_list, stream_map, stream_info):
         gen_fn = stream_map[name]
     return Stream(name, gen_fn, tuple(inputs), list_from_conjunction(domain),
                   tuple(outputs), list_from_conjunction(certified), stream_info.get(name, None))
-
-
-def parse_stream_pddl(stream_pddl, stream_map, stream_info):
-    streams = []
-    if stream_pddl is None:
-        return None, streams
-    if all(isinstance(e, External) for e in stream_pddl):
-        return None, stream_pddl
-    if stream_map != DEBUG:
-        stream_map = {k.lower(): v for k, v in stream_map.items()}
-    stream_info = {k.lower(): v for k, v in stream_info.items()}
-    stream_iter = iter(parse_lisp(stream_pddl))
-    assert('define' == next(stream_iter))
-    pddl_type, stream_name = next(stream_iter)
-    assert('stream' == pddl_type)
-
-    for lisp_list in stream_iter:
-        name = lisp_list[0]
-        if name == ':stream':
-            external = parse_stream(lisp_list, stream_map, stream_info)
-        elif name == ':wild':
-            raise NotImplementedError(name)
-        elif name == ':rule':
-            continue
-            # TODO: implement rules
-            # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
-        elif name == ':function':
-            external = parse_function(lisp_list, stream_map, stream_info)
-        elif name == ':predicate': # Cannot just use args if want a bound
-            external = parse_predicate(lisp_list, stream_map, stream_info)
-        else:
-            raise ValueError(name)
-        if any(e.name == external.name for e in streams):
-            raise ValueError('Stream [{}] is not unique'.format(external.name))
-        streams.append(external)
-    return stream_name, streams

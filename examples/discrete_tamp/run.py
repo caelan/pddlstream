@@ -12,7 +12,7 @@ from pddlstream.conversion import And, Equal
 from pddlstream.downward import TOTAL_COST
 from pddlstream.incremental import solve_incremental, solve_exhaustive
 from pddlstream.focused import solve_focused
-from pddlstream.stream import from_gen_fn, from_test, from_fn
+from pddlstream.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
 

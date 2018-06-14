@@ -10,7 +10,8 @@ from examples.motion.viewer import sample_box, get_distance, is_collision_free, 
     contains, create_box, draw_solution, draw_roadmap
 from pddlstream.incremental import solve_incremental
 from pddlstream.utils import read, print_solution, user_input
-from pddlstream.stream import from_test, from_gen_fn
+from pddlstream.generator import from_gen_fn, from_test
+
 
 def scale_distance(distance):
     return int(np.ceil(1000 * distance))
