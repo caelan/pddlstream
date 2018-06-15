@@ -124,11 +124,14 @@ def process_stream_plan(skeleton, queue, accelerate=1):
     # TODO: hash combinations to prevent repeats
 
     results = []
-    for i in range(num_processed, len(instance.results_history)):
-        results.extend(instance.results_history[i])
-    #accelerate = 25 # TODO: can compute this policy using the initial prior
-    # TODO: need to apply this to plan skeletons
-    results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
+    if num_processed == len(instance.results_history):
+        # accelerate = 25 # TODO: can compute this policy using the initial prior
+        # TODO: need to apply this to plan skeletons
+        results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
+    else:
+        for i in range(num_processed, len(instance.results_history)):
+            results.extend(instance.results_history[i])
+
     for result in results:
         add_certified(queue.evaluations, result)
         if (type(result) is PredicateResult) and (opt_result.value != result.value):
@@ -144,7 +147,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
             new_cost += (result.value - opt_result.value)
         queue.add_skeleton(new_bindings, new_stream_plan, plan_index, new_cost)
 
-    if (instance.num_calls == 1) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
+    if (num_processed == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
         new_stream_plan = stream_plan[:index] + opt_result.decompose() + stream_plan[index+1:]
         queue.add_skeleton(bindings, new_stream_plan, plan_index, cost)
     if not instance.enumerated:
