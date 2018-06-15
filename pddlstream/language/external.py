@@ -4,6 +4,7 @@ from collections import Counter
 from pddlstream.language.conversion import substitute_expression, values_from_objects, get_args, is_parameter
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance
+from pddlstream.utils import elapsed_time
 
 
 class ExternalInfo(object):
@@ -29,9 +30,6 @@ class Instance(object):
         self.enumerated = False
         self.disabled = False
         self.opt_index = 0
-        self.total_calls = 0
-        #self.total_overhead = 0
-        #self.total_successes = 0
         self.results_history = []
         self.mapping = dict(zip(self.external.inputs, self.input_objects))
         for constant in self.external.constants:
@@ -39,19 +37,20 @@ class Instance(object):
         self.domain = substitute_expression(self.external.domain, self.get_mapping())
 
     def update_statistics(self, start_time, results):
-        overhead = time.time() - start_time
+        overhead = elapsed_time(start_time)
         success = len(results) != 0
-        self.total_calls += 1 # TODO: can infer from results_history
-        #self.total_overhead += overhead
-        #self.total_successes += success
         self.external.update_statistics(overhead, success)
         self.results_history.append(results)
+
+    @property
+    def num_calls(self):
+        return len(self.results_history)
 
     def get_belief(self):
         #return 1.
         #prior = self.external.prior
         prior = 1. - 1e-2
-        n = self.total_calls
+        n = self.num_calls
         p_obs_given_state = self.external.get_p_success()
         p_state = prior
         for i in range(n):

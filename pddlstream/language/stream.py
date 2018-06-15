@@ -113,7 +113,7 @@ class StreamInstance(Instance):
     def next_results(self, accelerate=1, verbose=False):
         all_new_values = []
         all_results = []
-        start_calls = self.total_calls
+        start_calls = self.num_calls
         for attempt in range(accelerate):
             if all_results or self.enumerated:
                 break
@@ -125,7 +125,7 @@ class StreamInstance(Instance):
             all_results.extend(results)
             self.update_statistics(start_time, results)
         if verbose and all_new_values:
-            print('{}-{}) {}:{}->[{}]'.format(start_calls, self.total_calls, self.external.name,
+            print('{}-{}) {}:{}->[{}]'.format(start_calls, self.num_calls, self.external.name,
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))
         return all_results

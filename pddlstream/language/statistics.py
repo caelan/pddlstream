@@ -7,6 +7,7 @@ from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_pyt
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
 DATA_DIR = 'data{:d}/'
+# TODO: write to a "local" folder containing temp, data2, data3, visualizations
 
 
 def get_data_directory():

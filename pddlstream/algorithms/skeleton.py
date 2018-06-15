@@ -107,7 +107,7 @@ def instantiate_plan(bindings, stream_plan):
         new_stream_plan.append(new_result)
     return new_stream_plan
 
-def process_stream_plan(key, skeleton, queue, accelerate=1):
+def process_stream_plan(skeleton, queue, accelerate=1):
     instance, num_processed, bindings, stream_plan, plan_index, cost = skeleton
     if not stream_plan:
         action_plan = queue.skeleton_plans[plan_index].action_plan
@@ -118,7 +118,8 @@ def process_stream_plan(key, skeleton, queue, accelerate=1):
         instance.disabled = False # TODO: only disable if not used elsewhere
         # TODO: could just hash instances
         return
-    opt_result = stream_plan[0] # TODO: could do several at once but no real point
+    index = 0
+    opt_result = stream_plan[index] # TODO: could do several at once but no real point
     assert(not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
     # TODO: hash combinations to prevent repeats
 
@@ -137,17 +138,17 @@ def process_stream_plan(key, skeleton, queue, accelerate=1):
             for opt, obj in zip(opt_result.output_objects, result.output_objects):
                 assert(opt not in new_bindings) # TODO: return failure if conflicting bindings
                 new_bindings[opt] = obj
-        new_stream_plan = stream_plan[1:]
+        new_stream_plan = stream_plan[:index] + stream_plan[index+1:]
         new_cost = cost
         if type(result) is FunctionResult:
             new_cost += (result.value - opt_result.value)
         queue.add_skeleton(new_bindings, new_stream_plan, plan_index, new_cost)
 
-    if (key.attempts == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
-        new_stream_plan = opt_result.decompose() + stream_plan[1:]
+    if (instance.num_calls == 1) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
+        new_stream_plan = stream_plan[:index] + opt_result.decompose() + stream_plan[index+1:]
         queue.add_skeleton(bindings, new_stream_plan, plan_index, cost)
     if not instance.enumerated:
-        queue.increment_skeleton(key, skeleton)
+        queue.increment_skeleton(skeleton)
 
 ##################################################
 
@@ -161,6 +162,14 @@ def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
         expected_cost += geometric_cost(overhead, p_success)
     return expected_cost
 
+def score_stream_plan(stream_plan):
+    attempts = 0
+    #for result in stream_plan:
+    for result in stream_plan[:1]:
+        attempts += len(result.instance.results_history)
+    return SkeletonKey(attempts, len(stream_plan))
+
+
 # TODO: identify streams that are bottlenecks (i.e. need to sample certainly)
 # TODO: estimate sequence-level events (or gauge success on downstream events)
 # TODO: don't sample from things that are satisfied downstream
@@ -172,15 +181,9 @@ Skeleton = namedtuple('Skeleton', ['instance', 'num_processed', 'bindings',
 
 SkeletonPlan = namedtuple('Skeleton', ['stream_plan', 'action_plan', 'cost'])
 
-# TODO: the heapq ordering probably assumes the comparison is constant
-# def lt(skeleton1, skeleton2):
-#     if skeleton1.plan_index != skeleton2.plan_index:
-#         return key1 < key2
-#     # if the head of skeleton2 is not in the ancestors of 1 and it is further
-#     # TODO: pairwise prunning of streams in the priority queue
-#     # What if a sampler runs out, how would these catch up anyways?
-#     # TODO: no I think I need to have more than one active at a time
-#     # It really is only do descendants. Cannot just have only one
+ResultPair = namedtuple('ResultPair', ['result', 'num_calls'])
+# TODO: I could just put the num pairs in the skeleton itself
+# TODO: Need to start from zero
 
 class SkeletonQueue(Sized):
     def __init__(self, store, evaluations):
@@ -188,14 +191,7 @@ class SkeletonQueue(Sized):
         self.evaluations = evaluations
         self.queue = []
         self.skeleton_plans = []
-        #self.activated_indices = []
-        #self.activators_from_activated = defaultdict(set)
 
-        # TODO: activated streams to prune within fairly
-        # TODO: activate when either no children or thing after it
-        # TODO: use partial order to find ancestors
-
-        # TODO: activate all instances along the plan skeleton to use their num_attempts in the cost
         # The bindings are only used when actually instantiating things
         # TODO: maybe automatically spawn all combinations of things resulting from a sampled value
         # No matter the actual underlying values, these are the same
@@ -203,10 +199,7 @@ class SkeletonQueue(Sized):
         # Choose the best in the set of possible options recursively
 
     def add_skeleton(self, bindings, stream_plan, plan_index, cost):
-        #self.activated_indices[plan_index] = max(self.activated_indices[plan_index], len(stream_plan))
         stream_plan = instantiate_plan(bindings, stream_plan)
-        #print(bindings)
-        #print(stream_plan)
         key = SkeletonKey(0, len(stream_plan))
         instance = instantiate_first(bindings, stream_plan)
         skeleton = Skeleton(instance, 0, bindings, stream_plan, plan_index, cost)
@@ -226,15 +219,13 @@ class SkeletonQueue(Sized):
         #self.activated_indices.append(0)
         self.add_skeleton({}, stream_plan, plan_index, cost)
 
-    def increment_skeleton(self, key, skeleton):
+    def increment_skeleton(self, skeleton):
         # TODO: compute expected sampling effort required
         instance, num_processed, bindings, stream_plan, action_plan, cost = skeleton
-        #attempts = key.attempts + 1
-        attempts = len(instance.results_history)
-        new_key = SkeletonKey(attempts, len(stream_plan))
+        score = score_stream_plan(stream_plan)
         new_skeleton = Skeleton(instance, len(instance.results_history),
                                bindings, stream_plan, action_plan, cost)
-        heappush(self.queue, HeapElement(new_key, new_skeleton))
+        heappush(self.queue, HeapElement(score, new_skeleton))
 
     def greedily_process(self, max_time):
         # TODO: search until new disabled or new evaluation?
@@ -244,18 +235,18 @@ class SkeletonQueue(Sized):
             if (key.attempts != 0) and (max_time <= elapsed_time(start_time)):
                 break
             heappop(self.queue)
-            process_stream_plan(key, skeleton, self)
+            process_stream_plan(skeleton, self)
 
     def fairly_process(self):
         # TODO: max queue attempts?
         # TODO: use greedily process queue with some boost parameter to focus sampling
         old_queue = list(self.queue)
         self.queue[:] = []
-        for key, skeleton in old_queue:
+        for _, skeleton in old_queue:
             if self.store.is_terminated():
                 break
             #print('Attempts: {} | Length: {}'.format(key.attempts, key.length))
-            process_stream_plan(key, skeleton, self)
+            process_stream_plan(skeleton, self)
             if self.store.is_terminated():
                 break
             self.greedily_process(0)
