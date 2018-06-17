@@ -176,8 +176,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF,
-                             sampling_time=0)
+    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

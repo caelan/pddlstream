@@ -17,8 +17,9 @@ from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.utils import INF
+from pddlstream.utils import INF, elapsed_time
 
+import time
 
 # TODO: compute total stream plan p_success and overhead
 # TODO: ensure search and sampling have equal time
@@ -84,7 +85,7 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
 ##################################################
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_cost=INF, unit_costs=None, sampling_time=0,
+                  max_time=INF, max_cost=INF, unit_costs=None,
                   effort_weight=None, eager_layers=1,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
@@ -104,9 +105,11 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         using stream applications
     """
     # TODO: return to just using the highest level samplers at the start
+    search_sampling_ratio = 1
     solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     num_iterations = 0
+    search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
     compile_to_exogenous(evaluations, domain, externals)
@@ -123,8 +126,10 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     while not store.is_terminated():
         num_iterations += 1
         # TODO: decide max_sampling_time based on total search_time or likelihood estimates
-        print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, len(queue), len(evaluations), store.best_cost, store.elapsed_time()))
+        print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Search Time: {:.3f} | Total Time: {:.3f}'.format(
+            num_iterations, len(queue), len(evaluations), store.best_cost, search_time, store.elapsed_time()))
+
+        start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
                                                             negative,
@@ -141,17 +146,24 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
         print('Stream plan: {}\n'
               'Action plan: {}'.format(stream_plan, action_plan))
+        search_time += elapsed_time(start_time)
 
+        start_time = time.time()
         if stream_plan is None:
-            if queue:
-                queue.fairly_process()
-            else:
+            if not queue:
                 break
+            queue.process_best()
+            #queue.fairly_process()
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
             queue.new_skeleton(stream_plan, action_plan, cost)
-            queue.greedily_process(sampling_time)
+            queue.greedily_process()
+        sample_time += elapsed_time(start_time)
+
+        start_time = time.time()
+        queue.timed_process(search_sampling_ratio*search_time - sample_time)
+        sample_time += elapsed_time(start_time)
 
     if postprocess and (not unit_costs):
         locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
