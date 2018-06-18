@@ -122,12 +122,14 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
     queue = SkeletonQueue(store, evaluations)
+    # TODO: decide max_sampling_time based on total search_time or likelihood estimates
     # TODO: switch to searching if believe chance of search better than sampling
     while not store.is_terminated():
         num_iterations += 1
-        # TODO: decide max_sampling_time based on total search_time or likelihood estimates
-        print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} | Search Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, len(queue), len(evaluations), store.best_cost, search_time, store.elapsed_time()))
+        print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} '
+              '| Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
+            num_iterations, len(queue), len(evaluations), store.best_cost,
+            search_time, sample_time, store.elapsed_time()))
 
         start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
@@ -152,7 +154,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         if stream_plan is None:
             if not queue:
                 break
-            queue.process_best()
+            queue.process_until_success()
             #queue.fairly_process()
         else:
             if visualize:

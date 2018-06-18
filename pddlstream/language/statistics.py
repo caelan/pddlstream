@@ -51,6 +51,10 @@ def dump_statistics(externals):
         # , external.get_effort()) #, data[external.name])
 
 def write_stream_statistics(stream_name, externals, verbose):
+    # TODO: estimate conditional to affecting history on skeleton
+    # TODO: estimate conditional to first & attempt and success
+    # TODO: relate to success for the full future plan
+    # TODO: Maximum Likelihood Exponential
     if not externals:
         return
     if verbose:
@@ -63,18 +67,34 @@ def write_stream_statistics(stream_name, externals, verbose):
         # TODO: compute distribution of successes given feasible
         # TODO: can estimate probability of success given feasible
         # TODO: single tail hypothesis testing (probability that came from this distribution)
-        # for instance in external.instances.values():
-        #     if instance.results_history:
-        #         attempts = len(instance.results_history)
-        #         successes = sum(map(bool, instance.results_history))
-        #         print(instance, successes, attempts)
-        #         # TODO: also first attempt, first success
+
+        distribution = []
+        for instance in external.instances.values():
+            if instance.results_history:
+                attempts = len(instance.results_history)
+                successes = sum(map(bool, instance.results_history))
+                #print(instance, successes, attempts)
+                # TODO: also first attempt, first success
+
+                last_success = -1
+                for i, results in enumerate(instance.results_history):
+                    if results:
+                        distribution.append(i - last_success)
+                        #successful = (0 <= last_success)
+                        last_success = i
+        #print(external, distribution)
+        print(external, previous_statistics.get('distribution', []) + distribution)
+        # TODO: count num failures as well
+        # Alternatively, keep metrics on the lower bound and use somehow
+        # TODO: countdict
 
         data[external.name] = {
             'calls': external.total_calls,
             'overhead': external.total_overhead,
             'successes': external.total_successes,
+            'distribution': previous_statistics.get('distribution', []) + distribution,
         }
+
 
     filename = get_data_path(stream_name)
     ensure_dir(filename)
@@ -96,25 +116,21 @@ def geometric_cost(cost, p):
 
 # TODO: cannot easily do Bayesian hypothesis testing because might never receive groundtruth when empty
 
+# Estimate probability that will generate result
+# Need to produce belief that has additional samples
+# P(Success | Samples) = estimated parameter
+# P(Success | ~Samples) = 0
+# T(Samples | ~Samples) = 0
+# T(~Samples | Samples) = 1-p
+
+# TODO: estimate a parameter conditioned on successful streams?
+# Need a transition fn as well because generating a sample might change state
+# Problem with estimating prior. Don't always have data on failed streams
+
+# Goal: estimate P(Success | History)
+# P(Success | History) = P(Success | Samples) * P(Samples | History)
+
 class Performance(object):
-    # TODO: estimate conditional to affecting history on skeleton
-    # TODO: estimate conditional to first & attempt and success
-
-    # Estimate probability that will generate result
-    # Need to produce belief that has additional samples
-
-    # P(Success | Samples) = estimated parameter
-    # P(Success | ~Samples) = 0
-    # T(Samples | ~Samples) = 0
-    # T(~Samples | Samples) = 1-p
-
-    # TODO: estimate a parameter conditioned on successful streams?
-    # Need a transition fn as well because generating a sample might change state
-    # Problem with estimating prior. Don't always have data on failed streams
-
-    # Goal: estimate P(Success | History)
-    # P(Success | History) = P(Success | Samples) * P(Samples | History)
-
     def __init__(self, name, info):
         self.name = name.lower()
         self.info = info

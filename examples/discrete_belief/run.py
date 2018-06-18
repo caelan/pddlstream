@@ -6,9 +6,9 @@ import os
 import pstats
 from collections import namedtuple
 
-from pddlstream.focused import solve_focused
-from pddlstream.function import FunctionInfo
-from pddlstream.generator import from_fn, from_test
+from pddlstream.algorithms.focused import solve_focused
+from pddlstream.language.function import FunctionInfo
+from pddlstream.language.generator import from_fn, from_test
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
 from pddlstream.algorithms.incremental import solve_incremental

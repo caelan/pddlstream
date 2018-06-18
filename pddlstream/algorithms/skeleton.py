@@ -107,15 +107,13 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         action_plan = queue.skeleton_plans[plan_index].action_plan
         bound_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
         queue.store.add_plan(bound_plan, cost)
-        #return results
         return new_values
     if queue.store.best_cost <= cost:
-        for result in skeleton:
-            result.disabled = False
+        for result in stream_plan:
+            result.instance.disabled = False
         #instance.disabled = False
         # TODO: only disable if not used elsewhere
         # TODO: could just hash instances
-        #return results
         return new_values
 
     assert(len(stream_plan) == len(plan_attempts))
@@ -173,8 +171,37 @@ def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
         p_success, overhead = stats_fn(result)
         expected_cost += geometric_cost(overhead, p_success)
     return expected_cost
+    # TODO: mix between geometric likelihood and learned distribution
+    # Sum tail distribution for number of future
+    # Distribution on the number of future attempts until successful
+    # Average the tail probability mass
 
-SkeletonKey = namedtuple('SkeletonKey', ['attempts', 'length'])
+def compute_effort(plan_attempts):
+    attempts = sum(plan_attempts)
+    return attempts, len(plan_attempts)
+
+def compute_belief(attempts, p_obs):
+    return pow(p_obs, attempts)
+
+def compute_score(plan_attempts, p_obs=.9):
+    beliefs = [compute_belief(attempts, p_obs) for attempts in plan_attempts]
+    prior = 1.
+    for belief in beliefs:
+        prior *= belief
+    return -prior
+
+def compute_score2(plan_attempts, overhead=1, p_obs=.9):
+    # TODO: model the decrease in belief upon each failure
+    # TODO: what if stream terminates? Assign high cost
+    expected_cost = 0
+    for attempts in plan_attempts:
+        p_success = compute_belief(attempts, p_obs)
+        expected_cost += geometric_cost(overhead, p_success)
+    return expected_cost
+
+##################################################
+
+SkeletonKey = namedtuple('SkeletonKey', ['attempted', 'effort'])
 Skeleton = namedtuple('Skeleton', ['stream_plan', 'plan_attempts',
                                    'bindings', 'plan_index', 'cost'])
 
@@ -186,12 +213,17 @@ class SkeletonQueue(Sized):
         self.evaluations = evaluations
         self.queue = []
         self.skeleton_plans = []
+        # TODO: include eager streams in the queue?
+        # TODO: make an "action" for returning to the search (if it is the best decision)
 
     def add_skeleton(self, stream_plan, plan_attempts, bindings, plan_index, cost):
         stream_plan = instantiate_plan(bindings, stream_plan)
         #score = score_stream_plan(stream_plan)
-        attempts = sum(plan_attempts)
-        key = SkeletonKey(attempts, len(stream_plan))
+        attempted = sum(plan_attempts) != 0
+        effort = compute_effort(plan_attempts)
+        #effort = compute_score(plan_attempts)
+        #effort = compute_score2(plan_attempts)
+        key = SkeletonKey(attempted, effort)
         skeleton = Skeleton(stream_plan, plan_attempts, bindings, plan_index, cost)
         heappush(self.queue, HeapElement(key, skeleton))
 
@@ -203,18 +235,21 @@ class SkeletonQueue(Sized):
 
     ####################
 
+    def is_active(self):
+        return self.queue and (not self.store.is_terminated())
+
     def greedily_process(self):
         # TODO: search until new disabled or new evaluation?
-        while self.queue and (not self.store.is_terminated()):
+        while self.is_active():
             key, _ = self.queue[0]
-            if key.attempts != 0:
+            if key.attempted:
                 break
             _, skeleton = heappop(self.queue)
             process_stream_plan(skeleton, self)
 
-    def process_best(self):
+    def process_until_success(self):
         success = False
-        while self.queue and (not self.store.is_terminated()) and (not success):
+        while self.is_active() and (not success):
             _, skeleton = heappop(self.queue)
             success |= process_stream_plan(skeleton, self)
             # TODO: break if successful?
@@ -222,24 +257,10 @@ class SkeletonQueue(Sized):
 
     def timed_process(self, max_time):
         start_time = time.time()
-        while self.queue and (not self.store.is_terminated()) and (max_time <= elapsed_time(start_time)):
+        while self.is_active() and (max_time <= elapsed_time(start_time)):
             _, skeleton = heappop(self.queue)
             process_stream_plan(skeleton, self)
             self.greedily_process()
-
-    # def fairly_process(self):
-    #     # TODO: max queue attempts?
-    #     # TODO: use greedily process queue with some boost parameter to focus sampling
-    #     old_queue = list(self.queue)
-    #     self.queue[:] = []
-    #     for _, skeleton in old_queue:
-    #         if self.store.is_terminated():
-    #             break
-    #         #print('Attempts: {} | Length: {}'.format(key.attempts, key.length))
-    #         process_stream_plan(skeleton, self)
-    #         if self.store.is_terminated():
-    #             break
-    #         self.greedily_process(0)
 
     def __len__(self):
         return len(self.queue)
