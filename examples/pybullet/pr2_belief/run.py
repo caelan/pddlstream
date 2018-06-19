@@ -18,7 +18,7 @@ from pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
     plan_head_traj, get_cone_commands, move_look_trajectory, get_vis_base_gen, \
-    get_head_visibility_fn, get_in_range_test
+    get_inverse_visibility_fn, get_in_range_test, VIS_RANGE, REG_RANGE
 from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
@@ -80,8 +80,9 @@ def pddlstream_from_state(state, teleport=False):
                  ('Observable', pose),
         ]
 
-    for body in task.movable:
-        init += [('Graspable', body)]
+    init += [('Scannable', body) for body in task.rooms + task.surfaces]
+    init += [('Registerable', body) for body in task.movable]
+    init += [('Graspable', body) for body in task.movable]
     for body in task.get_bodies():
         supports = task.get_supports(body)
         if supports is None:
@@ -117,14 +118,12 @@ def pddlstream_from_state(state, teleport=False):
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
 
-        #'inverse-visibility': from_gen_fn(get_vis_gen(task)),
-        'test-vis-base': from_test(get_in_range_test(task)),
-        'test-scan-base': from_test(get_in_range_test(task)),
+        'test-vis-base': from_test(get_in_range_test(task, VIS_RANGE)),
+        'test-reg-base': from_test(get_in_range_test(task, REG_RANGE)),
 
-        'base-look': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
-        'base-scan': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
-        'head-vis': from_fn(get_head_visibility_fn(task)),
-        #'plan-scan': from_gen_fn(get_scan_gen(state)),
+        'sample-vis-base': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task, VIS_RANGE)), max_attempts=25),
+        'sample-reg-base': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task, REG_RANGE)), max_attempts=25),
+        'inverse-visibility': from_fn(get_inverse_visibility_fn(task)),
     }
 
     return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -232,7 +231,7 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 
     stream_info = {
         'test-vis-base': StreamInfo(eager=True, p_success=0),
-        'test-scan-base': StreamInfo(eager=True, p_success=0),
+        'test-reg-base': StreamInfo(eager=True, p_success=0),
     }
 
     pr = cProfile.Profile()
@@ -257,7 +256,6 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 #######################################################
 
 def main(time_step=0.01):
-    # TODO: check what the two pose thing with
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
@@ -271,6 +269,8 @@ def main(time_step=0.01):
     attach_viewcone(robot) # Doesn't work for the normal pr2?
     draw_base_limits(get_base_limits(robot), color=(0, 1, 0))
     #wait_for_interrupt()
+    # TODO: partially observable values
+    # TODO: base movements preventing pick without look
 
     # TODO: do everything in local coordinate frame
     # TODO: automatically determine an action/command cannot be applied

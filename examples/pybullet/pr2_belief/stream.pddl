@@ -3,7 +3,8 @@
     :inputs (?o ?r)
     :domain (Stackable ?o ?r)
     :outputs (?p)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r) (Observable ?p))
+    :certified (and (Supported ?o ?p ?r)
+                    (Pose ?o ?p) (Observable ?p))
   )
   (:stream sample-grasp
     :inputs (?o)
@@ -11,14 +12,14 @@
     :outputs (?g)
     :certified (Grasp ?o ?g)
   )
-  ; TODO: only set (BConf ?q1) on the final step for movements
 
   (:stream inverse-kinematics
     :inputs (?a ?o ?p ?g)
     :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g));  (Observable ?p))
     :outputs (?bq ?t)
-    :certified (and (BConf ?bq) (Traj ?a ?t) (ScanRange ?o ?p ?bq) ; (LookRange ?o ?p ?bq)
-                    (Kin ?a ?o ?p ?g ?bq ?t))
+    :certified (and (Kin ?a ?o ?p ?g ?bq ?t)
+                    (BConf ?bq) (Traj ?a ?t)
+                    (RegRange ?o ?p ?bq) (VisRange ?o ?p ?bq))
   )
   (:stream plan-base-motion
     :inputs (?q1 ?q2)
@@ -28,49 +29,37 @@
                     (BaseMotion ?q1 ?t ?q2))
   )
 
+  ; Alternatively, could just do inverse visibility
   (:stream test-vis-base
     :inputs (?o ?p ?bq)
     :domain (and (Pose ?o ?p) (BConf ?bq))
     :outputs ()
-    :certified (LookRange ?o ?p ?bq)
+    :certified (VisRange ?o ?p ?bq)
   )
-  (:stream test-scan-base
+  (:stream test-reg-base
     :inputs (?o ?p ?bq)
     :domain (and (Pose ?o ?p) (BConf ?bq))
     :outputs ()
-    :certified (and (LookRange ?o ?p ?bq) (ScanRange ?o ?p ?bq))
+    :certified (and (RegRange ?o ?p ?bq) (VisRange ?o ?p ?bq))
   )
 
-  (:stream base-look
+  (:stream sample-vis-base
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
     :outputs (?bq)
-    :certified (LookRange ?o ?p ?bq)
+    :certified (VisRange ?o ?p ?bq)
   )
-  (:stream base-scan
+  (:stream sample-reg-base
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
     :outputs (?bq)
-    :certified (and (LookRange ?o ?p ?bq) (ScanRange ?o ?p ?bq))
+    :certified (and (VisRange ?o ?p ?bq) (RegRange ?o ?p ?bq))
   )
-  (:stream head-vis
+  (:stream inverse-visibility
     :inputs (?o ?p ?bq)
-    :domain (LookRange ?o ?p ?bq)
+    :domain (VisRange ?o ?p ?bq)
     :outputs (?hq ?ht)
-    :certified (and (Scan ?o ?p ?bq ?hq ?ht) (BConf ?bq) (Conf head ?hq) (Traj head ?ht))
+    :certified (and (Vis ?o ?p ?bq ?hq ?ht) ; Only set BConf on last iteration
+                    (BConf ?bq) (Conf head ?hq) (Traj head ?ht))
   )
-  ;(:stream inverse-visibility
-  ;  :inputs (?o ?p)
-  ;  :domain (Pose ?o ?p)
-  ;  :outputs (?bq ?hq)
-  ;  :certified (and (BConf ?bq) (Conf head ?hq) (LookRange ?o ?p ?bq)
-  ;                  (Vis ?o ?p ?bq ?hq))
-  ;)
-  ;(:stream plan-scan
-  ;  :inputs (?o ?p)
-  ;  :domain (Pose ?o ?p)
-  ;  :outputs (?bq ?hq ?ht)
-  ;  :certified (and (BConf ?bq) (Conf head ?hq) (Traj head ?ht) (ScanRange ?o ?p ?bq)
-  ;                  (Scan ?o ?p ?bq ?hq ?ht))
-  ;)
 )

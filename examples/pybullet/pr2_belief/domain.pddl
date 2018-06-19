@@ -5,6 +5,8 @@
     (Arm ?a)
     (Graspable ?o)
     (Stackable ?o ?r)
+    (Scannable ?r)
+    (Registerable ?o)
     (Sink ?r)
     (Stove ?r)
 
@@ -13,13 +15,12 @@
     (Kin ?a ?o ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
     (Supported ?o ?p ?r)
-    (Scan ?o ?p ?bq ?hq ?ht)
-    (Vis ?o ?p ?bq ?hq)
+    (Vis ?o ?p ?bq ?hq ?ht)
 
-    (LookRange ?o ?p ?bq)
-    (ScanRange ?o ?p ?bq)
+    (VisRange ?o ?p ?bq)
+    (RegRange ?o ?p ?bq)
 
-    (CanMove) ; Do I still want this?
+    (CanMove) ; TODO: include base
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
     (HandEmpty ?a)
@@ -39,16 +40,16 @@
     (PickCost)
     (PlaceCost)
     (ScanCost)
-    (LocalizeCost)
+    (LocalizeCost ?r ?o)
     (RegisterCost)
   )
 
   (:action move_base
     :parameters (?q1 ?q2 ?t)
     :precondition (and (BaseMotion ?q1 ?t ?q2)
-                       (AtBConf ?q1))
+                       (AtBConf ?q1)) ; (CanMove)
     :effect (and (AtBConf ?q2)
-                 (not (AtBConf ?q1))
+                 (not (AtBConf ?q1)) (not (CanMove))
                  (increase (total-cost) (MoveCost)))
                  ; (forall (?o) (not (Registered ?o))))
                  ; (forall (?o) (when (Graspable ?o) (not (Registered ?o)))))
@@ -57,7 +58,7 @@
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
                        (Registered ?o) (AtPose ?o ?p) (HandEmpty ?a) (AtBConf ?q))
-    :effect (and (AtGrasp ?a ?o ?g)
+    :effect (and (AtGrasp ?a ?o ?g) (CanMove)
                  (not (AtPose ?o ?p)) (not (HandEmpty ?a))
                  (increase (total-cost) (PickCost)))
   )
@@ -65,16 +66,16 @@
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
                        (AtGrasp ?a ?o ?g) (AtBConf ?q)) ; (Localized ?o)
-    :effect (and (AtPose ?o ?p) (HandEmpty ?a)
+    :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
                  (not (AtGrasp ?a ?o ?g))
                  (increase (total-cost) (PlaceCost)))
   )
 
   (:action scan
     :parameters (?o ?p ?bq ?hq ?ht)
-    :precondition (and (Scan ?o ?p ?bq ?hq ?ht) (LookRange ?o ?p ?bq)
+    :precondition (and (Vis ?o ?p ?bq ?hq ?ht) (VisRange ?o ?p ?bq) (Scannable ?o)
                        (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
-    :effect (and (Scanned ?o)
+    :effect (and (Scanned ?o) (CanMove)
                  (increase (total-cost) (ScanCost)))
   )
   (:action localize
@@ -87,9 +88,9 @@
   )
   (:action register
     :parameters (?o ?p ?bq ?hq ?ht)
-    :precondition (and (Scan ?o ?p ?bq ?hq ?ht) (ScanRange ?o ?p ?bq)
+    :precondition (and (Vis ?o ?p ?bq ?hq ?ht) (RegRange ?o ?p ?bq) (Registerable ?o)
                        (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
-    :effect (and (Registered ?o)
+    :effect (and (Registered ?o) (CanMove)
                  (increase (total-cost) (RegisterCost)))
   )
 
