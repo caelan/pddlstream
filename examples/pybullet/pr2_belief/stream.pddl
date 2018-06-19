@@ -28,6 +28,19 @@
                     (BaseMotion ?q1 ?t ?q2))
   )
 
+  (:stream test-vis-base
+    :inputs (?o ?p ?bq)
+    :domain (and (Pose ?o ?p) (BConf ?bq))
+    :outputs ()
+    :certified (LookRange ?o ?p ?bq)
+  )
+  (:stream test-scan-base
+    :inputs (?o ?p ?bq)
+    :domain (and (Pose ?o ?p) (BConf ?bq))
+    :outputs ()
+    :certified (and (LookRange ?o ?p ?bq) (ScanRange ?o ?p ?bq))
+  )
+
   (:stream base-look
     :inputs (?o ?p)
     :domain (Pose ?o ?p)

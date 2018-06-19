@@ -11,12 +11,14 @@ import cProfile
 import pstats
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, accelerate_list_gen_fn
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.language.conversion import Equal, Problem, And
+from pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
-    plan_head_traj, get_scan_gen, get_cone_commands, move_look_trajectory, get_vis_base_gen, get_head_visibility_fn
+    plan_head_traj, get_cone_commands, move_look_trajectory, get_vis_base_gen, \
+    get_head_visibility_fn, get_in_range_test
 from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
@@ -114,7 +116,11 @@ def pddlstream_from_state(state, teleport=False):
         'sample-grasp': from_list_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
+
         #'inverse-visibility': from_gen_fn(get_vis_gen(task)),
+        'test-vis-base': from_test(get_in_range_test(task)),
+        'test-scan-base': from_test(get_in_range_test(task)),
+
         'base-look': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
         'base-scan': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
         'head-vis': from_fn(get_head_visibility_fn(task)),
@@ -224,9 +230,15 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
         print('Goal:', goal)
         print('Streams:', stream_map.keys())
 
+    stream_info = {
+        'test-vis-base': StreamInfo(eager=True, p_success=0),
+        'test-scan-base': StreamInfo(eager=True, p_success=0),
+    }
+
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, max_cost=MAX_COST, verbose=verbose)
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+                             max_cost=MAX_COST, verbose=verbose)
     pr.disable()
     plan, cost, evaluations = solution
     if MAX_COST <= cost:
@@ -245,10 +257,11 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 #######################################################
 
 def main(time_step=0.01):
+    # TODO: check what the two pose thing with
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, state = get_problem1(localized='surfaces', p_other=0.5) # localized
+    task, state = get_problem1(localized='rooms', p_other=0.5) # surfaces | rooms
     for body in task.get_bodies():
         add_body_name(body)
 

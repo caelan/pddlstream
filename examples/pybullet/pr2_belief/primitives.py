@@ -11,45 +11,60 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
     MAX_KINECT_DISTANCE, plan_scan_path, get_group_joints, get_group_conf, set_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
-    plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, INF
+    plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, \
+    INF, get_length
 
-# if o in problem.rooms:
-#     tilt = np.pi / 6
-#     # bq = Pose(robot, unit_pose())
-#     # bq = state.poses[robot]
-#     bq = Conf(robot, base_joints, np.zeros(len(base_joints)))
-#     # hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
-#     # ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
-#     waypoints = plan_scan_path(problem.robot, tilt=tilt)
-#     set_group_conf(robot, 'head', waypoints[0])
-#     path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
-#                                        obstacles=None, self_collisions=False)
-#     ht = create_trajectory(robot, head_joints, path)
-#     yield bq, ht.path[0], ht
-#     return
+VIS_RANGE = (0.5, 1.5)
+REG_RANGE = (0.5, 1.5)
 
-def get_head_visibility_fn(problem):
-    robot = problem.robot
+def get_in_range_test(task, range=REG_RANGE):
+    def test(o, p, bq):
+        if o in task.rooms:
+            print(o, p, bq)
+            return True
+        target_xy = point_from_pose(p.value)[:2]
+        base_xy = bq.values[:2]
+        return range[0] <= get_length(np.array(target_xy) - base_xy) <= range[1]
+    return test
+
+def get_head_visibility_fn(task):
+    robot = task.robot
     head_joints = get_group_joints(robot, 'head')
     def fn(o, p, bq):
         set_pose(o, p.value) # p.assign()
         bq.assign()
-        target_point = point_from_pose(p.value)
-        head_conf = inverse_visibility(robot, target_point)
-        if head_conf is None: # TODO: test if visible
-            return None
-        hq = Conf(robot, head_joints, head_conf)
-        ht = Trajectory([hq])
-        return (hq, ht)
+        if o in task.rooms:
+            tilt = np.pi / 6
+            #hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
+            #ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
+            waypoints = plan_scan_path(task.robot, tilt=tilt)
+            set_group_conf(robot, 'head', waypoints[0])
+            path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
+                                          obstacles=None, self_collisions=False)
+            if path is None:
+                return None
+            ht = create_trajectory(robot, head_joints, path)
+            return ht.path[0], ht
+        else:
+            target_point = point_from_pose(p.value)
+            head_conf = inverse_visibility(robot, target_point)
+            if head_conf is None: # TODO: test if visible
+                return None
+            hq = Conf(robot, head_joints, head_conf)
+            ht = Trajectory([hq])
+            return (hq, ht)
     return fn
 
 # TODO: same scan action just depend on distance
 
-def get_vis_base_gen(problem, base_range=(0.5, 1.5)):
-    robot = problem.robot
-    fixed = get_fixed_bodies(problem)
+def get_vis_base_gen(task, base_range=REG_RANGE):
+    robot = task.robot
+    fixed = get_fixed_bodies(task)
     base_joints = get_group_joints(robot, 'base')
     def gen(o, p):
+        if o in task.rooms: # TODO: predicate instead
+            print(o, p)
+            return
         # default_conf = arm_conf(a, g.carry)
         # joints = get_arm_joints(robot, a)
         # TODO: check collisions with fixed links
@@ -64,63 +79,6 @@ def get_vis_base_gen(problem, base_range=(0.5, 1.5)):
                 yield None
             yield (bq,)
     # TODO: return list_fn & accelerated
-    return gen
-
-# def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
-#     robot = problem.robot
-#     fixed = get_fixed_bodies(problem)
-#     base_joints = get_group_joints(robot, 'base')
-#     head_joints = get_group_joints(robot, 'head')
-#     def gen(o, p):
-#         # default_conf = arm_conf(a, g.carry)
-#         # joints = get_arm_joints(robot, a)
-#         # TODO: check collisions with fixed links
-#         target_point = point_from_pose(p.value)
-#         base_generator = visible_base_generator(robot, target_point, base_range)
-#         while True:
-#             for _ in range(max_attempts):
-#                 set_pose(o, p.value)
-#                 base_conf = next(base_generator)
-#                 #set_base_values(robot, base_conf)
-#                 set_joint_positions(robot, base_joints, base_conf)
-#                 if any(pairwise_collision(robot, b) for b in fixed):
-#                     continue
-#                 # bq = Pose(robot, get_pose(robot))
-#                 bq = Conf(robot, base_joints, base_conf)
-#                 head_conf = inverse_visibility(robot, target_point)
-#                 if head_conf is None:  # TODO: test if visible
-#                     continue
-#                 hq = Conf(robot, head_joints, head_conf)
-#                 yield (bq, hq)
-#                 break
-#             else:
-#                 yield None
-#     return gen
-
-def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
-    task = state.task
-    robot = task.robot
-    base_joints = get_group_joints(robot, 'base')
-    head_joints = get_group_joints(robot, 'head')
-    vis_gen = get_vis_gen(task, max_attempts=max_attempts, base_range=base_range)
-    tilt = np.pi / 6
-    def gen(o, p):
-        if o in task.rooms:
-            #bq = Pose(robot, unit_pose())
-            #bq = state.poses[robot]
-            bq = Conf(robot, base_joints, np.zeros(len(base_joints)))
-            #hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
-            #ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
-            waypoints = plan_scan_path(task.robot, tilt=tilt)
-            set_group_conf(robot, 'head', waypoints[0])
-            path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
-                                          obstacles=None, self_collisions=False)
-            ht = create_trajectory(robot, head_joints, path)
-            yield bq, ht.path[0], ht
-        else:
-            for bq, hq in vis_gen(o, p):
-                ht = Trajectory([hq])
-                yield bq, ht.path[0], ht
     return gen
 
 #######################################################
