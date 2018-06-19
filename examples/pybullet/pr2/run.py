@@ -8,7 +8,7 @@ import pstats
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, \
     get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
-from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem
+from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
@@ -151,7 +151,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     #args = parser.parse_args()
 
     connect(use_gui=viewer)
-    problem_fn = cleaning_problem
+    problem_fn = cooking_problem
     # holding_problem | stacking_problem | cleaning_problem | cooking_problem
     # cleaning_button_problem | cooking_button_problem
     with HideOutput():

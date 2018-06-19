@@ -11,12 +11,12 @@ import cProfile
 import pstats
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, accelerate_list_gen_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.language.conversion import Equal, Problem, And
 
-from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, get_vis_gen, Register, \
-    plan_head_traj, get_scan_gen, get_cone_commands, move_look_trajectory
+from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
+    plan_head_traj, get_scan_gen, get_cone_commands, move_look_trajectory, get_vis_base_gen, get_head_visibility_fn
 from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
@@ -114,8 +114,11 @@ def pddlstream_from_state(state, teleport=False):
         'sample-grasp': from_list_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
-        'inverse-visibility': from_gen_fn(get_vis_gen(task)),
-        'plan-scan': from_gen_fn(get_scan_gen(state)),
+        #'inverse-visibility': from_gen_fn(get_vis_gen(task)),
+        'base-look': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
+        'base-scan': accelerate_list_gen_fn(from_gen_fn(get_vis_base_gen(task)), max_attempts=25),
+        'head-vis': from_fn(get_head_visibility_fn(task)),
+        #'plan-scan': from_gen_fn(get_scan_gen(state)),
     }
 
     return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -161,18 +164,18 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
-            o, p, bq, hq, st = args
+            o, p, bq, hq, ht = args
             ht0 = plan_head_traj(robot, hq.values)
             new_commands = [ht0]
             if o in problem.rooms:
                 attach, detach = get_cone_commands(robot)
-                new_commands += [attach, st, ScanRoom(robot, o), detach]
+                new_commands += [attach, ht, ScanRoom(robot, o), detach]
             else:
-                new_commands += [st, Scan(robot, o)]
+                new_commands += [ht, Scan(robot, o)]
                 #with BodySaver(robot):
-                #    for hq2 in st.path:
-                #        ht = plan_head_traj(robot, hq2.values)
-                #        new_commands += [ht, Scan(robot, o)]
+                #    for hq2 in ht.path:
+                #        st = plan_head_traj(robot, hq2.values)
+                #        new_commands += [st, Scan(robot, o)]
                 #        hq2.step()
             # TODO: return to start conf?
         elif name == 'localize':
@@ -180,7 +183,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             new_commands = [Detect(robot, r, o)]
             expecting_obs = True
         elif name == 'register':
-            o, p, bq, hq = args
+            o, p, bq, hq, ht = args
             ht0 = plan_head_traj(robot, hq.values)
             register = Register(robot, o)
             new_commands = [ht0, register]
@@ -245,7 +248,7 @@ def main(time_step=0.01):
     # TODO: closed world and open world
     real_world = connect(use_gui=True)
     add_data_path()
-    task, state = get_problem1(localized='rooms', p_other=0.5)
+    task, state = get_problem1(localized='surfaces', p_other=0.5) # localized
     for body in task.get_bodies():
         add_body_name(body)
 

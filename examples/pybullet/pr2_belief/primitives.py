@@ -13,12 +13,42 @@ from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
     plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, INF
 
+# if o in problem.rooms:
+#     tilt = np.pi / 6
+#     # bq = Pose(robot, unit_pose())
+#     # bq = state.poses[robot]
+#     bq = Conf(robot, base_joints, np.zeros(len(base_joints)))
+#     # hq = Conf(robot, head_joints, np.zeros(len(head_joints)))
+#     # ht = create_trajectory(robot, head_joints, plan_pause_scan_path(robot, tilt=tilt))
+#     waypoints = plan_scan_path(problem.robot, tilt=tilt)
+#     set_group_conf(robot, 'head', waypoints[0])
+#     path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
+#                                        obstacles=None, self_collisions=False)
+#     ht = create_trajectory(robot, head_joints, path)
+#     yield bq, ht.path[0], ht
+#     return
 
-def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
+def get_head_visibility_fn(problem):
+    robot = problem.robot
+    head_joints = get_group_joints(robot, 'head')
+    def fn(o, p, bq):
+        set_pose(o, p.value) # p.assign()
+        bq.assign()
+        target_point = point_from_pose(p.value)
+        head_conf = inverse_visibility(robot, target_point)
+        if head_conf is None: # TODO: test if visible
+            return None
+        hq = Conf(robot, head_joints, head_conf)
+        ht = Trajectory([hq])
+        return (hq, ht)
+    return fn
+
+# TODO: same scan action just depend on distance
+
+def get_vis_base_gen(problem, base_range=(0.5, 1.5)):
     robot = problem.robot
     fixed = get_fixed_bodies(problem)
     base_joints = get_group_joints(robot, 'base')
-    head_joints = get_group_joints(robot, 'head')
     def gen(o, p):
         # default_conf = arm_conf(a, g.carry)
         # joints = get_arm_joints(robot, a)
@@ -26,25 +56,46 @@ def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
         target_point = point_from_pose(p.value)
         base_generator = visible_base_generator(robot, target_point, base_range)
         while True:
-            for _ in range(max_attempts):
-                set_pose(o, p.value)
-                base_conf = next(base_generator)
-                #set_base_values(robot, base_conf)
-                set_joint_positions(robot, base_joints, base_conf)
-                if any(pairwise_collision(robot, b) for b in fixed):
-                    continue
-                head_conf = inverse_visibility(robot, target_point)
-                if head_conf is None:  # TODO: test if visible
-                    continue
-                #bq = Pose(robot, get_pose(robot))
-                bq = Conf(robot, base_joints, base_conf)
-                hq = Conf(robot, head_joints, head_conf)
-                yield (bq, hq)
-                break
-            else:
+            set_pose(o, p.value)  # p.assign()
+            bq = Conf(robot, base_joints, next(base_generator))
+            # bq = Pose(robot, get_pose(robot))
+            bq.assign()
+            if any(pairwise_collision(robot, b) for b in fixed):
                 yield None
-
+            yield (bq,)
+    # TODO: return list_fn & accelerated
     return gen
+
+# def get_vis_gen(problem, max_attempts=25, base_range=(0.5, 1.5)):
+#     robot = problem.robot
+#     fixed = get_fixed_bodies(problem)
+#     base_joints = get_group_joints(robot, 'base')
+#     head_joints = get_group_joints(robot, 'head')
+#     def gen(o, p):
+#         # default_conf = arm_conf(a, g.carry)
+#         # joints = get_arm_joints(robot, a)
+#         # TODO: check collisions with fixed links
+#         target_point = point_from_pose(p.value)
+#         base_generator = visible_base_generator(robot, target_point, base_range)
+#         while True:
+#             for _ in range(max_attempts):
+#                 set_pose(o, p.value)
+#                 base_conf = next(base_generator)
+#                 #set_base_values(robot, base_conf)
+#                 set_joint_positions(robot, base_joints, base_conf)
+#                 if any(pairwise_collision(robot, b) for b in fixed):
+#                     continue
+#                 # bq = Pose(robot, get_pose(robot))
+#                 bq = Conf(robot, base_joints, base_conf)
+#                 head_conf = inverse_visibility(robot, target_point)
+#                 if head_conf is None:  # TODO: test if visible
+#                     continue
+#                 hq = Conf(robot, head_joints, head_conf)
+#                 yield (bq, hq)
+#                 break
+#             else:
+#                 yield None
+#     return gen
 
 def get_scan_gen(state, max_attempts=25, base_range=(0.5, 1.5)):
     task = state.task

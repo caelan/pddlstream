@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 
+from collections import Counter
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
@@ -54,7 +55,7 @@ def write_stream_statistics(stream_name, externals, verbose):
     # TODO: estimate conditional to affecting history on skeleton
     # TODO: estimate conditional to first & attempt and success
     # TODO: relate to success for the full future plan
-    # TODO: Maximum Likelihood Exponential
+    # TODO: Maximum Likelihood Exponential - average (biased in general)
     if not externals:
         return
     if verbose:
@@ -82,17 +83,18 @@ def write_stream_statistics(stream_name, externals, verbose):
                         distribution.append(i - last_success)
                         #successful = (0 <= last_success)
                         last_success = i
+        combined_distribution = previous_statistics.get('distribution', []) + distribution
         #print(external, distribution)
-        print(external, previous_statistics.get('distribution', []) + distribution)
+        print(external, Counter(combined_distribution))
         # TODO: count num failures as well
         # Alternatively, keep metrics on the lower bound and use somehow
-        # TODO: countdict
+        # Could assume that it is some other distribution beyond that point
 
         data[external.name] = {
             'calls': external.total_calls,
             'overhead': external.total_overhead,
             'successes': external.total_successes,
-            'distribution': previous_statistics.get('distribution', []) + distribution,
+            'distribution': combined_distribution,
         }
 
 

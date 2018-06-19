@@ -106,7 +106,7 @@ def accelerate_list_gen_fn(list_gen_fn, num_elements=1, max_attempts=1, max_time
                 if terminated or (num_elements <= len(elements)) or (max_time <= elapsed_time(start_time)):
                     break
                 new_elements, terminated = get_next(generator)
-                elements.extend(elements)
+                elements.extend(new_elements)
             yield elements
     return new_list_gen_fn
 

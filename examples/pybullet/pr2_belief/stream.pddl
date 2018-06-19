@@ -27,18 +27,37 @@
     :certified (and (BTraj ?t)
                     (BaseMotion ?q1 ?t ?q2))
   )
-  (:stream inverse-visibility
+
+  (:stream base-look
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
-    :outputs (?bq ?hq)
-    :certified (and (BConf ?bq) (Conf head ?hq) (LookRange ?o ?p ?bq)
-                    (Vis ?o ?p ?bq ?hq))
+    :outputs (?bq)
+    :certified (LookRange ?o ?p ?bq)
   )
-  (:stream plan-scan
+  (:stream base-scan
     :inputs (?o ?p)
     :domain (Pose ?o ?p)
-    :outputs (?bq ?hq ?ht)
-    :certified (and (BConf ?bq) (Conf head ?hq) (Traj head ?ht) (ScanRange ?o ?p ?bq)
-                    (Scan ?o ?p ?bq ?hq ?ht))
+    :outputs (?bq)
+    :certified (and (LookRange ?o ?p ?bq) (ScanRange ?o ?p ?bq))
   )
+  (:stream head-vis
+    :inputs (?o ?p ?bq)
+    :domain (LookRange ?o ?p ?bq)
+    :outputs (?hq ?ht)
+    :certified (and (Scan ?o ?p ?bq ?hq ?ht) (BConf ?bq) (Conf head ?hq) (Traj head ?ht))
+  )
+  ;(:stream inverse-visibility
+  ;  :inputs (?o ?p)
+  ;  :domain (Pose ?o ?p)
+  ;  :outputs (?bq ?hq)
+  ;  :certified (and (BConf ?bq) (Conf head ?hq) (LookRange ?o ?p ?bq)
+  ;                  (Vis ?o ?p ?bq ?hq))
+  ;)
+  ;(:stream plan-scan
+  ;  :inputs (?o ?p)
+  ;  :domain (Pose ?o ?p)
+  ;  :outputs (?bq ?hq ?ht)
+  ;  :certified (and (BConf ?bq) (Conf head ?hq) (Traj head ?ht) (ScanRange ?o ?p ?bq)
+  ;                  (Scan ?o ?p ?bq ?hq ?ht))
+  ;)
 )

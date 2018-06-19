@@ -16,6 +16,9 @@
     (Scan ?o ?p ?bq ?hq ?ht)
     (Vis ?o ?p ?bq ?hq)
 
+    (LookRange ?o ?p ?bq)
+    (ScanRange ?o ?p ?bq)
+
     (CanMove) ; Do I still want this?
     (AtPose ?o ?p)
     (AtGrasp ?a ?o ?g)
@@ -69,7 +72,7 @@
 
   (:action scan
     :parameters (?o ?p ?bq ?hq ?ht)
-    :precondition (and (Scan ?o ?p ?bq ?hq ?ht)
+    :precondition (and (Scan ?o ?p ?bq ?hq ?ht) (LookRange ?o ?p ?bq)
                        (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
     :effect (and (Scanned ?o)
                  (increase (total-cost) (ScanCost)))
@@ -83,8 +86,8 @@
                  (increase (total-cost) (LocalizeCost ?r ?o)))
   )
   (:action register
-    :parameters (?o ?p ?bq ?hq)
-    :precondition (and (Vis ?o ?p ?bq ?hq)
+    :parameters (?o ?p ?bq ?hq ?ht)
+    :precondition (and (Scan ?o ?p ?bq ?hq ?ht) (ScanRange ?o ?p ?bq)
                        (AtPose ?o ?p) (AtBConf ?bq) (Localized ?o))
     :effect (and (Registered ?o)
                  (increase (total-cost) (RegisterCost)))
