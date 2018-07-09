@@ -88,7 +88,6 @@ def instantiate_plan(bindings, stream_plan):
     for result in stream_plan:
         input_objects = [bindings.get(i, i) for i in result.instance.input_objects]
         new_instance = result.instance.external.get_instance(input_objects)
-        new_instance.disabled = True # TODO: do I want this?
         if isinstance(result, StreamResult):
             new_result = result.__class__(new_instance, result.output_objects, result.opt_index)
         elif isinstance(result, FunctionResult):
@@ -96,6 +95,8 @@ def instantiate_plan(bindings, stream_plan):
         else:
             raise ValueError(result)
         new_stream_plan.append(new_result)
+    if new_stream_plan:
+        new_stream_plan[0].disabled = True
     return new_stream_plan
 
 def process_stream_plan(skeleton, queue, accelerate=1):
