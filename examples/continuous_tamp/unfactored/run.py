@@ -6,7 +6,7 @@ import cProfile
 import pstats
 
 import numpy as np
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
     get_tight_problem, draw_state, \

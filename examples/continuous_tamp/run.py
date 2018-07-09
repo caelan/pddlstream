@@ -6,8 +6,8 @@ import cProfile
 import pstats
 
 import numpy as np
-from pddlstream.downward import TOTAL_COST
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.downward import TOTAL_COST
+from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
