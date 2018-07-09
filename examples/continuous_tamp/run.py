@@ -117,8 +117,8 @@ def main(focused=True, deterministic=False, unit_costs=False):
     }
 
     dynamic = [
-        StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-                          gen_fn=from_fn(cfree_motion_fn)),
+        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #                  gen_fn=from_fn(cfree_motion_fn)),
         #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
         #                           'posecollision': 0, 'distance': 0},
         #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),

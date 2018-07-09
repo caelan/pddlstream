@@ -104,10 +104,10 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collision
         'sample-pose': from_gen_fn(get_stable_gen(fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(robot, grasp_name)),
         'inverse-kinematics': from_fn(get_ik_fn(robot, fixed, teleport)),
-        #'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
-        'plan-free-motion': empty_gen(),
-        # 'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
-        'plan-holding-motion': empty_gen(),
+        'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
+        #'plan-free-motion': empty_gen(),
+        'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
+        #'plan-holding-motion': empty_gen(),
         'TrajCollision': get_movable_collision_test(),
     }
 
@@ -156,10 +156,10 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
                                                  teleport=teleport, movable_collisions=True)
     _, _, _, stream_map, init, goal = pddlstream_problem
     synthesizers = [
-        StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
-                          from_fn(get_free_motion_synth(robot, movable, teleport))),
-        StreamSynthesizer('safe-holding-motion', {'plan-holding-motion': 1, 'trajcollision': 0},
-                          from_fn(get_holding_motion_synth(robot, movable, teleport))),
+        #StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
+        #                  from_fn(get_free_motion_synth(robot, movable, teleport))),
+        #StreamSynthesizer('safe-holding-motion', {'plan-holding-motion': 1, 'trajcollision': 0},
+        #                  from_fn(get_holding_motion_synth(robot, movable, teleport))),
     ]
     print('Init:', init)
     print('Goal:', goal)

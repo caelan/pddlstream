@@ -119,7 +119,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     load_stream_statistics(stream_name, externals + synthesizers)
     if visualize:
         clear_visualizations()
-    eager_externals = list(filter(lambda e: e.info.eager, externals))
+    # TODO: somehow Functions became no longer eager?
+    eager_externals = list(filter(lambda e: e.info.eager or type(e) == Function, externals))
     streams, functions, negative = partition_externals(externals)
     queue = SkeletonQueue(store, evaluations)
     # TODO: decide max_sampling_time based on total search_time or likelihood estimates
@@ -133,8 +134,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
         start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
-        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
-                                                            negative,
+        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
                                                             max_cost=store.best_cost,
                                                             #max_cost=min(store.best_cost, max_cost),
                                                             unit_costs=unit_costs, **search_kwargs)
