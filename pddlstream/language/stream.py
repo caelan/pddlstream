@@ -85,6 +85,12 @@ class StreamResult(Result):
     def get_tuple(self):
         name = self.instance.external.name
         return name, self.instance.input_objects, self.output_objects
+    def remap_inputs(self, bindings):
+        input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
+        new_instance = self.instance.external.get_instance(input_objects)
+        return self.__class__(new_instance, self.output_objects, self.opt_index)
+    def is_successful(self):
+        return True
     def __repr__(self):
         return '{}:{}->{}'.format(self.instance.external.name,
                                   str_from_tuple(self.instance.input_objects),

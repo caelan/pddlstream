@@ -131,20 +131,25 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
 
 ##################################################
 
-def replace_predicates(predicate_map, expression):
+def replace_literals(replace_fn, expression):
     import pddl.conditions
     if isinstance(expression, pddl.conditions.ConstantCondition):
-        return expression
+        return expression # TODO: replace constants?
     if isinstance(expression, pddl.conditions.JunctorCondition):
-        new_parts = [replace_predicates(predicate_map, p) for p in expression.parts]
+        new_parts = [replace_literals(replace_fn, p) for p in expression.parts]
         return expression.__class__(new_parts)
     if isinstance(expression, pddl.conditions.QuantifiedCondition):
-        new_parts = [replace_predicates(predicate_map, p) for p in expression.parts]
+        new_parts = [replace_literals(replace_fn, p) for p in expression.parts]
         return expression.__class__(expression.parameters, new_parts)
     if isinstance(expression, pddl.conditions.Literal):
-        new_predicate = predicate_map.get(expression.predicate, expression.predicate)
-        return expression.__class__(new_predicate, expression.args)
+        return replace_fn(expression)
     raise ValueError(expression)
+
+def replace_predicates(predicate_map, expression):
+    def replace_fn(literal):
+        new_predicate = predicate_map.get(literal.predicate, literal.predicate)
+        return literal.__class__(new_predicate, literal.args)
+    return replace_literals(replace_fn, expression)
 
 def compile_to_exogenous_axioms(evaluations, domain, streams):
     import pddl
@@ -187,12 +192,15 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
             #                                        list(map(rename_derived, stream.domain)))))
             #precondition = pddl.Disjunction([fd_from_fact(fact), precondition]) # TODO: quantifier
             domain.axioms.extend([
-                pddl.Axiom(name=derived_fact.predicate, parameters=parameters,
+                pddl.Axiom(name=derived_fact.predicate,
+                           parameters=parameters,
                            num_external_parameters=len(external_params),
                            condition=precondition),
-                pddl.Axiom(name=derived_fact.predicate,  parameters=parameters[:len(external_params)],
+                pddl.Axiom(name=derived_fact.predicate,
+                           parameters=parameters[:len(external_params)],
                            num_external_parameters=len(external_params),
-                           condition=fd_from_fact(fact))])
+                           condition=fd_from_fact(fact)),
+            ])
         stream.certified = tuple(set(stream.certified) |
                                  set(map(rename_future, stream.certified)))
 

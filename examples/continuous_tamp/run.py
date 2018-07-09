@@ -6,8 +6,8 @@ import cProfile
 import pstats
 
 import numpy as np
-from pddlstream.downward import TOTAL_COST
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.downward import TOTAL_COST
+from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
@@ -66,6 +66,7 @@ def pddlstream_from_tamp(tamp_problem):
         'posecollision': collision_test,
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
+        'reachable': from_test(lambda q1, q2: True),
         #'Valid': valid_state_fn,
     }
     #stream_map = 'debug'
@@ -117,8 +118,8 @@ def main(focused=True, deterministic=False, unit_costs=False):
     }
 
     dynamic = [
-        StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
-                          gen_fn=from_fn(cfree_motion_fn)),
+        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #                  gen_fn=from_fn(cfree_motion_fn)),
         #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
         #                           'posecollision': 0, 'distance': 0},
         #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),

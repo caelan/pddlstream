@@ -6,6 +6,9 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
 from pddlstream.utils import str_from_tuple
 
 
+# TODO: non blocking state stream taht I just fail if no luck
+# TODO: convert stream things into state-streams
+
 class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None):
         super(FunctionInfo, self).__init__(eager, p_success, overhead)
@@ -24,6 +27,15 @@ class FunctionResult(Result):
     def get_tuple(self):
         name = self.instance.external.name
         return name, self.instance.input_objects, self.value
+
+    def remap_inputs(self, bindings):
+        # TODO: move this to the instance class?
+        input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
+        new_instance = self.instance.external.get_instance(input_objects)
+        return self.__class__(new_instance, self.value, self.opt_index)
+
+    def is_successful(self):
+        return True
 
     def __repr__(self):
         return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
@@ -59,10 +71,9 @@ class FunctionInstance(Instance):  # Head(Instance):
             print('{}{}={}'.format(get_prefix(self.external.head),
                                    str_from_tuple(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
-        if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
-            self.update_statistics(start_time, []) # TODO: do this more automatically
-        else:
-            self.update_statistics(start_time, results)
+        #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
+        #    self.update_statistics(start_time, [])
+        self.update_statistics(start_time, results)
         return results
 
     def next_optimistic(self):
@@ -108,6 +119,10 @@ class PredicateResult(FunctionResult):
         if self.value:
             return [expression]
         return [Not(expression)]
+
+    def is_successful(self):
+        opt_value = self.instance.external.opt_fn(*self.instance.get_input_values())
+        return self.value == opt_value
 
 
 class PredicateInstance(FunctionInstance):

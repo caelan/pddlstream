@@ -207,7 +207,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
 
 def plan_commands(state, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
-    # TODO: populate the bodies here from state
+    # TODO: populate the bodies here from state and not the real world
     task = state.task
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)

@@ -22,10 +22,16 @@ class Result(object):
     def get_certified(self):
         raise NotImplementedError()
 
+    def remap_inputs(self, bindings):
+        raise NotImplementedError()
+
+    def is_successful(self):
+        raise NotImplementedError()
 
 class Instance(object):
     def __init__(self, external, input_objects):
         self.external = external
+        assert(len(input_objects) == len(external.inputs))
         self.input_objects = tuple(input_objects)
         self.enumerated = False
         self.disabled = False
@@ -38,7 +44,7 @@ class Instance(object):
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
-        success = len(results) != 0
+        success = any(r.is_successful() for r in results)
         self.external.update_statistics(overhead, success)
         self.results_history.append(results)
 
@@ -46,30 +52,19 @@ class Instance(object):
     def num_calls(self):
         return len(self.results_history)
 
-    def get_belief(self):
-        #return 1.
-        #prior = self.external.prior
-        prior = 1. - 1e-2
-        n = self.num_calls
-        p_obs_given_state = self.external.get_p_success()
-        p_state = prior
-        for i in range(n):
-            p_nobs_and_state = (1-p_obs_given_state)*p_state
-            p_nobs_and_nstate = (1-p_state)
-            p_nobs = p_nobs_and_state + p_nobs_and_nstate
-            p_state = p_nobs_and_state/p_nobs
-        return p_state
-
-    def get_p_success(self):
-        p_success_belief = self.external.get_p_success()
-        #return p_success_belief
-        belief = self.get_belief()
-        return p_success_belief*belief
-        # TODO: use the external as a prior
-        # TODO: Bayesian estimation of likelihood that has result
-        # Model hidden state of whether has values or if will produce values?
-        # TODO: direct estimation of different buckets in which it will finish
-        # TODO: we have samples from the CDF or something
+    # def get_belief(self):
+    #     #return 1.
+    #     #prior = self.external.prior
+    #     prior = 1. - 1e-2
+    #     n = self.num_calls
+    #     p_obs_given_state = self.external.get_p_success()
+    #     p_state = prior
+    #     for i in range(n):
+    #         p_nobs_and_state = (1-p_obs_given_state)*p_state
+    #         p_nobs_and_nstate = (1-p_state)
+    #         p_nobs = p_nobs_and_state + p_nobs_and_nstate
+    #         p_state = p_nobs_and_state/p_nobs
+    #     return p_state
 
     # def update_belief(self, success):
     #     # Belief that remaining sequence is non-empty
@@ -80,6 +75,17 @@ class Instance(object):
     #         p_success = p_success_nonempty*nonempty
     #     else:
     #         p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
+
+    def get_p_success(self):
+        p_success_belief = self.external.get_p_success()
+        return p_success_belief
+        #belief = self.get_belief()
+        #return p_success_belief*belief
+        # TODO: use the external as a prior
+        # TODO: Bayesian estimation of likelihood that has result
+        # Model hidden state of whether has values or if will produce values?
+        # TODO: direct estimation of different buckets in which it will finish
+        # TODO: we have samples from the CDF or something
 
     def get_overhead(self):
         return self.external.get_overhead()

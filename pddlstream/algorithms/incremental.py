@@ -8,6 +8,7 @@ from pddlstream.language.function import FunctionInstance
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
 
+# TODO: error when using state-streams
 
 def process_stream_queue(instantiator, evaluations, verbose=True):
     stream_instance = instantiator.stream_queue.popleft()
