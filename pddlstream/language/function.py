@@ -6,9 +6,6 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
 from pddlstream.utils import str_from_tuple
 
 
-# TODO: non blocking state stream taht I just fail if no luck
-# TODO: convert stream things into state-streams
-
 class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None):
         super(FunctionInfo, self).__init__(eager, p_success, overhead)

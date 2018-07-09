@@ -47,19 +47,21 @@ class BeliefState(State):
         #self.localized = set(localized)
         self.registered = set(registered)
         # TODO: store configurations
-        #for body in task.get_bodies():
-        #    if body not in localized:
-        #        del self.poses[body]
-        #    elif body not in registered:
-        #        point, quat = self.poses[body].value
-        #        self.poses[body] = Pose(body, (point, None))
+        for body in task.get_bodies():
+            if not self.is_localized(body):
+                #self.poses[body] = None
+                self.poses[body] = object()
+                #del self.poses[body]
+            #elif body not in registered:
+            #    point, quat = self.poses[body].value
+            #    self.poses[body] = Pose(body, (point, None))
     def is_localized(self, body):
         return len(self.b_on[body].support()) == 1
     def __repr__(self):
         items = []
         for b in sorted(self.b_on.keys()):
             d = self.b_on[b]
-            support_items = ['{}: {:.2f}'.format(s, d.prob(s)) for s in sorted(d.support(), key=lambda s: str(s))]
+            support_items = ['{}: {:.2f}'.format(s, d.prob(s)) for s in sorted(d.support(), key=str)]
             items.append('{}: {{{}}}'.format(b, ', '.join(support_items)))
         return '{}({},{})'.format(self.__class__.__name__,
                                   #self.b_on,

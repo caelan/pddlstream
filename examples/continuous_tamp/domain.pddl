@@ -21,13 +21,14 @@
     (In ?b ?r)
     (Placeable ?b ?r)
     (Motion ?q1 ?t ?q2)
+    (Reachable ?q1 ?q2)
   )
   (:functions
     (Distance ?q1 ?q2)
   )
   (:action move
     :parameters (?q1 ?t ?q2)
-    :precondition (and (Motion ?q1 ?t ?q2)
+    :precondition (and (Motion ?q1 ?t ?q2) (Reachable ?q1 ?q2)
                        (AtConf ?q1) (CanMove) (not (UnsafeTraj ?t)))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))

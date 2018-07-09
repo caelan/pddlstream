@@ -30,8 +30,9 @@ import time
 def partition_externals(externals):
     functions = list(filter(lambda s: type(s) is Function, externals))
     negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    state = list(filter(lambda s: type(s) is StateStream, externals)) # and s.is_negative()
     streams = list(filter(lambda s: s not in (functions + negative), externals))
-    return streams, functions, negative
+    return streams, functions, negative + state
 
 ##################################################
 
@@ -84,6 +85,34 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
 
 ##################################################
 
+from pddlstream.language.exogenous import replace_literals
+from pddlstream.language.state_stream import StateStream
+from pddlstream.language.conversion import get_prefix
+
+def compile_state_streams(domain, externals):
+    state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
+    if not state_streams:
+        return
+    predicate_map = {}
+    for stream in state_streams:
+        predicate_map.update(stream.negated_predicates)
+
+    def fn(literal):
+        if literal.predicate not in predicate_map:
+            return literal
+        new_predicate = predicate_map.get(literal.predicate, literal.predicate)
+        return literal.__class__(new_predicate, literal.args).negate()
+
+    import pddl
+    for action in domain.actions:
+        action.precondition = replace_literals(fn, action.precondition)
+        for effect in action.effects:
+            assert(isinstance(effect, pddl.Effect))
+            effect.condition = replace_literals(fn, effect.condition)
+    for axiom in domain.axioms:
+        axiom.condition = replace_literals(fn, axiom.condition)
+    return state_streams
+
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=None,
                   effort_weight=None, eager_layers=1,
@@ -113,6 +142,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
     compile_to_exogenous(evaluations, domain, externals)
+    compile_state_streams(domain, externals)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)
@@ -133,8 +163,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
         start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
-        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr,
-                                                            negative,
+        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
                                                             max_cost=store.best_cost,
                                                             #max_cost=min(store.best_cost, max_cost),
                                                             unit_costs=unit_costs, **search_kwargs)

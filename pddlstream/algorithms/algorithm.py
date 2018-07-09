@@ -9,6 +9,7 @@ from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream
+from pddlstream.language.state_stream import parse_state_stream
 from pddlstream.utils import elapsed_time, INF
 
 
@@ -123,6 +124,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         name = lisp_list[0]
         if name == ':stream':
             external = parse_stream(lisp_list, stream_map, stream_info)
+        elif name == ':state-stream':
+            external = parse_state_stream(lisp_list, stream_map, stream_info)
         elif name == ':wild':
             raise NotImplementedError(name)
         elif name == ':rule':

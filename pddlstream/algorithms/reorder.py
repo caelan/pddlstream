@@ -20,6 +20,9 @@ def get_partial_orders(stream_plan):
         for stream2 in stream_plan[i+1:]: # Prevents circular
             if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
                 partial_orders.add((stream1, stream2))
+            if isinstance(stream1, StreamResult) and \
+                    (set(stream1.output_objects) & set(stream2.instance.input_objects)):
+                partial_orders.add((stream1, stream2))
     return partial_orders
 
 # def get_ancestors(stream_result, stream_plan):

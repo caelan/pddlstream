@@ -5,8 +5,10 @@ from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
     solve_from_task, get_literals, conditions_hold
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head, get_stream_actions
-from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
-from pddlstream.language.function import PredicateResult
+from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, \
+    And, get_prefix, get_args
+from pddlstream.language.function import PredicateResult, Predicate
+from pddlstream.language.state_stream import StateStream
 from pddlstream.utils import Verbose, MockSet, HeapElement
 
 
@@ -79,6 +81,8 @@ def get_achieving_streams(evaluations, stream_results, op=sum):
 
 def extract_stream_plan(node_from_atom, facts, stream_plan):
     for fact in facts:
+        if fact not in node_from_atom:
+            raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
         stream_result = node_from_atom[fact].stream_result
         if (stream_result is None) or (stream_result in stream_plan):
             continue
@@ -227,13 +231,19 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
     # Added effects cancel out removed effects
 
+    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
     function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
+
+    negative_from_name = {n.name: n for n in filter(lambda n: isinstance(n, Predicate), negative)}
+    for n in filter(lambda n: isinstance(n, StateStream), negative):
+        for p, np in n.negated_predicates.items():
+            negative_from_name[np] = n
+            #negative_from_name[np] = p
 
     action_instances = []
     for name, args in action_plan: # TODO: negative atoms in actions
@@ -245,32 +255,34 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                 raise NotImplementedError('Existential quantifiers are not currently '
                                           'supported in preconditions: {}'.format(name))
             variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-            instance = action.instantiate(variable_mapping, set(),
+            action_instance = action.instantiate(variable_mapping, set(),
                                           MockSet(), type_to_objects,
                                           opt_task.use_min_cost_metric, function_assignments)
-            assert (instance is not None)
-            candidates.append(((action, args), instance))
+            assert (action_instance is not None)
+            candidates.append(((action, args), action_instance))
         if not candidates:
             raise RuntimeError('Could not find an applicable action {}'.format(name))
         action_instances.append(candidates)
     action_instances.append([(None, get_goal_instance(opt_task.goal))])
 
     axioms_from_name = get_derived_predicates(opt_task.axioms)
-    negative_from_name = {n.name: n for n in negative}
     opt_task.actions = []
     opt_state = set(opt_task.init)
     real_state = set(real_task.init)
+    real_states = [real_state]
     preimage_plan = []
+    indices_from_atoms = defaultdict(set)
     function_plan = set()
+    state_plan = set()
     for layer in action_instances:
-        for pair, instance in layer:
-            nonderived_preconditions = [l for l in instance.precondition if l.predicate not in axioms_from_name]
-            #nonderived_preconditions = instance.precondition
+        for pair, action_instance in layer:
+            nonderived_preconditions = [l for l in action_instance.precondition if l.predicate not in axioms_from_name]
+            #nonderived_preconditions = action_instance.precondition
             if not conditions_hold(opt_state, nonderived_preconditions):
                 continue
             opt_task.init = opt_state
             original_axioms = opt_task.axioms
-            axiom_from_action = get_necessary_axioms(instance, original_axioms, negative_from_name)
+            axiom_from_action = get_necessary_axioms(action_instance, original_axioms, negative_from_name)
             opt_task.axioms = []
             opt_task.actions = axiom_from_action.keys()
             # TODO: maybe it would just be better to drop the negative throughout this process until this end
@@ -278,19 +290,20 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                 model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
             opt_task.axioms = original_axioms
 
-            opt_facts = instantiate.get_fluent_facts(opt_task, model) | (opt_state - real_state)
+            delta_state = opt_state - real_state
+            opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
             mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
                                                (item in opt_facts))
             instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
             with Verbose(False):
-                helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, [])
+                helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
             axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
             axiom_plan = []  # Could always add all conditions
-            extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
+            extract_axioms(axiom_from_atom, action_instance.precondition, axiom_plan)
             # TODO: test if no derived solution
 
             # TODO: compute required stream facts in a forward way and allow opt facts that are already known required
-            for effects in [instance.add_effects, instance.del_effects]:
+            for effects in [action_instance.add_effects, action_instance.del_effects]:
                 for i, (conditions, effect) in enumerate(effects[::-1]):
                     if any(c.predicate in axioms_from_name for c in conditions):
                         raise NotImplementedError('Conditional effects cannot currently involve derived predicates')
@@ -303,21 +316,58 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                     else:
                         # TODO: handle more general case where can choose to achieve particular conditional effects
                         raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
-            #if any(conditions for conditions, _ in instance.add_effects + instance.del_effects):
-            #    raise NotImplementedError('Conditional effects are not currently supported: {}'.format(instance.name))
+
+            for literal in action_instance.precondition:
+                if literal.predicate in negative_from_name:
+                    negated = negative_from_name[literal.predicate]
+                    [cert] = negated.certified
+                    #action_instance.precondition.append(pddl.Atom(get_prefix(cert), literal.args))
+                    # TODO: only consider facts produced by initial/actions
+                    object_from_input = dict(zip(get_args(cert), map(obj_from_pddl, literal.args)))
+                    fluent_facts = list(filter(lambda f: isinstance(f, pddl.Atom) and
+                                                  (f.predicate in negated.fluents), real_state))
+                    input_objects = tuple(object_from_input[inp] for inp in negated.inputs)
+                    state_instance = negated.get_instance(input_objects, map(fact_from_fd, fluent_facts))
+                    state_result = negated._Result(state_instance, tuple())
+                    state_plan.add(state_result)
+
+                    external_params = tuple(literal.args)
+                    internal_params = tuple()
+                    parameters = tuple(pddl.TypedObject(p, 'object')
+                                       for p in (external_params + internal_params))
+                    precondition = pddl.Conjunction(fluent_facts)
+
+                    axiom = pddl.Axiom(name=literal.predicate,
+                               parameters=parameters,
+                               num_external_parameters=len(external_params),
+                               condition=precondition)
+                    # TODO: need a predicate grounding these args but just for thse parameters
+                    print(axiom)
+
+                    print(input_objects)
+                    print(fluent_facts)
+                    #print(literal, atom)
+                    # TODO: single predicate per each that way only one stream is blocked
+                    # TODO: can add new stream here for the postprocessing
+                    # TODO: alternatively, can add to the stream plan
+                    # TODO: by considering it like a stream, can achieve domain conditions (or block if not possible)
 
             # TODO: add axiom init to reset state?
-            apply_action(opt_state, instance)
-            apply_action(real_state, instance)
-            preimage_plan.extend(axiom_plan + [instance])
+            layer_plan = axiom_plan + [action_instance]
+            for atom in (plan_preimage(layer_plan, []) - real_state):
+                indices_from_atoms[atom].add(len(real_states))
+            preimage_plan.extend(layer_plan)
+            apply_action(opt_state, action_instance)
+            apply_action(real_state, action_instance)
+            real_states.append(real_state) # TODO: only add initial fluents propagated?
             if not unit_costs and (pair is not None):
                 function_plan.update(extract_function_results(results_from_head, *pair))
             break
         else:
             raise RuntimeError('No action instances are applicable')
 
-    preimage = plan_preimage(preimage_plan, set())
-    preimage -= set(real_task.init)
+    # TODO: could instead just accumulate difference between real and opt
+    preimage = plan_preimage(preimage_plan, []) - set(real_task.init)
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, preimage))
     preimage -= negative_preimage
     # visualize_constraints(map(fact_from_fd, preimage))
@@ -326,20 +376,28 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     # TODO: can optimize for all streams & axioms all at once
 
     for literal in negative_preimage:
+        #print(literal, indices_from_atoms[literal])
+        #for i in indices_from_atoms[literal]:
+        #    print(i, real_states[i])
         negative = negative_from_name[literal.predicate]
-        instance = negative.get_instance(map(obj_from_pddl, literal.args))
+        if isinstance(negative, StateStream):
+            continue
+        action_instance = negative.get_instance(map(obj_from_pddl, literal.args))
         value = not literal.negated
-        if instance.enumerated:
-            assert (instance.value == value)
+        if action_instance.enumerated:
+            assert (action_instance.value == value)
         else:
-            function_plan.add(PredicateResult(instance, value, opt_index=instance.opt_index))
+            function_plan.add(PredicateResult(action_instance, value, opt_index=action_instance.opt_index))
+    #print(indices_from_atoms)
+    #raw_input('awefwaf')
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, preimage)))
     stream_plan = []
     extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
+    initial_plan = stream_plan + list(function_plan) + list(state_plan)
     if not optimize: # TODO: detect this based on unique or not
-        return stream_plan + list(function_plan)
+        return initial_plan
 
     # TODO: search in space of partially ordered plans
     # TODO: local optimization - remove one and see if feasible
@@ -350,10 +408,10 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     new_plan, _ = solve_from_task(reschedule_task, planner='max-astar', debug=False)
     # TODO: investigate admissible heuristics
     if new_plan is None:
-        return stream_plan + list(function_plan)
+        return initial_plan
 
     new_stream_plan = [stream_result_from_name[name] for name, _ in new_plan]
-    return new_stream_plan + list(function_plan)
+    return new_stream_plan + list(function_plan) + list(state_plan)
 
 ##################################################
 

@@ -10,6 +10,7 @@ from pddlstream.language.conversion import evaluation_from_fact, substitute_expr
 from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.state_stream import StateStreamResult
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
 
@@ -64,6 +65,9 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
     opt_bindings = defaultdict(list)
     opt_results = []
     for opt_result in stream_plan:
+        if isinstance(opt_result, StateStreamResult):
+            opt_results.append(opt_result)
+            continue
         # TODO: could just do first step
         for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings, evaluations, opt_evaluations):
             results = instance.next_optimistic()
@@ -82,20 +86,13 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 # TODO: alternatively store just preimage and reachieve
 
 def instantiate_plan(bindings, stream_plan):
-    if not bindings:
-        return stream_plan[:]
-    new_stream_plan = []
-    for result in stream_plan:
-        input_objects = [bindings.get(i, i) for i in result.instance.input_objects]
-        new_instance = result.instance.external.get_instance(input_objects)
-        new_instance.disabled = True # TODO: do I want this?
-        if isinstance(result, StreamResult):
-            new_result = result.__class__(new_instance, result.output_objects, result.opt_index)
-        elif isinstance(result, FunctionResult):
-            new_result = result.__class__(new_instance, result.value, result.opt_index)
-        else:
-            raise ValueError(result)
-        new_stream_plan.append(new_result)
+    if not stream_plan:
+        return []
+    #if not bindings:
+    #    # TODO: disable bindings
+    #    return stream_plan[:]
+    new_stream_plan = [result.remap_inputs(bindings) for result in stream_plan]
+    new_stream_plan[0].instance.disabled = True
     return new_stream_plan
 
 def process_stream_plan(skeleton, queue, accelerate=1):
@@ -109,9 +106,9 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         queue.store.add_plan(bound_plan, cost)
         return new_values
     if queue.store.best_cost <= cost:
-        for result in stream_plan:
-            result.instance.disabled = False
-        #instance.disabled = False
+        #for result in stream_plan:
+        #    result.instance.disabled = False
+        stream_plan[0].instance.disabled = False
         # TODO: only disable if not used elsewhere
         # TODO: could just hash instances
         return new_values
@@ -135,7 +132,8 @@ def process_stream_plan(skeleton, queue, accelerate=1):
     opt_result = stream_plan[index] # TODO: could do several at once but no real point
     for result in results:
         add_certified(queue.evaluations, result)
-        if (type(result) is PredicateResult) and (opt_result.value != result.value):
+        #if (type(result) is PredicateResult) and (opt_result.value != result.value):
+        if not result.is_successful():
             continue # TODO: check if satisfies target certified
         new_bindings = bindings.copy()
         new_stream_plan =  stream_plan[:index] + stream_plan[index+1:]
