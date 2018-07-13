@@ -10,7 +10,6 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
     pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ
 from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path
 
-#FD_PATH = os.environ['FD_PATH']
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
@@ -28,7 +27,6 @@ import normalize
 import pddl_parser
 from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, \
     parse_condition, check_for_duplicates
-
 
 TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
@@ -53,26 +51,6 @@ SEARCH_OPTIONS = {
     # Suboptimal
     'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'ff-wastar1': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w=1,'
-                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'ff-wastar3': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=100,w=3,'
-                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"',
-    'ff-wastar5': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=100,w=5,'
-                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"',
-
-    'cea-wastar1': '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" '
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=1,'
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"',
-    'cea-wastar3': '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" '
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=3,'
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"',
-    'cea-wastar5': '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" '
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=5,'
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"',
-
     'ff-eager': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "eager_greedy([hff],max_time=%s,bound=%s)"',
     'ff-eager-pref': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
@@ -81,6 +59,15 @@ SEARCH_OPTIONS = {
                '--search "lazy_greedy([hff],preferred=[hff],max_time=%s,bound=%s)"',
 }
 
+for w in [1, 3, 5]:
+    SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
+                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
+    SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=5,' \
+                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+
+# TODO: goal serialization
 
 ##################################################
 
@@ -180,30 +167,9 @@ def get_literals(condition):
 
 ##################################################
 
-# def translate_paths(domain_path, problem_path):
-#     #pddl_parser.parse_pddl_file('domain', domain_path)
-#     #pddl_parser.parse_pddl_file('task', problem_path)
-#     task = pddl_parser.open(
-#         domain_filename=domain_path, task_filename=problem_path)
-#     normalize.normalize(task)
-#     return task
-
-# def run_translate(temp_dir, verbose):
-#     t0 = time()
-#     with Verbose(verbose):
-#         print('\nTranslate command: import translate; translate.main()')
-#         with TmpCWD(os.path.join(os.getcwd(), temp_dir)):
-#             translate.main()
-#         print('Translate runtime:', time() - t0)
-
 def translate_and_write_task(task, temp_dir):
-    #sas_task = pddl_to_sas(instantiate_task(task))
     normalize.normalize(task)
     sas_task = translate.pddl_to_sas(task)
-    #try:
-    #    sas_task = translate.pddl_to_sas(task)
-    #except AssertionError:
-    #    raise AssertionError('A function is not defined for some grounding of an action')
     translate.dump_statistics(sas_task)
     clear_dir(temp_dir)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
@@ -220,16 +186,9 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 ##################################################
 
 def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=False):
-    if max_time == INF:
-        max_time = 'infinity'
-    else:
-        max_time = int(max_time)
-    if max_cost == INF:
-        max_cost = 'infinity'
-    else:
-        max_cost = int(max_cost)
-
-    t0 = time()
+    max_time = 'infinity' if max_time == INF else int(max_time)
+    max_cost = 'infinity' if max_cost == INF else int(max_cost)
+    start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search % (temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
@@ -239,7 +198,7 @@ def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=
     output = p.read()
     if debug:
         print(output[:-1])
-        print('Search runtime:', time() - t0)
+        print('Search runtime:', time() - start_time)
     if not os.path.exists(temp_dir + SEARCH_OUTPUT):
         return None
     return read(temp_dir + SEARCH_OUTPUT)
@@ -298,6 +257,38 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs)
         print('Total runtime:', time() - start_time)
     return parse_solution(solution)
 
+import sas_tasks
+
+def apply_sas_operator(init, op):
+    for var, pre, post, cond in op.pre_post:
+        assert (pre == -1) or (init.values[var] == pre)
+        assert not cond
+        init.values[var] = post
+
+def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+    start_time = time()
+    with Verbose(debug):
+        sas_task = translate_and_write_task(task, temp_dir)
+        op_from_name = {op.name: op for op in sas_task.operators} # No need to keep repeats
+        goals = sas_task.goal.pairs[:]
+        full_plan = []
+        full_cost = 0
+        for i in range(len(goals)):
+            sas_task.goal = sas_tasks.SASGoal(goals[:i+1])
+            solution = run_search(temp_dir, debug=True, **kwargs)
+            plan, cost = parse_solution(solution)
+            if plan is None:
+                return None, INF
+            full_plan.extend(plan)
+            full_cost += cost
+            for action, args in plan:
+                name = '({})'.format(' '.join((action,) + args))
+                apply_sas_operator(sas_task.init, op_from_name[name])
+        if clean:
+            safe_rm_dir(temp_dir)
+        print('Total runtime:', time() - start_time)
+    return full_plan, full_cost
+
 ##################################################
 
 def conditions_hold(state, conditions):
@@ -334,86 +325,3 @@ def plan_cost(plan):
     for action in plan:
         cost += action.cost
     return cost
-
-##################################################
-
-# import axiom_rules
-# import instantiate
-# import fact_groups
-# import timers
-# import options
-# import simplify
-# import variable_order
-
-#GroundTask = namedtuple('GroundTask', ['task', 'atoms', 'actions', 'reachable_action_params', 'original_axioms',
-#                                       'axioms', 'axiom_init', 'axiom_layer_dict', 'goal_list'])
-#
-# def instantiate_task(task, simplify_axioms=False):
-#     # TODO: map parameters to actions and then select which list of atomic supports it
-#     normalize.normalize(task)
-#     relaxed_reachable, atoms, actions, original_axioms, reachable_action_params = instantiate.explore(task)
-#     if not relaxed_reachable:
-#        return None
-#     #goal_list = get_literals(task.goal)
-#     goal_list = task.goal.parts if isinstance(task.goal, pddl.Conjunction) else [task.goal]
-#     # TODO: this removes the axioms for some reason
-#     if simplify_axioms:
-#         axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, original_axioms, goal_list)
-#     else:
-#         axioms, axiom_init, axiom_layer_dict = [], [], {}
-#     return GroundTask(task, atoms, actions, reachable_action_params, original_axioms,
-#                       axioms, axiom_init, axiom_layer_dict, goal_list)
-
-# def pddl_to_sas(ground_task):
-#     with timers.timing("Computing fact groups", block=True):
-#         groups, mutex_groups, translation_key = fact_groups.compute_groups(
-#             ground_task.task, ground_task.atoms, ground_task.reachable_action_params)
-#
-#     with timers.timing("Building STRIPS to SAS dictionary"):
-#         ranges, strips_to_sas = translate.strips_to_sas_dictionary(
-#             groups, assert_partial=options.use_partial_encoding)
-#
-#     with timers.timing("Building dictionary for full mutex groups"):
-#         mutex_ranges, mutex_dict = translate.strips_to_sas_dictionary(
-#             mutex_groups, assert_partial=False)
-#
-#     if options.add_implied_preconditions:
-#         with timers.timing("Building implied facts dictionary..."):
-#             implied_facts = translate.build_implied_facts(strips_to_sas, groups,
-#                                                 mutex_groups)
-#     else:
-#         implied_facts = {}
-#
-#     with timers.timing("Building mutex information", block=True):
-#         mutex_key = translate.build_mutex_key(strips_to_sas, mutex_groups)
-#
-#     with timers.timing("Translating task", block=True):
-#         sas_task = translate.translate_task(
-#             strips_to_sas, ranges, translation_key,
-#             mutex_dict, mutex_ranges, mutex_key,
-#             ground_task.task.init, ground_task.goal_list,
-#             ground_task.actions, ground_task.original_axioms,
-#             ground_task.task.use_min_cost_metric,
-#             implied_facts)
-#
-#     print("%d effect conditions simplified" %
-#           translate.simplified_effect_condition_counter)
-#     print("%d implied preconditions added" %
-#           translate.added_implied_precondition_counter)
-#
-#     if options.filter_unreachable_facts:
-#         with timers.timing("Detecting unreachable propositions", block=True):
-#             try:
-#                 simplify.filter_unreachable_propositions(sas_task)
-#             except simplify.Impossible:
-#                 return ground_task.unsolvable_sas_task("Simplified to trivially false goal")
-#             except simplify.TriviallySolvable:
-#                 return ground_task.solvable_sas_task("Simplified to empty goal")
-#
-#     if options.reorder_variables or options.filter_unimportant_vars:
-#         with timers.timing("Reordering and filtering variables", block=True):
-#             variable_order.find_and_apply_variable_order(
-#                 sas_task, options.reorder_variables,
-#                 options.filter_unimportant_vars)
-#
-#     return sas_task

@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.conversion import Or, Problem

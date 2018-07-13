@@ -88,9 +88,6 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 def instantiate_plan(bindings, stream_plan, evaluations, domain):
     if not stream_plan:
         return []
-    #if not bindings:
-    #    # TODO: disable bindings
-    #    return stream_plan[:]
     new_stream_plan = [result.remap_inputs(bindings) for result in stream_plan]
     new_stream_plan[0].instance.disable(evaluations, domain)
     return new_stream_plan

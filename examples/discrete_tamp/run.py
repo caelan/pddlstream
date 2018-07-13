@@ -7,8 +7,8 @@ import os
 from collections import namedtuple
 
 import numpy as np
-from pddlstream.downward import TOTAL_COST
-from pddlstream.focused import solve_focused
+from pddlstream.algorithms.downward import TOTAL_COST
+from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.conversion import And, Equal
