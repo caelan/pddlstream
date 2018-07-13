@@ -46,7 +46,8 @@ def from_list_gen_fn(list_gen_fn):
 
 
 def from_gen_fn(gen_fn):
-    return from_list_gen_fn(lambda *args: ([] if ov is None else [ov] for ov in gen_fn(*args)))
+    return from_list_gen_fn(lambda *args, **kwargs: ([] if ov is None else [ov]
+                                                     for ov in gen_fn(*args, **kwargs)))
 
 
 def from_sampler(sampler, max_attempts=INF):
@@ -61,19 +62,19 @@ def from_sampler(sampler, max_attempts=INF):
 # Methods that convert some procedure -> function to a BoundedGenerator
 
 def from_list_fn(list_fn):
-    #return lambda *args: iter([list_fn(*args)])
-    return lambda *args: BoundedGenerator(iter([list_fn(*args)]), max_calls=1)
+    #return lambda *args, **kwargs: iter([list_fn(*args, **kwargs)])
+    return lambda *args, **kwargs: BoundedGenerator(iter([list_fn(*args, **kwargs)]), max_calls=1)
 
 
 def from_fn(fn):
-    def list_fn(*args):
-        outputs = fn(*args)
+    def list_fn(*args, **kwargs):
+        outputs = fn(*args, **kwargs)
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
 
 def from_test(test):
-    return from_fn(lambda *args: tuple() if test(*args) else None)
+    return from_fn(lambda *args, **kwargs: tuple() if test(*args, **kwargs) else None)
 
 
 def from_constant(constant):
@@ -81,14 +82,14 @@ def from_constant(constant):
 
 
 def empty_gen():
-    return lambda *args: iter([])
+    return lambda *args, **kwargs: iter([])
 
 ##################################################
 
 # Methods that convert some procedure -> function
 
 def fn_from_constant(constant):
-    return lambda *args: constant
+    return lambda *args, **kwargs: constant
 
 ##################################################
 

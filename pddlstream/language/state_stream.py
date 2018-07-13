@@ -1,13 +1,14 @@
 import time
-from collections import Counter, defaultdict, namedtuple, Sequence
-from itertools import count
+from collections import Counter, Sequence
 
-from pddlstream.language.conversion import list_from_conjunction, substitute_expression, get_prefix, get_args, is_parameter
+from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
+    get_prefix, get_args, is_parameter, values_from_objects, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
 from pddlstream.language.stream import DebugValue
 from pddlstream.language.generator import get_next, from_fn
-from pddlstream.language.object import Object, OptimisticObject
+from pddlstream.language.object import Object
 from pddlstream.utils import str_from_tuple
+from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 
 try:
     from inspect import getfullargspec as get_arg_spec
@@ -17,6 +18,8 @@ except ImportError:
 # TODO: no need to optimistic
 # TODO: should I extend function or stream or predicate?
 
+def remap_objects(objects, bindings):
+    return tuple(bindings.get(i, i) for i in objects)
 
 class StateStreamInfo(ExternalInfo):
     def __init__(self, eager=False, p_success=None, overhead=None):
@@ -38,13 +41,17 @@ class StateStreamResult(Result):
     def get_certified(self):
         return self.certified
     def get_tuple(self):
-        name = self.instance.external.name
-        return name, self.instance.input_objects, self.output_objects
+        raise NotImplementedError()
+        #name = self.instance.external.name
+        #return name, self.instance.input_objects, self.output_objects
     def remap_inputs(self, bindings):
-        print(bindings)
-        input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
-        new_instance = self.instance.external.get_instance(input_objects)
-        return self.__class__(new_instance, self.output_objects, self.opt_index)
+        input_objects = remap_objects(self.instance.input_objects, bindings)
+        fluent_facts = [(get_prefix(f),) + remap_objects(get_args(f), bindings)
+                        for f in self.instance.fluent_facts]
+        new_instance = self.instance.external.get_instance(input_objects, fluent_facts)
+        return self.__class__(new_instance, self.output_objects)
+    def is_successful(self):
+        return True
     def __repr__(self):
         return '{}:{}->{}'.format(self.instance.external.name,
                                   str_from_tuple(self.instance.input_objects),
@@ -66,9 +73,11 @@ class StateStreamInstance(Instance):
             if len(output_values) != len(self.external.outputs):
                 raise ValueError('An output tuple for stream [{}] has length {} instead of {}: {}'.format(
                     self.external.name, len(output_values), len(self.external.outputs), output_values))
+    def get_fluent_values(self):
+        return [(get_prefix(f),) + values_from_objects(get_args(f)) for f in self.fluent_facts]
     def _next_outputs(self):
         if self._generator is None:
-            self._generator = self.external.gen_fn(*self.get_input_values())
+            self._generator = self.external.gen_fn(*self.get_input_values(), fluents=self.get_fluent_values())
         new_values, self.enumerated = get_next(self._generator)
         return new_values
     def next_results(self, accelerate=1, verbose=False):
@@ -90,6 +99,33 @@ class StateStreamInstance(Instance):
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))
         return all_results
+    def disable(self, evaluations, domain):
+        assert not self.disabled
+        super(StateStreamInstance, self).disable(evaluations, domain)
+        import pddl
+        index = len(self.external.disabled)
+        #index = 0
+        for fact in self.external.certified:
+            name = get_prefix(fact)
+            negated = self.external.negated_predicates[name]
+            fact_args = tuple(get_args(fact))
+            literal = substitute_expression(fact, self.mapping)
+            new_name = 'ax-{}-{}'.format(name, index)
+            #static_atom = pddl.Atom(new_name, fact_args)
+            static_atom = fd_from_fact((new_name,) + fact_args)
+            static_eval = evaluation_from_fact((new_name,) + get_args(literal))
+            evaluations[static_eval] = False # TODO: assign another value?)
+            external_params = fact_args
+            internal_params = tuple()
+            parameters = tuple(pddl.TypedObject(p, OBJECT)
+                               for p in (external_params + internal_params))
+            fluent_facts = list(map(fd_from_fact, self.fluent_facts))
+            precondition = pddl.Conjunction([static_atom] + fluent_facts)
+            #precondition = pddl.Conjunction([static_atom])
+            domain.axioms.append(pddl.Axiom(name=negated, parameters=parameters,
+                                            num_external_parameters=len(external_params),
+                                            condition=precondition))
+        self.external.disabled.append(self)
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -127,7 +163,7 @@ class StateStream(External):
         # TODO: could also have a function to partition into tuples to be applied
         self.fluents = fluents # TODO: alternatively could make this a function determining whether to include
         self.negated_predicates = {get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified}
-        self.axioms = []
+        self.disabled = []
 
     def get_instance(self, input_objects, fluent_facts):
         key = (tuple(input_objects), frozenset(fluent_facts))

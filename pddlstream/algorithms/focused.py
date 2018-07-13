@@ -31,8 +31,8 @@ def partition_externals(externals):
     functions = list(filter(lambda s: type(s) is Function, externals))
     negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
     state = list(filter(lambda s: type(s) is StateStream, externals)) # and s.is_negative()
-    streams = list(filter(lambda s: s not in (functions + negative), externals))
-    return streams, functions, negative + state
+    streams = list(filter(lambda s: s not in (functions + negative + state), externals))
+    return streams, functions, (negative + state)
 
 ##################################################
 
@@ -77,7 +77,8 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
     while True:
         num_iterations += 1
         stream_results = optimistic_process_streams(evaluations, streams + functions)
-        combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
+        combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions,
+                                                                 stream_results, solve_stream_plan, 0)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(num_iterations, len(stream_results),
                                                                            depth, combined_plan is not None))
         if (combined_plan is not None) or (depth == 0):
@@ -151,7 +152,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         clear_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
-    queue = SkeletonQueue(store, evaluations)
+    queue = SkeletonQueue(store, evaluations, domain)
     # TODO: decide max_sampling_time based on total search_time or likelihood estimates
     # TODO: switch to searching if believe chance of search better than sampling
     while not store.is_terminated():

@@ -3,11 +3,11 @@
   (:predicates
     (OnTable ?x)
     (Holding ?x)
-    (Feasible)
+    (Feasible ?x)
   )
   (:action pick
     :parameters (?o)
-    :precondition (and (OnTable ?o) (Feasible))
+    :precondition (and (OnTable ?o) (Feasible ?o))
     :effect (and (Holding ?o)
                  (not (OnTable ?o))))
 )

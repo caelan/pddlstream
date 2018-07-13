@@ -2,7 +2,7 @@ from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    solve_from_task, get_literals, conditions_hold
+    solve_from_task, get_literals, conditions_hold, OBJECT
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head, get_stream_actions
 from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, \
@@ -219,6 +219,20 @@ def get_goal_instance(goal):
     #precondition = get_literals(goal)
     return pddl.PropositionalAction(name, precondition, [], None)
 
+def get_state_stream_result(state_stream, literal, real_state):
+    import pddl
+    assert literal.negated
+    [cert] = state_stream.certified
+    # TODO: only consider facts produced by initial/actions
+    object_from_input = dict(zip(get_args(cert), map(obj_from_pddl, literal.args)))
+    input_objects = tuple(object_from_input[inp] for inp in state_stream.inputs)
+    fluent_facts = list(filter(lambda f: isinstance(f, pddl.Atom) and
+                                         (f.predicate in state_stream.fluents), real_state))
+    state_instance = state_stream.get_instance(input_objects, map(fact_from_fd, fluent_facts))
+    assert not state_stream.outputs
+    output_objects = tuple()
+    return state_stream._Result(state_instance, output_objects)
+
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
                         unit_costs, optimize=True):
     import pddl_to_prolog
@@ -320,37 +334,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             for literal in action_instance.precondition:
                 if literal.predicate in negative_from_name:
                     negated = negative_from_name[literal.predicate]
-                    [cert] = negated.certified
-                    #action_instance.precondition.append(pddl.Atom(get_prefix(cert), literal.args))
-                    # TODO: only consider facts produced by initial/actions
-                    object_from_input = dict(zip(get_args(cert), map(obj_from_pddl, literal.args)))
-                    fluent_facts = list(filter(lambda f: isinstance(f, pddl.Atom) and
-                                                  (f.predicate in negated.fluents), real_state))
-                    input_objects = tuple(object_from_input[inp] for inp in negated.inputs)
-                    state_instance = negated.get_instance(input_objects, map(fact_from_fd, fluent_facts))
-                    state_result = negated._Result(state_instance, tuple())
-                    state_plan.add(state_result)
-
-                    external_params = tuple(literal.args)
-                    internal_params = tuple()
-                    parameters = tuple(pddl.TypedObject(p, 'object')
-                                       for p in (external_params + internal_params))
-                    precondition = pddl.Conjunction(fluent_facts)
-
-                    axiom = pddl.Axiom(name=literal.predicate,
-                               parameters=parameters,
-                               num_external_parameters=len(external_params),
-                               condition=precondition)
-                    # TODO: need a predicate grounding these args but just for thse parameters
-                    print(axiom)
-
-                    print(input_objects)
-                    print(fluent_facts)
-                    #print(literal, atom)
-                    # TODO: single predicate per each that way only one stream is blocked
-                    # TODO: can add new stream here for the postprocessing
-                    # TODO: alternatively, can add to the stream plan
-                    # TODO: by considering it like a stream, can achieve domain conditions (or block if not possible)
+                    state_plan.add(get_state_stream_result(negated, literal, real_state))
 
             # TODO: add axiom init to reset state?
             layer_plan = axiom_plan + [action_instance]

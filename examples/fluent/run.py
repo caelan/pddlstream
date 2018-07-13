@@ -8,8 +8,12 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_fn, from_test
 from pddlstream.utils import print_solution, read, get_file_path
 
-def test_feasible(fluents=set()):
-    print(fluents)
+def test_feasible(o, fluents=set()):
+    for fact in fluents:
+        if fact[0] == 'ontable':
+            o2, = fact[1:]
+            if (o != o2) and (o2 == 'b2'):
+                return False
     return True
 
 

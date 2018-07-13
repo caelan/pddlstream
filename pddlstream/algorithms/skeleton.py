@@ -85,14 +85,14 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 # TODO: handle this in a partially ordered way
 # TODO: alternatively store just preimage and reachieve
 
-def instantiate_plan(bindings, stream_plan):
+def instantiate_plan(bindings, stream_plan, evaluations, domain):
     if not stream_plan:
         return []
     #if not bindings:
     #    # TODO: disable bindings
     #    return stream_plan[:]
     new_stream_plan = [result.remap_inputs(bindings) for result in stream_plan]
-    new_stream_plan[0].instance.disabled = True
+    new_stream_plan[0].instance.disable(evaluations, domain)
     return new_stream_plan
 
 def process_stream_plan(skeleton, queue, accelerate=1):
@@ -206,16 +206,17 @@ Skeleton = namedtuple('Skeleton', ['stream_plan', 'plan_attempts',
 SkeletonPlan = namedtuple('SkeletonPlan', ['stream_plan', 'action_plan', 'cost'])
 
 class SkeletonQueue(Sized):
-    def __init__(self, store, evaluations):
+    def __init__(self, store, evaluations, domain):
         self.store = store
         self.evaluations = evaluations
+        self.domain = domain
         self.queue = []
         self.skeleton_plans = []
         # TODO: include eager streams in the queue?
         # TODO: make an "action" for returning to the search (if it is the best decision)
 
     def add_skeleton(self, stream_plan, plan_attempts, bindings, plan_index, cost):
-        stream_plan = instantiate_plan(bindings, stream_plan)
+        stream_plan = instantiate_plan(bindings, stream_plan, self.evaluations, self.domain)
         #score = score_stream_plan(stream_plan)
         attempted = sum(plan_attempts) != 0
         effort = compute_effort(plan_attempts)

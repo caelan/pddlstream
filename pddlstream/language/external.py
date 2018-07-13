@@ -111,6 +111,8 @@ class Instance(object):
     def next_results(self, accelerate=1, verbose=False):
         raise NotImplementedError()
 
+    def disable(self, evaluations, domain):
+        self.disabled = True
 
 class External(Performance):
     _Instance = None
