@@ -3,7 +3,6 @@ import time
 from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_certified, solve_finite
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.conversion import revert_solution
-from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.function import FunctionInstance
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
@@ -33,7 +32,6 @@ def solve_current(problem, **search_kwargs):
         using stream applications
     """
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
-    compile_to_exogenous(evaluations, domain, externals)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -53,7 +51,6 @@ def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
     """
     start_time = time.time()
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
-    compile_to_exogenous(evaluations, domain, externals)
     instantiator = Instantiator(evaluations, externals)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
@@ -92,7 +89,6 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
     """
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, _, externals = parse_problem(problem)
-    compile_to_exogenous(evaluations, domain, externals)
     instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
     while not store.is_terminated():

@@ -187,6 +187,7 @@ class Stream(External):
             self.num_opt_fns = 0
             #self.opt_list_fn = get_unique_fn(self)
             self.opt_gen_fn = get_constant_gen_fn(self, None)
+            raise NotImplementedError()
         else:
             self.num_opt_fns = 1
             self.opt_gen_fn = get_shared_gen_fn(self) if (self.info.opt_gen_fn is None) else self.info.opt_gen_fn
@@ -200,16 +201,19 @@ class Stream(External):
 
 STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
 
+def get_gen_fn(stream_map, name):
+    if stream_map == DEBUG:
+        return DEBUG
+    if name not in stream_map:
+        raise ValueError('Undefined stream conditional generator: {}'.format(name))
+    return stream_map[name]
+
 def parse_stream(lisp_list, stream_map, stream_info):
+    # TODO: allow default values when omitted
     attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
     assert (STREAM_ATTRIBUTES == attributes)
     values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
     name, inputs, domain, outputs, certified = values
-    if stream_map == DEBUG:
-        gen_fn = DEBUG
-    else:
-        if name not in stream_map:
-            raise ValueError('Undefined stream conditional generator: {}'.format(name))
-        gen_fn = stream_map[name]
-    return Stream(name, gen_fn, tuple(inputs), list_from_conjunction(domain),
+    return Stream(name, get_gen_fn(stream_map, name),
+                  tuple(inputs), list_from_conjunction(domain),
                   tuple(outputs), list_from_conjunction(certified), stream_info.get(name, None))

@@ -1,14 +1,14 @@
 (define (stream pick-and-place)
-  (:rule
-    :parameters (?q ?p)
-    :domain (Kin ?q ?p)
-    :certified (and (Conf ?q) (Pose ?p))
-  )
-  (:rule
-    :parameters (?p1 ?p2)
-    :domain (AtPose ?b ?p)
-    :certified (and (Block ?b) (Pose ?p))
-  )
+  ;(:rule
+  ;  :parameters (?q ?p)
+  ;  :domain (Kin ?q ?p)
+  ;  :certified (and (Conf ?q) (Pose ?p))
+  ;)
+  ;(:rule
+  ;  :parameters (?p1 ?p2)
+  ;  :domain (AtPose ?b ?p)
+  ;  :certified (and (Block ?b) (Pose ?p))
+  ;)
 
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))

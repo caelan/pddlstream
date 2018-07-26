@@ -11,8 +11,9 @@ from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
-    distance_fn, inverse_kin_fn, get_region_test, plan_motion, get_blocked_problem, draw_state, get_random_seed, \
-    TAMPState
+    distance_fn, inverse_kin_fn, get_region_test, plan_motion, \
+    get_blocked_problem, draw_state, get_random_seed, \
+    TAMPState, get_tight_problem
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
@@ -26,6 +27,20 @@ from pddlstream.utils import print_solution, user_input, read, INF, get_file_pat
 #    new_fluents = set(fluents)
 #    # TODO: could return action descriptions or could just return fluents
 #    return
+
+def reachable_test(q1, q2, fluents=[]):
+    placed_blocks = {}
+    holding_block = None
+    for fluent in fluents:
+        if fluent[0] == 'atpose':
+            b, p = fluent[1:]
+            placed_blocks[b] = p
+        if fluent[0] == 'holding':
+            b, = fluent[1:]
+            holding_block = b
+    print(q1, q2, holding_block, placed_blocks)
+    #return True
+    return False
 
 ##################################################
 
@@ -66,7 +81,7 @@ def pddlstream_from_tamp(tamp_problem):
         'posecollision': collision_test,
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
-        'reachable': from_test(lambda q1, q2: True),
+        'reachable': from_test(reachable_test),
         #'Valid': valid_state_fn,
     }
     #stream_map = 'debug'
@@ -101,7 +116,7 @@ def main(focused=True, deterministic=False, unit_costs=False):
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 

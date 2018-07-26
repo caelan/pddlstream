@@ -1,4 +1,3 @@
-import time
 from collections import Counter
 
 from pddlstream.language.conversion import substitute_expression, values_from_objects, get_args, is_parameter
@@ -6,6 +5,7 @@ from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance
 from pddlstream.utils import elapsed_time
 
+DEBUG = 'debug'
 
 class ExternalInfo(object):
     def __init__(self, eager, p_success, overhead):
@@ -13,6 +13,7 @@ class ExternalInfo(object):
         self.p_success = p_success
         self.overhead = overhead
 
+##################################################
 
 class Result(object):
     def __init__(self, instance, opt_index):
@@ -27,6 +28,8 @@ class Result(object):
 
     def is_successful(self):
         raise NotImplementedError()
+
+##################################################
 
 class Instance(object):
     def __init__(self, external, input_objects):
@@ -114,6 +117,8 @@ class Instance(object):
     def disable(self, evaluations, domain):
         self.disabled = True
 
+##################################################
+
 class External(Performance):
     _Instance = None
     def __init__(self, name, info, inputs, domain):
@@ -134,6 +139,3 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
-
-
-DEBUG = 'debug'

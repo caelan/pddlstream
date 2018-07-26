@@ -3,13 +3,14 @@ from collections import OrderedDict, defaultdict
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     solve_from_task, parse_lisp
+from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact
+    evaluation_from_fact, get_prefix
 from pddlstream.language.external import External, DEBUG
-from pddlstream.language.function import parse_function, parse_predicate
+from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
-from pddlstream.language.stream import parse_stream
-from pddlstream.language.state_stream import parse_state_stream
+from pddlstream.language.stream import parse_stream, Stream
+from pddlstream.language.state_stream import parse_state_stream, StateStream
 from pddlstream.utils import elapsed_time, INF
 
 
@@ -31,6 +32,8 @@ def parse_constants(domain, constant_map):
             raise ValueError('Constant map {} not mentioned in domain'.format(name))
     del domain.constants[:] # So not set twice
 
+INITIAL_EVALUATION = None
+
 def parse_problem(problem, stream_info={}):
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
@@ -38,9 +41,9 @@ def parse_problem(problem, stream_info={}):
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
     stream_name, streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    #evaluations = set(evaluations_from_init(init))
-    evaluations = OrderedDict((e, None) for e in evaluations_from_init(init))
+    evaluations = OrderedDict((e, INITIAL_EVALUATION) for e in evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
+    compile_to_exogenous(evaluations, domain, streams)
     return evaluations, goal_expression, domain, stream_name, streams
 
 ##################################################
@@ -105,6 +108,31 @@ def add_certified(evaluations, result):
             new_evaluations.append(evaluation)
     return new_evaluations
 
+##################################################
+
+def get_domain_predicates(external):
+    return set(map(get_prefix, external.domain))
+
+def get_certified_predicates(external):
+    if type(external) in (Stream, StateStream):
+        return set(map(get_prefix, external.certified))
+    if type(external) in (Function, Predicate):
+        return {get_prefix(external.head)}
+    raise ValueError(external)
+
+def get_non_producers(externals):
+    # TODO: handle case where no domain conditions
+    pairs = set()
+    for external1 in externals:
+        for external2 in externals:
+            if get_certified_predicates(external1) & get_domain_predicates(external2):
+                pairs.add((external1, external2))
+    producers = {e1 for e1, _ in pairs}
+    non_producers = set(externals) - producers
+    # TODO: these are streams that be evaluated at the end as tests
+    return non_producers
+
+##################################################
 
 def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     streams = []
@@ -129,9 +157,9 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         elif name == ':wild':
             raise NotImplementedError(name)
         elif name == ':rule':
-            continue
             # TODO: implement rules
             # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
+            raise NotImplementedError(name)
         elif name == ':function':
             external = parse_function(lisp_list, stream_map, stream_info)
         elif name == ':predicate': # Cannot just use args if want a bound

@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, get_non_producers
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
@@ -14,6 +14,7 @@ from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.function import Function, Predicate
+from pddlstream.language.stream import Stream
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
@@ -31,7 +32,7 @@ def partition_externals(externals):
     functions = list(filter(lambda s: type(s) is Function, externals))
     negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
     state = list(filter(lambda s: type(s) is StateStream, externals)) # and s.is_negative()
-    streams = list(filter(lambda s: s not in (functions + negative + state), externals))
+    streams = list(filter(lambda s: type(s) is Stream, externals))
     return streams, functions, (negative + state)
 
 ##################################################
@@ -54,9 +55,6 @@ def partition_externals(externals):
 def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
     combined_plan, cost = solve_stream_plan(stream_results)
     stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
-    #print('Depth: {}\n'
-    #      'Stream plan: {}\n'
-    #      'Action plan: {}'.format(depth, stream_plan, action_plan))
     if stream_plan is None:
         return stream_plan, cost, depth
     plan_index = get_stream_plan_index(stream_plan)
@@ -68,7 +66,8 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
                                                  streams, double_bindings=double_bindings)
     stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
                                                  functions)
-    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
+    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
+                                       solve_stream_plan, depth + 1)
 
 def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
     # TODO: option to toggle commit using max_depth?
@@ -98,6 +97,10 @@ def compile_state_streams(domain, externals):
     for stream in state_streams:
         predicate_map.update(stream.negated_predicates)
 
+    # TODO: could make free parameters free
+    # TODO: allow functions on top the produced values?
+    # TODO: check that generated values are not used in the effects of any actions
+    # TODO: could treat like a normal stream that generates values (but with no inputs required/needed)
     def fn(literal):
         if literal.predicate not in predicate_map:
             return literal
@@ -142,7 +145,6 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
-    compile_to_exogenous(evaluations, domain, externals)
     compile_state_streams(domain, externals)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
@@ -176,8 +178,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
         stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
-        print('Stream plan: {}\n'
-              'Action plan: {}'.format(stream_plan, action_plan))
+        print('Stream plan: {}\nAction plan: {}'.format(stream_plan, action_plan))
         search_time += elapsed_time(start_time)
 
         start_time = time.time()
