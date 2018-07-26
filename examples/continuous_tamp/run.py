@@ -9,7 +9,7 @@ import numpy as np
 from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn
+from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, \
     get_blocked_problem, draw_state, get_random_seed, \
@@ -20,6 +20,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
+from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 
 
@@ -60,7 +61,6 @@ def pddlstream_from_tamp(tamp_problem):
         Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Region', r) for r in tamp_problem.regions.keys()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
@@ -109,7 +109,7 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=False):
+def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -126,26 +126,24 @@ def main(focused=True, deterministic=False, unit_costs=False):
         #'place': ActionInfo(terminal=True),
     }
     stream_info = {
-        #'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        #'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
-        #'trajcollision': StreamInfo(p_success=1),  # bound_fn is None
+        'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'cfree': StreamInfo(eager=True),
     }
 
-    dynamic = [
+    synthesizers = [
         #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
         #                  gen_fn=from_fn(cfree_motion_fn)),
-        #StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-        #                           'posecollision': 0, 'distance': 0},
-        #                  gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
-    ]
+        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
+                                       'posecollision': 0, 'distance': 0},
+                          gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
+    ] if use_synthesizers else []
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     pr = cProfile.Profile()
     pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
-                                 synthesizers=dynamic,
+                                 synthesizers=synthesizers,
                                  max_time=10, max_cost=INF, debug=False,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)

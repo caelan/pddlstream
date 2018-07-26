@@ -48,12 +48,14 @@ class SynthStream(Stream):
 ##################################################
 
 class StreamSynthesizer(Performance): # JointStream | Stream Combiner
-    macro_results = {}
     def __init__(self, name, streams, gen_fn):
         super(StreamSynthesizer, self).__init__(name, StreamInfo())
         self.name = name
         self.streams = {s.lower(): m for s, m in streams.items()}
         self.gen_fn = gen_fn
+        self.macro_results = {}
+    def get_instances(self):
+        raise NotImplementedError()
     def get_gen_fn(self, inputs, outputs, certified):
         # TODO: take in guess values for inputs?
         def new_gen_fn(*input_values):

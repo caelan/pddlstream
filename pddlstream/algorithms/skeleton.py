@@ -122,8 +122,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         index = 0
         instance = stream_plan[index].instance
         assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
-        results.extend(instance.next_results(
-            accelerate=accelerate, verbose=queue.store.verbose))
+        results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
         new_values |= (len(results) != 0)
 
     opt_result = stream_plan[index] # TODO: could do several at once but no real point
@@ -145,15 +144,20 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         queue.add_skeleton(new_stream_plan, new_plan_attempts, new_bindings, plan_index, new_cost)
 
     if (plan_attempts[index] == 0) and isinstance(opt_result, SynthStreamResult): # TODO: only add if failure?
-        raise NotImplementedError()
-        #new_stream_plan = stream_plan[:index] + opt_result.decompose() + stream_plan[index+1:]
-        #queue.add_skeleton(new_stream_plan, bindings, plan_index, cost)
+        decomposition = opt_result.decompose()
+        new_stream_plan = stream_plan[:index] + decomposition + stream_plan[index+1:]
+        new_plan_attempts = plan_attempts[:index] + [0]*len(decomposition) + plan_attempts[index+1:]
+        queue.add_skeleton(new_stream_plan, new_plan_attempts, bindings, plan_index, cost)
     if not opt_result.instance.enumerated:
         plan_attempts[index] = opt_result.instance.num_calls
         queue.add_skeleton(*skeleton)
     return new_values
 
 ##################################################
+
+def compute_effort(plan_attempts):
+    attempts = sum(plan_attempts)
+    return attempts, len(plan_attempts)
 
 # TODO: want to minimize number of new sequences as they induce overhead
 
@@ -171,21 +175,17 @@ def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
     # Distribution on the number of future attempts until successful
     # Average the tail probability mass
 
-def compute_effort(plan_attempts):
-    attempts = sum(plan_attempts)
-    return attempts, len(plan_attempts)
-
 def compute_belief(attempts, p_obs):
     return pow(p_obs, attempts)
 
-def compute_score(plan_attempts, p_obs=.9):
+def compute_success_score(plan_attempts, p_obs=.9):
     beliefs = [compute_belief(attempts, p_obs) for attempts in plan_attempts]
     prior = 1.
     for belief in beliefs:
         prior *= belief
     return -prior
 
-def compute_score2(plan_attempts, overhead=1, p_obs=.9):
+def compute_geometric_score(plan_attempts, overhead=1, p_obs=.9):
     # TODO: model the decrease in belief upon each failure
     # TODO: what if stream terminates? Assign high cost
     expected_cost = 0
@@ -214,11 +214,8 @@ class SkeletonQueue(Sized):
 
     def add_skeleton(self, stream_plan, plan_attempts, bindings, plan_index, cost):
         stream_plan = instantiate_plan(bindings, stream_plan, self.evaluations, self.domain)
-        #score = score_stream_plan(stream_plan)
-        attempted = sum(plan_attempts) != 0
+        attempted = sum(plan_attempts) != 0 # Bias towards unused
         effort = compute_effort(plan_attempts)
-        #effort = compute_score(plan_attempts)
-        #effort = compute_score2(plan_attempts)
         key = SkeletonKey(attempted, effort)
         skeleton = Skeleton(stream_plan, plan_attempts, bindings, plan_index, cost)
         heappush(self.queue, HeapElement(key, skeleton))

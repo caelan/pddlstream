@@ -129,7 +129,7 @@ def plan_motion(q1, q2):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=1, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND: (-15, 15),
         'red': (5, 10)
@@ -139,7 +139,7 @@ def get_tight_problem(n_blocks=1, n_goals=1):
     blocks = ['block{}'.format(i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
-    #poses = [sample_pose(regions[GROUND]) for _ in range(n_blocks)]
+    #poses = [sample_region(b, regions[GROUND]) for b in blocks]
 
     initial = TAMPState(conf, None, dict(zip(blocks, poses)))
     goal_regions = {block: 'red' for block in blocks[:n_goals]}

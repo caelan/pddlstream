@@ -16,28 +16,28 @@
     :outputs (?p)
     :certified (and (Pose ?b ?p) (Contained ?b ?p ?r))
   )
-  (:stream inverse-kinematics ;Comments?
+  (:stream inverse-kinematics
     :inputs (?b ?p)
     :domain (Pose ?b ?p)
     :outputs (?q)
     :certified (and (Conf ?q) (Kin ?b ?q ?p))
   )
-  (:stream plan-motion ;Comments?
+  (:stream plan-motion
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
     :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
   )
-  ; (:stream test-region
-  ;  :inputs (?b ?p ?r)
-  ;  :domain (and (Pose ?b ?p) (Region ?r))
-  ;  :outputs ()
-  ;  :certified (Contained ?b ?p ?r)
-  ; )
-
-  (:state-stream reachable ; fluent-stream
-    :inputs (?q1 ?q2)
-    :fluents (AtPose Holding)
-    :certified (Reachable ?q1 ?q2)
+  (:stream test-region
+    :inputs (?b ?p ?r)
+    :domain (and (Pose ?b ?p) (Placeable ?b ?r))
+    :outputs ()
+    :certified (Contained ?b ?p ?r)
   )
+
+  ;(:state-stream reachable ; fluent-stream
+  ;  :inputs (?q1 ?q2)
+  ;  :fluents (AtPose Holding)
+  ;  :certified (Reachable ?q1 ?q2)
+  ;)
 )

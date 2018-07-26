@@ -69,14 +69,15 @@ def write_stream_statistics(stream_name, externals, verbose):
         # TODO: can estimate probability of success given feasible
         # TODO: single tail hypothesis testing (probability that came from this distribution)
 
+        if not hasattr(external, 'instances'):
+            continue # TODO: SynthesizerStreams
         distribution = []
         for instance in external.instances.values():
             if instance.results_history:
-                attempts = len(instance.results_history)
-                successes = sum(map(bool, instance.results_history))
+                #attempts = len(instance.results_history)
+                #successes = sum(map(bool, instance.results_history))
                 #print(instance, successes, attempts)
                 # TODO: also first attempt, first success
-
                 last_success = -1
                 for i, results in enumerate(instance.results_history):
                     if results:
