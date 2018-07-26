@@ -25,6 +25,7 @@ import pddl
 import pddl_parser.lisp_parser
 import normalize
 import pddl_parser
+import sas_tasks
 from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, \
     parse_condition, check_for_duplicates
 
@@ -155,7 +156,6 @@ def task_from_domain_problem(domain, problem):
 ##################################################
 
 def get_literals(condition):
-    import pddl
     if isinstance(condition, pddl.Literal):
         return [condition]
     if isinstance(condition, pddl.Conjunction):
@@ -167,13 +167,17 @@ def get_literals(condition):
 
 ##################################################
 
-def translate_and_write_task(task, temp_dir):
+def write_task(sas_task, temp_dir):
+    clear_dir(temp_dir)
+    translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
+    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
+        sas_task.output(output_file)
+    return translate_path
+
+def translate_task(task):
     normalize.normalize(task)
     sas_task = translate.pddl_to_sas(task)
     translate.dump_statistics(sas_task)
-    clear_dir(temp_dir)
-    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
-        sas_task.output(output_file)
     return sas_task
 
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
@@ -181,7 +185,7 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
     with Verbose(verbose):
-        translate_and_write_task(task, temp_dir)
+        write_task(translate_task(task), temp_dir)
 
 ##################################################
 
@@ -250,14 +254,12 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
 def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
     start_time = time()
     with Verbose(debug):
-        translate_and_write_task(task, temp_dir)
+        write_task(translate_task(task), temp_dir)
         solution = run_search(temp_dir, debug=True, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     return parse_solution(solution)
-
-import sas_tasks
 
 def apply_sas_operator(init, op):
     for var, pre, post, cond in op.pre_post:
@@ -266,17 +268,20 @@ def apply_sas_operator(init, op):
         init.values[var] = post
 
 def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+    # TODO: specify goal grouping / group by predicate & objects
+    # TODO: version that solves for all subgoals at once
     start_time = time()
     with Verbose(debug):
-        sas_task = translate_and_write_task(task, temp_dir)
+        sas_task = translate_task(task)
         op_from_name = {op.name: op for op in sas_task.operators} # No need to keep repeats
         goals = sas_task.goal.pairs[:]
         full_plan = []
         full_cost = 0
         for i in range(len(goals)):
-            sas_task.goal = sas_tasks.SASGoal(goals[:i+1])
-            solution = run_search(temp_dir, debug=True, **kwargs)
-            plan, cost = parse_solution(solution)
+            #sas_task.goal = sas_tasks.SASGoal(goals[:i+1])
+            sas_task.goal.pairs = goals[:i+1]
+            write_task(sas_task, temp_dir)
+            plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
             if plan is None:
                 return None, INF
             full_plan.extend(plan)

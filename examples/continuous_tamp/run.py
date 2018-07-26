@@ -65,8 +65,8 @@ def pddlstream_from_tamp(tamp_problem):
            [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
 
-    goal_literals = [('HandEmpty',)] + \
-                    [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
+    goal_literals = [('In', b, r) for b, r in tamp_problem.goal_regions.items()] #+ [('HandEmpty',)]
+
     if tamp_problem.goal_conf is not None:
         goal_literals += [('AtConf', tamp_problem.goal_conf)]
     goal = And(*goal_literals)
@@ -139,12 +139,15 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     ] if use_synthesizers else []
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
+    init, goal = pddlstream_problem[-2:]
+    print(init)
+    print(goal)
     pr = cProfile.Profile()
     pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
-                                 max_time=10, max_cost=INF, debug=False,
+                                 max_time=10, max_cost=INF, debug=True,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
