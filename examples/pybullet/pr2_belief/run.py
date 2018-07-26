@@ -11,6 +11,7 @@ import cProfile
 import pstats
 
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.downward import ABSTRIPSLayer
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
 from pddlstream.utils import print_solution, read, get_file_path
 from pddlstream.language.conversion import Equal, Problem, And
@@ -233,10 +234,13 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
         'test-vis-base': StreamInfo(eager=True, p_success=0),
         'test-reg-base': StreamInfo(eager=True, p_success=0),
     }
+    hierarchy = [
+        ABSTRIPSLayer(pos_pre=['AtBConf']),
+    ]
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=True,
                              max_cost=MAX_COST, verbose=verbose)
     pr.disable()
     plan, cost, evaluations = solution

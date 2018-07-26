@@ -307,8 +307,6 @@ class ABSTRIPSLayer(object):
         self.neg_pre = neg_pre
         self.pos_eff = pos_eff
         self.neg_eff = neg_eff
-        if self.neg_pre:
-            raise NotImplementedError()
         if self.pos_eff:
             raise NotImplementedError()
         if self.neg_eff:
@@ -317,6 +315,7 @@ class ABSTRIPSLayer(object):
 def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
+    # TODO: most generic would be a heuristic on each state
 
     positive_template = 'Atom {}('
     negated_template = 'NegatedAtom {}('
@@ -334,14 +333,15 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
 
             pruned_pre = set() # TODO: effects
             for layer in hierarchy[i:]:
-                pruned_pre.update(positive_template.format(p) for p in layer.pos_pre)
-                pruned_pre.update(negated_template.format(p) for p in layer.neg_pre)
+                pruned_pre.update(positive_template.format(p.lower()) for p in layer.pos_pre)
+                pruned_pre.update(negated_template.format(p.lower()) for p in layer.neg_pre)
             pruned = set()
             for var, names in enumerate(local_sas_task.variables.value_names):
                 for val, name in enumerate(names):
                     if any(name.startswith(p) for p in pruned_pre):
                         pruned.add((var, val))
 
+            # TODO: break if no pruned
             new_operators = []
             if last_plan:
                 subgoal_var = len(local_sas_task.variables.ranges)

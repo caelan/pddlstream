@@ -151,7 +151,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
-                                 max_time=10, max_cost=INF, debug=True, hierarchy=hierarchy,
+                                 max_time=10, max_cost=INF, debug=False, hierarchy=hierarchy,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:

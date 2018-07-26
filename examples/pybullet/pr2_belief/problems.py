@@ -47,6 +47,7 @@ class BeliefState(State):
         #self.localized = set(localized)
         self.registered = set(registered)
         # TODO: store configurations
+        """
         for body in task.get_bodies():
             if not self.is_localized(body):
                 #self.poses[body] = None
@@ -55,6 +56,7 @@ class BeliefState(State):
             #elif body not in registered:
             #    point, quat = self.poses[body].value
             #    self.poses[body] = Pose(body, (point, None))
+        """
     def is_localized(self, body):
         return len(self.b_on[body].support()) == 1
     def __repr__(self):
