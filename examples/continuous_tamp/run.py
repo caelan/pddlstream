@@ -17,6 +17,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.downward import ABSTRIPSLayer
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
@@ -129,6 +130,9 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'cfree': StreamInfo(eager=True),
     }
+    hierarchy = [
+        ABSTRIPSLayer(pos_pre=['atconf']),
+    ]
 
     synthesizers = [
         #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
@@ -147,11 +151,12 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
-                                 max_time=10, max_cost=INF, debug=True,
+                                 max_time=10, max_cost=INF, debug=True, hierarchy=hierarchy,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, layers=1, unit_costs=unit_costs)
+        solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
+                                     unit_costs=unit_costs)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
