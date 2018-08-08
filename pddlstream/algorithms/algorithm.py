@@ -13,6 +13,7 @@ from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.state_stream import parse_state_stream, StateStream
 from pddlstream.utils import elapsed_time, INF
 
+# TODO: way of programmatically specifying streams/actions
 
 def parse_constants(domain, constant_map):
     for constant in domain.constants:
