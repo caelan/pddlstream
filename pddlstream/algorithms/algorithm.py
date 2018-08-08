@@ -2,7 +2,8 @@ import time
 from collections import OrderedDict, defaultdict
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    solve_from_task, parse_lisp
+    parse_lisp
+from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, get_prefix

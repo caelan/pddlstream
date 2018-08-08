@@ -1,4 +1,5 @@
-from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, solve_from_task, TOTAL_COST
+from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, TOTAL_COST
+from pddlstream.algorithms.search import solve_from_task
 from pddlstream.algorithms.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
     extract_function_results, get_results_from_head
 from pddlstream.language.conversion import obj_from_pddl, obj_from_pddl_plan
