@@ -128,6 +128,8 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
+    if not hierarchy:
+        return solve_from_task(task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
@@ -158,6 +160,8 @@ def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, de
                              hierarchy=[], subgoal_horizon=1, **kwargs):
     # TODO: version that plans for each goal individually
     # TODO: can reduce to goal serialization if binary flag for each subgoal
+    if not hierarchy:
+        return solve_from_task(task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):

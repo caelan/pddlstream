@@ -1,19 +1,23 @@
 import time
 from collections import Counter, Sequence
 
+from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_prefix, get_args, is_parameter, values_from_objects, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
-from pddlstream.language.stream import DebugValue
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object
+from pddlstream.language.stream import DebugValue, get_gen_fn
 from pddlstream.utils import str_from_tuple
-from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 
-try:
-    from inspect import getfullargspec as get_arg_spec
-except ImportError:
-    from inspect import getargspec as get_arg_spec
+# TODO: compile test streams into this
+# TODO: maybe I should just treat these as regular streams and just add the fluent component at the end?
+# TODO: although, I think the appeal of some of these streams that aren't arguments to others is that you don't have to try all inputs
+
+#try:
+#    from inspect import getfullargspec as get_arg_spec
+#except ImportError:
+#    from inspect import getargspec as get_arg_spec
 
 # TODO: no need to optimistic
 # TODO: should I extend function or stream or predicate?
@@ -65,7 +69,8 @@ class StateStreamInstance(Instance):
         self.fluent_facts = fluent_facts
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
-            raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))
+            raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(
+                self.external.name, new_values))
         for output_values in new_values:
             if not isinstance(output_values, Sequence):
                 raise ValueError('An output tuple for stream [{}] is not a sequence: {}'.format(
@@ -100,44 +105,43 @@ class StateStreamInstance(Instance):
                                        ', '.join(map(str_from_tuple, all_new_values))))
         return all_results
     def disable(self, evaluations, domain):
+        # TODO: re-enable
         assert not self.disabled
         super(StateStreamInstance, self).disable(evaluations, domain)
         import pddl
         index = len(self.external.disabled)
-        #index = 0
+        self.external.disabled.append(self)
+        #if not self.fluent_facts:
+        #    return
         for fact in self.external.certified:
-            name = get_prefix(fact)
-            negated = self.external.negated_predicates[name]
+            fact_name = get_prefix(fact)
+            negated_name = self.external.negated_predicates[fact_name]
+            static_name = 'ax-{}-{}'.format(fact_name, index)
             fact_args = tuple(get_args(fact))
             literal = substitute_expression(fact, self.mapping)
-            new_name = 'ax-{}-{}'.format(name, index)
-            #static_atom = pddl.Atom(new_name, fact_args)
-            static_atom = fd_from_fact((new_name,) + fact_args)
-            static_eval = evaluation_from_fact((new_name,) + get_args(literal))
+            static_atom = fd_from_fact((static_name,) + fact_args)
+            static_eval = evaluation_from_fact((static_name,) + get_args(literal))
             evaluations[static_eval] = False # TODO: assign another value?)
-            external_params = fact_args
-            internal_params = tuple()
-            parameters = tuple(pddl.TypedObject(p, OBJECT)
-                               for p in (external_params + internal_params))
-            fluent_facts = list(map(fd_from_fact, self.fluent_facts))
-            precondition = pddl.Conjunction([static_atom] + fluent_facts)
+            parameters = tuple(pddl.TypedObject(p, OBJECT) for p in fact_args)
+            precondition = pddl.Conjunction([static_atom] + list(map(fd_from_fact, self.fluent_facts)))
             #precondition = pddl.Conjunction([static_atom])
-            domain.axioms.append(pddl.Axiom(name=negated, parameters=parameters,
-                                            num_external_parameters=len(external_params),
+            domain.axioms.append(pddl.Axiom(name=negated_name, parameters=parameters,
+                                            num_external_parameters=len(fact_args),
                                             condition=precondition))
-        self.external.disabled.append(self)
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
 class StateStream(External):
+    """
+    Outputs should not be inputs to other streams
+    Outputs should not be used in two actions
+    Can achieve several conditions in the same action, but no point
+    For now, condition shouldn't be achievable by other means
+    """
     _Instance = StateStreamInstance
     _Result = StateStreamResult
     def __init__(self, name, gen_fn, inputs, domain, fluents,
                  outputs, certified, info):
-        # Outputs should not be inputs to other streams
-        # Outputs should not be used in two actions
-        # Can achieve several conditions in the same action, but no point
-        # For now, condition shouldn't be achievable by other means
         if info is None:
             info = StateStreamInfo(p_success=None, overhead=None)
         for p, c in Counter(outputs).items():
@@ -150,15 +154,15 @@ class StateStream(External):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(StateStream, self).__init__(name, info, inputs, domain)
 
-        #self.axiom_thing = 'f-{}'.format(p) # TODO: finish this
         if gen_fn == DEBUG:
             gen_fn = from_fn(lambda *args: tuple(DebugValue(name, args, o) for o in self.outputs))
         self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
-        assert(not self.outputs)
+        #assert (not self.outputs)
         self.certified = tuple(certified)
         assert(len(self.certified) == 1)
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
+        #self.opt_gen_fn = get_shared_gen_fn(self)
 
         # TODO: could also have a function to partition into tuples to be applied
         self.fluents = fluents # TODO: alternatively could make this a function determining whether to include
@@ -176,15 +180,6 @@ class StateStream(External):
 
 ##################################################
 
-STREAM_ATTRIBUTES = [':state-stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified']
-
-def get_gen_fn(stream_map, name):
-    if stream_map == DEBUG:
-        return DEBUG
-    if name not in stream_map:
-        raise ValueError('Undefined stream conditional generator: {}'.format(name))
-    return stream_map[name]
-
 def parse_state_stream(lisp_list, stream_map, stream_info):
     attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
     values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
@@ -193,7 +188,7 @@ def parse_state_stream(lisp_list, stream_map, stream_info):
     return StateStream(name, get_gen_fn(stream_map, name),
                        value_from_attribute.get(':inputs', []),
                        list_from_conjunction(value_from_attribute.get(':domain', [])),
-                       value_from_attribute.get(':fluents', []), # TODO: None
+                       value_from_attribute.get(':fluents', []),  # TODO: None
                        value_from_attribute.get(':outputs', []),
                        list_from_conjunction(value_from_attribute.get(':certified', [])),
                        stream_info.get(name, None))

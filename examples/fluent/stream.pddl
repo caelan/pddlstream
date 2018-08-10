@@ -2,6 +2,8 @@
   (:state-stream test-feasible
     :inputs (?o)
     :fluents (OnTable)
-    :certified (Feasible ?o)
+    :certified (Feasible1 ?o)
+    ;:outputs (?t)
+    ;:certified (Feasible2 ?o ?t)
   )
 )
