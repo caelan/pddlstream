@@ -17,7 +17,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.downward import ABSTRIPSLayer
+from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
@@ -131,7 +131,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         #'cfree': StreamInfo(eager=True),
     }
     hierarchy = [
-        ABSTRIPSLayer(pos_pre=['atconf']),
+        ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
     ]
 
     synthesizers = [

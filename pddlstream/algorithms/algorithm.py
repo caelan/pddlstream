@@ -37,6 +37,7 @@ def parse_constants(domain, constant_map):
 INITIAL_EVALUATION = None
 
 def parse_problem(problem, stream_info={}):
+    # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:

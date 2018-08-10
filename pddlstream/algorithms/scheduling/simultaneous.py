@@ -114,7 +114,8 @@ def extract_function_results(results_from_head, action, pddl_args):
         return []
     return [stream_result]
 
-def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results, negated, unit_costs=True, **kwargs):
+def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,
+                             negated, unit_costs=True, **kwargs):
     if negated:
         raise NotImplementedError()
     function_evaluations = {e: None for e in evaluations}
@@ -126,7 +127,7 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
     combined_plan, _ = solve_finite(function_evaluations, goal_expression, new_domain,
                                                 unit_costs=unit_costs, **kwargs)
     if combined_plan is None:
-        return None, None, INF # TODO: return plan cost
+        return None, INF # TODO: return plan cost
     stream_plan = []
     action_plan = []
     for name, args in combined_plan:
@@ -145,4 +146,6 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             pddl_args = tuple(map(pddl_from_object, args))
             function_plan.update(extract_function_results(results_from_head, action, pddl_args))
             action_cost += get_cost(domain, results_from_head, name, args)
-    return (stream_plan + list(function_plan)), action_plan, action_cost
+    stream_plan += list(function_plan)
+    combined_plan = stream_plan + action_plan
+    return combined_plan, action_cost

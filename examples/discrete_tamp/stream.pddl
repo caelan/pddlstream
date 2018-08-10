@@ -13,9 +13,9 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
-  (:predicate (Collision ?p1 ?p2)
-    (and (Pose ?p1) (Pose ?p2))
-  )
+  ;(:predicate (Collision ?p1 ?p2)
+  ;  (and (Pose ?p1) (Pose ?p2))
+  ;)
 
   (:stream sample-pose
     :inputs ()

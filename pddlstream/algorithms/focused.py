@@ -9,10 +9,11 @@ from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.algorithms.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
     SkeletonQueue, get_stream_plan_index
+#from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
+#from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
-from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.stream import Stream
 from pddlstream.language.statistics import load_stream_statistics, \
@@ -60,6 +61,8 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     plan_index = get_stream_plan_index(stream_plan)
     if plan_index == 0:
         return combined_plan, cost, depth
+    # TODO: should I just plan using all original plus expanded
+    # TODO: might need new actions here (such as a move)
     stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
     double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
     stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
@@ -80,6 +83,7 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
                                                                  stream_results, solve_stream_plan, 0)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(num_iterations, len(stream_results),
                                                                            depth, combined_plan is not None))
+        #raw_input('Continue?') # TODO: inspect failures here
         if (combined_plan is not None) or (depth == 0):
             return combined_plan, cost
 
@@ -140,6 +144,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     # TODO: return to just using the highest level samplers at the start
     search_sampling_ratio = 1
     solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+    #solve_stream_plan_fn = incremental_stream_plan # sequential_stream_plan | incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     num_iterations = 0
     search_time = sample_time = 0

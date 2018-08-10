@@ -8,7 +8,8 @@ from pddlstream.utils import find_unique, INF, MockSet
 
 # TODO: interpolate between all the scheduling options
 
-def sequential_stream_plan(evaluations, goal_expression, domain, stream_results, negated, unit_costs=True, **kwargs):
+def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
+                           negated, unit_costs=True, **kwargs):
     if negated:
         raise NotImplementedError()
     # TODO: compute preimage and make that the goal instead
@@ -57,7 +58,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     planner = kwargs.get('planner', 'ff-astar')
     combined_plan, _ = solve_from_task(task, planner=planner, **kwargs)
     if combined_plan is None:
-        return None, obj_from_pddl_plan(action_plan), INF
+        return None, INF
     stream_plan = []
     action_plan = []
     for name, args in combined_plan:
@@ -67,5 +68,4 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
             action_plan.append(action_from_name[name])
     stream_plan += list(function_plan)
     combined_plan = stream_plan + action_plan
-
     return combined_plan, action_cost

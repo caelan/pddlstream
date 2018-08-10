@@ -102,7 +102,8 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         bound_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
         queue.store.add_plan(bound_plan, cost)
         return new_values
-    if queue.store.best_cost <= cost:
+    if (queue.store.best_cost < INF) and (queue.store.best_cost <= cost):
+        # TODO: what should I do if the cost=inf (from incremental/exhaustive)
         #for result in stream_plan:
         #    result.instance.disabled = False
         stream_plan[0].instance.disabled = False

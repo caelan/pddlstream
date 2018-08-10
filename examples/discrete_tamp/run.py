@@ -10,7 +10,7 @@ import numpy as np
 from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
 
-from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import print_solution, user_input, read
@@ -20,14 +20,6 @@ from viewer import DiscreteTAMPViewer, COLORS
 
 GRASP = np.array([0, 0])
 
-# class IKGenerator(Generator):
-#     def __init__(self, *inputs):
-#         super(IKGenerator, self).__init__()
-#         self.p, = inputs
-#     def generate(self, *args):
-#         self.enumerated = True
-#         return [(self.p + GRASP,)]
-#
 # class IKFactGenerator(FactGenerator):
 #     def __init__(self, *inputs):
 #         super(IKFactGenerator, self).__init__()
@@ -166,13 +158,11 @@ def main(focused=True, unit_costs=False):
     if focused:
         solution = solve_focused(pddlstream_problem, unit_costs=unit_costs)
     else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
-        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
         return
-    print(evaluations)
 
     colors = dict(zip(tamp_problem.initial.block_poses, COLORS))
     viewer = DiscreteTAMPViewer(1, len(tamp_problem.poses), title='Initial')

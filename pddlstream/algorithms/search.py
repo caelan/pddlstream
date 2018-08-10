@@ -60,16 +60,19 @@ def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False
 ##################################################
 
 class ABSTRIPSLayer(object):
-    def __init__(self, pos_pre=[], neg_pre=[], pos_eff=[], neg_eff=[]):
+    def __init__(self, pos_pre=[], neg_pre=[], pos_eff=[], neg_eff=[], horizon=INF):
         self.pos_pre = pos_pre
         self.neg_pre = neg_pre
         self.pos_eff = pos_eff
         self.neg_eff = neg_eff
+        self.horizon = horizon # TODO: cost units instead?
+        assert 1 <= self.horizon
         if self.pos_eff:
             raise NotImplementedError()
         if self.neg_eff:
             raise NotImplementedError()
 
+##################################################
 
 def prune_hierarchy_pre_eff(sas_task, layers):
     positive_template = 'Atom {}('
@@ -147,6 +150,10 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
 
 ##################################################
 
+# TODO: can structure these subproblems prioritizing depth rather than width
+# TODO: reconcile shared objects on each level
+# Each operator in the hierarchy is a legal "operator" that may need to be refined
+
 def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, debug=False,
                              hierarchy=[], subgoal_horizon=1, **kwargs):
     # TODO: version that plans for each goal individually
@@ -155,18 +162,22 @@ def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, de
     plan, cost = None, INF
     with Verbose(debug):
         sas_task = translate_task(task)
-        last_plan = []
-        for i in range(len(hierarchy) + 1):
+        last_plan = None
+        for level in range(len(hierarchy) + 1):
             local_sas_task = deepcopy(sas_task)
-            prune_hierarchy_pre_eff(local_sas_task, hierarchy[i:])  # TODO: break if no pruned
+            prune_hierarchy_pre_eff(local_sas_task, hierarchy[level:])  # TODO: break if no pruned
+            # The goal itself is effectively a subgoal
+            # Handle this subgoal horizon
             subgoal_plan = [local_sas_task.goal.pairs[:]]
             # TODO: do I want to consider the "subgoal action" as a real action?
-            if last_plan:
+            if last_plan is not None:
                 subgoal_var = add_subgoals(local_sas_task, last_plan)
-                subgoal_plan = subgoal_plan + [(subgoal_var, val) for val in range(
-                    local_sas_task.variables.ranges[subgoal_var], subgoal_horizon)]
+                subgoal_plan = [[(subgoal_var, val)] for val in range(1,
+                    local_sas_task.variables.ranges[subgoal_var], subgoal_horizon)] + subgoal_plan
+                hierarchy_horizon = min(hierarchy[level-1].horizon, len(subgoal_plan))
+                subgoal_plan = subgoal_plan[:hierarchy_horizon]
             plan, cost = plan_subgoals(local_sas_task, subgoal_plan, temp_dir, **kwargs)
-            if (i == len(hierarchy)) or (plan is None):
+            if (level == len(hierarchy)) or (plan is None):
                 # TODO: fall back on normal
                 # TODO: search in space of subgoals
                 break
@@ -174,4 +185,6 @@ def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, de
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
+    # TODO: record which level of abstraction each operator is at when returning
+    # TODO: return instantiated actions here rather than names (including pruned pre/eff)
     return plan, cost
