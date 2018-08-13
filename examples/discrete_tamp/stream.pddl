@@ -1,12 +1,17 @@
 (define (stream pick-and-place)
-  ;(:rule
-  ;  :parameters (?q ?p)
-  ;  :domain (Kin ?q ?p)
-  ;  :certified (and (Conf ?q) (Pose ?p))
+  (:rule
+    :inputs (?q ?p)
+    :domain (Kin ?q ?p)
+    :certified (and (Conf ?q) (Pose ?p))
+  )
+  ;(:rule ; For debugging
+  ;  :inputs (?p)
+  ;  :domain (Pose ?p)
+  ;  :certified (Pose ?p)
   ;)
   ;(:rule
-  ;  :parameters (?p1 ?p2)
-  ;  :domain (AtPose ?b ?p)
+  ;  :inputs (?b ?p)
+  ;  :domain (AtPose ?b ?p) ; This is a fluent
   ;  :certified (and (Block ?b) (Pose ?p))
   ;)
 
@@ -18,21 +23,18 @@
   ;)
 
   (:stream sample-pose
-    :inputs ()
-    :domain ()
     :outputs (?p)
-    :certified (and (Pose ?p))
+    :certified (Pose ?p)
   )
   (:stream inverse-kinematics
     :inputs (?p)
     :domain (Pose ?p)
     :outputs (?q)
-    :certified (and (Conf ?q) (Kin ?q ?p))
+    :certified (Kin ?q ?p)
   )
   (:stream collision-free
     :inputs (?p1 ?p2)
     :domain (and (Pose ?p1) (Pose ?p2))
-    :outputs ()
     :certified (CFree ?p1 ?p2)
   )
 )

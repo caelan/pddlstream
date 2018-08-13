@@ -1,17 +1,18 @@
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact, get_prefix
+    evaluation_from_fact, get_prefix, substitute_expression, get_args
 from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.state_stream import parse_state_stream, StateStream
+from pddlstream.language.rule import parse_rule
 from pddlstream.utils import elapsed_time, INF
 
 # TODO: way of programmatically specifying streams/actions
@@ -137,6 +138,28 @@ def get_non_producers(externals):
 
 ##################################################
 
+def apply_rules_to_streams(rules, streams):
+    # TODO: can actually this with multiple condition if stream certified contains all
+    # TODO: do also when no domain conditions
+    processed_rules = deque(rules)
+    while processed_rules:
+        rule = processed_rules.popleft()
+        if len(rule.domain) != 1:
+            continue
+        [rule_fact] = rule.domain
+        rule.info.p_success = 0 # Need not be applied
+        for stream in streams:
+            if not isinstance(stream, Stream):
+                continue
+            for stream_fact in stream.certified:
+                if get_prefix(rule_fact) == get_prefix(stream_fact):
+                    print(rule, stream)
+                    mapping = dict(zip(get_args(rule_fact), get_args(stream_fact)))
+                    new_facts = set(substitute_expression(rule.certified, mapping)) - set(stream.certified)
+                    stream.certified = stream.certified + tuple(new_facts)
+                    if new_facts and (stream in rules):
+                            processed_rules.append(stream)
+
 def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     streams = []
     if stream_pddl is None:
@@ -151,6 +174,7 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     pddl_type, stream_name = next(stream_iter)
     assert('stream' == pddl_type)
 
+    rules = []
     for lisp_list in stream_iter:
         name = lisp_list[0]
         if name == ':stream':
@@ -160,9 +184,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         elif name == ':wild':
             raise NotImplementedError(name)
         elif name == ':rule':
-            # TODO: implement rules
-            # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
-            raise NotImplementedError(name)
+            external = parse_rule(lisp_list, stream_map, stream_info)
+            rules.append(external)
         elif name == ':function':
             external = parse_function(lisp_list, stream_map, stream_info)
         elif name == ':predicate': # Cannot just use args if want a bound
@@ -172,4 +195,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         if any(e.name == external.name for e in streams):
             raise ValueError('Stream [{}] is not unique'.format(external.name))
         streams.append(external)
+    # TODO: apply stream outputs here
+    # TODO: option to produce random wild effects as well
+    # TODO: can even still require that a tuple of outputs is produced
+    apply_rules_to_streams(rules, streams)
     return stream_name, streams

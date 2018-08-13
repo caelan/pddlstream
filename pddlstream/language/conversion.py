@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import collections
 from collections import namedtuple
+from itertools import product
 
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
@@ -98,17 +99,41 @@ def value_from_obj_expression(parent):
 
 ##################################################
 
-def list_from_conjunction(parent):
-    if not parent:
+def get_formula_operators(formula):
+    if formula is None:
+        return set()
+    prefix = get_prefix(formula)
+    if prefix not in OPERATORS:
+        return set()
+    operators = {prefix}
+    for subformula in formula[1:]:
+        operators.update(get_formula_operators(subformula))
+    return operators
+
+def dnf_from_positive_formula(parent):
+    if parent is None:
         return []
     prefix = get_prefix(parent)
-    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
+    assert(prefix not in (QUANTIFIERS + (NOT, EQ)))
+    children = []
     if prefix == AND:
-        children = []
+        for combo in product(*(dnf_from_positive_formula(child) for child in parent[1:])):
+            children.append([fact for clause in combo for fact in clause])
+    elif prefix == OR:
         for child in parent[1:]:
-            children += list_from_conjunction(child)
-        return children
-    return [tuple(parent)]
+            children.extend(dnf_from_positive_formula(child))
+    else:
+        children.append([tuple(parent)])
+    return children
+
+def list_from_conjunction(parent):
+    if parent is None:
+        return []
+    clauses = dnf_from_positive_formula(parent)
+    assert len(clauses) <= 1
+    if not clauses:
+        return clauses
+    return clauses[0]
 
 def substitute_expression(parent, mapping):
     if isinstance(parent, str) or isinstance(parent, Object) or isinstance(parent, OptimisticObject):

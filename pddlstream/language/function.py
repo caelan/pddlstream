@@ -2,9 +2,17 @@ import time
 
 from pddlstream.language.conversion import substitute_expression, get_prefix, get_args, Equal, Not, is_head, \
     list_from_conjunction, str_from_head
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
 from pddlstream.utils import str_from_tuple
 
+# https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
+#try:
+#    from inspect import getfullargspec as get_arg_spec
+#except ImportError:
+#    from inspect import getargspec as get_arg_spec
+
+#from inspect import getargspec as get_arg_spec
+#from inspect import signature
 
 class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None):
@@ -51,8 +59,9 @@ class FunctionInstance(Instance):  # Head(Instance):
         input_values = self.get_input_values()
         try:
             value = self.external.fn(*input_values)
-        except TypeError:
-            raise TypeError('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
+        except TypeError as err:
+            print('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
+            raise err
         self.value = self.external._codomain(value)
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
@@ -103,6 +112,10 @@ class Function(External):
         if fn == DEBUG:
             fn = opt_fn
         self.fn = fn
+        #arg_spec = get_arg_spec(self.fn)
+        #if len(self.inputs) != len(arg_spec.args):
+        #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(
+        #        self.name, list(self.inputs), arg_spec.args))
         self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
@@ -155,12 +168,7 @@ def parse_common(lisp_list, stream_map, stream_info):
     head = tuple(lisp_list[1])
     assert (is_head(head))
     name = get_prefix(head)
-    if stream_map == DEBUG:
-        fn = DEBUG
-    else:
-        if name not in stream_map:
-            raise ValueError('Undefined external function: {}'.format(name))
-        fn = stream_map[name]
+    fn = get_procedure_fn(stream_map, name)
     domain = []
     if len(lisp_list) == 3:
         domain = list_from_conjunction(lisp_list[2])

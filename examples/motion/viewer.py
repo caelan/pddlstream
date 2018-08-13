@@ -1,4 +1,8 @@
-from Tkinter import Tk, Toplevel, Canvas, LAST
+try:
+    from Tkinter import Tk, Canvas, Toplevel, LAST
+except ModuleNotFoundError:
+    from tkinter import Tk, Canvas, Toplevel, LAST
+
 import numpy as np
 
 

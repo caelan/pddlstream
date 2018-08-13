@@ -139,3 +139,22 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
+
+##################################################
+
+def get_procedure_fn(stream_map, name):
+    if stream_map == DEBUG:
+        return DEBUG
+    if name not in stream_map:
+        raise ValueError('Undefined external procedure: {}'.format(name))
+    return stream_map[name]
+
+
+def parse_lisp_list(lisp_list):
+    assert(len(lisp_list) % 2 == 0)
+    attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
+    values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
+    return dict(zip(attributes, values))
+
+#def is_property(s):
+#    return s.startswith(':')

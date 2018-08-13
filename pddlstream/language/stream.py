@@ -2,8 +2,9 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.language.conversion import list_from_conjunction, substitute_expression, get_args, is_parameter
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
+from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, \
+    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
@@ -113,7 +114,12 @@ class StreamInstance(Instance):
                     self.external.name, len(output_values), len(self.external.outputs), output_values))
     def _next_outputs(self):
         if self._generator is None:
-            self._generator = self.external.gen_fn(*self.get_input_values())
+            input_values = self.get_input_values()
+            try:
+                self._generator = self.external.gen_fn(*input_values)
+            except TypeError as err:
+                print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
+                raise err
         new_values, self.enumerated = get_next(self._generator)
         return new_values
     def next_results(self, accelerate=1, verbose=False):
@@ -160,7 +166,7 @@ class StreamInstance(Instance):
 class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info):
+    def __init__(self, name, gen_fn, inputs, domain, fluents, outputs, certified, info):
         if info is None:
             info = StreamInfo(p_success=None, overhead=None)
         for p, c in Counter(outputs).items():
@@ -172,6 +178,8 @@ class Stream(External):
         for p in (parameters - set(inputs + outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, info, inputs, domain)
+        self.fluents = fluents
+        #assert not self.fluents
         # Each stream could certify a stream-specific fact as well
         if gen_fn == DEBUG:
             #gen_fn = from_fn(lambda *args: tuple(object() for _ in self.outputs))
@@ -199,21 +207,22 @@ class Stream(External):
 
 ##################################################
 
-STREAM_ATTRIBUTES = [':stream', ':inputs', ':domain', ':outputs', ':certified']
-
-def get_gen_fn(stream_map, name):
-    if stream_map == DEBUG:
-        return DEBUG
-    if name not in stream_map:
-        raise ValueError('Undefined stream conditional generator: {}'.format(name))
-    return stream_map[name]
-
 def parse_stream(lisp_list, stream_map, stream_info):
-    # TODO: allow default values when omitted
-    attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
-    assert (STREAM_ATTRIBUTES == attributes)
-    values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
-    name, inputs, domain, outputs, certified = values
-    return Stream(name, get_gen_fn(stream_map, name),
-                  tuple(inputs), list_from_conjunction(domain),
-                  tuple(outputs), list_from_conjunction(certified), stream_info.get(name, None))
+    value_from_attribute = parse_lisp_list(lisp_list)
+    assert set(value_from_attribute) <= {':stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified'}
+    name = value_from_attribute[':stream']
+    domain = value_from_attribute.get(':domain', None)
+    # TODO: dnf_from_positive_formula(value_from_attribute.get(':domain', []))
+    if not (get_formula_operators(domain) <= {AND}):
+        # TODO: allow positive DNF
+        raise ValueError('Stream [{}] domain must be a conjunction'.format(name))
+    certified = value_from_attribute.get(':certified', None)
+    if not (get_formula_operators(certified) <= {AND}):
+        raise ValueError('Stream [{}] certified must be a conjunction'.format(name))
+    return Stream(name, get_procedure_fn(stream_map, name),
+                  value_from_attribute.get(':inputs', []),
+                  list_from_conjunction(domain),
+                  value_from_attribute.get(':fluents', []),  # TODO: None
+                  value_from_attribute.get(':outputs', []),
+                  list_from_conjunction(certified),
+                  stream_info.get(name, None))
