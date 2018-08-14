@@ -12,7 +12,7 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.conversion import And, Equal
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS
 
@@ -20,15 +20,11 @@ from viewer import DiscreteTAMPViewer, COLORS
 
 GRASP = np.array([0, 0])
 
-# class IKFactGenerator(FactGenerator):
-#     def __init__(self, *inputs):
-#         super(IKFactGenerator, self).__init__()
-#         self.p, = inputs
-#     def generate(self, context=None):
-#         self.enumerated = True
-#         q = self.p + GRASP
-#         # TODO: include a formula instead?
-#         return [('conf', q), ('kin', q, self.p)]
+#def ik_fn(p):
+#    q = p + GRASP
+#    outputs = []
+#    facts = [('Kin', q, p)]
+#    return outputs, facts
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -75,6 +71,7 @@ def pddlstream_from_tamp(tamp_problem):
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
+        #'inverse-kinematics': from_list_fn(ik_fn),
         #'inverse-kinematics': IKGenerator,
         #'inverse-kinematics': IKFactGenerator,
         'collision-free': from_test(lambda *args: not collision_test(*args)),
@@ -143,9 +140,26 @@ def apply_action(state, action):
         block, pose, _ = args
         holding = None
         block_poses[block] = pose
+    elif name == 'push':
+        block, _, _, pose, conf = args
+        holding = None
+        block_poses[block] = pose
     else:
         raise ValueError(name)
     return DiscreteTAMPState(conf, holding, block_poses)
+
+def apply_plan(tamp_problem, plan):
+    colors = dict(zip(tamp_problem.initial.block_poses, COLORS))
+    viewer = DiscreteTAMPViewer(1, len(tamp_problem.poses), title='Initial')
+    state = tamp_problem.initial
+    print(state)
+    draw_state(viewer, state, colors)
+    for action in plan:
+        user_input('Continue?')
+        state = apply_action(state, action)
+        print(state)
+        draw_state(viewer, state, colors)
+    user_input('Finish?')
 
 ##################################################
 
@@ -163,18 +177,7 @@ def main(focused=True, unit_costs=False):
     plan, cost, evaluations = solution
     if plan is None:
         return
-
-    colors = dict(zip(tamp_problem.initial.block_poses, COLORS))
-    viewer = DiscreteTAMPViewer(1, len(tamp_problem.poses), title='Initial')
-    state = tamp_problem.initial
-    print(state)
-    draw_state(viewer, state, colors)
-    for action in plan:
-        user_input('Continue?')
-        state = apply_action(state, action)
-        print(state)
-        draw_state(viewer, state, colors)
-    user_input('Finish?')
+    apply_plan(tamp_problem, plan)
 
 
 if __name__ == '__main__':
