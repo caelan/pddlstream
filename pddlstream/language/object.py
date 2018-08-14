@@ -1,6 +1,7 @@
 from collections import Hashable, namedtuple
 
 USE_HASH = True
+USE_STRING = False
 
 class Object(object):
     _prefix = 'o'
@@ -14,6 +15,8 @@ class Object(object):
         self.index = len(Object._obj_from_name)
         if name is None:
             name = '{}{}'.format(self._prefix, self.index)
+        if USE_STRING and isinstance(value, str):
+            name = value
         self.name = name
         self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self

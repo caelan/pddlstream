@@ -1,23 +1,27 @@
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_certified, solve_finite
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_facts, add_certified, solve_finite
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.function import FunctionInstance
+from pddlstream.language.wild_stream import WildInstance
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
 
 # TODO: error when using state-streams
 
 def process_stream_queue(instantiator, evaluations, verbose=True):
-    stream_instance = instantiator.stream_queue.popleft()
-    if stream_instance.enumerated:
+    instance = instantiator.stream_queue.popleft()
+    if instance.enumerated:
         return
-    for result in stream_instance.next_results(verbose=verbose):
+    for result in instance.next_results(verbose=verbose):
         for evaluation in add_certified(evaluations, result):
             instantiator.add_atom(evaluation)
-    if not stream_instance.enumerated:
-        instantiator.stream_queue.append(stream_instance)
+    if isinstance(instance, WildInstance):
+        for evaluation in add_facts(evaluations, instance.next_facts(verbose=verbose), result=None): # TODO: use instance
+            instantiator.add_atom(evaluation)
+    if not instance.enumerated:
+        instantiator.stream_queue.append(instance)
 
 ##################################################
 

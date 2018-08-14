@@ -9,6 +9,7 @@ from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_tuple
 
+VEBOSE_FAILURES = True
 
 def get_empty_fn():
     return lambda *input_values: None
@@ -136,12 +137,13 @@ class StreamInstance(Instance):
             all_new_values.extend(new_values)
             all_results.extend(results)
             self.update_statistics(start_time, results)
-        if verbose and all_new_values:
+        if verbose and (VEBOSE_FAILURES or all_new_values):
             print('{}-{}) {}:{}->[{}]'.format(start_calls, self.num_calls, self.external.name,
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))
         return all_results
     def next_optimistic(self):
+        # TODO: compute this just once and store
         if self.enumerated or self.disabled:
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
@@ -166,7 +168,7 @@ class StreamInstance(Instance):
 class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
-    def __init__(self, name, gen_fn, inputs, domain, fluents, outputs, certified, info):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
         if info is None:
             info = StreamInfo(p_success=None, overhead=None)
         for p, c in Counter(outputs).items():
@@ -222,7 +224,7 @@ def parse_stream(lisp_list, stream_map, stream_info):
     return Stream(name, get_procedure_fn(stream_map, name),
                   value_from_attribute.get(':inputs', []),
                   list_from_conjunction(domain),
-                  value_from_attribute.get(':fluents', []),  # TODO: None
                   value_from_attribute.get(':outputs', []),
                   list_from_conjunction(certified),
-                  stream_info.get(name, None))
+                  stream_info.get(name, None),
+                  value_from_attribute.get(':fluents', []))  # TODO: None

@@ -12,6 +12,7 @@ from pddlstream.language.function import parse_function, parse_predicate, Functi
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.state_stream import parse_state_stream, StateStream
+from pddlstream.language.wild_stream import parse_wild_stream
 from pddlstream.language.rule import parse_rule
 from pddlstream.utils import elapsed_time, INF
 
@@ -102,15 +103,17 @@ class SolutionStore(object):
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
 
-
-def add_certified(evaluations, result):
+def add_facts(evaluations, fact, result=None):
     new_evaluations = []
-    for fact in result.get_certified():
+    for fact in fact:
         evaluation = evaluation_from_fact(fact)
         if evaluation not in evaluations:
             evaluations[evaluation] = result
             new_evaluations.append(evaluation)
     return new_evaluations
+
+def add_certified(evaluations, result):
+    return add_facts(evaluations, result.get_certified(), result=result)
 
 ##################################################
 
@@ -153,7 +156,6 @@ def apply_rules_to_streams(rules, streams):
                 continue
             for stream_fact in stream.certified:
                 if get_prefix(rule_fact) == get_prefix(stream_fact):
-                    print(rule, stream)
                     mapping = dict(zip(get_args(rule_fact), get_args(stream_fact)))
                     new_facts = set(substitute_expression(rule.certified, mapping)) - set(stream.certified)
                     stream.certified = stream.certified + tuple(new_facts)
@@ -177,15 +179,14 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     rules = []
     for lisp_list in stream_iter:
         name = lisp_list[0]
-        if name == ':stream':
+        if name == ':stream': # TODO: refactor at this point
             external = parse_stream(lisp_list, stream_map, stream_info)
         elif name == ':state-stream':
             external = parse_state_stream(lisp_list, stream_map, stream_info)
-        elif name == ':wild':
-            raise NotImplementedError(name)
+        elif name == ':wild-stream':
+            external = parse_wild_stream(lisp_list, stream_map, stream_info)
         elif name == ':rule':
             external = parse_rule(lisp_list, stream_map, stream_info)
-            rules.append(external)
         elif name == ':function':
             external = parse_function(lisp_list, stream_map, stream_info)
         elif name == ':predicate': # Cannot just use args if want a bound
@@ -194,6 +195,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
             raise ValueError(name)
         if any(e.name == external.name for e in streams):
             raise ValueError('Stream [{}] is not unique'.format(external.name))
+        if name == ':rule':
+            rules.append(external)
         streams.append(external)
     # TODO: apply stream outputs here
     # TODO: option to produce random wild effects as well

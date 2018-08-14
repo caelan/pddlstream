@@ -1,4 +1,4 @@
-from pddlstream.algorithms.algorithm import solve_finite
+from pddlstream.algorithms.algorithm import solve_finite, add_certified
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import Function
 from pddlstream.utils import INF
@@ -20,7 +20,7 @@ def evaluate_functions(evaluations, stream_results):
         domain_evals = set(map(evaluation_from_fact, instance.get_domain()))
         if isinstance(instance.external, Function) and (domain_evals <= evaluations):
             for result in instance.next_results():
-                evaluations.update(map(evaluation_from_fact, result.get_certified()))
+                add_certified(evaluations, result)
         else:
             stream_plan.append(opt_result)
     return stream_plan

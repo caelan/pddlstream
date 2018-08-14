@@ -33,7 +33,8 @@ def partition_externals(externals):
     functions = list(filter(lambda s: type(s) is Function, externals))
     negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
     state = list(filter(lambda s: type(s) is StateStream, externals)) # and s.is_negative()
-    streams = list(filter(lambda s: type(s) is Stream, externals))
+    #streams = list(filter(lambda s: type(s) is Stream, externals))
+    streams = list(filter(lambda s: s not in (functions + negative + state), externals))
     return streams, functions, (negative + state)
 
 ##################################################

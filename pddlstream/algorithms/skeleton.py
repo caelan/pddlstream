@@ -3,7 +3,7 @@ from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
-from pddlstream.algorithms.algorithm import add_certified
+from pddlstream.algorithms.algorithm import add_certified, add_facts
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import get_stream_stats
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
@@ -11,6 +11,7 @@ from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.state_stream import StateStreamResult
+from pddlstream.language.wild_stream import WildInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
 
@@ -69,7 +70,8 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
             opt_results.append(opt_result)
             continue
         # TODO: could just do first step
-        for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings, evaluations, opt_evaluations):
+        for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings,
+                                                    evaluations, opt_evaluations):
             results = instance.next_optimistic()
             opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             opt_results += results
@@ -125,6 +127,8 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
         results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
         new_values |= (len(results) != 0)
+        if isinstance(instance, WildInstance):
+            add_facts(queue.evaluations, instance.next_facts(verbose=queue.store.verbose), result=None) # TODO: use instance
 
     opt_result = stream_plan[index] # TODO: could do several at once but no real point
     for result in results:
