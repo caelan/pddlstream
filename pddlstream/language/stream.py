@@ -3,7 +3,7 @@ from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, \
-    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR
+    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
@@ -67,10 +67,11 @@ class DebugValue(object): # TODO: could just do an object
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=None, eager=False,
-                 p_success=None, overhead=None):
+                 p_success=None, overhead=None, negate=False):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead)
         self.opt_gen_fn = opt_gen_fn
+        self.negate = negate
         #self.order = 0
 
 class StreamResult(Result):
@@ -180,8 +181,7 @@ class Stream(External):
         for p in (parameters - set(inputs + outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, info, inputs, domain)
-        self.fluents = fluents
-        #assert not self.fluents
+
         # Each stream could certify a stream-specific fact as well
         if gen_fn == DEBUG:
             #gen_fn = from_fn(lambda *args: tuple(object() for _ in self.outputs))
@@ -204,6 +204,13 @@ class Stream(External):
         #self.bound_list_fn = None
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
         #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
+
+        self.fluents = fluents
+        #assert not self.fluents
+        self.negated_predicates = {} # negated_certified
+        if self.info.negate:
+            self.negated_predicates.update({get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified})
+
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 

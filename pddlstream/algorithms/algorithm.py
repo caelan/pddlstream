@@ -4,7 +4,7 @@ from collections import OrderedDict, defaultdict, deque
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
 from pddlstream.algorithms.search import solve_from_task
-from pddlstream.language.exogenous import compile_to_exogenous
+from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, get_prefix, substitute_expression, get_args
 from pddlstream.language.external import External, DEBUG
@@ -203,3 +203,33 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     # TODO: can even still require that a tuple of outputs is produced
     apply_rules_to_streams(rules, streams)
     return stream_name, streams
+
+##################################################
+
+def compile_state_streams(domain, externals):
+    state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
+    if not state_streams:
+        return
+    predicate_map = {}
+    for stream in state_streams:
+        predicate_map.update(stream.negated_predicates)
+
+    # TODO: could make free parameters free
+    # TODO: allow functions on top the produced values?
+    # TODO: check that generated values are not used in the effects of any actions
+    # TODO: could treat like a normal stream that generates values (but with no inputs required/needed)
+    def fn(literal):
+        if literal.predicate not in predicate_map:
+            return literal
+        new_predicate = predicate_map.get(literal.predicate, literal.predicate)
+        return literal.__class__(new_predicate, literal.args).negate()
+
+    import pddl
+    for action in domain.actions:
+        action.precondition = replace_literals(fn, action.precondition)
+        for effect in action.effects:
+            assert(isinstance(effect, pddl.Effect))
+            effect.condition = replace_literals(fn, effect.condition)
+    for axiom in domain.axioms:
+        axiom.condition = replace_literals(fn, axiom.condition)
+    return state_streams

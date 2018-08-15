@@ -1,6 +1,8 @@
 from __future__ import print_function
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, get_non_producers
+import time
+
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_state_streams
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
@@ -9,19 +11,17 @@ from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
 from pddlstream.algorithms.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
     SkeletonQueue, get_stream_plan_index
-#from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
-#from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
+# from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
+# from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
-from pddlstream.language.stream import Stream
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
-
-import time
+from pddlstream.language.state_stream import StateStream
 
 # TODO: compute total stream plan p_success and overhead
 # TODO: ensure search and sampling have equal time
@@ -89,38 +89,6 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
             return combined_plan, cost
 
 ##################################################
-
-from pddlstream.language.exogenous import replace_literals
-from pddlstream.language.state_stream import StateStream
-from pddlstream.language.conversion import get_prefix
-
-def compile_state_streams(domain, externals):
-    state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
-    if not state_streams:
-        return
-    predicate_map = {}
-    for stream in state_streams:
-        predicate_map.update(stream.negated_predicates)
-
-    # TODO: could make free parameters free
-    # TODO: allow functions on top the produced values?
-    # TODO: check that generated values are not used in the effects of any actions
-    # TODO: could treat like a normal stream that generates values (but with no inputs required/needed)
-    def fn(literal):
-        if literal.predicate not in predicate_map:
-            return literal
-        new_predicate = predicate_map.get(literal.predicate, literal.predicate)
-        return literal.__class__(new_predicate, literal.args).negate()
-
-    import pddl
-    for action in domain.actions:
-        action.precondition = replace_literals(fn, action.precondition)
-        for effect in action.effects:
-            assert(isinstance(effect, pddl.Effect))
-            effect.condition = replace_literals(fn, effect.condition)
-    for axiom in domain.axioms:
-        axiom.condition = replace_literals(fn, axiom.condition)
-    return state_streams
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=None,

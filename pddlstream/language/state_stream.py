@@ -4,10 +4,10 @@ from collections import Counter, Sequence
 from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_prefix, get_args, is_parameter, values_from_objects, evaluation_from_fact
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object
-from pddlstream.language.stream import DebugValue, get_gen_fn
+from pddlstream.language.stream import DebugValue
 from pddlstream.utils import str_from_tuple
 
 # TODO: compile test streams into this
@@ -185,7 +185,7 @@ def parse_state_stream(lisp_list, stream_map, stream_info):
     values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
     value_from_attribute = dict(zip(attributes, values))
     name = value_from_attribute[':state-stream']
-    return StateStream(name, get_gen_fn(stream_map, name),
+    return StateStream(name, get_procedure_fn(stream_map, name),
                        value_from_attribute.get(':inputs', []),
                        list_from_conjunction(value_from_attribute.get(':domain', [])),
                        value_from_attribute.get(':fluents', []),  # TODO: None

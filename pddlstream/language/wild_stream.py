@@ -51,7 +51,7 @@ class WildInstance(StreamInstance):
             except TypeError as err:
                 print('Wild stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
                 raise err
-        pair, self.enumerated = get_next(self._generator)
+        pair, self.enumerated = get_next(self._generator, default=([], []))
         if len(pair) != 2:
             raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(self.external.name))
         new_values, new_facts = pair
