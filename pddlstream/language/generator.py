@@ -25,8 +25,8 @@ class BoundedGenerator(Iterator):
     __next__ = next
 
 
-def get_next(generator):
-    new_values = []
+def get_next(generator, default=[]):
+    new_values = default
     enumerated = False
     try:
         new_values = next(generator)

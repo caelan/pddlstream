@@ -14,7 +14,7 @@ from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn
 from pddlstream.utils import print_solution, user_input, read
-from viewer import DiscreteTAMPViewer, COLORS
+from viewer import DiscreteTAMPViewer, COLORS, MAX_COLS, MAX_ROWS
 
 # TODO: Can infer domain from usage or from specification
 
@@ -25,6 +25,21 @@ GRASP = np.array([0, 0])
 #    outputs = []
 #    facts = [('Kin', q, p)]
 #    return outputs, facts
+
+def is_valid(p):
+    return np.greater_equal(p, [0, 0]) and np.greater([MAX_COLS, MAX_ROWS], p)
+
+def get_length(vec, ord=1):
+    return np.linalg.norm(vec, ord=ord)
+
+def get_difference(p1, p2):
+    return np.array(p2) - p1
+
+def collision_test(p1, p2):
+    return get_length(get_difference(p1, p2)) < 1e-3
+
+def distance_fn(q1, q2):
+    return int(math.ceil(get_length(get_difference(q1, q2))))
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -58,13 +73,6 @@ def pddlstream_from_tamp(tamp_problem):
     goal = And(*[
         ('AtPose', b, p) for b, p in tamp_problem.goal_poses.items()
     ])
-
-    def collision_test(p1, p2):
-        return  np.linalg.norm(p2-p1) <= 1e-1
-
-    def distance_fn(q1, q2):
-        ord = 1 # 1 | 2
-        return int(math.ceil(np.linalg.norm(q2 - q1, ord=ord)))
 
     # TODO: convert to lower case
     stream_map = {
