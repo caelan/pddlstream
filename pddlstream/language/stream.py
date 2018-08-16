@@ -3,7 +3,7 @@ from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, \
-    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix
+    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
@@ -134,8 +134,8 @@ class StreamInstance(Instance):
             start_time = time.time()
             new_values = self._next_outputs()
             self._check_output_values(new_values)
-            results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
             all_new_values.extend(new_values)
+            results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
             all_results.extend(results)
             self.update_statistics(start_time, results)
         if verbose and (VEBOSE_FAILURES or all_new_values):
@@ -163,6 +163,24 @@ class StreamInstance(Instance):
                 output_objects.append(OptimisticObject.from_opt(value, param))
             results.append(self.external._Result(self, output_objects, opt_index=self.opt_index))
         return results
+    def get_blocked_fact(self):
+        return (self.external.blocked_predicate,) + self.input_objects
+
+    def disable(self, evaluations, domain):
+        super(StreamInstance, self).disable(evaluations, domain)
+        if not self.external.negated_predicates:
+            return
+        evaluations[evaluation_from_fact(self.get_blocked_fact())] = False
+
+        # TODO: relies on fact that this has no outputs
+        #for predicate in self.external.certified:
+        #    negated_name = self.external.negated_predicates[get_prefix(predicate)]
+        #    atom = substitute_expression(predicate, self.mapping)
+        #    negated_eval = evaluation_from_fact((negated_name,) + get_args(atom))
+        #    evaluations[negated_eval] = False # TODO: assign to another value?
+        # TODO: make a special class for this in general?
+        # TODO: remove these if it has a success
+
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -199,7 +217,7 @@ class Stream(External):
             self.opt_gen_fn = get_constant_gen_fn(self, None)
             raise NotImplementedError()
         else:
-            self.num_opt_fns = 1
+            self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
             self.opt_gen_fn = get_shared_gen_fn(self) if (self.info.opt_gen_fn is None) else self.info.opt_gen_fn
         #self.bound_list_fn = None
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
@@ -210,6 +228,8 @@ class Stream(External):
         self.negated_predicates = {} # negated_certified
         if self.info.negate:
             self.negated_predicates.update({get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified})
+        self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
+        #self.blocked_fact = (blocked_name,) + self.inputs
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)

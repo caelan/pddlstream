@@ -72,9 +72,12 @@ def from_fn(fn):
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
+def outputs_from_boolean(boolean):
+    return tuple() if boolean else None
+
 
 def from_test(test):
-    return from_fn(lambda *args, **kwargs: tuple() if test(*args, **kwargs) else None)
+    return from_fn(lambda *args, **kwargs: outputs_from_boolean(test(*args, **kwargs)))
 
 
 def from_constant(constant):

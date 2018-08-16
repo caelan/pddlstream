@@ -65,6 +65,13 @@ def get_length(sequence):
         return INF
     return len(sequence)
 
+def safe_zip(sequence1, sequence2):
+    assert len(sequence1) == len(sequence2)
+    return zip(sequence1, sequence2)
+
+def get_mapping(sequence1, sequence2):
+    return dict(safe_zip(sequence1, sequence2))
+
 def invert_test(test):
     return lambda *args: not test(*args)
 
@@ -171,6 +178,8 @@ def argmax(function, sequence):
     scores = [function(x) for x in values]
     return values[scores.index(max(scores))]
 
+def invert_dict(d):
+    return dict((v, k) for k, v in d.items())
 
 def get_file_path(file, rel_path):
     directory = os.path.dirname(os.path.abspath(file))

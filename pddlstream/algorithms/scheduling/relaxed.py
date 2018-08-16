@@ -11,7 +11,8 @@ from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_fro
     And, get_args
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.state_stream import StateStream
-from pddlstream.utils import Verbose, MockSet, HeapElement
+from pddlstream.language.stream import Stream, StreamResult
+from pddlstream.utils import Verbose, MockSet, HeapElement, find_unique, invert_dict
 
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -235,6 +236,9 @@ def get_state_stream_result(state_stream, literal, real_state):
     output_objects = tuple()
     return state_stream._Result(state_instance, output_objects)
 
+#def get_predicate_result():
+#    pass # TODO: refactor
+
 def instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan):
     action_instances = []
     for name, args in action_plan: # TODO: negative atoms in actions
@@ -294,11 +298,14 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
     action_instances = instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
-    negative_from_name = {n.name: n for n in filter(lambda n: isinstance(n, Predicate), negative)}
-    for n in filter(lambda n: isinstance(n, StateStream), negative):
-        for p, np in n.negated_predicates.items():
-            negative_from_name[np] = n
-            #negative_from_name[np] = p
+    negative_from_name = {function.name: function for function in filter(
+        lambda n: isinstance(n, Predicate), negative)}
+    #for stream in filter(lambda n: isinstance(n, StateStream), negative):
+    for stream in filter(lambda n: isinstance(n, Stream), negative):
+        for np in stream.negated_predicates.values():
+            negative_from_name[np] = stream
+        if stream.negated_predicates:
+            negative_from_name[stream.blocked_predicate] = stream
 
     axioms_from_name = get_derived_predicates(opt_task.axioms)
     opt_task.actions = []
@@ -365,12 +372,27 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         negative = negative_from_name[literal.predicate]
         if isinstance(negative, StateStream):
             continue
-        action_instance = negative.get_instance(map(obj_from_pddl, literal.args))
-        value = not literal.negated
-        if action_instance.enumerated:
-            assert (action_instance.value == value)
+        if isinstance(negative, Predicate):
+            predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
+            value = not literal.negated
+            if predicate_instance.enumerated:
+                assert (predicate_instance.value == value)
+            else:
+                function_plan.add(PredicateResult(predicate_instance, value, opt_index=predicate_instance.opt_index))
+        elif isinstance(negative, Stream):
+            #predicate_from_negated = invert_dict(negative.negated_predicates)
+            #predicate = predicate_from_negated[literal.predicate]
+            #certified = find_unique(lambda f: get_prefix(f) == predicate, negative.certified)
+            # TODO: the output also must have all inputs of stream otherwise
+            #assert len(get_args(certified)) == len(literal.args)
+            object_from_input = dict(zip(negative.inputs, map(obj_from_pddl, literal.args)))
+            #object_from_input = dict(zip(get_args(certified), map(obj_from_pddl, literal.args)))
+            input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
+            negative_instance = negative.get_instance(input_objects)
+            function_plan.add(StreamResult(negative_instance, tuple(), opt_index=negative_instance.opt_index))
+
         else:
-            function_plan.add(PredicateResult(action_instance, value, opt_index=action_instance.opt_index))
+            raise ValueError(negative)
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, preimage)))

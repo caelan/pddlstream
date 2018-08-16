@@ -14,7 +14,7 @@ from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.state_stream import parse_state_stream, StateStream
 from pddlstream.language.wild_stream import parse_wild_stream
 from pddlstream.language.rule import parse_rule
-from pddlstream.utils import elapsed_time, INF
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -156,7 +156,7 @@ def apply_rules_to_streams(rules, streams):
                 continue
             for stream_fact in stream.certified:
                 if get_prefix(rule_fact) == get_prefix(stream_fact):
-                    mapping = dict(zip(get_args(rule_fact), get_args(stream_fact)))
+                    mapping = get_mapping(get_args(rule_fact), get_args(stream_fact))
                     new_facts = set(substitute_expression(rule.certified, mapping)) - set(stream.certified)
                     stream.certified = stream.certified + tuple(new_facts)
                     if new_facts and (stream in rules):
@@ -207,12 +207,16 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
 ##################################################
 
 def compile_state_streams(domain, externals):
-    state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
-    if not state_streams:
-        return
+    #state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
+    state_streams = list(filter(lambda e: isinstance(e, Stream) and e.negated_predicates, externals))
     predicate_map = {}
     for stream in state_streams:
-        predicate_map.update(stream.negated_predicates)
+        for fact in stream.certified:
+            predicate = get_prefix(fact)
+            assert predicate not in predicate_map # TODO: could make a conjunction condition instead
+            predicate_map[predicate] = stream
+    if not predicate_map:
+        return state_streams
 
     # TODO: could make free parameters free
     # TODO: allow functions on top the produced values?
@@ -221,8 +225,16 @@ def compile_state_streams(domain, externals):
     def fn(literal):
         if literal.predicate not in predicate_map:
             return literal
-        new_predicate = predicate_map.get(literal.predicate, literal.predicate)
-        return literal.__class__(new_predicate, literal.args).negate()
+        stream = predicate_map[literal.predicate]
+        if isinstance(stream, StateStream):
+            new_predicate = predicate_map.get(literal.predicate, literal.predicate)
+            return literal.__class__(new_predicate, literal.args).negate()
+        else:
+            # TODO: other checks on only inputs
+            certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
+            mapping = get_mapping(get_args(certified), literal.args)
+            blocked_args = tuple(mapping[arg] for arg in stream.inputs)
+            return literal.__class__(stream.blocked_predicate, blocked_args).negate()
 
     import pddl
     for action in domain.actions:
@@ -232,4 +244,5 @@ def compile_state_streams(domain, externals):
             effect.condition = replace_literals(fn, effect.condition)
     for axiom in domain.axioms:
         axiom.condition = replace_literals(fn, axiom.condition)
+    # TODO: normalize?
     return state_streams

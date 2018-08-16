@@ -12,7 +12,8 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.conversion import And, Equal
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn
+from pddlstream.language.stream import StreamInfo
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn, outputs_from_boolean
 from pddlstream.utils import print_solution, user_input, read
 from viewer import DiscreteTAMPViewer, COLORS, MAX_COLS, MAX_ROWS
 
@@ -37,6 +38,13 @@ def get_difference(p1, p2):
 
 def collision_test(p1, p2):
     return get_length(get_difference(p1, p2)) < 1e-3
+
+def noisy_collision_gen_fn(*args):
+    while True:
+        if np.random.random() < 0.75:
+            yield outputs_from_boolean(False)
+        else:
+            yield outputs_from_boolean(not collision_test(*args))
 
 def distance_fn(q1, q2):
     return int(math.ceil(get_length(get_difference(q1, q2))))
@@ -82,7 +90,8 @@ def pddlstream_from_tamp(tamp_problem):
         #'inverse-kinematics': from_list_fn(ik_fn),
         #'inverse-kinematics': IKGenerator,
         #'inverse-kinematics': IKFactGenerator,
-        'collision-free': from_test(lambda *args: not collision_test(*args)),
+        #'collision-free': from_test(lambda *args: not collision_test(*args)),
+        'collision-free': from_gen_fn(noisy_collision_gen_fn),
         'collision': collision_test,
         #'constraint-solver': None,
         'distance': distance_fn,
@@ -176,9 +185,13 @@ def main(focused=True, unit_costs=False):
     tamp_problem = problem_fn()
     print(tamp_problem)
 
+    stream_info = {
+        'collision-free': StreamInfo(negate=True),
+    }
+
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
     else:
         solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)
