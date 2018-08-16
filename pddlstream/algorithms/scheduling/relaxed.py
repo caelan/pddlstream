@@ -378,19 +378,15 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             if predicate_instance.enumerated:
                 assert (predicate_instance.value == value)
             else:
-                function_plan.add(PredicateResult(predicate_instance, value, opt_index=predicate_instance.opt_index))
+                function_plan.add(PredicateResult(predicate_instance, value,
+                                                  opt_index=predicate_instance.opt_index))
         elif isinstance(negative, Stream):
-            #predicate_from_negated = invert_dict(negative.negated_predicates)
-            #predicate = predicate_from_negated[literal.predicate]
-            #certified = find_unique(lambda f: get_prefix(f) == predicate, negative.certified)
-            # TODO: the output also must have all inputs of stream otherwise
-            #assert len(get_args(certified)) == len(literal.args)
             object_from_input = dict(zip(negative.inputs, map(obj_from_pddl, literal.args)))
-            #object_from_input = dict(zip(get_args(certified), map(obj_from_pddl, literal.args)))
             input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
             negative_instance = negative.get_instance(input_objects)
-            function_plan.add(StreamResult(negative_instance, tuple(), opt_index=negative_instance.opt_index))
-
+            if not negative_instance.successes:
+                function_plan.add(StreamResult(negative_instance, tuple(),
+                                               opt_index=negative_instance.opt_index))
         else:
             raise ValueError(negative)
 

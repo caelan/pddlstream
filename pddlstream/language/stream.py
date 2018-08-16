@@ -170,16 +170,8 @@ class StreamInstance(Instance):
         super(StreamInstance, self).disable(evaluations, domain)
         if not self.external.negated_predicates:
             return
-        evaluations[evaluation_from_fact(self.get_blocked_fact())] = False
-
-        # TODO: relies on fact that this has no outputs
-        #for predicate in self.external.certified:
-        #    negated_name = self.external.negated_predicates[get_prefix(predicate)]
-        #    atom = substitute_expression(predicate, self.mapping)
-        #    negated_eval = evaluation_from_fact((negated_name,) + get_args(atom))
-        #    evaluations[negated_eval] = False # TODO: assign to another value?
         # TODO: make a special class for this in general?
-        # TODO: remove these if it has a success
+        evaluations[evaluation_from_fact(self.get_blocked_fact())] = False # TODO: assign to another value?
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
@@ -229,7 +221,6 @@ class Stream(External):
         if self.info.negate:
             self.negated_predicates.update({get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified})
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
-        #self.blocked_fact = (blocked_name,) + self.inputs
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)

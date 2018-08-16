@@ -9,12 +9,11 @@ from pddlstream.algorithms.reorder import get_stream_stats
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
-from pddlstream.language.stream import StreamResult
+from pddlstream.language.stream import StreamResult, StreamInstance
 from pddlstream.language.state_stream import StateStreamResult
 from pddlstream.language.wild_stream import WildInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
-
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:
@@ -97,7 +96,6 @@ def instantiate_plan(bindings, stream_plan, evaluations, domain):
 def process_stream_plan(skeleton, queue, accelerate=1):
     # TODO: hash combinations to prevent repeats
     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
-    results = []
     new_values = False
     if not stream_plan:
         action_plan = queue.skeleton_plans[plan_index].action_plan
@@ -114,6 +112,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         return new_values
 
     assert(len(stream_plan) == len(plan_attempts))
+    results = []
     index = None
     for i, (result, attempt) in enumerate(zip(stream_plan, plan_attempts)):
         if result.instance.num_calls != attempt:
@@ -125,7 +124,10 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         index = 0
         instance = stream_plan[index].instance
         assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
-        results.extend(instance.next_results(accelerate=accelerate, verbose=queue.store.verbose))
+        new_results = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
+        if new_results and isinstance(instance, StreamInstance):
+            queue.evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
+        results.extend(new_results)
         new_values |= (len(results) != 0)
         if isinstance(instance, WildInstance):
             add_facts(queue.evaluations, instance.next_facts(verbose=queue.store.verbose), result=None) # TODO: use instance

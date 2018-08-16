@@ -3,7 +3,7 @@ from collections import Counter
 from pddlstream.language.conversion import substitute_expression, values_from_objects, get_args, is_parameter
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance
-from pddlstream.utils import elapsed_time
+from pddlstream.utils import elapsed_time, get_mapping
 
 DEBUG = 'debug'
 
@@ -40,16 +40,18 @@ class Instance(object):
         self.disabled = False
         self.opt_index = 0
         self.results_history = []
-        self.mapping = dict(zip(self.external.inputs, self.input_objects))
+        self.mapping = get_mapping(self.external.inputs, self.input_objects)
         for constant in self.external.constants:
             self.mapping[constant] = Object.from_name(constant)
         self.domain = substitute_expression(self.external.domain, self.get_mapping())
+        self.successes = 0
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
-        success = any(r.is_successful() for r in results)
-        self.external.update_statistics(overhead, success)
+        successes = len([r.is_successful() for r in results])
+        self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
+        self.successes += successes
 
     @property
     def num_calls(self):
@@ -154,7 +156,7 @@ def parse_lisp_list(lisp_list):
     assert(len(lisp_list) % 2 == 0)
     attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
     values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
-    return dict(zip(attributes, values))
+    return get_mapping(attributes, values)
 
 #def is_property(s):
 #    return s.startswith(':')

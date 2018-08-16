@@ -14,6 +14,9 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
     instance = instantiator.stream_queue.popleft()
     if instance.enumerated:
         return
+    #new_results = instance.next_results(verbose=verbose)
+    #if new_results and isinstance(instance, StreamInstance):
+    #    evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
     for result in instance.next_results(verbose=verbose):
         for evaluation in add_certified(evaluations, result):
             instantiator.add_atom(evaluation)
