@@ -118,12 +118,12 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     num_iterations = 0
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
+    evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
     compile_state_streams(domain, externals)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)
-    load_stream_statistics(stream_name, externals + synthesizers)
+    load_stream_statistics(externals + synthesizers)
     if visualize:
         clear_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
@@ -174,5 +174,5 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
     if postprocess and (not unit_costs):
         locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
-    write_stream_statistics(stream_name, externals + synthesizers, verbose)
+    write_stream_statistics(externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

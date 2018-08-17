@@ -43,11 +43,11 @@ def parse_problem(problem, stream_info={}):
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
-    stream_name, streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
+    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     evaluations = OrderedDict((e, INITIAL_EVALUATION) for e in evaluations_from_init(init))
     goal_expression = obj_from_value_expression(goal)
     compile_to_exogenous(evaluations, domain, streams)
-    return evaluations, goal_expression, domain, stream_name, streams
+    return evaluations, goal_expression, domain, streams
 
 ##################################################
 
@@ -171,7 +171,7 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     stream_info = {k.lower(): v for k, v in stream_info.items()}
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
-    pddl_type, stream_name = next(stream_iter)
+    pddl_type, pddl_name = next(stream_iter)
     assert('stream' == pddl_type)
 
     rules = []
@@ -191,12 +191,13 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
             raise ValueError('Stream [{}] is not unique'.format(external.name))
         if name == ':rule':
             rules.append(external)
+        external.pddl_name = pddl_name # TODO: move within constructors
         streams.append(external)
     # TODO: apply stream outputs here
     # TODO: option to produce random wild effects as well
     # TODO: can even still require that a tuple of outputs is produced
     apply_rules_to_streams(rules, streams)
-    return stream_name, streams
+    return streams
 
 ##################################################
 

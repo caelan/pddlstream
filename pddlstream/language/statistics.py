@@ -25,9 +25,12 @@ def load_data(stream_name):
         return {}
     return read_pickle(filename)
 
-def load_stream_statistics(stream_name, externals):
+def load_stream_statistics(externals):
+    if not externals:
+        return
+    pddl_name = externals[0].pddl_name # TODO: ensure the same
     # TODO: fresh restart flag
-    data = load_data(stream_name)
+    data = load_data(pddl_name)
     for external in externals:
         if external.name in data:
             statistics = data[external.name]
@@ -51,7 +54,7 @@ def dump_statistics(externals):
         external.dump_total()
         # , external.get_effort()) #, data[external.name])
 
-def write_stream_statistics(stream_name, externals, verbose):
+def write_stream_statistics(externals, verbose):
     # TODO: estimate conditional to affecting history on skeleton
     # TODO: estimate conditional to first & attempt and success
     # TODO: relate to success for the full future plan
@@ -60,7 +63,8 @@ def write_stream_statistics(stream_name, externals, verbose):
         return
     if verbose:
         dump_statistics(externals)
-    previous_data = load_data(stream_name)
+    pddl_name = externals[0].pddl_name # TODO: ensure the same
+    previous_data = load_data(pddl_name)
     data = {}
     for external in externals:
         #total_calls = 0 # TODO: compute these values
@@ -98,8 +102,7 @@ def write_stream_statistics(stream_name, externals, verbose):
             'distribution': combined_distribution,
         }
 
-
-    filename = get_data_path(stream_name)
+    filename = get_data_path(pddl_name)
     ensure_dir(filename)
     write_pickle(filename, data)
     if verbose:

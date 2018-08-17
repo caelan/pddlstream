@@ -1,13 +1,18 @@
 import time
 
+#from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_facts, add_certified, solve_finite
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.function import FunctionInstance
+from pddlstream.language.stream import Stream
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
 
-# TODO: error when using state-streams
+def ensure_no_fluent_streams(streams):
+    for stream in streams:
+        if isinstance(stream, Stream) and stream.is_fluent():
+            raise NotImplementedError('Algorithm does not support fluent stream: {}'.format(stream.name))
 
 def process_stream_queue(instantiator, evaluations, verbose=True):
     instance = instantiator.stream_queue.popleft()
@@ -36,7 +41,7 @@ def solve_current(problem, **search_kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
     return revert_solution(plan, cost, evaluations)
 
@@ -55,7 +60,8 @@ def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
         using stream applications
     """
     start_time = time.time()
-    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    ensure_no_fluent_streams(externals)
     instantiator = Instantiator(evaluations, externals)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
@@ -93,7 +99,9 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
         using stream applications
     """
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, _, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    ensure_no_fluent_streams(externals)
+    #load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
     while not store.is_terminated():
@@ -106,4 +114,5 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
         if not instantiator.stream_queue:
             break
         layered_process_stream_queue(instantiator, evaluations, store, layers)
+    #write_stream_statistics(externals, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

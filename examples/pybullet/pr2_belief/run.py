@@ -14,7 +14,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
 from pddlstream.utils import print_solution, read, get_file_path
-from pddlstream.language.conversion import Equal, Problem, And
+from pddlstream.language.conversion import Equal, PDDLProblem, And
 from pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
@@ -127,7 +127,7 @@ def pddlstream_from_state(state, teleport=False):
         'inverse-visibility': from_fn(get_inverse_visibility_fn(task)),
     }
 
-    return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 
 #######################################################

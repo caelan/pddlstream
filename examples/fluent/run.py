@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_test, from_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, read, get_file_path
@@ -49,7 +50,8 @@ def main():
     stream_info = {
         #'test-feasible': StreamInfo(negate=True),
     }
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info)
+    #solution = solve_focused(pddlstream_problem, stream_info=stream_info)
+    solution = solve_incremental(pddlstream_problem)
     print_solution(solution)
 
 if __name__ == '__main__':

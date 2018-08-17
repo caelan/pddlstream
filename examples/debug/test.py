@@ -5,7 +5,7 @@ from __future__ import print_function
 from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.conversion import Or, Problem
+from pddlstream.language.conversion import Or, PDDLProblem
 from pddlstream.utils import print_solution
 
 DOMAIN_PDDL = """
@@ -77,7 +77,7 @@ def get_problem1():
         ('Unachievable',),
     )
 
-    return Problem(DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal)
+    return PDDLProblem(DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
