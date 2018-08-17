@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test
+from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, read, get_file_path
 
 def test_feasible(o, fluents=set()):
@@ -15,7 +16,7 @@ def test_feasible(o, fluents=set()):
     return True
 
 
-def pddlstream_from_belief():
+def get_pddlstream_problem():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -38,8 +39,11 @@ def pddlstream_from_belief():
 
 def main():
     # TODO: maybe load problems as a domain explicitly
-    pddlstream_problem = pddlstream_from_belief()
-    solution = solve_focused(pddlstream_problem, unit_costs=False)
+    pddlstream_problem = get_pddlstream_problem()
+    stream_info = {
+        'test-feasible': StreamInfo(negate=True),
+    }
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info)
     print_solution(solution)
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@
     :certified (Contained ?b ?p ?r)
   )
 
-  ;(:state-stream reachable ; fluent-stream
+  ;(:stream reachable
   ;  :inputs (?q1 ?q2)
   ;  :fluents (AtPose Holding)
   ;  :certified (Reachable ?q1 ?q2)

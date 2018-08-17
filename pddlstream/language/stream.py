@@ -12,6 +12,7 @@ from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 from pddlstream.utils import str_from_tuple
 
 VEBOSE_FAILURES = True
+INTERNAL = False
 
 def get_empty_fn():
     return lambda *input_values: None
@@ -177,15 +178,14 @@ class StreamInstance(Instance):
         return (self.external.blocked_predicate,) + self.input_objects
 
     def disable(self, evaluations, domain):
+        #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain)
-        # TODO: make a special class for this in general?
-        if not self.external.fluents: # self.fluent_facts:
-            if not self.external.negated_predicates:
-                evaluations[evaluation_from_fact(self.get_blocked_fact())] = False # TODO: assign to another value?
+        if not self.external.is_fluent(): # self.fluent_facts:
+            if self.external.is_negated():
+                evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
             return
 
         # TODO: re-enable
-        #assert not self.disabled
         import pddl
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
@@ -193,12 +193,11 @@ class StreamInstance(Instance):
         negated_name = self.external.blocked_predicate
         static_name = '_ax{}-{}'.format(negated_name, index)
         static_eval = evaluation_from_fact((static_name,) + self.input_objects)
-        evaluations[static_eval] = False # TODO: assign another value?)
+        evaluations[static_eval] = INTERNAL
 
         parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
         static_atom = fd_from_fact((static_name,) + self.external.inputs)
         precondition = pddl.Conjunction([static_atom] + list(map(fd_from_fact, self.fluent_facts)))
-        #precondition = pddl.Conjunction([static_atom])
         domain.axioms.append(pddl.Axiom(name=negated_name, parameters=parameters,
                                         num_external_parameters=len(self.external.inputs),
                                         condition=precondition))
@@ -246,12 +245,14 @@ class Stream(External):
         #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
 
         self.fluents = fluents
-        #assert not self.fluents
-        self.negated_predicates = {} # negated_certified
-        if self.info.negate:
-            self.negated_predicates.update({get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified})
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
         self.disabled_instances = []
+
+    def is_fluent(self):
+        return self.fluents
+
+    def is_negated(self):
+        return self.info.negate
 
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         key = (tuple(input_objects), frozenset(fluent_facts))
@@ -266,8 +267,9 @@ class Stream(External):
 
 def parse_stream(lisp_list, stream_map, stream_info):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified'}
-    name = value_from_attribute[':stream']
+    assert set(value_from_attribute) <= {':stream', ':wild-stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified'}
+    is_wild = (':wild-stream' in value_from_attribute)
+    name = value_from_attribute[':wild-stream'] if is_wild else value_from_attribute[':stream']
     domain = value_from_attribute.get(':domain', None)
     # TODO: dnf_from_positive_formula(value_from_attribute.get(':domain', []))
     if not (get_formula_operators(domain) <= {AND}):

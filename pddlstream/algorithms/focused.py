@@ -21,7 +21,6 @@ from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
-from pddlstream.language.state_stream import StateStream
 from pddlstream.language.stream import Stream
 
 # TODO: compute total stream plan p_success and overhead
@@ -33,11 +32,8 @@ from pddlstream.language.stream import Stream
 def partition_externals(externals):
     functions = list(filter(lambda s: type(s) is Function, externals))
     predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    state = list(filter(lambda s: type(s) is StateStream, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.info.negate,
-                                  externals)) # and s.is_negative()
-    negative = predicates + state + negated_streams
-    #streams = list(filter(lambda s: type(s) is Stream, externals))
+    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
+    negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
     return streams, functions, negative
 

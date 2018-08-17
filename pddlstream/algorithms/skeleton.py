@@ -10,7 +10,6 @@ from pddlstream.language.conversion import evaluation_from_fact, substitute_expr
 from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
 from pddlstream.language.stream import StreamResult, StreamInstance
-from pddlstream.language.state_stream import StateStreamResult
 from pddlstream.language.wild_stream import WildInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
@@ -65,9 +64,6 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
     opt_bindings = defaultdict(list)
     opt_results = []
     for opt_result in stream_plan:
-        if isinstance(opt_result, StateStreamResult):
-            opt_results.append(opt_result)
-            continue
         # TODO: could just do first step
         for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings,
                                                     evaluations, opt_evaluations):

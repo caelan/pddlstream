@@ -11,7 +11,6 @@ from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
-from pddlstream.language.state_stream import parse_state_stream, StateStream
 from pddlstream.language.wild_stream import parse_wild_stream
 from pddlstream.language.rule import parse_rule
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique
@@ -121,9 +120,9 @@ def get_domain_predicates(external):
     return set(map(get_prefix, external.domain))
 
 def get_certified_predicates(external):
-    if type(external) in (Stream, StateStream):
+    if isinstance(external, Stream):
         return set(map(get_prefix, external.certified))
-    if type(external) in (Function, Predicate):
+    if isinstance(external, Function):
         return {get_prefix(external.head)}
     raise ValueError(external)
 
@@ -181,8 +180,6 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
         name = lisp_list[0]
         if name == ':stream': # TODO: refactor at this point
             external = parse_stream(lisp_list, stream_map, stream_info)
-        elif name == ':state-stream':
-            external = parse_state_stream(lisp_list, stream_map, stream_info)
         elif name == ':wild-stream':
             external = parse_wild_stream(lisp_list, stream_map, stream_info)
         elif name == ':rule':
@@ -207,9 +204,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
 ##################################################
 
 def compile_state_streams(domain, externals):
-    #state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
     state_streams = list(filter(lambda e: isinstance(e, Stream) and
-                                          (e.negated_predicates or e.fluents), externals))
+                                          (e.is_negated() or e.is_fluent()), externals))
     predicate_map = {}
     for stream in state_streams:
         for fact in stream.certified:
@@ -226,21 +222,17 @@ def compile_state_streams(domain, externals):
     def fn(literal):
         if literal.predicate not in predicate_map:
             return literal
+        # TODO: other checks on only inputs
         stream = predicate_map[literal.predicate]
-        if isinstance(stream, StateStream):
-            new_predicate = predicate_map.get(literal.predicate, literal.predicate)
-            return literal.__class__(new_predicate, literal.args).negate()
+        certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
+        mapping = get_mapping(get_args(certified), literal.args)
+        blocked_args = tuple(mapping[arg] for arg in stream.inputs)
+        blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
+        if stream.is_negated():
+            # TODO: add stream conditions here
+            return blocked_literal
         else:
-            # TODO: other checks on only inputs
-            certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
-            mapping = get_mapping(get_args(certified), literal.args)
-            blocked_args = tuple(mapping[arg] for arg in stream.inputs)
-            blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
-            if stream.negated_predicates:
-                # TODO: add stream conditions here
-                return blocked_literal
-            else:
-                return pddl.Conjunction([literal, blocked_literal])
+            return pddl.Conjunction([literal, blocked_literal])
 
     import pddl
     for action in domain.actions:

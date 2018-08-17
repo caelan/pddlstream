@@ -10,7 +10,6 @@ from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_strea
 from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, \
     And, get_args
 from pddlstream.language.function import PredicateResult, Predicate
-from pddlstream.language.state_stream import StateStream
 from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.utils import Verbose, MockSet, HeapElement, find_unique, invert_dict
 
@@ -233,20 +232,6 @@ def get_goal_instance(goal):
     #precondition = get_literals(goal)
     return pddl.PropositionalAction(name, precondition, [], None)
 
-def get_state_stream_result(state_stream, literal, real_state):
-    import pddl
-    assert literal.negated
-    [cert] = state_stream.certified
-    # TODO: only consider facts produced by initial/actions
-    object_from_input = dict(zip(get_args(cert), map(obj_from_pddl, literal.args)))
-    input_objects = tuple(object_from_input[inp] for inp in state_stream.inputs)
-    fluent_facts = list(filter(lambda f: isinstance(f, pddl.Atom) and
-                                         (f.predicate in state_stream.fluents), real_state))
-    state_instance = state_stream.get_instance(input_objects, map(fact_from_fd, fluent_facts))
-    assert not state_stream.outputs
-    output_objects = tuple()
-    return state_stream._Result(state_instance, output_objects)
-
 #def get_predicate_result():
 #    pass # TODO: refactor
 
@@ -319,14 +304,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
     action_instances = instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
-    negative_from_name = {function.name: function for function in filter(
-        lambda n: isinstance(n, Predicate), negative)}
-    #for stream in filter(lambda n: isinstance(n, StateStream), negative):
-    for stream in filter(lambda n: isinstance(n, Stream), negative):
-        for np in stream.negated_predicates.values():
-            negative_from_name[np] = stream
-        if stream.negated_predicates:
-            negative_from_name[stream.blocked_predicate] = stream
+    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
+    negative_from_name.update({external.blocked_predicate: external for external in negative
+                               if isinstance(external, Stream) and external.is_negated()})
 
     axioms_from_name = get_derived_predicates(opt_task.axioms)
     opt_task.actions = []
@@ -335,7 +315,6 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     real_states = [real_state.copy()] # TODO: had old way of doing this (~July 2018)
     preimage_plan = []
     function_plan = set()
-    state_plan = set()
     for layer in action_instances:
         for pair, action_instance in layer:
             nonderived_preconditions = [l for l in action_instance.precondition
@@ -365,11 +344,6 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             simplify_conditional_effects(real_state, opt_state, action_instance, axioms_from_name)
             # TODO: test if no derived solution
 
-            for literal in action_instance.precondition:
-                if literal.predicate in negative_from_name:
-                    state_plan.add(get_state_stream_result(negative_from_name[literal.predicate],
-                                                           literal, real_state))
-
             # TODO: add axiom init to reset state?
             preimage_plan.extend(axiom_plan + [action_instance])
             apply_action(opt_state, action_instance)
@@ -392,10 +366,6 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
     for literal in negative_preimage:
         negative = negative_from_name[literal.predicate]
-        if isinstance(negative, StateStream):
-            # TODO: use opt_index to decide whether to get fluents
-            # TODO: get the layer usage of each fact
-            continue
         if isinstance(negative, Predicate):
             predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
             value = not literal.negated
@@ -405,12 +375,24 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                 function_plan.add(PredicateResult(predicate_instance, value,
                                                   opt_index=predicate_instance.opt_index))
         elif isinstance(negative, Stream):
+            #assert not negative.is_fluent()
             object_from_input = dict(zip(negative.inputs, map(obj_from_pddl, literal.args)))
             input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
-            negative_instance = negative.get_instance(input_objects)
-            if not negative_instance.successes:
-                function_plan.add(StreamResult(negative_instance, tuple(),
-                                               opt_index=negative_instance.opt_index))
+
+            fluent_facts_list = []
+            if negative.is_fluent():
+                for state_index in preimage[literal]:
+                    fluent_facts_list.append(list(map(fact_from_fd,
+                        filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents),
+                               real_states[state_index]))))
+            else:
+                fluent_facts_list.append(frozenset())
+
+            for fluent_facts in fluent_facts_list:
+                negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
+                if not negative_instance.successes:
+                    function_plan.add(StreamResult(negative_instance, tuple(),
+                                                   opt_index=negative_instance.opt_index))
         else:
             raise ValueError(negative)
 
@@ -432,8 +414,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         if len(state_indices) != 1:
             raise NotImplementedError() # Pass all fluents and make two axioms
         [state_index] = state_indices
-        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and
-                                                 (f.predicate in external.fluents), real_states[state_index])))
+        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
         new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
         new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
     stream_plan = new_stream_plan
@@ -442,7 +423,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
         new_stream_plan = reschedule(evaluations, preimage_facts, domain, stream_results)
         if new_stream_plan is not None:
             stream_plan = new_stream_plan
-    return stream_plan + list(function_plan) + list(state_plan)
+    return stream_plan + list(function_plan)
 
 ##################################################
 
