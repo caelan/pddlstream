@@ -11,7 +11,6 @@ from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
-from pddlstream.language.wild_stream import parse_wild_stream
 from pddlstream.language.rule import parse_rule
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique
 
@@ -177,11 +176,9 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
 
     rules = []
     for lisp_list in stream_iter:
-        name = lisp_list[0]
-        if name == ':stream': # TODO: refactor at this point
+        name = lisp_list[0] # TODO: refactor at this point
+        if name in (':stream', ':wild-stream'):
             external = parse_stream(lisp_list, stream_map, stream_info)
-        elif name == ':wild-stream':
-            external = parse_wild_stream(lisp_list, stream_map, stream_info)
         elif name == ':rule':
             external = parse_rule(lisp_list, stream_map, stream_info)
         elif name == ':function':

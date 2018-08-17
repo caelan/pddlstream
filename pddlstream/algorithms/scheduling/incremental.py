@@ -19,7 +19,9 @@ def evaluate_functions(evaluations, stream_results):
         instance = opt_result.instance
         domain_evals = set(map(evaluation_from_fact, instance.get_domain()))
         if isinstance(instance.external, Function) and (domain_evals <= evaluations):
-            for result in instance.next_results():
+            new_results, new_facts = instance.next_results()
+            assert not new_facts
+            for result in new_results:
                 add_certified(evaluations, result)
         else:
             stream_plan.append(opt_result)

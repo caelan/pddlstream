@@ -4,7 +4,7 @@ from itertools import count
 
 from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, remap_objects, \
     substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix, \
-    evaluation_from_fact, values_from_objects
+    evaluation_from_fact, values_from_objects, obj_from_value_expression
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
@@ -13,6 +13,8 @@ from pddlstream.utils import str_from_tuple
 
 VEBOSE_FAILURES = True
 INTERNAL = False
+
+# TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 
 def get_empty_fn():
     return lambda *input_values: None
@@ -120,40 +122,63 @@ class StreamInstance(Instance):
             if len(output_values) != len(self.external.outputs):
                 raise ValueError('An output tuple for stream [{}] has length {} instead of {}: {}'.format(
                     self.external.name, len(output_values), len(self.external.outputs), output_values))
+
+    def _check_wild_facts(self, new_facts):
+        if not isinstance(new_facts, Sequence):
+            raise ValueError('Output wild facts for wild stream [{}] is not a sequence: {}'.format(
+                self.external.name, new_facts))
+
     def get_fluent_values(self):
         return [(get_prefix(f),) + values_from_objects(get_args(f)) for f in self.fluent_facts]
-    def _next_outputs(self):
+
+    def _create_generator(self):
         if self._generator is None:
             input_values = self.get_input_values()
             try:
-                if self.external.fluents: # self.fluent_facts
+                if self.external.is_fluent(): # self.fluent_facts
                     self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
                 else:
                     self._generator = self.external.gen_fn(*input_values)
             except TypeError as err:
                 print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
                 raise err
-        new_values, self.enumerated = get_next(self._generator)
-        return new_values
+
+    def _next_outputs(self):
+        self._create_generator()
+        output, self.enumerated = get_next(self._generator, default=None)
+        if output is None:
+            return [], []
+        if not self.external.is_wild:
+            return output, []
+        if len(output) != 2:
+            raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(
+                self.external.name))
+        return output
     def next_results(self, accelerate=1, verbose=False):
         all_new_values = []
+        all_new_facts = []
         all_results = []
         start_calls = self.num_calls
         for attempt in range(accelerate):
             if all_results or self.enumerated:
                 break
             start_time = time.time()
-            new_values = self._next_outputs()
+            new_values, new_facts = self._next_outputs()
             self._check_output_values(new_values)
+            self._check_wild_facts(new_facts)
             all_new_values.extend(new_values)
-            results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
-            all_results.extend(results)
-            self.update_statistics(start_time, results)
+            all_new_facts.extend(new_facts)
+            new_results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
+            all_results.extend(new_results)
+            self.update_statistics(start_time, new_results)
         if verbose and (VEBOSE_FAILURES or all_new_values):
             print('{}-{}) {}:{}->[{}]'.format(start_calls, self.num_calls, self.external.name,
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))
-        return all_results
+        if verbose and all_new_facts:
+            print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
+                                            str_from_tuple(self.get_input_values()), all_new_facts))
+        return all_results, list(map(obj_from_value_expression, all_new_facts))
     def next_optimistic(self):
         # TODO: compute this just once and store
         if self.enumerated or self.disabled:
@@ -208,7 +233,7 @@ class StreamInstance(Instance):
 class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
         if info is None:
             info = StreamInfo(p_success=None, overhead=None)
         for p, c in Counter(outputs).items():
@@ -247,6 +272,7 @@ class Stream(External):
         self.fluents = fluents
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
         self.disabled_instances = []
+        self.is_wild = is_wild
 
     def is_fluent(self):
         return self.fluents
@@ -284,4 +310,5 @@ def parse_stream(lisp_list, stream_map, stream_info):
                   value_from_attribute.get(':outputs', []),
                   list_from_conjunction(certified),
                   stream_info.get(name, None),
-                  value_from_attribute.get(':fluents', []))  # TODO: None
+                  fluents=value_from_attribute.get(':fluents', []),
+                  is_wild=is_wild)

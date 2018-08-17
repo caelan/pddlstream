@@ -143,3 +143,18 @@ def compose_gen_fns(*gen_fns):
             if not terminated:
                 queue.append(composed)
     return gen_fn
+
+
+def wild_gen_fn_from_gen_fn(gen_fn):
+    def wild_gen_fn(*args, **kwargs):
+        for output_list in gen_fn(*args, **kwargs):
+            fact_list = []
+            yield output_list, fact_list
+    return wild_gen_fn
+
+
+def gen_fn_from_wild_gen_fn(wild_gen_fn):
+    def gen_fn(*args, **kwargs):
+        for output_list, _ in wild_gen_fn(*args, **kwargs):
+            yield output_list
+    return wild_gen_fn

@@ -4,7 +4,6 @@ from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_fa
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.function import FunctionInstance
-from pddlstream.language.wild_stream import WildInstance
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
 
@@ -14,15 +13,14 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
     instance = instantiator.stream_queue.popleft()
     if instance.enumerated:
         return
-    #new_results = instance.next_results(verbose=verbose)
+    new_results, new_facts = instance.next_results(verbose=verbose)
     #if new_results and isinstance(instance, StreamInstance):
     #    evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
-    for result in instance.next_results(verbose=verbose):
+    for result in new_results:
         for evaluation in add_certified(evaluations, result):
             instantiator.add_atom(evaluation)
-    if isinstance(instance, WildInstance):
-        for evaluation in add_facts(evaluations, instance.next_facts(verbose=verbose), result=None): # TODO: use instance
-            instantiator.add_atom(evaluation)
+    for evaluation in add_facts(evaluations, new_facts, result=None): # TODO: use instance?
+        instantiator.add_atom(evaluation)
     if not instance.enumerated:
         instantiator.stream_queue.append(instance)
 

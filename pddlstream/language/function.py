@@ -80,7 +80,8 @@ class FunctionInstance(Instance):  # Head(Instance):
         #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
         #    self.update_statistics(start_time, [])
         self.update_statistics(start_time, results)
-        return results
+        new_facts = []
+        return results, new_facts
 
     def next_optimistic(self):
         if self.enumerated or self.disabled:

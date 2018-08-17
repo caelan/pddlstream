@@ -10,7 +10,6 @@ from pddlstream.language.conversion import evaluation_from_fact, substitute_expr
 from pddlstream.language.function import FunctionResult, PredicateResult
 from pddlstream.language.statistics import geometric_cost
 from pddlstream.language.stream import StreamResult, StreamInstance
-from pddlstream.language.wild_stream import WildInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
 
@@ -120,13 +119,12 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         index = 0
         instance = stream_plan[index].instance
         assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
-        new_results = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
+        new_results, new_facts = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
         if new_results and isinstance(instance, StreamInstance):
             queue.evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
         results.extend(new_results)
         new_values |= (len(results) != 0)
-        if isinstance(instance, WildInstance):
-            add_facts(queue.evaluations, instance.next_facts(verbose=queue.store.verbose), result=None) # TODO: use instance
+        add_facts(queue.evaluations, new_facts, result=None) # TODO: use instance
 
     opt_result = stream_plan[index] # TODO: could do several at once but no real point
     for result in results:
