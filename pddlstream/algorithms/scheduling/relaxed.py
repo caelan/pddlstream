@@ -2,7 +2,7 @@ from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    get_literals, conditions_hold
+    get_literals, conditions_hold, fd_from_fact
 from pddlstream.algorithms.search import serialized_solve_from_task, abstrips_solve_from_task, \
     abstrips_solve_from_task_sequential, solve_from_task
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
@@ -14,33 +14,44 @@ from pddlstream.language.state_stream import StateStream
 from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.utils import Verbose, MockSet, HeapElement, find_unique, invert_dict
 
-
 # TODO: reuse the ground problem when solving for sequential subgoals
 
-def action_preimage(action, preimage):
-    for conditions, effect in action.add_effects + action.del_effects:
+def add_preimage_condition(condition, preimage, i):
+    for literal in condition:
+        #preimage[literal] = preimage.get(literal, set()) | {i}
+        preimage.setdefault(literal, set()).add(i)
+    #preimage.update(condition)
+
+def add_preimage_effect(effect, preimage):
+    preimage.pop(effect, None)
+    #if effect in preimage:
+    #    # Fluent effects kept, static dropped
+    #    preimage.remove(effect)
+
+def action_preimage(action, preimage, i):
+    for conditions, effect in (action.add_effects + action.del_effects):
         assert(not conditions)
         # TODO: can later select which conditional effects are used
         # TODO: might need to truely decide whether one should hold or not for a preimage. Maybe I should do that here
-        if effect in preimage:
-            preimage.remove(effect)
-    preimage.update(action.precondition)
+        add_preimage_effect(effect, preimage)
+    add_preimage_condition(action.precondition, preimage, i)
 
-def axiom_preimage(axiom, preimage):
-    if axiom.effect in preimage:
-        preimage.remove(axiom.effect)
-    preimage.update(axiom.condition)
+def axiom_preimage(axiom, preimage, i):
+    add_preimage_effect(axiom.effect, preimage)
+    add_preimage_condition(axiom.condition, preimage, i)
 
 def plan_preimage(plan, goal):
     import pddl
-    preimage = set(goal)
-    for action in reversed(plan):
-        if isinstance(action, pddl.PropositionalAction):
-            action_preimage(action, preimage)
-        elif isinstance(action, pddl.PropositionalAxiom):
-            axiom_preimage(action, preimage)
+    # TODO: store layers in which each of these where used
+    #preimage = set(goal)
+    preimage = {condition: {len(plan)} for condition in goal}
+    for i, operator in reversed(list(enumerate(plan))):
+        if isinstance(operator, pddl.PropositionalAction):
+            action_preimage(operator, preimage, i)
+        elif isinstance(operator, pddl.PropositionalAxiom):
+            axiom_preimage(operator, preimage, i)
         else:
-            raise ValueError(action)
+            raise ValueError(operator)
     return preimage
 
 ##################################################
@@ -277,6 +288,16 @@ def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_
                 # TODO: handle more general case where can choose to achieve particular conditional effects
                 raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
 
+def reschedule(evaluations, preimage_facts, domain, stream_results):
+    # TODO: search in space of partially ordered plans
+    # TODO: local optimization - remove one and see if feasible
+    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
+    reschedule_task = task_from_domain_problem(domain, reschedule_problem)
+    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    new_plan, _ = solve_from_task(reschedule_task, planner='ff-astar', debug=True)
+    # TODO: investigate other admissible heuristics
+    return [stream_result_from_name[name] for name, _ in new_plan]
+
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
                         unit_costs, optimize=False):
     # TODO: toggle optimize more
@@ -311,6 +332,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     opt_task.actions = []
     opt_state = set(opt_task.init)
     real_state = set(real_task.init)
+    real_states = [real_state.copy()] # TODO: had old way of doing this (~July 2018)
     preimage_plan = []
     function_plan = set()
     state_plan = set()
@@ -331,10 +353,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                 model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
             opt_task.axioms = original_axioms
 
-            delta_state = opt_state - real_state
+            delta_state = (opt_state - real_state) # Optimistic facts
             opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
-            mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or
-                                               (item in opt_facts))
+            mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
             instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
             with Verbose(False):
                 helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
@@ -353,6 +374,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             preimage_plan.extend(axiom_plan + [action_instance])
             apply_action(opt_state, action_instance)
             apply_action(real_state, action_instance)
+            real_states.append(real_state.copy())
             if not unit_costs and (pair is not None):
                 function_plan.update(extract_function_results(results_from_head, *pair))
             break
@@ -360,17 +382,19 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             raise RuntimeError('No action instances are applicable')
 
     # TODO: could instead just accumulate difference between real and opt
-    preimage = plan_preimage(preimage_plan, []) - set(real_task.init)
-    negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, preimage))
-    preimage -= negative_preimage
+    preimage = plan_preimage(preimage_plan, [])
+    stream_preimage = set(preimage) - set(real_task.init)
     # visualize_constraints(map(fact_from_fd, preimage))
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: can optimize for all streams & axioms all at once
 
+    negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
     for literal in negative_preimage:
         negative = negative_from_name[literal.predicate]
         if isinstance(negative, StateStream):
+            # TODO: use opt_index to decide whether to get fluents
+            # TODO: get the layer usage of each fact
             continue
         if isinstance(negative, Predicate):
             predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
@@ -391,26 +415,34 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             raise ValueError(negative)
 
     node_from_atom = get_achieving_streams(evaluations, stream_results)
-    preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, preimage)))
+    preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, stream_preimage - negative_preimage)))
     stream_plan = []
     extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
-    initial_plan = stream_plan + list(function_plan) + list(state_plan)
-    if not optimize: # TODO: detect this based on unique or not
-        return initial_plan
 
-    # TODO: search in space of partially ordered plans
-    # TODO: local optimization - remove one and see if feasible
+    new_stream_plan = []
+    for result in stream_plan:
+        external = result.instance.external
+        if (result.opt_index != 0) or (not external.fluents):
+            new_stream_plan.append(result)
+            continue
+        state_indices = set()
+        for atom in result.get_certified():
+            if node_from_atom[atom].stream_result == result:
+                state_indices.update(preimage[fd_from_fact(atom)])
+        if len(state_indices) != 1:
+            raise NotImplementedError() # Pass all fluents and make two axioms
+        [state_index] = state_indices
+        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and
+                                                 (f.predicate in external.fluents), real_states[state_index])))
+        new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
+        new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
+    stream_plan = new_stream_plan
 
-    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
-    reschedule_task = task_from_domain_problem(domain, reschedule_problem)
-    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    new_plan, _ = solve_from_task(reschedule_task, planner='ff-astar', debug=True)
-    # TODO: investigate other admissible heuristics
-    if new_plan is None:
-        return initial_plan
-
-    new_stream_plan = [stream_result_from_name[name] for name, _ in new_plan]
-    return new_stream_plan + list(function_plan) + list(state_plan)
+    if optimize: # TODO: detect this based on unique or not
+        new_stream_plan = reschedule(evaluations, preimage_facts, domain, stream_results)
+        if new_stream_plan is not None:
+            stream_plan = new_stream_plan
+    return stream_plan + list(function_plan) + list(state_plan)
 
 ##################################################
 

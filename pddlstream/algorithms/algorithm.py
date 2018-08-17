@@ -208,7 +208,8 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
 
 def compile_state_streams(domain, externals):
     #state_streams = list(filter(lambda e: isinstance(e, StateStream), externals))
-    state_streams = list(filter(lambda e: isinstance(e, Stream) and e.negated_predicates, externals))
+    state_streams = list(filter(lambda e: isinstance(e, Stream) and
+                                          (e.negated_predicates or e.fluents), externals))
     predicate_map = {}
     for stream in state_streams:
         for fact in stream.certified:
@@ -234,15 +235,20 @@ def compile_state_streams(domain, externals):
             certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
             mapping = get_mapping(get_args(certified), literal.args)
             blocked_args = tuple(mapping[arg] for arg in stream.inputs)
-            return literal.__class__(stream.blocked_predicate, blocked_args).negate()
+            blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
+            if stream.negated_predicates:
+                # TODO: add stream conditions here
+                return blocked_literal
+            else:
+                return pddl.Conjunction([literal, blocked_literal])
 
     import pddl
     for action in domain.actions:
-        action.precondition = replace_literals(fn, action.precondition)
-        for effect in action.effects:
-            assert(isinstance(effect, pddl.Effect))
-            effect.condition = replace_literals(fn, effect.condition)
+        action.precondition = replace_literals(fn, action.precondition).simplified()
+        # TODO: throw an error if the effect would be altered
+        #for effect in action.effects:
+        #    assert(isinstance(effect, pddl.Effect))
+        #    effect.condition = replace_literals(fn, effect.condition)
     for axiom in domain.axioms:
-        axiom.condition = replace_literals(fn, axiom.condition)
-    # TODO: normalize?
+        axiom.condition = replace_literals(fn, axiom.condition).simplified()
     return state_streams

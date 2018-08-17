@@ -292,3 +292,7 @@ def revert_solution(plan, cost, evaluations):
 
 def str_from_head(head):
     return '{}{}'.format(get_prefix(head), str_from_tuple(get_args(head)))
+
+
+def remap_objects(objects, bindings):
+    return tuple(bindings.get(i, i) for i in objects)

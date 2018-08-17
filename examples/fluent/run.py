@@ -24,6 +24,8 @@ def pddlstream_from_belief():
     }
 
     init = [
+        ('Block', 'b1'),
+        ('Block', 'b2'),
         ('OnTable', 'b1'),
         ('OnTable', 'b2'),
     ]

@@ -3,12 +3,13 @@ from collections import Counter, Sequence
 
 from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
-    get_prefix, get_args, is_parameter, values_from_objects, evaluation_from_fact
+    get_prefix, get_args, is_parameter, values_from_objects, evaluation_from_fact, remap_objects
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import DebugValue
 from pddlstream.utils import str_from_tuple
+
 
 # TODO: compile test streams into this
 # TODO: maybe I should just treat these as regular streams and just add the fluent component at the end?
@@ -21,9 +22,6 @@ from pddlstream.utils import str_from_tuple
 
 # TODO: no need to optimistic
 # TODO: should I extend function or stream or predicate?
-
-def remap_objects(objects, bindings):
-    return tuple(bindings.get(i, i) for i in objects)
 
 class StateStreamInfo(ExternalInfo):
     def __init__(self, eager=False, p_success=None, overhead=None):

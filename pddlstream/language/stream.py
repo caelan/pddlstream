@@ -2,11 +2,13 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, \
-    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix, evaluation_from_fact
+from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, remap_objects, \
+    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix, \
+    evaluation_from_fact, values_from_objects
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
+from pddlstream.algorithms.downward import OBJECT, fd_from_fact
 from pddlstream.utils import str_from_tuple
 
 VEBOSE_FAILURES = True
@@ -89,8 +91,10 @@ class StreamResult(Result):
         name = self.instance.external.name
         return name, self.instance.input_objects, self.output_objects
     def remap_inputs(self, bindings):
-        input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
-        new_instance = self.instance.external.get_instance(input_objects)
+        input_objects = remap_objects(self.instance.input_objects, bindings)
+        fluent_facts = [(get_prefix(f),) + remap_objects(get_args(f), bindings)
+                        for f in self.instance.fluent_facts]
+        new_instance = self.instance.external.get_instance(input_objects, fluent_facts=fluent_facts)
         return self.__class__(new_instance, self.output_objects, self.opt_index)
     def is_successful(self):
         return True
@@ -100,10 +104,11 @@ class StreamResult(Result):
                                   str_from_tuple(self.output_objects))
 
 class StreamInstance(Instance):
-    def __init__(self, stream, input_objects):
+    def __init__(self, stream, input_objects, fluent_facts):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
         self.opt_index = stream.num_opt_fns
+        self.fluent_facts = frozenset(fluent_facts)
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
             raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))
@@ -114,11 +119,16 @@ class StreamInstance(Instance):
             if len(output_values) != len(self.external.outputs):
                 raise ValueError('An output tuple for stream [{}] has length {} instead of {}: {}'.format(
                     self.external.name, len(output_values), len(self.external.outputs), output_values))
+    def get_fluent_values(self):
+        return [(get_prefix(f),) + values_from_objects(get_args(f)) for f in self.fluent_facts]
     def _next_outputs(self):
         if self._generator is None:
             input_values = self.get_input_values()
             try:
-                self._generator = self.external.gen_fn(*input_values)
+                if self.external.fluents: # self.fluent_facts
+                    self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
+                else:
+                    self._generator = self.external.gen_fn(*input_values)
             except TypeError as err:
                 print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
                 raise err
@@ -168,10 +178,30 @@ class StreamInstance(Instance):
 
     def disable(self, evaluations, domain):
         super(StreamInstance, self).disable(evaluations, domain)
-        if not self.external.negated_predicates:
-            return
         # TODO: make a special class for this in general?
-        evaluations[evaluation_from_fact(self.get_blocked_fact())] = False # TODO: assign to another value?
+        if not self.external.fluents: # self.fluent_facts:
+            if not self.external.negated_predicates:
+                evaluations[evaluation_from_fact(self.get_blocked_fact())] = False # TODO: assign to another value?
+            return
+
+        # TODO: re-enable
+        #assert not self.disabled
+        import pddl
+        index = len(self.external.disabled_instances)
+        self.external.disabled_instances.append(self)
+
+        negated_name = self.external.blocked_predicate
+        static_name = '_ax{}-{}'.format(negated_name, index)
+        static_eval = evaluation_from_fact((static_name,) + self.input_objects)
+        evaluations[static_eval] = False # TODO: assign another value?)
+
+        parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
+        static_atom = fd_from_fact((static_name,) + self.external.inputs)
+        precondition = pddl.Conjunction([static_atom] + list(map(fd_from_fact, self.fluent_facts)))
+        #precondition = pddl.Conjunction([static_atom])
+        domain.axioms.append(pddl.Axiom(name=negated_name, parameters=parameters,
+                                        num_external_parameters=len(self.external.inputs),
+                                        condition=precondition))
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
@@ -221,6 +251,13 @@ class Stream(External):
         if self.info.negate:
             self.negated_predicates.update({get_prefix(f): '~{}'.format(get_prefix(f)) for f in self.certified})
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
+        self.disabled_instances = []
+
+    def get_instance(self, input_objects, fluent_facts=frozenset()):
+        key = (tuple(input_objects), frozenset(fluent_facts))
+        if key not in self.instances:
+            self.instances[key] = self._Instance(self, input_objects, fluent_facts)
+        return self.instances[key]
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
