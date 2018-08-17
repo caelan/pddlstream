@@ -112,6 +112,7 @@ class StreamInstance(Instance):
         self._generator = None
         self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
+        self.axiom_predicate = None
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
             raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))
@@ -200,6 +201,9 @@ class StreamInstance(Instance):
             results.append(self.external._Result(self, output_objects, opt_index=self.opt_index))
         return results
     def get_blocked_fact(self):
+        if self.external.is_fluent():
+            assert self.axiom_predicate is not None
+            return (self.axiom_predicate,) + self.input_objects
         return (self.external.blocked_predicate,) + self.input_objects
 
     def disable(self, evaluations, domain):
@@ -209,21 +213,18 @@ class StreamInstance(Instance):
             if self.external.is_negated():
                 evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
             return
-
-        # TODO: re-enable
-        import pddl
+        if self.axiom_predicate is not None:
+            return # TODO: re-enable?
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
+        self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
+        evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
 
-        negated_name = self.external.blocked_predicate
-        static_name = '_ax{}-{}'.format(negated_name, index)
-        static_eval = evaluation_from_fact((static_name,) + self.input_objects)
-        evaluations[static_eval] = INTERNAL
-
+        import pddl
         parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
-        static_atom = fd_from_fact((static_name,) + self.external.inputs)
+        static_atom = fd_from_fact((self.axiom_predicate,) + self.external.inputs)
         precondition = pddl.Conjunction([static_atom] + list(map(fd_from_fact, self.fluent_facts)))
-        domain.axioms.append(pddl.Axiom(name=negated_name, parameters=parameters,
+        domain.axioms.append(pddl.Axiom(name=self.external.blocked_predicate, parameters=parameters,
                                         num_external_parameters=len(self.external.inputs),
                                         condition=precondition))
 
@@ -241,8 +242,8 @@ class Stream(External):
                 raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
         for p in set(inputs) & set(outputs):
             raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
-        parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
-        for p in (parameters - set(inputs + outputs)):
+        certified_parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
+        for p in (certified_parameters - set(inputs + outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
         super(Stream, self).__init__(name, info, inputs, domain)
 
@@ -273,6 +274,14 @@ class Stream(External):
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
         self.disabled_instances = []
         self.is_wild = is_wild
+
+        if self.is_negated():
+            if self.outputs:
+                raise ValueError('Negated streams cannot have outputs: {}'.format(self.outputs))
+            #assert len(self.certified) == 1 # TODO: is it okay to have more than one fact?
+            for certified in self.certified:
+                if not (set(self.inputs) <= set(get_args(certified))):
+                    raise ValueError('Negated streams must have certified facts including all input parameters')
 
     def is_fluent(self):
         return self.fluents

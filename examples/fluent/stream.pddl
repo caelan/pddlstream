@@ -4,9 +4,9 @@
     :inputs (?o)
     :domain (Block ?o)
     :fluents (OnTable)
-    :certified (Feasible1 ?o)
+    ;:certified (Feasible1 ?o)
 
-    ;:outputs (?t)
-    ;:certified (Feasible2 ?o ?t)
+    :outputs (?t)
+    :certified (Feasible2 ?o ?t)
   )
 )

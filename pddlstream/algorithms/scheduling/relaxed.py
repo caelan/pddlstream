@@ -283,6 +283,27 @@ def reschedule(evaluations, preimage_facts, domain, stream_results):
     # TODO: investigate other admissible heuristics
     return [stream_result_from_name[name] for name, _ in new_plan]
 
+def convert_fluent_streams(stream_plan, real_states, preimage, node_from_atom):
+    import pddl
+    new_stream_plan = []
+    for result in stream_plan:
+        external = result.instance.external
+        if (result.opt_index != 0) or (not external.is_fluent()):
+            new_stream_plan.append(result)
+            continue
+        state_indices = set()
+        for atom in result.get_certified():
+            if node_from_atom[atom].stream_result == result:
+                state_indices.update(preimage[fd_from_fact(atom)])
+        if len(state_indices) != 1:
+            raise NotImplementedError() # Pass all fluents and make two axioms
+        # TODO: can handle case where no outputs easily
+        [state_index] = state_indices
+        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
+        new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
+        new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
+    return new_stream_plan
+
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
                         unit_costs, optimize=False):
     # TODO: toggle optimize more
@@ -400,24 +421,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, stream_preimage - negative_preimage)))
     stream_plan = []
     extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
-
-    new_stream_plan = []
-    for result in stream_plan:
-        external = result.instance.external
-        if (result.opt_index != 0) or (not external.fluents):
-            new_stream_plan.append(result)
-            continue
-        state_indices = set()
-        for atom in result.get_certified():
-            if node_from_atom[atom].stream_result == result:
-                state_indices.update(preimage[fd_from_fact(atom)])
-        if len(state_indices) != 1:
-            raise NotImplementedError() # Pass all fluents and make two axioms
-        [state_index] = state_indices
-        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
-        new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
-        new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
-    stream_plan = new_stream_plan
+    stream_plan = convert_fluent_streams(stream_plan, real_states, preimage, node_from_atom)
 
     if optimize: # TODO: detect this based on unique or not
         new_stream_plan = reschedule(evaluations, preimage_facts, domain, stream_results)
