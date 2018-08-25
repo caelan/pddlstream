@@ -201,7 +201,7 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
 
 ##################################################
 
-def compile_state_streams(domain, externals):
+def compile_fluent_streams(domain, externals):
     state_streams = list(filter(lambda e: isinstance(e, Stream) and
                                           (e.is_negated() or e.is_fluent()), externals))
     predicate_map = {}

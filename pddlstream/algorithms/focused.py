@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_state_streams
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_fluent_streams
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
@@ -119,7 +119,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
-    compile_state_streams(domain, externals)
+    compile_fluent_streams(domain, externals)
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     full_action_info = get_action_info(action_info)

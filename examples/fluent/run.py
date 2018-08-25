@@ -50,8 +50,8 @@ def main():
     stream_info = {
         #'test-feasible': StreamInfo(negate=True),
     }
-    #solution = solve_focused(pddlstream_problem, stream_info=stream_info)
-    solution = solve_incremental(pddlstream_problem)
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info)
+    #solution = solve_incremental(pddlstream_problem) # Should throw an error
     print_solution(solution)
 
 if __name__ == '__main__':

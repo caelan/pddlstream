@@ -49,7 +49,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
         cost = pddl.Increase(fluent=pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[]),
                              expression=pddl.NumericConstant(1))
         #cost = None
-        task.actions.append(pddl.Action(new_name, new_parameters, 0,
+        task.actions.append(pddl.Action(new_name, new_parameters, len(new_parameters),
                                    pddl.Conjunction(new_preconditions), new_effects, cost))
         action_from_name[new_name] = (name, map(obj_from_pddl, args))
         if not unit_costs:

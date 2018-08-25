@@ -162,7 +162,8 @@ def get_necessary_axioms(instance, axioms, negative_from_name):
             effect_args = [var_mapping.get(a.name, a.name) for a in derived_parameters]
             effect = pddl.Effect([], pddl.Truth(), pddl.conditions.Atom(axiom.name, effect_args))
             free_parameters = [p for p in axiom.parameters if p.name not in var_mapping]
-            new_action = pddl.Action(axiom.name, free_parameters, 0, pddl.Conjunction(parts), [effect], None)
+            new_action = pddl.Action(axiom.name, free_parameters, len(free_parameters),
+                                     pddl.Conjunction(parts), [effect], None)
             # Creating actions so I can partially instantiate (impossible with axioms)
             axiom_from_action[new_action] = (axiom, var_mapping)
             add_literals(parts)

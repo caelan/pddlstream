@@ -86,6 +86,19 @@ Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirem
 def parse_problem(domain, problem_pddl):
     return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
 
+#def parse_action(lisp_list):
+#    action = [':action', 'test'
+#              ':parameters', [],
+#              ':precondition', [],
+#              ':effect', []]
+#    parse_action(action)
+#    pddl_parser.parsing_functions.parse_action(lisp_list, [], {})
+#    return
+
+def create_action(lisp_list):
+    raise NotImplementedError()
+    #return pddl.Action
+
 ##################################################
 
 def fd_from_fact(fact):

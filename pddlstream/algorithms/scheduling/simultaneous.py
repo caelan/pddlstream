@@ -52,6 +52,8 @@ def get_stream_action(result, name, unit_cost, effect_scale=1):
     expression = pddl.NumericConstant(int_ceil(effect_scale*effort)) # Integer
     cost = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
 
+    # TODO: is num_external_parameters correct?
+    # Usually all parameters are external
     return pddl.Action(name=name, parameters=parameters, num_external_parameters=len(parameters),
                     precondition=precondition, effects=effects, cost=cost)
     # TODO: previous problem seemed to be new predicates
