@@ -5,7 +5,7 @@ from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_
     parse_lisp
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
-from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
+from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, get_prefix, substitute_expression, get_args
 from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
@@ -16,7 +16,10 @@ from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique
 
 # TODO: way of programmatically specifying streams/actions
 
+INITIAL_EVALUATION = None
+
 def parse_constants(domain, constant_map):
+    obj_from_constant = {}
     for constant in domain.constants:
         if constant.name.startswith(Object._prefix):
             # TODO: remap names
@@ -24,7 +27,7 @@ def parse_constants(domain, constant_map):
         if constant.name not in constant_map:
             raise ValueError('Undefined constant {}'.format(constant.name))
         value = constant_map.get(constant.name, constant.name)
-        obj = Object(value, name=constant.name)
+        obj_from_constant[constant] = Object(value, name=constant.name)
         # TODO: add object predicate
     for name in constant_map:
         for constant in domain.constants:
@@ -33,8 +36,7 @@ def parse_constants(domain, constant_map):
         else:
             raise ValueError('Constant map {} not mentioned in domain'.format(name))
     del domain.constants[:] # So not set twice
-
-INITIAL_EVALUATION = None
+    return obj_from_constant
 
 def parse_problem(problem, stream_info={}):
     # TODO: just return the problem if already written programmatically
@@ -44,7 +46,8 @@ def parse_problem(problem, stream_info={}):
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    evaluations = OrderedDict((e, INITIAL_EVALUATION) for e in evaluations_from_init(init))
+    evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)),
+                                                    INITIAL_EVALUATION) for f in init)
     goal_expression = obj_from_value_expression(goal)
     compile_to_exogenous(evaluations, domain, streams)
     return evaluations, goal_expression, domain, streams

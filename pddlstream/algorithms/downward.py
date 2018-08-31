@@ -7,8 +7,8 @@ from collections import namedtuple
 from time import time
 
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
-    pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path
+    pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ, Head, Evaluation
+from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique
 
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
 FD_BIN = os.path.join(FD_PATH, 'bin')
@@ -22,6 +22,7 @@ sys.path.append(TRANSLATE_PATH)
 
 import translate
 import pddl
+import instantiate
 import pddl_parser.lisp_parser
 import normalize
 import pddl_parser
@@ -94,10 +95,10 @@ def parse_problem(domain, problem_pddl):
 #    parse_action(action)
 #    pddl_parser.parsing_functions.parse_action(lisp_list, [], {})
 #    return
-
-def create_action(lisp_list):
-    raise NotImplementedError()
-    #return pddl.Action
+#
+#def create_action(lisp_list):
+#    raise NotImplementedError()
+#    #return pddl.Action
 
 ##################################################
 
@@ -120,10 +121,19 @@ def fact_from_fd(fd):
     assert(not fd.negated)
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
-def get_init(init_evaluations, negated=False):
+def evaluation_from_fd(fd):
+    if isinstance(fd, pddl.Literal):
+        head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
+        return Evaluation(head, not fd.negated)
+    if isinstance(fd, pddl.f_expression.Assign):
+        head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
+        return Evaluation(head, fd.expression.value)
+    raise ValueError(fd)
+
+def fd_from_evaluations(evaluations, negated=False):
     # TODO: this doesn't include =
     init = []
-    for evaluation in init_evaluations:
+    for evaluation in evaluations:
         name = evaluation.head.function
         args = tuple(map(pddl_from_object, evaluation.head.args))
         if is_atom(evaluation):
@@ -139,7 +149,7 @@ def get_init(init_evaluations, negated=False):
 def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     objects = map(pddl_from_object, objects_from_evaluations(init_evaluations))
     typed_objects = list({pddl.TypedObject(obj, OBJECT) for obj in objects} - set(domain.constants))
-    init = get_init(init_evaluations)
+    init = fd_from_evaluations(init_evaluations)
     goal = parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
@@ -300,3 +310,35 @@ def plan_cost(plan):
     for action in plan:
         cost += action.cost
     return cost
+
+##################################################
+
+def get_action_instances(task, action_plan):
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    function_assignments = {f.fluent: f.expression for f in task.init
+                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+    fluent_facts = MockSet()
+    init_facts = set()
+    action_instances = []
+    for name, objects in action_plan:
+        # TODO: what if more than one action of the same name due to normalization?
+        # Normalized actions have same effects, so I just have to pick one
+        action = find_unique(lambda a: a.name == name, task.actions)
+        args = map(pddl_from_object, objects)
+        assert (len(action.parameters) == len(args))
+        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+        instance = action.instantiate(variable_mapping, init_facts,
+                                      fluent_facts, type_to_objects,
+                                      task.use_min_cost_metric, function_assignments)
+        assert (instance is not None)
+        action_instances.append(instance)
+    return action_instances
+
+
+def get_goal_instance(goal):
+    import pddl
+    #name = '@goal-reachable'
+    name = '@goal'
+    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
+    #precondition = get_literals(goal)
+    return pddl.PropositionalAction(name, precondition, [], None)

@@ -25,7 +25,11 @@ CONNECTIVES = (AND, OR, NOT, IMPLY)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
 
-PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map', 'stream_pddl', 'stream_map', 'init', 'goal'])
+PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
+                                         'stream_pddl', 'stream_map', 'init', 'goal'])
+PDDLAction = namedtuple('PDDLAction', ['name', 'args'])
+PDDLStream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
 Atom = lambda head: Evaluation(head, True)
@@ -136,7 +140,7 @@ def list_from_conjunction(parent):
     return clauses[0]
 
 def substitute_expression(parent, mapping):
-    if isinstance(parent, str) or isinstance(parent, Object) or isinstance(parent, OptimisticObject):
+    if any(isinstance(parent, Class) for Class in [str, Object, OptimisticObject]):
         return mapping.get(parent, parent)
     return tuple(substitute_expression(child, mapping) for child in parent)
 
@@ -186,13 +190,6 @@ def evaluation_from_fact(fact):
         value = True
     return Evaluation(head_from_fact(head), value)
 
-def evaluations_from_init(init):
-    return [evaluation_from_fact(obj_from_value_expression(fact)) for fact in init]
-
-##################################################
-
-# TODO: generic method for replacing args?
-
 def fact_from_evaluation(evaluation):
     head = (evaluation.head.function,) + evaluation.head.args
     if is_atom(evaluation):
@@ -201,26 +198,15 @@ def fact_from_evaluation(evaluation):
         return (NOT, head)
     return (EQ, head, evaluation.value)
 
-def init_from_evaluation(evaluation):
-    head = (evaluation.head.function,) + values_from_objects(evaluation.head.args)
-    if is_atom(evaluation):
-        return head
-    elif is_negated_atom(evaluation):
-        return (NOT, head)
-    return (EQ, head, evaluation.value)
-
-def init_from_evaluations(evaluations):
-    return list(map(init_from_evaluation, evaluations))
-
-def state_from_evaluations(evaluations):
-    # TODO: default value?
-    # TODO: could also implement within predicates
-    state = {}
-    for evaluation in evaluations:
-        if evaluation.head in state:
-            assert(evaluation.value == state[evaluation.head])
-        state[evaluation.head] = evaluation.value
-    return state
+# def state_from_evaluations(evaluations):
+#     # TODO: default value?
+#     # TODO: could also implement within predicates
+#     state = {}
+#     for evaluation in evaluations:
+#         if evaluation.head in state:
+#             assert(evaluation.value == state[evaluation.head])
+#         state[evaluation.head] = evaluation.value
+#     return state
 
 ##################################################
 
@@ -279,7 +265,8 @@ def value_from_obj_plan(obj_plan):
 #    pass
 
 def revert_solution(plan, cost, evaluations):
-    return value_from_obj_plan(plan), cost, init_from_evaluations(evaluations)
+    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
+    return value_from_obj_plan(plan), cost, init
 
 
 #def opt_obj_from_value(value):

@@ -1,11 +1,13 @@
 import time
 from collections import deque
 
-from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, fact_from_fd
-from pddlstream.algorithms.reorder import get_action_instances, replace_derived, topological_sort, reorder_stream_plan
+from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, fact_from_fd, get_action_instances, \
+    get_goal_instance
+from pddlstream.algorithms.reorder import replace_derived, topological_sort, reorder_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.algorithms.scheduling.relaxed import get_goal_instance, plan_preimage, recover_stream_plan
-from pddlstream.algorithms.skeleton import optimistic_process_streams, SkeletonQueue
+from pddlstream.algorithms.scheduling.relaxed import plan_preimage, recover_stream_plan
+from pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.algorithms.refine_shared import optimistic_process_streams
 from pddlstream.language.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.language.synthesizer import SynthStreamResult, get_synthetic_stream_plan
 

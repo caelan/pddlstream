@@ -2,16 +2,17 @@ from collections import namedtuple, deque
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.algorithm import neighbors_from_orders
-from pddlstream.algorithms.downward import get_init, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
-    apply_action
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.algorithms.downward import fd_from_evaluations, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
+    apply_action, get_action_instances
 from pddlstream.algorithms.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
-from pddlstream.language.conversion import evaluation_from_fact, get_prefix, EQ, pddl_from_object
+from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.language.conversion import evaluation_from_fact, get_prefix, EQ, And
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies, HeapElement
+from pddlstream.utils import INF, Verbose, MockSet, implies, HeapElement
 
+# TODO: should I use the product of all future probabilities?
 
 def get_partial_orders(stream_plan):
     # TODO: only show the first atom achieved?
@@ -24,6 +25,31 @@ def get_partial_orders(stream_plan):
                     (set(stream1.output_objects) & set(stream2.instance.input_objects)):
                 partial_orders.add((stream1, stream2))
     return partial_orders
+
+# Extract streams required to do one action
+# Compute streams that strongly depend on these. Evaluate these.
+# Execute the full prefix of the plan
+
+def get_future_p_successes(stream_plan):
+    # TODO: should I use this instead of p_success in some places?
+    orders = get_partial_orders(stream_plan)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    descendants_map = {}
+    for s1 in reversed(stream_plan):
+        descendants_map[s1] = s1.instance.get_p_success()
+        for s2 in outgoing_edges[s1]:
+            descendants_map[s1] *= descendants_map[s2]
+    return descendants_map
+
+# def get_all_descendants(stream_plan):
+#     orders = get_partial_orders(stream_plan)
+#     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+#     descendants_map = {}
+#     for s1 in reversed(stream_plan):
+#         descendants_map[s1] = set(outgoing_edges[s1])
+#         for s2 in outgoing_edges[s1]:
+#             descendants_map[s1].update(descendants_map[s2])
+#     return descendants_map
 
 # def get_ancestors(stream_result, stream_plan):
 #     orders = get_partial_orders(stream_plan)
@@ -171,29 +197,6 @@ def get_stream_instances(stream_plan):
     return stream_instances
 
 
-def get_action_instances(task, action_plan):
-    import pddl
-    import instantiate
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    function_assignments = {f.fluent: f.expression for f in task.init
-                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    fluent_facts = MockSet()
-    init_facts = set()
-    action_instances = []
-    for name, objects in action_plan:
-        # TODO: what if more than one action of the same name due to normalization?
-        # Normalized actions have same effects, so I just have to pick one
-        action = find_unique(lambda a: a.name == name, task.actions)
-        args = map(pddl_from_object, objects)
-        assert (len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                                      fluent_facts, type_to_objects,
-                                      task.use_min_cost_metric, function_assignments)
-        assert (instance is not None)
-        action_instances.append(instance)
-    return action_instances
-
 def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog
     import build_model
@@ -239,11 +242,11 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
 
     stream_instances = get_stream_instances(stream_plan)
     negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
-                                  for f in r.get_certified()), negated=True))
+    negative_init = set(fd_from_evaluations((evaluation_from_fact(f) for r in negative_results
+                                             for f in r.get_certified()), negated=True))
     #negated_from_name = {r.instance.external.name for r in negative_results}
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
-    goal_expression = ('and',)
+    goal_expression = And()
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=True))
 
     action_instances = get_action_instances(task, action_plan)

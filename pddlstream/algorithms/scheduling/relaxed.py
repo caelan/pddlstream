@@ -2,16 +2,14 @@ from collections import defaultdict, deque, namedtuple
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    get_literals, conditions_hold, fd_from_fact
-from pddlstream.algorithms.search import serialized_solve_from_task, abstrips_solve_from_task, \
-    abstrips_solve_from_task_sequential, solve_from_task
+    get_literals, conditions_hold, fd_from_fact, get_goal_instance
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head, get_stream_actions
-from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, \
-    And, get_args
+from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
+from pddlstream.language.conversion import obj_from_pddl_plan, is_atom, fact_from_evaluation, obj_from_pddl, And
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet, HeapElement, find_unique, invert_dict
+from pddlstream.utils import Verbose, MockSet, HeapElement
 
 # TODO: reuse the ground problem when solving for sequential subgoals
 
@@ -224,14 +222,6 @@ def extract_axioms(axiom_from_atom, facts, axiom_plan):
         axiom_plan.append(axiom)
 
 ##################################################
-
-def get_goal_instance(goal):
-    import pddl
-    #name = '@goal-reachable'
-    name = '@goal'
-    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
-    #precondition = get_literals(goal)
-    return pddl.PropositionalAction(name, precondition, [], None)
 
 #def get_predicate_result():
 #    pass # TODO: refactor

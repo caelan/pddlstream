@@ -13,15 +13,18 @@ class BoundedGenerator(Iterator):
     def __init__(self, generator, max_calls=INF):
         self.generator = generator
         self.max_calls = max_calls
-        self.calls = 0
+        self.history = []
+    @property
+    def calls(self):
+        return len(self.history)
     @property
     def enumerated(self):
         return self.max_calls <= self.calls
     def next(self):
         if self.enumerated:
             raise StopIteration()
-        self.calls += 1
-        return next(self.generator)
+        self.history.append(next(self.generator))
+        return self.history[-1]
     __next__ = next
 
 

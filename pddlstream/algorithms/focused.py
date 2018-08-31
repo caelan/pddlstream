@@ -6,11 +6,11 @@ from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_co
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
+from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
-from pddlstream.algorithms.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
-    SkeletonQueue, get_stream_plan_index
+from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
+from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
@@ -19,9 +19,10 @@ from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
+from pddlstream.language.stream import Stream
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
-from pddlstream.language.stream import Stream
+
 
 # TODO: compute total stream plan p_success and overhead
 # TODO: ensure search and sampling have equal time
@@ -36,57 +37,6 @@ def partition_externals(externals):
     negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
     return streams, functions, negative
-
-##################################################
-
-# TODO: can instantiate all but subtract stream_results
-# TODO: can even pass a subset of the fluent state
-# TODO: can just compute the stream plan preimage
-# TODO: replan constraining the initial state and plan skeleton
-# TODO: reuse subproblems
-# TODO: always start from the initial state (i.e. don't update)
-
-# def stream_plan_preimage(stream_plan):
-#     preimage = set()
-#     for stream_result in reversed(stream_plan):
-#         preimage -= set(stream_result.get_certified())
-#         preimage |= set(stream_result.instance.get_domain())
-#     return preimage
-
-# TODO: check empty plan first?
-def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
-    combined_plan, cost = solve_stream_plan(stream_results)
-    stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
-    if stream_plan is None:
-        return stream_plan, cost, depth
-    plan_index = get_stream_plan_index(stream_plan)
-    if plan_index == 0:
-        return combined_plan, cost, depth
-    # TODO: should I just plan using all original plus expanded
-    # TODO: might need new actions here (such as a move)
-    stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
-    double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 streams, double_bindings=double_bindings)
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 functions)
-    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
-                                       solve_stream_plan, depth + 1)
-
-def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
-    # TODO: option to toggle commit using max_depth?
-    # TODO: constrain to use previous plan to some degree
-    num_iterations = 0
-    while True:
-        num_iterations += 1
-        stream_results = optimistic_process_streams(evaluations, streams + functions)
-        combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions,
-                                                                 stream_results, solve_stream_plan, 0)
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(num_iterations, len(stream_results),
-                                                                           depth, combined_plan is not None))
-        #raw_input('Continue?') # TODO: inspect failures here
-        if (combined_plan is not None) or (depth == 0):
-            return combined_plan, cost
 
 ##################################################
 
