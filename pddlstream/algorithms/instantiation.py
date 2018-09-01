@@ -1,7 +1,8 @@
 from collections import deque, defaultdict
 from itertools import product
 
-from pddlstream.language.conversion import get_prefix, get_args, is_atom, head_from_fact
+from pddlstream.language.conversion import is_atom, head_from_fact
+from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.object import Object
 
 

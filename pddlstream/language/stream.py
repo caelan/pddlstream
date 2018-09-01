@@ -3,8 +3,8 @@ from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, remap_objects, \
-    substitute_expression, get_args, is_parameter, get_formula_operators, AND, OR, get_prefix, \
-    evaluation_from_fact, values_from_objects, obj_from_value_expression
+    substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
+from pddlstream.language.constants import AND, OR, get_prefix, get_args, is_parameter
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject

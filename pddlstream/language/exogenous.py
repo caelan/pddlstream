@@ -2,8 +2,9 @@ from collections import defaultdict
 from itertools import count
 
 from pddlstream.algorithms.downward import fd_from_fact, TOTAL_COST
-from pddlstream.language.conversion import get_prefix, get_args, evaluation_from_fact, \
-    is_atom, Evaluation, Head
+from pddlstream.language.conversion import evaluation_from_fact, \
+    is_atom
+from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream

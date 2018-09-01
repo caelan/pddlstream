@@ -43,11 +43,11 @@ def get_achieving_streams(evaluations, stream_results, op=sum):
     return node_from_atom
 
 
-def extract_stream_plan(node_from_atom, facts, stream_plan):
+def extract_stream_plan(node_from_atom, target_facts, stream_plan):
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: can optimize for all streams & axioms all at once
-    for fact in facts:
+    for fact in target_facts:
         if fact not in node_from_atom:
             raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
         stream_result = node_from_atom[fact].stream_result
@@ -55,4 +55,3 @@ def extract_stream_plan(node_from_atom, facts, stream_plan):
             continue
         extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
         stream_plan.append(stream_result) # TODO: don't add if satisfied
-

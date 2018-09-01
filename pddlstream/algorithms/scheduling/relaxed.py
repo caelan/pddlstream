@@ -6,12 +6,13 @@ from pddlstream.algorithms.scheduling.recover_streams import get_achieving_strea
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head, get_stream_actions
 from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
-from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, And
+from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl
+from pddlstream.language.constants import And
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet
+from pddlstream.utils import Verbose, MockSet, INF
 
-RESCHEDULE_PLANNER = 'ff-astar'
+RESCHEDULE_PLANNER = 'ff-astar' # TODO: investigate other admissible heuristics
 
 # TODO: reuse the ground problem when solving for sequential subgoals
 
@@ -56,7 +57,7 @@ def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_
                 # TODO: handle more general case where can choose to achieve particular conditional effects
                 raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
 
-def convert_negative(negative_preimage, negative_from_name, preimage, real_states):
+def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()
     for literal in negative_preimage:
         negative = negative_from_name[literal.predicate]
@@ -75,7 +76,7 @@ def convert_negative(negative_preimage, negative_from_name, preimage, real_state
 
             fluent_facts_list = []
             if negative.is_fluent():
-                for state_index in preimage[literal]:
+                for state_index in step_from_atom[literal]:
                     fluent_facts_list.append(list(map(fact_from_fd,
                         filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents),
                                real_states[state_index]))))
@@ -91,7 +92,7 @@ def convert_negative(negative_preimage, negative_from_name, preimage, real_state
             raise ValueError(negative)
     return negative_plan
 
-def convert_fluent_streams(stream_plan, real_states, preimage, node_from_atom):
+def convert_fluent_streams(stream_plan, real_states, steps_from_stream):
     import pddl
     new_stream_plan = []
     for result in stream_plan:
@@ -99,14 +100,10 @@ def convert_fluent_streams(stream_plan, real_states, preimage, node_from_atom):
         if (result.opt_index != 0) or (not external.is_fluent()):
             new_stream_plan.append(result)
             continue
-        state_indices = set()
-        for atom in result.get_certified():
-            if node_from_atom[atom].stream_result == result:
-                state_indices.update(preimage[fd_from_fact(atom)])
-        if len(state_indices) != 1:
+        if len(steps_from_stream[result]) != 1:
             raise NotImplementedError() # Pass all fluents and make two axioms
         # TODO: can handle case where no outputs easily
-        [state_index] = state_indices
+        [state_index] = steps_from_stream[result]
         fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
         new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
         new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
@@ -118,8 +115,7 @@ def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
     reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, debug=True)
-    # TODO: investigate other admissible heuristics
+    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_time=10, debug=True)
     return [stream_result_from_name[name] for name, _ in new_plan]
 
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
@@ -194,20 +190,31 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             raise RuntimeError('No action instances are applicable')
 
     # TODO: could instead just accumulate difference between real and opt
-    preimage = plan_preimage(preimage_plan, [])
-    stream_preimage = set(preimage) - set(real_task.init)
-    # visualize_constraints(map(fact_from_fd, preimage))
-
+    full_preimage = plan_preimage(preimage_plan, [])
+    stream_preimage = set(full_preimage) - set(real_task.init)
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
-    function_plan.update(convert_negative(negative_preimage, negative_from_name, preimage, real_states))
+    positive_preimage = stream_preimage - negative_preimage
+    function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
+
     node_from_atom = get_achieving_streams(evaluations, stream_results)
-    preimage_facts = list(map(fact_from_fd, filter(lambda l: not l.negated, stream_preimage - negative_preimage)))
+    step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
+    target_facts = list(step_from_fact.keys())
     stream_plan = []
-    extract_stream_plan(node_from_atom, preimage_facts, stream_plan)
-    stream_plan = convert_fluent_streams(stream_plan, real_states, preimage, node_from_atom)
+    extract_stream_plan(node_from_atom, target_facts, stream_plan)
+
+    steps_from_stream = {}
+    for result in reversed(stream_plan):
+        steps_from_stream[result] = set()
+        for fact in result.get_certified():
+            if (fact in step_from_fact) and (node_from_atom[fact].stream_result == result):
+                steps_from_stream[result].update(step_from_fact[fact])
+        for fact in result.instance.get_domain():
+            step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
+    stream_plan = convert_fluent_streams(stream_plan, real_states, steps_from_stream)
+    # visualize_constraints(map(fact_from_fd, stream_preimage))
 
     if optimize: # TODO: detect this based on unique or not
-        new_stream_plan = reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results)
+        new_stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
         if new_stream_plan is not None:
             stream_plan = new_stream_plan
     return stream_plan + list(function_plan)

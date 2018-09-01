@@ -7,7 +7,8 @@ from collections import namedtuple
 from time import time
 
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
-    pddl_list_from_expression, get_prefix, get_args, obj_from_pddl, NOT, EQ, Head, Evaluation
+    pddl_list_from_expression, obj_from_pddl
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
 from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique
 
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
@@ -102,6 +103,8 @@ def parse_problem(domain, problem_pddl):
 
 ##################################################
 
+# fact -> evaluation -> fd
+
 def fd_from_fact(fact):
     # TODO: convert to evaluation?
     prefix = get_prefix(fact)
@@ -130,26 +133,24 @@ def evaluation_from_fd(fd):
         return Evaluation(head, fd.expression.value)
     raise ValueError(fd)
 
-def fd_from_evaluations(evaluations, negated=False):
-    # TODO: this doesn't include =
-    init = []
-    for evaluation in evaluations:
-        name = evaluation.head.function
-        args = tuple(map(pddl_from_object, evaluation.head.args))
-        if is_atom(evaluation):
-            init.append(pddl.Atom(name, args))
-        elif negated and is_negated_atom(evaluation):
-            init.append(pddl.NegatedAtom(name, args))
-        else:
-            fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
-            expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
-            init.append(pddl.f_expression.Assign(fluent, expression))
-    return init
+def fd_from_evaluation(evaluation):
+    name = evaluation.head.function
+    args = tuple(map(pddl_from_object, evaluation.head.args))
+    if is_atom(evaluation):
+        return pddl.Atom(name, args)
+    elif is_negated_atom(evaluation):
+        return pddl.NegatedAtom(name, args)
+    fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
+    expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
+    return pddl.f_expression.Assign(fluent, expression)
+
+##################################################
 
 def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     objects = map(pddl_from_object, objects_from_evaluations(init_evaluations))
     typed_objects = list({pddl.TypedObject(obj, OBJECT) for obj in objects} - set(domain.constants))
-    init = fd_from_evaluations(init_evaluations)
+    # TODO: this doesn't include =
+    init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
@@ -343,6 +344,7 @@ def get_goal_instance(goal):
     #precondition = get_literals(goal)
     return pddl.PropositionalAction(name, precondition, [], None)
 
+##################################################
 
 def add_preimage_condition(condition, preimage, i):
     for literal in condition:
@@ -362,7 +364,8 @@ def action_preimage(action, preimage, i):
     for conditions, effect in (action.add_effects + action.del_effects):
         assert(not conditions)
         # TODO: can later select which conditional effects are used
-        # TODO: might need to truely decide whether one should hold or not for a preimage. Maybe I should do that here
+        # TODO: might need to truely decide whether one should hold or not for a preimage
+        # Maybe I should do that here
         add_preimage_effect(effect, preimage)
     add_preimage_condition(action.precondition, preimage, i)
 
@@ -372,16 +375,17 @@ def axiom_preimage(axiom, preimage, i):
     add_preimage_condition(axiom.condition, preimage, i)
 
 
-def plan_preimage(plan, goal):
-    import pddl
-    # TODO: store layers in which each of these where used
+def plan_preimage(combined_plan, goal):
     #preimage = set(goal)
-    preimage = {condition: {len(plan)} for condition in goal}
-    for i, operator in reversed(list(enumerate(plan))):
+    action_plan = [action for action in combined_plan if isinstance(action, pddl.PropositionalAction)]
+    step = len(action_plan)
+    preimage = {condition: {step} for condition in goal}
+    for operator in reversed(combined_plan):
         if isinstance(operator, pddl.PropositionalAction):
-            action_preimage(operator, preimage, i)
+            step -= 1
+            action_preimage(operator, preimage, step)
         elif isinstance(operator, pddl.PropositionalAxiom):
-            axiom_preimage(operator, preimage, i)
+            axiom_preimage(operator, preimage, step)
         else:
             raise ValueError(operator)
     return preimage

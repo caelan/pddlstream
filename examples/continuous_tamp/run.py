@@ -18,7 +18,7 @@ from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.search import ABSTRIPSLayer
-from pddlstream.language.conversion import And, Equal
+from pddlstream.language.constants import And, Equal
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo

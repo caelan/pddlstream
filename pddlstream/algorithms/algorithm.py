@@ -6,7 +6,8 @@ from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact, get_prefix, substitute_expression, get_args
+    evaluation_from_fact, substitute_expression
+from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.external import External, DEBUG
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
@@ -46,8 +47,7 @@ def parse_problem(problem, stream_info={}):
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)),
-                                                    INITIAL_EVALUATION) for f in init)
+    evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
     goal_expression = obj_from_value_expression(goal)
     compile_to_exogenous(evaluations, domain, streams)
     return evaluations, goal_expression, domain, streams
@@ -239,9 +239,11 @@ def compile_fluent_streams(domain, externals):
     for action in domain.actions:
         action.precondition = replace_literals(fn, action.precondition).simplified()
         # TODO: throw an error if the effect would be altered
-        #for effect in action.effects:
-        #    assert(isinstance(effect, pddl.Effect))
-        #    effect.condition = replace_literals(fn, effect.condition)
+        for effect in action.effects:
+            if not isinstance(effect.condition, pddl.Truth):
+                raise NotImplementedError(effect.condition)
+            #assert(isinstance(effect, pddl.Effect))
+            #effect.condition = replace_literals(fn, effect.condition)
     for axiom in domain.axioms:
         axiom.condition = replace_literals(fn, axiom.condition).simplified()
     return state_streams

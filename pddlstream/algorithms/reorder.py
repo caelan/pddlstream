@@ -2,12 +2,13 @@ from collections import namedtuple, deque
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.algorithm import neighbors_from_orders
-from pddlstream.algorithms.downward import fd_from_evaluations, task_from_domain_problem, get_problem, fd_from_fact, \
+from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
     is_applicable, \
     apply_action, get_action_instances
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.language.conversion import evaluation_from_fact, get_prefix, EQ, And
+from pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.language.constants import EQ, And, get_prefix
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
@@ -259,8 +260,8 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
 
     stream_instances = get_stream_instances(stream_plan)
     negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    negative_init = set(fd_from_evaluations((evaluation_from_fact(f) for r in negative_results
-                                             for f in r.get_certified()), negated=True))
+    negative_init = set(fd_from_evaluation(evaluation_from_fact(f))
+                        for r in negative_results for f in r.get_certified())
     #negated_from_name = {r.instance.external.name for r in negative_results}
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
     goal_expression = And()
