@@ -10,14 +10,17 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, ge
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
+from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
+    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, get_distance
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.synthesizer import StreamSynthesizer
-from pddlstream.language.constants import Equal
+from pddlstream.language.constants import Equal, AND
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
+from pddlstream.language.stream import StreamInfo
+from collections import namedtuple
+
 
 USE_SYNTHESIZERS = False
 BASE_CONSTANT = 1
@@ -58,7 +61,43 @@ def get_base_motion_synth(problem, teleport=False):
     return fn
 
 def move_cost_fn(t):
-    distance = t.distance()
+    distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
+    cost = BASE_CONSTANT + distance / BASE_VELOCITY
+    return scale_cost(cost)
+
+#######################################################
+
+OptValue = namedtuple('OptValue', ['stream', 'inputs'])
+
+def extract_point2d(v):
+    if isinstance(v, Conf):
+        return v.values[:2]
+    if isinstance(v, Pose):
+        return point_from_pose(v.value)[:2]
+    if v.stream == 'p-sp':
+        r, = v.inputs
+        return point_from_pose(get_pose(r))[:2]
+    if v.stream == 'q-ik':
+        p, = v.inputs
+        return extract_point2d(p)
+    return ValueError(v.stream)
+
+def opt_pose_fn(o, r):
+    p = OptValue('p-sp', (r,))
+    return p,
+
+def opt_ik_fn(a, o, p, g):
+    q = OptValue('q-ik', (p,))
+    t = OptValue('t-ik', tuple())
+    return q, t
+
+def opt_motion_fn(q1, q2):
+    t = OptValue('t-pbm', (q1, q2))
+    return t,
+
+def opt_move_cost_fn(t):
+    q1, q2 = t.inputs
+    distance = get_distance(extract_point2d(q1), extract_point2d(q2))
     cost = BASE_CONSTANT + distance / BASE_VELOCITY
     return scale_cost(cost)
 
@@ -99,7 +138,7 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
             if is_placement(body, surface):
                 init += [('Supported', body, pose, surface)]
 
-    goal = ['and']
+    goal = [AND]
     if problem.goal_conf is not None:
         goal_conf = Pose(robot, problem.goal_conf)
         init += [('BConf', goal_conf)]
@@ -185,7 +224,10 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
 
     stream_info = {
-        'MoveCost': FunctionInfo(fn_from_constant(scale_cost(BASE_CONSTANT))),
+        'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
+        'inverse-kinematics': StreamInfo(from_fn(opt_ik_fn)),
+        'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
+        'MoveCost': FunctionInfo(opt_move_cost_fn),
     }
 
     synthesizers = [
