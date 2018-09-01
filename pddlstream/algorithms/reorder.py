@@ -29,9 +29,13 @@ def get_partial_orders(stream_plan):
 # Extract streams required to do one action
 # Compute streams that strongly depend on these. Evaluate these.
 # Execute the full prefix of the plan
+# Make the first action cheaper if uses something that doesn't need to rexpand
+# How to do this with shared objects?
+# Just do the same thing but make the cost 1 if a shared object
 
 def get_future_p_successes(stream_plan):
     # TODO: should I use this instead of p_success in some places?
+    # TODO: learn this instead. Can estimate conditional probabilities of certain sequences
     orders = get_partial_orders(stream_plan)
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     descendants_map = {}

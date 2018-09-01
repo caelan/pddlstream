@@ -45,7 +45,7 @@ def get_fluents(domain):
 ##################################################
 
 def augment_evaluations(evaluations, future_map):
-    for evaluation in filter(is_atom, evaluations):
+    for evaluation in list(filter(is_atom, evaluations)):
         name = evaluation.head.function
         if name in future_map:
             new_head = Head(future_map[name], evaluation.head.args)

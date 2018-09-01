@@ -5,18 +5,16 @@ import os
 from collections import Counter
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
+
+DATA_DIR = 'statistics/py{:d}/'
+
+# TODO: write to a "local" folder containing temp, data2, data3, visualizations
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
-DATA_DIR = 'data{:d}/'
-# TODO: write to a "local" folder containing temp, data2, data3, visualizations
-
-
-def get_data_directory():
-    return DATA_DIR.format(get_python_version())
-
-
 def get_data_path(stream_name):
-    return os.path.join(get_data_directory(), '{}.pp'.format(stream_name))
+    data_dir = DATA_DIR.format(get_python_version())
+    file_name = '{}.pkl'.format(stream_name)
+    return os.path.join(data_dir, file_name)
 
 
 def load_data(stream_name):
