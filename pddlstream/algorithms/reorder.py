@@ -2,9 +2,10 @@ from collections import namedtuple, deque
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.algorithm import neighbors_from_orders
-from pddlstream.algorithms.downward import fd_from_evaluations, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
+from pddlstream.algorithms.downward import fd_from_evaluations, task_from_domain_problem, get_problem, fd_from_fact, \
+    is_applicable, \
     apply_action, get_action_instances
-from pddlstream.algorithms.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
+from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.language.conversion import evaluation_from_fact, get_prefix, EQ, And
 from pddlstream.language.external import Result
@@ -200,6 +201,18 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
+def instantiate_axioms(model, init_facts, fluent_facts, axiom_remap={}):
+    import pddl
+    instantiated_axioms = []
+    for atom in model:
+        if isinstance(atom.predicate, pddl.Axiom):
+            axiom = axiom_remap.get(atom.predicate, atom.predicate)
+            variable_mapping = dict([(par.name, arg)
+                                     for par, arg in zip(axiom.parameters, atom.args)])
+            inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
+            if inst_axiom:
+                instantiated_axioms.append(inst_axiom)
+    return instantiated_axioms
 
 def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog

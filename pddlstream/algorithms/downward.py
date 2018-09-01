@@ -342,3 +342,46 @@ def get_goal_instance(goal):
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
     #precondition = get_literals(goal)
     return pddl.PropositionalAction(name, precondition, [], None)
+
+
+def add_preimage_condition(condition, preimage, i):
+    for literal in condition:
+        #preimage[literal] = preimage.get(literal, set()) | {i}
+        preimage.setdefault(literal, set()).add(i)
+    #preimage.update(condition)
+
+
+def add_preimage_effect(effect, preimage):
+    preimage.pop(effect, None)
+    #if effect in preimage:
+    #    # Fluent effects kept, static dropped
+    #    preimage.remove(effect)
+
+
+def action_preimage(action, preimage, i):
+    for conditions, effect in (action.add_effects + action.del_effects):
+        assert(not conditions)
+        # TODO: can later select which conditional effects are used
+        # TODO: might need to truely decide whether one should hold or not for a preimage. Maybe I should do that here
+        add_preimage_effect(effect, preimage)
+    add_preimage_condition(action.precondition, preimage, i)
+
+
+def axiom_preimage(axiom, preimage, i):
+    add_preimage_effect(axiom.effect, preimage)
+    add_preimage_condition(axiom.condition, preimage, i)
+
+
+def plan_preimage(plan, goal):
+    import pddl
+    # TODO: store layers in which each of these where used
+    #preimage = set(goal)
+    preimage = {condition: {len(plan)} for condition in goal}
+    for i, operator in reversed(list(enumerate(plan))):
+        if isinstance(operator, pddl.PropositionalAction):
+            action_preimage(operator, preimage, i)
+        elif isinstance(operator, pddl.PropositionalAxiom):
+            axiom_preimage(operator, preimage, i)
+        else:
+            raise ValueError(operator)
+    return preimage
