@@ -1,0 +1,132 @@
+(define (domain pr2-tamp)
+  (:requirements :strips :equality)
+  (:constants @world)
+  (:predicates
+    (Arm ?a)
+    (Stackable ?o ?r)
+    (Sink ?r)
+    (Stove ?r)
+
+    (BTraj ?t)
+    (RelPose ?o ?p ?f)
+    (Grasp ?a ?o ?g)
+    (WorldPose ?o ?p)
+    (PickMotion ?a ?o ?p ?g ?bq ?aq ?t)
+    (PlaceMotion ?a ?o ?p ?g ?bq ?aq ?t)
+    (BaseMotion ?q1 ?t ?q2)
+    (ArmMotion ?a ?q1 ?t ?q2)
+    (PoseCollision ?b1 ?p1 ?b2 ?p2)
+    (TForm ?o2 ?p2 ?rp ?o1 ?p1)
+
+    (AtBConf ?q)
+    (AtAConf ?a ?q)
+    (AtRelPose ?o ?p ?f)
+    (AtWorldPose ?o ?p)
+    (HandEmpty ?a)
+    (CanMove)
+    (Cleaned ?o)
+    (Cooked ?o)
+    (Pan ?o)
+    (Graspable ?o)
+    (Controllable ?a)
+
+    (On ?o ?r)
+    (InGripper ?o ?a)
+    (Holding ?o)
+    (Unsafe ?b ?p)
+  )
+
+  (:action move_base
+    :parameters (?q1 ?q2 ?t)
+    :precondition (and (BaseMotion ?q1 ?t ?q2)
+                       (AtBConf ?q1) (CanMove))
+    :effect (and (AtBConf ?q2)
+                 (not (AtBConf ?q1)) (not (CanMove)) 
+                 (increase (total-cost) (Distance ?q1 ?q2))))
+  ;(:action move_arm
+  ;  :parameters (?a ?q1 ?q2 ?t)
+  ;  :precondition (and (ArmMotion ?a ?q1 ?t ?q2)
+  ;                     (AtAConf ?a ?q1))
+  ;  :effect (and (AtAConf ?a ?q2)
+  ;               (not (AtAConf ?a ?q1)))
+  ;)
+
+  (:action pick
+    :parameters (?o ?g ?a ?p ?rp ?o2 ?p2 ?bq ?aq ?t)
+    :precondition (and (PickMotion ?a ?o ?p ?g ?bq ?aq ?t) (TForm ?o ?p ?rp ?o2 ?p2) ; (RelPose ?o ?p ?o2)
+                       (AtRelPose ?o ?rp ?o2) (AtWorldPose ?o2 ?p2) (HandEmpty ?a) (AtBConf ?bq)) ; (AtAConf ?a ?aq))
+    :effect (and (AtRelPose ?o ?g ?a) (CanMove)
+                 (not (AtRelPose ?o ?rp ?o2)) (not (HandEmpty ?a)) 
+                 (increase (total-cost) 1)))
+  (:action place
+    :parameters (?o ?g ?a ?p ?rp ?o2 ?p2 ?bq ?aq ?t)
+    :precondition (and (PlaceMotion ?a ?o ?p ?g ?bq ?aq ?t) (TForm ?o ?p ?rp ?o2 ?p2) ; (RelPose ?o ?p ?o2)
+                       (AtRelPose ?o ?g ?a) (AtWorldPose ?o2 ?p2) (AtBConf ?bq) (not (Unsafe ?o ?p))) ; (AtAConf ?a ?aq))
+    :effect (and (AtRelPose ?o ?rp ?o2) (HandEmpty ?a) (CanMove)
+                 (not (AtRelPose ?o ?g ?a)) 
+                 (increase (total-cost) 1)))
+
+  (:action clean
+    :parameters (?o ?r)
+    :precondition (and (Stackable ?o ?r) (Sink ?r)
+                       (On ?o ?r))
+    :effect (and (Cleaned ?o) 
+                 (increase (total-cost) 1)))
+
+  (:action cook
+    :parameters (?o ?r)
+    :precondition (and (Stackable ?o ?r) (Stove ?r)
+                       (On ?o ?r)) ; (Cleaned ?o))
+    :effect (and (Cooked ?o)
+                 (not (Cleaned ?o)) 
+                 (increase (total-cost) 1)))
+  ;(:action cook
+  ;  :parameters (?r)
+  ;  :precondition (Stove ?r)
+  ;  :effect (and (forall (?o) (when (On ?o ?r) (Cooked ?o))) ; No derived predicates in conditional effects yet
+  ;               (increase (total-cost) 1)))
+
+  (:action fry
+    :parameters (?o ?o2)
+    :precondition (and (Stackable ?o ?o2) (Pan ?o2)
+                       (On ?o ?o2) (Holding ?o2))
+    :effect (and (Cooked ?o)
+                 (not (Cleaned ?o)) 
+                 (increase (total-cost) 1))
+  )
+  ;(:action fry
+  ;  :parameters (?o ?r)
+  ;  :precondition (and (Stackable ?o ?r) (Stove ?r) (Pan ?o)
+  ;                     (On ?o ?r) (Cleaned ?o))
+  ;  :effect (and (forall (?o2) (when (On ?o2 ?o) (Cooked ?o2)))
+  ;               (not (Cleaned ?o))
+  ;               (increase (total-cost) 1)))
+
+  (:derived (AtWorldPose ?o ?p)
+    (or
+      (and (RelPose ?o ?p @world) 
+           (AtRelPose ?o ?p @world))
+      (exists (?rp ?o2 ?p2) (and (TForm ?o ?p ?rp ?o2 ?p2) 
+                                 (AtWorldPose ?o2 ?p2) (AtRelPose ?o ?rp ?o2)))))
+
+  (:derived (On ?o ?o2)
+    (exists (?p) (and (RelPose ?o ?p ?o2)
+                      (AtRelPose ?o ?p ?o2))))
+  (:derived (Above ?o ?o3)
+    (or
+      (and (Stackable ?o ?o3) 
+           (On ?o ?o3))
+      (exists (?o2) (and (Stackable ?o ?o2) (Stackable ?o2 ?o3) 
+                         (On ?o ?o2) (On ?o ?o3))))) 
+
+  (:derived (InGripper ?o ?a)
+    (exists (?g) (and (Grasp ?a ?o ?g)
+                      (AtRelPose ?o ?g ?a))))
+  (:derived (Holding ?o)
+    (exists (?a) (and (Graspable ?o) (Controllable ?a)
+                      (InGripper ?o ?a))))
+
+  (:derived (Unsafe ?b1 ?p1) ; TODO: crashes if I remove (WorldPose ?b2 ?p2) 
+    (exists (?b2 ?p2) (and (WorldPose ?b1 ?p1) (Graspable ?b1) (WorldPose ?b2 ?p2) (Graspable ?b2) 
+                           (PoseCollision ?b1 ?p1 ?b2 ?p2) (AtWorldPose ?b2 ?p2))))
+)
