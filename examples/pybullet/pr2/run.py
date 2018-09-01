@@ -4,18 +4,32 @@ from __future__ import print_function
 
 import cProfile
 import pstats
+import math
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, \
-    get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
+from pddlstream.language.synthesizer import StreamSynthesizer
+from pddlstream.language.constants import Equal
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
+from pddlstream.language.function import FunctionInfo
 
+USE_SYNTHESIZERS = False
+BASE_CONSTANT = 1
+BASE_VELOCITY = 0.5
+SCALE_COST = 1000
+
+def scale_cost(cost):
+    """
+    Unfortunately, FastDownward only supports nonnegative, integer functions
+    This function scales all costs, so decimals can be factored into the cost
+    """
+    return int(math.ceil(SCALE_COST * cost))
 
 def place_movable(certified):
     for literal in certified:
@@ -43,6 +57,11 @@ def get_base_motion_synth(problem, teleport=False):
         return free_motion_fn(q0, q1)
     return fn
 
+def move_cost_fn(t):
+    distance = t.distance()
+    cost = BASE_CONSTANT + distance / BASE_VELOCITY
+    return scale_cost(cost)
+
 #######################################################
 
 def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
@@ -58,6 +77,8 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
         ('CanMove',),
         ('BConf', initial_bq),
         ('AtBConf', initial_bq),
+        Equal(('PickCost',), scale_cost(1)),
+        Equal(('PlaceCost',), scale_cost(1)),
     ] + [('Sink', s) for s in problem.sinks] + \
            [('Stove', s) for s in problem.stoves] + \
            [('Connected', b, d) for b, d in problem.buttons] + \
@@ -92,13 +113,14 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
         'sample-pose': get_stable_gen(problem),
         'sample-grasp': from_list_fn(get_grasp_gen(problem)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
-
         'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
-        #'plan-base-motion': empty_gen(),
+        'MoveCost': move_cost_fn,
         'TrajPoseCollision': fn_from_constant(False),
         'TrajArmCollision': fn_from_constant(False),
         'TrajGraspCollision': fn_from_constant(False),
     }
+    if USE_SYNTHESIZERS:
+        stream_map['plan-base-motion'] = empty_gen(),
     # get_press_gen(problem, teleport=teleport)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
@@ -161,14 +183,20 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     #dump_world()
 
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
-    _, _, _, stream_map, init, goal = pddlstream_problem
+
+    stream_info = {
+        'MoveCost': FunctionInfo(fn_from_constant(scale_cost(BASE_CONSTANT))),
+    }
+
     synthesizers = [
-        #StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
-        #                                       'TrajPoseCollision': 0,
-        #                                       'TrajGraspCollision': 0,
-        #                                       'TrajArmCollision': 0},
-        #                  from_fn(get_base_motion_synth(problem, teleport))),
-    ]
+        StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
+                                               'TrajPoseCollision': 0,
+                                               'TrajGraspCollision': 0,
+                                               'TrajArmCollision': 0},
+                          from_fn(get_base_motion_synth(problem, teleport))),
+    ] if USE_SYNTHESIZERS else []
+
+    _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
@@ -176,9 +204,11 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF)
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+                             synthesizers=synthesizers, max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
+    print('Real cost:', float(cost)/SCALE_COST)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     if plan is None:
@@ -194,7 +224,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         disconnect()
         connect(use_gui=True)
         with HideOutput():
-            problem = problem_fn()  # TODO: way of doing this without reloading?
+            problem_fn() # TODO: way of doing this without reloading?
 
     if simulate:
         enable_gravity()

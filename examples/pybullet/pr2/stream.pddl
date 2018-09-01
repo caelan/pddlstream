@@ -24,6 +24,9 @@
     :certified (and (BTraj ?t) (BaseMotion ?q1 ?t ?q2))
   )
 
+  (:function (MoveCost ?t)
+    (and (BTraj ?t))
+  )
   (:predicate (TrajPoseCollision ?t ?o2 ?p2)
     (and (BTraj ?t) (Pose ?o2 ?p2))
   )
