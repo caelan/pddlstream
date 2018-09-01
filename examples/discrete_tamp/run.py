@@ -11,6 +11,7 @@ from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_exhaustive
+from pddlstream.algorithms.execution import solve_execution
 from pddlstream.language.conversion import And, Equal
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn, outputs_from_boolean
@@ -191,7 +192,8 @@ def main(focused=True, unit_costs=False):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
+        solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
+        #solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
     else:
         solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)
