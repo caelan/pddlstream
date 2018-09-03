@@ -1,4 +1,3 @@
-from collections import defaultdict
 from itertools import product
 
 from pddlstream.algorithms.instantiation import Instantiator
@@ -6,40 +5,75 @@ from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.object import OptimisticObject
+from pddlstream.utils import INF
 
+# TODO: lazily expand the shared objects in some cases to prevent increase in size
+
+RECURSIVE = True
+ONLY_LOCAL = False
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:
         return 0
     return max(r.opt_index for r in stream_plan)
 
+# def get_ancestors(obj):
+#     if not isinstance(obj, OptimisticObject):
+#         return {obj}
+#     return {obj}
 
 def is_double_bound(stream_instance, double_bindings):
     if double_bindings is None:
         return True
+    # What if the same object input? Might be okay because not useful anyways?
+    # Apply recursively, ensure that not counting history within a single object
+    # Could just do one level of expansion as well (I think this is what's causing it
+    # used_bindings = {}
+    # for obj in stream_instance.input_objects:
+    #     for ancestor in get_ancestors(obj):
+    #         if ancestor in double_bindings:
+    #             shared = double_bindings[ancestor]
+    #             if ancestor in used_bindings.setdefault(shared, set()):
+    #                 return True
+    #             used_bindings[shared].add(ancestor)
+    # return False
     bindings = [double_bindings[o] for o in stream_instance.input_objects if o in double_bindings]
     return len(set(bindings)) != len(bindings)
 
 
-def optimistic_process_streams(evaluations, streams, double_bindings=None):
-    instantiator = Instantiator(evaluations, streams)
+def optimistic_process_streams(evaluations, streams, double_bindings=None, max_effort=INF):
+    # TODO: iteratively increase max_effort to bias towards easier streams to start
+    # Can even fall back on converting streams to test streams
+    # Additive max effort in case something requires a long sequence to achieve
     stream_results = []
+    #effort_from_fact = {}
+    instantiator = Instantiator(evaluations, streams)
     while instantiator.stream_queue:
         stream_instance = instantiator.stream_queue.popleft()
         if not is_double_bound(stream_instance, double_bindings):
             continue
+        effort = stream_instance.get_effort()
+        #op = sum # max | sum
+        #total_effort = effort + op(effort_from_fact[fact] for fact in stream_instance.get_domain())
+        if max_effort <= effort:
+            continue
         for stream_result in stream_instance.next_optimistic():
             for fact in stream_result.get_certified():
+                #effort_from_fact[fact] = min(effort_from_fact.get(fact, INF), effort)
                 instantiator.add_atom(evaluation_from_fact(fact))
             stream_results.append(stream_result) # TODO: don't readd if all repeated facts?
     return stream_results
 
 ##################################################
 
-def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_evaluations, immediate=False):
+def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_evaluations,
+                                bind=True, immediate=False):
     # TODO: combination for domain predicates
     evaluation_set = set(evaluations)
     opt_instances = []
+    if not bind:
+        bindings = {}
     input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
     for combo in product(*input_objects):
         mapping = dict(zip(stream_instance.input_objects, combo))
@@ -58,10 +92,10 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
     # TODO: could bind by just using new_evaluations
     evaluations = set(evaluations)
     opt_evaluations = set(evaluations)
-    opt_bindings = defaultdict(list)
+    opt_bindings = {}
     opt_results = []
     for opt_result in stream_plan:
-        # TODO: could just do first step
+        # TODO: just do the first step of the plan somehow
         for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings,
                                                     evaluations, opt_evaluations):
             results = instance.next_optimistic()
@@ -70,7 +104,7 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
             for result in results:
                 if isinstance(result, StreamResult): # Could not add if same value
                     for opt, obj in zip(opt_result.output_objects, result.output_objects):
-                        opt_bindings[opt].append(obj)
+                        opt_bindings.setdefault(opt, []).append(obj)
     return opt_results, opt_bindings
 
 ##################################################
@@ -99,12 +133,16 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     plan_index = get_stream_plan_index(stream_plan)
     if plan_index == 0:
         return combined_plan, cost, depth
+    if not RECURSIVE: # TODO: not quite right
+        return None, cost, depth
     # TODO: should I just plan using all original plus expanded
     # TODO: might need new actions here (such as a move)
     stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
-    double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 streams, double_bindings=double_bindings)
+    if not ONLY_LOCAL:
+        # I don't think the double bound thing really makes entire sense here
+        double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
+        stream_results.extend(optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
+                                                     streams, double_bindings=double_bindings))
     stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
                                                  functions)
     return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
