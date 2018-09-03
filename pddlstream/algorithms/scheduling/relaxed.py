@@ -6,12 +6,13 @@ from pddlstream.algorithms.scheduling.recover_streams import get_achieving_strea
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
     get_results_from_head, get_stream_actions
 from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
-from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl
+from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, evaluation_from_fact
 from pddlstream.language.constants import And
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet, INF
+from pddlstream.utils import Verbose, MockSet, INF, flatten
 
+DO_RESCHEDULE = False
 RESCHEDULE_PLANNER = 'ff-astar' # TODO: investigate other admissible heuristics
 
 # TODO: reuse the ground problem when solving for sequential subgoals
@@ -30,8 +31,7 @@ def instantiate_actions(opt_task, type_to_objects, function_assignments, action_
                 raise NotImplementedError('Existential quantifiers are not currently '
                                           'supported in preconditions: {}'.format(name))
             variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-            action_instance = action.instantiate(variable_mapping, set(),
-                                          MockSet(), type_to_objects,
+            action_instance = action.instantiate(variable_mapping, set(), MockSet(), type_to_objects,
                                           opt_task.use_min_cost_metric, function_assignments)
             assert (action_instance is not None)
             candidates.append(((action, args), action_instance))
@@ -111,15 +111,45 @@ def convert_fluent_streams(stream_plan, real_states, steps_from_stream):
 
 def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
     # TODO: search in space of partially ordered plans
-    # TODO: local optimization - remove one and see if feasible
+    # TODO: constrain selection order to be alphabetical?
     reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
     new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_time=10, debug=True)
     return [stream_result_from_name[name] for name, _ in new_plan]
 
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative,
-                        unit_costs, optimize=False):
+def shorten_stream_plan(evaluations, stream_plan, target_facts):
+    all_subgoals = set(target_facts) | set(flatten(r.instance.get_domain() for r in stream_plan))
+    evaluation_subgoals = set(filter(evaluations.__contains__, map(evaluation_from_fact, all_subgoals)))
+    open_subgoals = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, all_subgoals))
+    results_from_fact = {}
+    for result in stream_plan:
+        for fact in result.get_certified():
+            results_from_fact.setdefault(fact, []).append(result)
+
+    for removed_result in reversed(stream_plan): # TODO: only do in order?
+        certified_subgoals = open_subgoals & set(removed_result.get_certified())
+        if not certified_subgoals: # Could combine with following
+            new_stream_plan = stream_plan[:]
+            new_stream_plan.remove(removed_result)
+            return new_stream_plan
+        if all(2 <= len(results_from_fact[fact]) for fact in certified_subgoals):
+            node_from_atom = get_achieving_streams(evaluation_subgoals, set(stream_plan) - {removed_result})
+            if all(fact in node_from_atom for fact in target_facts):
+                new_stream_plan = []
+                extract_stream_plan(node_from_atom, target_facts, new_stream_plan)
+                return new_stream_plan
+    return None
+
+def prune_stream_plan(evaluations, stream_plan, target_facts):
+    while True:
+        new_stream_plan = shorten_stream_plan(evaluations, stream_plan, target_facts)
+        if new_stream_plan is None:
+            break
+        stream_plan = new_stream_plan
+    return stream_plan
+
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
     # TODO: toggle optimize more
     import pddl_to_prolog
     import build_model
@@ -196,11 +226,13 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     positive_preimage = stream_preimage - negative_preimage
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
 
-    node_from_atom = get_achieving_streams(evaluations, stream_results)
     step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
     target_facts = list(step_from_fact.keys())
+    #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     stream_plan = []
+    node_from_atom = get_achieving_streams(evaluations, stream_results)
     extract_stream_plan(node_from_atom, target_facts, stream_plan)
+    stream_plan = prune_stream_plan(evaluations, stream_plan, target_facts)
 
     steps_from_stream = {}
     for result in reversed(stream_plan):
@@ -213,8 +245,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     stream_plan = convert_fluent_streams(stream_plan, real_states, steps_from_stream)
     # visualize_constraints(map(fact_from_fd, stream_preimage))
 
-    if optimize: # TODO: detect this based on unique or not
-        new_stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
+    if DO_RESCHEDULE: # TODO: detect this based on unique or not
+        # TODO: maybe test if partial order between two ways of achieving facts, if not prune
+        new_stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_plan)
         if new_stream_plan is not None:
             stream_plan = new_stream_plan
     return stream_plan + list(function_plan)

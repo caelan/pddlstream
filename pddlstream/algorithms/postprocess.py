@@ -3,7 +3,8 @@ from collections import deque
 
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, fact_from_fd, get_action_instances, \
     get_goal_instance, plan_preimage
-from pddlstream.algorithms.reorder import replace_derived, topological_sort, reorder_stream_plan
+from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
+from pddlstream.algorithms.algorithm import topological_sort
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue

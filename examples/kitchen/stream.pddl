@@ -1,13 +1,8 @@
 ; everything written here, should have a corresponding function!
 (define (stream kitchen2d)
-
-	; External predicates
-
-	(:predicate (Collision ?control ?gripper ?pose)
-	    (and (IsControl ?control) (IsPose ?gripper ?pose))
-	)
-
-	; Streams
+	;(:predicate (Collision ?control ?gripper ?pose)
+	;    (and (IsControl ?control) (IsPose ?gripper ?pose))
+	;)
 
 	(:stream sample-motion
 		:inputs (?gripper ?pose ?pose2)

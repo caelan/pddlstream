@@ -82,9 +82,8 @@ class Instance(object):
     #     else:
     #         p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
 
-    def get_p_success(self):
-        p_success_belief = self.external.get_p_success()
-        return p_success_belief
+    #def get_p_success(self):
+        #p_success_belief = self.external.get_p_success()
         #belief = self.get_belief()
         #return p_success_belief*belief
         # TODO: use the external as a prior
@@ -92,6 +91,9 @@ class Instance(object):
         # Model hidden state of whether has values or if will produce values?
         # TODO: direct estimation of different buckets in which it will finish
         # TODO: we have samples from the CDF or something
+
+    def get_p_success(self):
+        return self.external.get_p_success()
 
     def get_overhead(self):
         return self.external.get_overhead()

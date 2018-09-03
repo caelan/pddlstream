@@ -40,6 +40,7 @@ SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 
 OBJECT = 'object'
 TOTAL_COST = 'total-cost' # TotalCost
+INFINITY = 'infinity'
 
 SEARCH_OPTIONS = {
     # Optimal
@@ -213,14 +214,14 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 ##################################################
 
 def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=False):
-    max_time = 'infinity' if max_time == INF else int(max_time)
-    max_cost = 'infinity' if max_cost == INF else int(max_cost)
+    max_time = INFINITY if max_time == INF else int(max_time)
+    max_cost = INFINITY if max_cost == INF else int(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search % (temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if debug:
-        print('\nSearch command:', command)
+        print('Search command:', command)
     p = os.popen(command)  # NOTE - cannot pipe input easily with subprocess
     output = p.read()
     if debug:

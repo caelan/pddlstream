@@ -1,27 +1,27 @@
 from collections import namedtuple, deque
-from heapq import heappush, heappop
 
-from pddlstream.algorithms.algorithm import neighbors_from_orders
+from pddlstream.algorithms.algorithm import neighbors_from_orders, topological_sort
 from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
-    is_applicable, \
-    apply_action, get_action_instances
+    is_applicable, apply_action, get_action_instances
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.constants import EQ, And, get_prefix
+from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, implies, HeapElement
+from pddlstream.utils import INF, Verbose, MockSet, implies
 
 # TODO: should I use the product of all future probabilities?
 
-def get_partial_orders(stream_plan):
-    # TODO: only show the first atom achieved?
+def get_partial_orders(stream_plan, init_facts=set()):
+    achieved_facts = set(init_facts) # TODO: achieved objects
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
+        new_facts = set(stream1.get_certified()) - achieved_facts
+        achieved_facts.update(new_facts)
         for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
+            if new_facts & set(stream2.instance.get_domain()):
                 partial_orders.add((stream1, stream2))
             if isinstance(stream1, StreamResult) and \
                     (set(stream1.output_objects) & set(stream2.instance.input_objects)):
@@ -69,25 +69,6 @@ def get_future_p_successes(stream_plan):
 #                 ancestors.add(v2)
 #                 queue.append(v1)
 #     return ancestors
-
-##################################################
-
-def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
-    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
-    ordering = []
-    queue = []
-    for v in vertices:
-        if not incoming_edges[v]:
-            heappush(queue, HeapElement(priority_fn(v), v))
-    while queue:
-        v1 = heappop(queue).value
-        ordering.append(v1)
-        for v2 in outgoing_edges[v1]:
-            incoming_edges[v2].remove(v1)
-            if not incoming_edges[v2]:
-                heappush(queue, HeapElement(priority_fn(v2), v2))
-    return ordering
 
 ##################################################
 

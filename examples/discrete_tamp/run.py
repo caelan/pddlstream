@@ -192,8 +192,8 @@ def main(focused=True, unit_costs=False):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
-        #solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
+        #solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info, debug=True)
     else:
         solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)

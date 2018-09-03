@@ -1,9 +1,7 @@
 (define (domain kitchen2d)
     (:requirements :strips :equality)
     (:predicates
-
     	; Static predicates (predicates that do not change over time)
-
     	(IsGripper ?gripper)
     	(IsCup ?cup)
     	(IsStirrer ?kettle) ;kettle is both spoon and stirrer
@@ -32,7 +30,6 @@
     	(TableSupport ?pose)
 
     	; Fluent predicates (predicates that change over time, which describes the state of the sytem)
-
     	(AtPose ?cup ?block)
     	(Grasped ?cup ?grasp)
     	(Empty ?gripper)
@@ -44,13 +41,11 @@
     	(Scooped ?cup)
 
     	; Derived predicates (predicates derived from other predicates, defined with streams)
-
     	(Unsafe ?control)
     	(Holding ?cup)
     	(On ?cup ?block)
 
     	; External predicates (evaluated by external boolean functions)
-
     	(Collision ?control ?gripper ?pose)
     )
 
@@ -130,18 +125,7 @@
     		(and (HasCoffee ?cup) (CanMove ?gripper)
     			(increase (total-cost) 1))
     )
-
-    ; in this example, pour only works for cream
-    ; is the pour motion fixed/handcoded? because the parameters does not
-    ; specify how to move the gripper to push.. Maybe that is learned from
-    ; GP?? Yeah, maybe the control of pour is learned, needs to look into this
-    ; pour does not specify the end configuration of gripper,
-    ; which means it is bound to get back to it original location
-    ; which should be hand-coded into control
-    ; ?pose: starting pose of gripper
-    ; ?pose2: kettle pose
-
-    (:action pour-gp
+    (:action pour
     	; why named kettle
     	:parameters (?gripper ?pose ?cup ?grasp ?kettle ?pose2 ?control)
     	:precondition
@@ -153,13 +137,6 @@
     		(and (HasCream ?kettle) (CanMove ?gripper)
     			(not (HasCream ?cup)) (increase (total-cost) 1))
     )
-
-    ; different from pour, scoop does specify the end configuration of gripper as
-    ; a free paramter
-    ; ?pose: starting pose of gripper
-    ; ?pose2: ending pose of gripper
-    ; ?pose3: kettle pose
-
     (:action scoop
     	:parameters (?gripper ?pose ?pose2 ?spoon ?grasp ?kettle ?pose3 ?control)
     	:precondition
@@ -171,11 +148,6 @@
     			(CanMove ?gripper) (Scooped ?spoon)
     			(not (AtPose ?gripper ?pose)) (increase (total-cost) 1))
     )
-
-    ; ?pose: starting pose of gripper
-    ; ?pose2: kettle pose
-    ; ?pose3: ending pose of gripper
-
     (:action dump
     	:parameters (?gripper ?pose ?pose3 ?spoon ?grasp ?kettle ?pose2 ?control)
     	:precondition
@@ -188,11 +160,6 @@
     			(not (AtPose ?gripper ?pose)) (AtPose ?gripper ?pose3)
     			(increase (total-cost) 1))
     )
-
-    ; ?pose: starting pose of gripper
-    ; ?pose2: kettle pose
-    ; like pour, the ending pose is hand-coded
-
     (:action stir
     	:parameters (?gripper ?pose ?spoon ?grasp ?kettle ?pose2 ?control)
     	:precondition
@@ -204,8 +171,6 @@
     		(and (Mixed ?kettle) (CanMove ?gripper)
     			(increase (total-cost) 1))
     )
-
-    ; Derived predicates
 
     (:derived (Unsafe ?control)
         (exists (?cup ?pose) (and (Collision ?control ?cup ?pose) (AtPose ?cup ?pose)))

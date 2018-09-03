@@ -1,5 +1,6 @@
 import time
 from collections import OrderedDict, defaultdict, deque
+from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
@@ -13,7 +14,7 @@ from pddlstream.language.function import parse_function, parse_predicate, Functi
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.rule import parse_rule
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -76,6 +77,23 @@ def neighbors_from_orders(orders):
         incoming_edges[v2].add(v1)
         outgoing_edges[v1].add(v2)
     return incoming_edges, outgoing_edges
+
+def topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # Can also do a DFS version
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    ordering = []
+    queue = []
+    for v in vertices:
+        if not incoming_edges[v]:
+            heappush(queue, HeapElement(priority_fn(v), v))
+    while queue:
+        v1 = heappop(queue).value
+        ordering.append(v1)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1)
+            if not incoming_edges[v2]:
+                heappush(queue, HeapElement(priority_fn(v2), v2))
+    return ordering
 
 ##################################################
 

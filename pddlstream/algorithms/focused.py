@@ -6,7 +6,7 @@ from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_co
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
-from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
+from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan, optimistic_process_streams
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
@@ -94,7 +94,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                                                             max_cost=store.best_cost,
                                                             #max_cost=min(store.best_cost, max_cost),
                                                             unit_costs=unit_costs, **search_kwargs)
-        #combined_plan, cost = solve_stream_plan(populate_results(evaluations, streams + functions))
+        #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)

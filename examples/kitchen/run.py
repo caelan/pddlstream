@@ -4,29 +4,31 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import Equal, AND, PDDLProblem
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
-import numpy as np
+ROBOT = 'gripper'
+CUP = 'cup'
+COASTER = 'block'
 
 def create_problem(initial_poses):
     block_goal = (-25, 0, 0)
 
     initial_atoms = [
-        ('IsPose', 'block', block_goal),
-        ('Empty', 'gripper'),
-        ('CanMove', 'gripper'),
+        ('IsPose', COASTER, block_goal),
+        ('Empty', ROBOT),
+        ('CanMove', ROBOT),
         ('HasSugar', 'sugar_cup'),
         ('HasCream', 'cream_cup'),
         ('IsPourable', 'cream_cup'),
-        ('Stackable', 'cup', 'block'),
-        ('Clear', 'block')]
+        ('Stackable', CUP, COASTER),
+        ('Clear', COASTER)]
 
     goal_literals = [
-        ('Empty', 'gripper'),
-        #('AtPose', 'block', block_goal),
-        #('On', 'cup', 'block'),
-        ('HasCoffee', 'cup'),
-        ('HasCream', 'cup'),
-        #('HasSugar', 'cup'),
-        #('Mixed', 'cup'),
+        ('Empty', ROBOT),
+        #('AtPose', COASTER, block_goal),
+        #('On', CUP, COASTER),
+        ('HasCoffee', CUP),
+        ('HasCream', CUP),
+        #('HasSugar', CUP),
+        #('Mixed', CUP),
     ]
 
     for name, pose in initial_poses.items():
@@ -35,8 +37,7 @@ def create_problem(initial_poses):
         if 'cup' in name:
             initial_atoms += [('IsCup', name)]
         if 'spoon' in name:
-            initial_atoms += [('IsSpoon', name)]
-            initial_atoms += [('IsStirrer', name)]
+            initial_atoms += [('IsSpoon', name), ('IsStirrer', name)]
         if 'stirrer' in name:
             initial_atoms += [('IsStirrer', name)]
         if 'block' in name:
@@ -55,13 +56,13 @@ def create_problem(initial_poses):
 
 def main():
     initial_poses = {
-        'gripper': (0., 15., 0.),
-        'cup': (7.5, 0., 0.),
+        ROBOT: (0., 15., 0.),
+        CUP: (7.5, 0., 0.),
         'sugar_cup': (-10., 0., 0.),
         'cream_cup': (15., 0, 0),
         'spoon': (0.5, 0.5, 0),
         'stirrer': (20, 0.5, 0),
-        'block': (-20., 0, 0),
+        COASTER: (-20., 0, 0),
     }
 
     problem = create_problem(initial_poses)

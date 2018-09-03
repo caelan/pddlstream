@@ -75,6 +75,9 @@ def get_mapping(sequence1, sequence2):
 def invert_test(test):
     return lambda *args: not test(*args)
 
+def flatten(iterable_of_iterables):
+    return (item for iterables in iterable_of_iterables for item in iterables)
+
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = plan is not None

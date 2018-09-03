@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from copy import deepcopy
 from time import time
 
@@ -7,6 +9,7 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
     start_time = time()
     with Verbose(debug):
+        print('\n' + 50*'-' + '\n')
         write_task(translate_task(task), temp_dir)
         solution = run_search(temp_dir, debug=True, **kwargs)
         if clean:
@@ -49,6 +52,7 @@ def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False
     # TODO: version that solves for all subgoals at once
     start_time = time()
     with Verbose(debug):
+        print('\n' + 50*'-' + '\n')
         sas_task = translate_task(task)
         subgoal_plan = [sas_task.goal.pairs[:i+1] for i in range(len(sas_task.goal.pairs))]
         plan, cost = plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs)
@@ -133,6 +137,7 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
+        print('\n' + 50*'-' + '\n')
         sas_task = translate_task(task)
         last_plan = []
         for level in range(len(hierarchy)+1):

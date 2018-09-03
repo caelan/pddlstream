@@ -110,10 +110,10 @@ def write_stream_statistics(externals, verbose):
 
 # TODO: online learning vs offline learning
 
-def compute_ratio(numerator, denomenator, undefined=None):
-    if denomenator == 0:
+def compute_ratio(numerator, denominator, undefined=None):
+    if denominator == 0:
         return undefined
-    return float(numerator) / denomenator
+    return float(numerator) / denominator
 
 def geometric_cost(cost, p):
     return compute_ratio(cost, p, undefined=INF)
