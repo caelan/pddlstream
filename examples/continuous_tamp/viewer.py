@@ -1,4 +1,7 @@
-from Tkinter import Tk, Canvas, Toplevel
+try:
+    from Tkinter import Tk, Canvas, Toplevel
+except ModuleNotFoundError:
+    from tkinter import Tk, Canvas, Toplevel
 
 # NOTE - this will overwrite (but remember) existing drawings
 # TODO - try PyGame, PyCairo, or Pyglet
@@ -76,7 +79,7 @@ class ContinuousTMPViewer(object):
             self.canvas.create_rectangle(self.scale_x(x - width / 2.), self.scale_y(y),
                                          self.scale_x(x + width / 2.), self.scale_y(y + height),
                                          fill=color, outline='black', width=2),
-            self.canvas.create_text(self.scale_x(x), self.scale_y(height / 2), text=name),
+            self.canvas.create_text(self.scale_x(x), self.scale_y(y + height / 2), text=name),
         ])
 
     # def draw_holding(self, x, width, height, color='blue'):

@@ -9,6 +9,7 @@ BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
 SCALE_COST = 1.
+CARRY_Y = 5
 
 
 def scale_cost(cost):
@@ -120,8 +121,9 @@ def get_pose_gen(regions):
 
 
 def plan_motion(q1, q2):
-    t = [q1, q2]
-    #t = np.vstack([q1, q2])
+    x1, y1 = q1
+    x2, y2 = q2
+    t = [q1, np.array([x1, CARRY_Y]), np.array([x2, CARRY_Y]), q2]
     return (t,)
 
 ##################################################
@@ -131,6 +133,7 @@ TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goa
 
 BLOCK_PREFIX = 'b'
 REGION_NAME = 'red'
+INITIAL_CONF = np.array([0, 10])
 
 def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
@@ -138,16 +141,15 @@ def get_tight_problem(n_blocks=2, n_goals=2):
         REGION_NAME: (5, 10)
     }
 
-    conf = np.array([0, 5])
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
     #poses = [sample_region(b, regions[GROUND]) for b in blocks]
 
-    initial = TAMPState(conf, None, dict(zip(blocks, poses)))
+    initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
     goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
-    return TAMPProblem(initial, regions, conf, goal_regions)
+    return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
 
 
 def get_blocked_problem():
@@ -156,7 +158,6 @@ def get_blocked_problem():
         REGION_NAME: (5, 10)
     }
 
-    conf = np.array([0, 5])
     blocks = ['{}'.format(BLOCK_PREFIX, i) for i in range(2)]
     poses = [np.zeros(2), np.array([7.5, 0])]
     block_poses = dict(zip(blocks, poses))
@@ -167,10 +168,10 @@ def get_blocked_problem():
     #}
     #block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
-    initial = TAMPState(conf, None, block_poses)
+    initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
-    return TAMPProblem(initial, regions, conf, goal_regions)
+    return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
 
 ##################################################
 

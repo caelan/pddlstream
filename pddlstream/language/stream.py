@@ -2,13 +2,14 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, remap_objects, \
-    substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
-from pddlstream.language.generator import get_next, from_fn
-from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.algorithms.downward import OBJECT, fd_from_fact
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
+from pddlstream.language.conversion import list_from_conjunction, remap_objects, \
+    substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
+    parse_lisp_list
+from pddlstream.language.generator import get_next, from_fn
+from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
 from pddlstream.utils import str_from_object, get_mapping
 
 VERBOSE_FAILURES = True
@@ -39,8 +40,9 @@ class PartialInputs(object):
         assert set(inputs) <= set(stream.inputs)
         def gen_fn(*input_values):
             mapping = get_mapping(stream.inputs, input_values)
-            input_values = tuple(mapping[inp] for inp in inputs)
-            yield [tuple(OptValue(stream.name, inputs, input_values, out)
+            values = tuple(mapping[inp] for inp in inputs)
+            assert(len(inputs) == len(values))
+            yield [tuple(OptValue(stream.name, inputs, values, out)
                          for out in stream.outputs)]
         return gen_fn
 
@@ -51,8 +53,6 @@ def get_constant_gen_fn(stream, constant):
     return gen_fn
 
 ##################################################
-
-UniqueOptValue = namedtuple('UniqueOpt', ['instance', 'sequence_index', 'output_index'])
 
 # def get_unique_fn(stream):
 #     # TODO: this should take into account the output number...
@@ -70,13 +70,15 @@ def get_debug_gen_fn(stream):
 
 class DebugValue(object): # TODO: could just do an object
     _output_counts = defaultdict(count)
+    _prefix = '@' # $ | @
     def __init__(self, stream, input_values, output_parameter):
         self.stream = stream
         self.input_values = input_values
         self.output_parameter = output_parameter
         self.index = next(self._output_counts[output_parameter])
     def __repr__(self):
-        return '${}{}'.format(self.output_parameter[1:], self.index)
+        # Can also just return first letter of the prefix
+        return '{}{}{}'.format(self._prefix, self.output_parameter[1:], self.index)
 
 ##################################################
 

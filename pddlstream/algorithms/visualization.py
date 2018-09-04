@@ -1,10 +1,11 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, NOT
-from pddlstream.language.conversion import fact_from_evaluation, str_from_fact
+from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE
+from pddlstream.language.conversion import evaluation_from_fact, str_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
+from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import clear_dir
 
 # https://www.graphviz.org/doc/info/colors.html
@@ -20,6 +21,7 @@ VISUALIZATIONS_DIR = 'visualizations/'
 CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
 STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 ITERATION_TEMPLATE = 'iteration_{}.pdf'
+SYNTHESIZER_TEMPLATE = '{}_{}.pdf'
 
 ##################################################
 
@@ -27,13 +29,31 @@ def clear_visualizations():
     clear_dir(CONSTRAINT_NETWORK_DIR)
     clear_dir(STREAM_PLAN_DIR)
 
+def get_optimistic_constraints(evaluations, stream_plan):
+    # TODO: approximates needed facts using produced ones
+    constraints = set()
+    for stream in stream_plan:
+        constraints.update(stream.get_certified())
+    return set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
+
+def create_synthesizer_visualizations(result, num_iterations):
+    stream_plan = result.decompose()
+    filename = SYNTHESIZER_TEMPLATE.format(result.instance.external.name, num_iterations)
+    #constraints = get_optimistic_constraints(evaluations, stream_plan)
+    visualize_constraints(result.get_certified() + result.get_functions(),
+                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan,
+                                    os.path.join(STREAM_PLAN_DIR, filename))
 
 def create_visualizations(evaluations, stream_plan, num_iterations):
     # TODO: place it in the temp_dir?
+    for result in stream_plan:
+        if isinstance(result, SynthStreamResult):
+            create_synthesizer_visualizations(result, num_iterations)
     filename = ITERATION_TEMPLATE.format(num_iterations)
     # visualize_stream_plan(stream_plan, path)
-    visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
-                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    constraints = get_optimistic_constraints(evaluations, stream_plan)
+    visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
 
 ##################################################
@@ -53,7 +73,7 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     heads = set()
     for fact in constraints:
         prefix = get_prefix(fact)
-        if prefix == EQ:
+        if prefix in (EQ, MINIMIZE):
             functions.add(fact[1])
         elif prefix == NOT:
             negated.add(fact[1])
@@ -82,7 +102,7 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
         for arg in get_args(head):
             if arg in optimistic_objects:
                 graph.add_edge(name, str(arg))
-    graph.draw(filename, prog='dot')
+    graph.draw(filename, prog='dot') # neato | dot | twopi | circo | fdp | nop
     return graph
 
 ##################################################
@@ -142,11 +162,5 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
                 achieved_facts.add(fact)
     graph.draw(filename, prog='dot')
     return graph
-
-
-def get_optimistic_constraints(evaluations, stream_plan):
-    # TODO: approximates needed facts using produced ones
-    constraints = set()
-    for stream in stream_plan:
-        constraints.update(stream.get_certified())
-    return constraints - set(map(fact_from_evaluation, evaluations))
+    # graph.layout
+    # https://pygraphviz.github.io/documentation/pygraphviz-1.3rc1/reference/agraph.html

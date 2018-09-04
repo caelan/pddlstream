@@ -96,17 +96,20 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name, args = action
     if name == 'move':
-        _, _, conf = args
+        _, traj, _ = args
+        for conf in traj[1:]:
+            yield TAMPState(conf, holding, block_poses)
     elif name == 'pick':
         holding, _, _ = args
         del block_poses[holding]
+        yield TAMPState(conf, holding, block_poses)
     elif name == 'place':
         block, pose, _ = args
         holding = None
         block_poses[block] = pose
+        yield TAMPState(conf, holding, block_poses)
     else:
         raise ValueError(name)
-    return TAMPState(conf, holding, block_poses)
 
 ##################################################
 
@@ -169,12 +172,13 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     print()
     print(state)
     draw_state(viewer, state, colors)
+    user_input('Continue?')
     for i, action in enumerate(plan):
-        user_input('Continue?')
         print(i, *action)
-        state = apply_action(state, action)
-        print(state)
-        draw_state(viewer, state, colors)
+        for state in apply_action(state, action):
+            print(state)
+            draw_state(viewer, state, colors)
+            user_input('Continue?')
     user_input('Finish?')
 
 

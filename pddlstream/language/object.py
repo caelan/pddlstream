@@ -2,10 +2,11 @@ from collections import Hashable, namedtuple
 
 USE_HASH = True
 USE_STRING = False
-USE_STR = True
+USE_OBJ_STR = True
+USE_OPT_STR = True
 
 class Object(object):
-    _prefix = 'o'
+    _prefix = 'v' # o
     _obj_from_id = {}
     _obj_from_value = {}
     #_obj_from_index = []
@@ -58,7 +59,7 @@ class Object(object):
         return self.index < other.index
     def __repr__(self):
     #def __str__(self):
-        if USE_STR:
+        if USE_OBJ_STR:
             #return repr(self.value)
             return str(self.value)
         return self.pddl
@@ -66,14 +67,6 @@ class Object(object):
 # TODO: just one object class or have Optimistic extend Object
 # TODO: make a parameter class that has access to some underlying value
 
-#class SharedObject(object):
-#    def __init__(self, stream, output_index):
-#        self.stream = stream
-#        self.output_index = output_index
-#
-#class PartialObject(object):
-#    pass
-#
 #class UniqueObject(namedtuple('UO', ['stream_instance', 'output_index'])):
 #    @property
 #    def parameter(self):
@@ -81,8 +74,10 @@ class Object(object):
 #    def __repr__(self):
 #        return '#{}{}'.format(self.parameter[1:], self.output_index)
 
+UniqueOptValue = namedtuple('UniqueOpt', ['instance', 'sequence_index', 'output_index'])
+
 class OptimisticObject(object):
-    _prefix = '#' # $ % #
+    _prefix = '#o' # $ % #
     _obj_from_inputs = {}
     _obj_from_name= {}
     def __init__(self, value, param):
@@ -116,5 +111,8 @@ class OptimisticObject(object):
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):
+        if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
+            parameter = self.param.instance.external.outputs[self.param.output_index]
+            return '#{}{}'.format(parameter[1:][:1], self.index)
         #return repr(self.value)
         return self.pddl
