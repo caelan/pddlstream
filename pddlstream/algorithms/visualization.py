@@ -1,16 +1,17 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.conversion import fact_from_evaluation
-from pddlstream.language.constants import EQ, get_prefix, get_args
+from pddlstream.language.constants import EQ, get_prefix, get_args, NOT
+from pddlstream.language.conversion import fact_from_evaluation, str_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import str_from_tuple, clear_dir
+from pddlstream.utils import clear_dir
 
 # https://www.graphviz.org/doc/info/colors.html
 
 PARAMETER_COLOR = 'LightGreen'
 CONSTRAINT_COLOR = 'LightBlue'
+NEGATED_COLOR = 'LightYellow'
 COST_COLOR = 'LightSalmon'
 STREAM_COLOR = 'LightSteelBlue'
 FUNCTION_COLOR = 'LightCoral'
@@ -33,8 +34,7 @@ def create_visualizations(evaluations, stream_plan, num_iterations):
     # visualize_stream_plan(stream_plan, path)
     visualize_constraints(get_optimistic_constraints(evaluations, stream_plan),
                           os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan,
-                                    os.path.join(STREAM_PLAN_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
 
 ##################################################
 
@@ -49,13 +49,18 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     graph.edge_attr['colorscheme'] = 'SVG'
 
     functions = set()
+    negated = set()
     heads = set()
     for fact in constraints:
-        if get_prefix(fact) == EQ:
+        prefix = get_prefix(fact)
+        if prefix == EQ:
             functions.add(fact[1])
+        elif prefix == NOT:
+            negated.add(fact[1])
         else:
             heads.add(fact)
     heads.update(functions)
+    heads.update(negated)
 
     objects = {a for head in heads for a in get_args(head)}
     optimistic_objects = filter(lambda o: isinstance(o, OptimisticObject), objects)
@@ -66,8 +71,13 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
         if not use_functions and (head in functions):
             continue
         # TODO: prune values w/o free parameters?
-        name = str_from_tuple(head)
-        color = COST_COLOR if head in functions else CONSTRAINT_COLOR
+        name = str_from_fact(head)
+        if head in functions:
+            color = COST_COLOR
+        elif head in negated:
+            color = NEGATED_COLOR
+        else:
+            color = CONSTRAINT_COLOR
         graph.add_node(name, shape='box', color=color)
         for arg in get_args(head):
             if arg in optimistic_objects:
@@ -104,7 +114,7 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
 
     def add_fact(fact):
         head, color = (fact[1], COST_COLOR) if get_prefix(fact) == EQ else (fact, CONSTRAINT_COLOR)
-        s_fact = str_from_tuple(head)
+        s_fact = str_from_fact(head)
         graph.add_node(s_fact, shape='box', color=color)
         return s_fact
 

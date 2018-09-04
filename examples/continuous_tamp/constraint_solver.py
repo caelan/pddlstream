@@ -78,6 +78,14 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 if param not in var_from_id:
                     var_from_id[id(param)] = [np_var(), np_var()]
 
+        def collision_constraint(fact):
+            b1, p1, b2, p2 = map(get_var, fact[1:])
+            dist = unbounded_var()
+            abs_dist = unbounded_var()
+            m.addConstr(dist == p2[0] - p1[0])
+            m.addGenConstrAbs(abs_dist, dist)  # abs_
+            m.addConstr(BLOCK_WIDTH + MIN_CLEARANCE <= abs_dist)
+
         objective_terms = []
         for fact in facts:
             name, args = fact[0], fact[1:]
@@ -96,12 +104,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 fact = args[0]
                 name, args = fact[0], fact[1:]
                 if name == 'posecollision':
-                    b1, p1, b2, p2 = map(get_var, args)
-                    dist = unbounded_var()
-                    abs_dist = unbounded_var()
-                    m.addConstr(dist == p2[0] - p1[0])
-                    m.addGenConstrAbs(abs_dist, dist)  # abs_
-                    m.addConstr(BLOCK_WIDTH + MIN_CLEARANCE <= abs_dist)
+                    collision_constraint(fact)
+            elif name == 'cfree':
+                collision_constraint(fact)
             elif name == 'motion':
                 q1, t, q2 = map(get_var, args)
                 for i in range(len(q1)):

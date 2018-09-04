@@ -3,7 +3,7 @@ import time
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
 from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_object
 
 # https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
 #try:
@@ -75,7 +75,7 @@ class FunctionInstance(Instance):  # Head(Instance):
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if verbose:
             print('{}{}={}'.format(get_prefix(self.external.head),
-                                   str_from_tuple(self.get_input_values()), self.value))
+                                   str_from_object(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
         #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
         #    self.update_statistics(start_time, [])

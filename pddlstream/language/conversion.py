@@ -6,7 +6,7 @@ from itertools import product
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, Head, Evaluation, \
     get_prefix, get_args, is_parameter
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_object
 
 def replace_expression(parent, fn):
     prefix = get_prefix(parent)
@@ -209,10 +209,16 @@ def revert_solution(plan, cost, evaluations):
 #    # TODO: better way of doing this?
 #    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
 
-
-def str_from_head(head):
-    return '{}{}'.format(get_prefix(head), str_from_tuple(get_args(head)))
-
-
 def remap_objects(objects, bindings):
     return tuple(bindings.get(i, i) for i in objects)
+
+
+def str_from_head(head):
+    return '{}{}'.format(get_prefix(head), str_from_object(get_args(head)))
+
+
+def str_from_fact(fact):
+    prefix = get_prefix(fact)
+    if prefix == NOT:
+        return '~{}'.format(str_from_fact(fact[1]))
+    return str_from_head(fact)

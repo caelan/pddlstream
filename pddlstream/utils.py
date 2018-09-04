@@ -88,11 +88,11 @@ def print_solution(solution):
     print('Evaluations: {}'.format(len(evaluations)))
     if not solved:
         return
-    for i, action in enumerate(plan):
-        print('{}) {}'.format(i+1, ' '.join(map(str, action))))
+    for i, (name, args) in enumerate(plan):
+        print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
+    #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
 
-
-class Verbose(object):
+class Verbose(object): # TODO: use DisableOutput
     def __init__(self, verbose):
         self.verbose = verbose
     def __enter__(self):
@@ -138,10 +138,6 @@ def find_unique(test, sequence):
     if not found:
         raise RuntimeError('Unable to find an element satisfying the test')
     return value
-
-def str_from_tuple(tup):
-    return '({})'.format(', '.join(map(str, tup)))
-
 
 def open_pdf(filename):
     import subprocess
@@ -200,3 +196,24 @@ class HeapElement(object):
 
 def get_python_version():
     return sys.version_info[0]
+
+def str_from_object(obj):  # str_object
+    if type(obj) in [list]: #, np.ndarray):
+        return '[{}]'.format(', '.join(str_from_object(item) for item in obj))
+    if type(obj) == tuple:
+        return '({})'.format(', '.join(str_from_object(item) for item in obj))
+    if type(obj) == dict:
+        return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key), str_from_object(obj[key])) \
+                                  for key in sorted(obj.keys(), key=lambda k: str_from_object(k))))
+    if type(obj) in (set, frozenset):
+        return '{{{}}}'.format(', '.join(sorted(str_from_object(item) for item in obj)))
+    #if type(obj) in (float, np.float64):
+    #    obj = round(obj, 3)
+    #    if obj == 0: obj = 0  # NOTE - catches -0.0 bug
+    #    return '%.3f' % obj
+    #if isinstance(obj, types.FunctionType):
+    #    return obj.__name__
+    return str(obj)
+
+def str_from_tuple(tup):
+    return str_from_object(tup)

@@ -30,7 +30,8 @@ class SynthStream(Stream):
     _Instance = SynthStreamInstance
     _Result = SynthStreamResult
     def __init__(self, synthesizer, gen_fn, inputs, domain, outputs, certified, streams, macro_from_micro):
-        info = None # TODO: stream info
+        #info = None # TODO: stream info
+        info = StreamInfo() # TODO: use StreamSynthesizer?
         super(SynthStream, self).__init__(synthesizer.name, gen_fn, inputs, domain, outputs, certified, info)
         self.synthesizer = synthesizer
         self.streams = streams

@@ -13,7 +13,7 @@ STEM_HEIGHT = 2.5
 PIXEL_BUFFER = 10
 ENV_HEIGHT = 1.
 
-GROUND = 'ground'
+GROUND_NAME = 'grey'
 BLOCK_WIDTH = 1
 BLOCK_HEIGHT = BLOCK_WIDTH
 
@@ -39,7 +39,7 @@ class ContinuousTMPViewer(object):
         # self.center()
         self.move_frame(self.tl_x, self.tl_y)
 
-        self.dist_to_pixel = (self.width - 2 * PIXEL_BUFFER) / get_width(regions[GROUND])  # Maintains aspect ratio
+        self.dist_to_pixel = (self.width - 2 * PIXEL_BUFFER) / get_width(regions[GROUND_NAME])  # Maintains aspect ratio
         self.dist_width = self.width / self.dist_to_pixel
         self.dist_height = self.height / self.dist_to_pixel
         self.ground_height = self.height - self.dist_to_pixel * ENV_HEIGHT
@@ -71,12 +71,13 @@ class ContinuousTMPViewer(object):
     def scale_y(self, y):  # y \in [0, self.dist_height]
         return self.ground_height - self.dist_to_pixel * y
 
-    def draw_block(self, x, width, height, color='blue'):
-        self.blocks.append(self.canvas.create_rectangle(self.scale_x(x - width / 2.),
-                                                        self.scale_y(0),
-                                                        self.scale_x(x + width / 2.),
-                                                        self.scale_y(height),
-                                                        fill=color, outline='black', width=2))
+    def draw_block(self, x, y, width, height, name='', color='blue'):
+        self.blocks.extend([
+            self.canvas.create_rectangle(self.scale_x(x - width / 2.), self.scale_y(y),
+                                         self.scale_x(x + width / 2.), self.scale_y(y + height),
+                                         fill=color, outline='black', width=2),
+            self.canvas.create_text(self.scale_x(x), self.scale_y(height / 2), text=name),
+        ])
 
     # def draw_holding(self, x, width, height, color='blue'):
     #     self.holding = self.canvas.create_rectangle(self.scale_x(x - width / 2.),
@@ -85,18 +86,22 @@ class ContinuousTMPViewer(object):
     #                                                 self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2),
     #                                                 fill=color, outline='black', width=2)
 
-    def draw_region(self, region, color='red'):
+    def draw_region(self, region, name='', color='red'):
         x1, x2 = map(self.scale_x, region)
-        self.environment.append(self.canvas.create_rectangle(x1, self.ground_height,
-                                                             x2, self.height,
-                                                             fill=color, outline='black', width=2))
+        y1, y2 = self.ground_height, self.height
+        self.environment.extend([
+            self.canvas.create_rectangle(x1, y1, x2, y2,
+                                         fill=color, outline='black', width=2),
+            self.canvas.create_text((x1 + x2) / 2, (y1 + y2) / 2, text=name),
+        ])
 
     def draw_environment(self, table_color='lightgrey'):
+        # TODO: automatically draw in order
         self.environment = []
-        self.draw_region(self.regions[GROUND], color=table_color)
+        self.draw_region(self.regions[GROUND_NAME], name=GROUND_NAME, color=table_color)
         for name, region in self.regions.items():
-            if name != GROUND:
-                self.draw_region(region)
+            if name != GROUND_NAME:
+                self.draw_region(region, name=name)
 
 
     def draw_robot(self, x, y, color='yellow'):  # TODO - could also visualize as top grasps instead of side grasps

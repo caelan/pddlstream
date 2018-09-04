@@ -21,7 +21,7 @@ from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.stream import Stream
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.utils import INF, elapsed_time, get_length
 
 
 # TODO: compute total stream plan p_success and overhead
@@ -102,8 +102,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
         stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
-        print('Stream plan ({}): {}\nAction plan ({}, {}): {}'.format(len(stream_plan), stream_plan,
-                                                                      len(action_plan), cost, action_plan))
+        print('Stream plan ({}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), stream_plan,
+                                                                      get_length(action_plan), cost, action_plan))
         search_time += elapsed_time(start_time)
 
         start_time = time.time()

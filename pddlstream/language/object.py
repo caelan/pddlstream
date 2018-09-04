@@ -2,6 +2,7 @@ from collections import Hashable, namedtuple
 
 USE_HASH = True
 USE_STRING = False
+USE_STR = True
 
 class Object(object):
     _prefix = 'o'
@@ -56,7 +57,10 @@ class Object(object):
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):
-        #return repr(self.value)
+    #def __str__(self):
+        if USE_STR:
+            #return repr(self.value)
+            return str(self.value)
         return self.pddl
 
 # TODO: just one object class or have Optimistic extend Object

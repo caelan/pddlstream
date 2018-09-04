@@ -34,6 +34,11 @@
     :outputs ()
     :certified (Contained ?b ?p ?r)
   )
+  (:stream test-cfree
+    :inputs (?b1 ?p1 ?b2 ?p2)
+    :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+    :certified (CFree ?b1 ?p1 ?b2 ?p2)
+  )
 
   ;(:stream reachable
   ;  :inputs (?q1 ?q2)

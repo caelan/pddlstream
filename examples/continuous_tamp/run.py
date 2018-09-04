@@ -14,11 +14,11 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, \
     get_blocked_problem, draw_state, get_random_seed, \
     TAMPState, get_tight_problem
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
+from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.search import ABSTRIPSLayer
-from pddlstream.language.constants import And, Equal
+from pddlstream.language.constants import And, Equal, PDDLProblem
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
@@ -29,20 +29,20 @@ from pddlstream.utils import print_solution, user_input, read, INF, get_file_pat
 #    new_fluents = set(fluents)
 #    # TODO: could return action descriptions or could just return fluents
 #    return
-
-def reachable_test(q1, q2, fluents=[]):
-    placed_blocks = {}
-    holding_block = None
-    for fluent in fluents:
-        if fluent[0] == 'atpose':
-            b, p = fluent[1:]
-            placed_blocks[b] = p
-        if fluent[0] == 'holding':
-            b, = fluent[1:]
-            holding_block = b
-    print(q1, q2, holding_block, placed_blocks)
-    #return True
-    return False
+#
+# def reachable_test(q1, q2, fluents=[]):
+#     placed_blocks = {}
+#     holding_block = None
+#     for fluent in fluents:
+#         if fluent[0] == 'atpose':
+#             b, p = fluent[1:]
+#             placed_blocks[b] = p
+#         if fluent[0] == 'holding':
+#             b, = fluent[1:]
+#             holding_block = b
+#     print(q1, q2, holding_block, placed_blocks)
+#     #return True
+#     return False
 
 ##################################################
 
@@ -63,7 +63,7 @@ def pddlstream_from_tamp(tamp_problem):
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
+           [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
 
     goal_literals = [('In', b, r) for b, r in tamp_problem.goal_regions.items()] #+ [('HandEmpty',)]
@@ -77,17 +77,17 @@ def pddlstream_from_tamp(tamp_problem):
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
         'inverse-kinematics':  from_fn(inverse_kin_fn),
-        'collision-free': from_test(lambda *args: not collision_test(*args)),
-        'cfree': lambda *args: not collision_test(*args),
+        'test-cfree': from_test(lambda *args: not collision_test(*args)),
+        #'cfree': lambda *args: not collision_test(*args),
         'posecollision': collision_test,
         'trajcollision': lambda *args: False,
         'distance': distance_fn,
-        'reachable': from_test(reachable_test),
+        #'reachable': from_test(reachable_test),
         #'Valid': valid_state_fn,
     }
     #stream_map = 'debug'
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -128,7 +128,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     }
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        #'cfree': StreamInfo(eager=True),
+        'cfree': StreamInfo(negate=True),
     }
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
@@ -138,14 +138,13 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
         #                  gen_fn=from_fn(cfree_motion_fn)),
         StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                       'posecollision': 0, 'distance': 0},
+                                       'posecollision': 0, 'test-cfree': 0, 'distance': 0},
                           gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ] if use_synthesizers else []
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    init, goal = pddlstream_problem[-2:]
-    print(init)
-    print(goal)
+    print('Initial:', pddlstream_problem.init)
+    print('Goal:', pddlstream_problem.goal)
     pr = cProfile.Profile()
     pr.enable()
     if focused:
@@ -153,7 +152,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
                                  synthesizers=synthesizers,
                                  max_time=10, max_cost=INF, debug=False, hierarchy=hierarchy,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
-                                 visualize=False)
+                                 visualize=True)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
                                      unit_costs=unit_costs)

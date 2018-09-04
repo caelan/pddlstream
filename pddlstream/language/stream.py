@@ -4,12 +4,12 @@ from itertools import count
 
 from pddlstream.language.conversion import list_from_conjunction, dnf_from_positive_formula, remap_objects, \
     substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
-from pddlstream.language.constants import AND, OR, get_prefix, get_args, is_parameter
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.algorithms.downward import OBJECT, fd_from_fact
-from pddlstream.utils import str_from_tuple, get_mapping
+from pddlstream.utils import str_from_object, get_mapping
 
 VERBOSE_FAILURES = True
 INTERNAL = False
@@ -113,8 +113,8 @@ class StreamResult(Result):
         return True
     def __repr__(self):
         return '{}:{}->{}'.format(self.instance.external.name,
-                                  str_from_tuple(self.instance.input_objects),
-                                  str_from_tuple(self.output_objects))
+                                  str_from_object(self.instance.input_objects),
+                                  str_from_object(self.output_objects))
 
 class StreamInstance(Instance):
     def __init__(self, stream, input_objects, fluent_facts):
@@ -183,12 +183,13 @@ class StreamInstance(Instance):
             all_results.extend(new_results)
             self.update_statistics(start_time, new_results)
         if verbose and (VERBOSE_FAILURES or all_new_values):
-            print('{}-{}) {}:{}->[{}]'.format(start_calls, self.num_calls, self.external.name,
-                                           str_from_tuple(self.get_input_values()),
-                                       ', '.join(map(str_from_tuple, all_new_values))))
-        if verbose and all_new_facts:
             print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
-                                            str_from_tuple(self.get_input_values()), all_new_facts))
+                                            str_from_object(self.get_input_values()),
+                                            str_from_object(all_new_values)))
+        if verbose and all_new_facts:
+            # TODO: format all_new_facts
+            print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
+                                            str_from_object(self.get_input_values()), all_new_facts))
         return all_results, list(map(obj_from_value_expression, all_new_facts))
     def next_optimistic(self):
         # TODO: compute this just once and store
