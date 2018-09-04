@@ -18,8 +18,7 @@ from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.constants import Equal, AND
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.stream import StreamInfo
-from collections import namedtuple
+from pddlstream.language.stream import StreamInfo, PartialInputs
 
 
 USE_SYNTHESIZERS = False
@@ -67,36 +66,21 @@ def move_cost_fn(t):
 
 #######################################################
 
-OptValue = namedtuple('OptValue', ['stream', 'inputs'])
-
 def extract_point2d(v):
     if isinstance(v, Conf):
         return v.values[:2]
     if isinstance(v, Pose):
         return point_from_pose(v.value)[:2]
-    if v.stream == 'p-sp':
-        r, = v.inputs
+    if v.stream == 'sample-pose':
+        r, = v.values
         return point_from_pose(get_pose(r))[:2]
-    if v.stream == 'q-ik':
-        p, = v.inputs
+    if v.stream == 'inverse-kinematics':
+        p, = v.values
         return extract_point2d(p)
-    return ValueError(v.stream)
-
-def opt_pose_fn(o, r):
-    p = OptValue('p-sp', (r,))
-    return p,
-
-def opt_ik_fn(a, o, p, g):
-    q = OptValue('q-ik', (p,))
-    t = OptValue('t-ik', tuple())
-    return q, t
-
-def opt_motion_fn(q1, q2):
-    t = OptValue('t-pbm', (q1, q2))
-    return t,
+    raise ValueError(v.stream)
 
 def opt_move_cost_fn(t):
-    q1, q2 = t.inputs
+    q1, q2 = t.values
     distance = get_distance(extract_point2d(q1), extract_point2d(q2))
     cost = BASE_CONSTANT + distance / BASE_VELOCITY
     return scale_cost(cost)
@@ -224,9 +208,9 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
 
     stream_info = {
-        'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
-        'inverse-kinematics': StreamInfo(from_fn(opt_ik_fn)),
-        'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
+        'sample-pose': StreamInfo(PartialInputs('?r')),
+        'inverse-kinematics': StreamInfo(PartialInputs('?p')),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2')),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     }
 

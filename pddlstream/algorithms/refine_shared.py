@@ -138,6 +138,20 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     # TODO: should I just plan using all original plus expanded
     # TODO: might need new actions here (such as a move)
     stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
+
+    # TODO: plan up to first action that only has one
+    # Only use actions in the states between the two
+    # planned_instances = []
+    # for name, args in action_plan:
+    #     input_objects = [bindings.get(i, [i]) for i in args]
+    #     instances = []
+    #     for combo in product(*input_objects):
+    #         # TODO: prune actions that aren't feasible
+    #         instances.append((name, combo))
+    #     planned_instances.append(instances)
+    # print(action_plan)
+    # print(planned_instances)
+
     if not ONLY_LOCAL:
         # I don't think the double bound thing really makes entire sense here
         double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}

@@ -131,7 +131,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         #'cfree': StreamInfo(eager=True),
     }
     hierarchy = [
-        ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
+        #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
     ]
 
     synthesizers = [

@@ -9,10 +9,11 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.algorithms.downward import OBJECT, fd_from_fact
-from pddlstream.utils import str_from_tuple
+from pddlstream.utils import str_from_tuple, get_mapping
 
-VEBOSE_FAILURES = True
+VERBOSE_FAILURES = True
 INTERNAL = False
+DEFAULT_UNIQUE = False
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 
@@ -27,26 +28,31 @@ def get_identity_fn(indices):
 
 ##################################################
 
-#UniqueOpt = namedtuple('UniqueOpt', ['instance', 'output_index'])
-SharedOpt = namedtuple('SharedOpt', ['external', 'output_index'])
+OptValue = namedtuple('OptValue', ['stream', 'inputs', 'values', 'output'])
 
-def get_shared_gen_fn(stream): # TODO: identify bound
-    def gen_fn(*input_values):
-        output_values = tuple(SharedOpt(stream, i) for i in range(len(stream.outputs)))
-        yield [output_values]
-    return gen_fn
-
-# def create_partial_fn():
-#     # TODO: indices or names
-#     raise NotImplementedError()
-#     #return get_partial_fn
+class PartialInputs(object):
+    def __init__(self, inputs='', unique=False):
+        self.inputs = tuple(inputs.split())
+        self.unique = unique
+    def get_opt_gen_fn(self, stream):
+        inputs = stream.inputs if self.unique else self.inputs
+        assert set(inputs) <= set(stream.inputs)
+        def gen_fn(*input_values):
+            mapping = get_mapping(stream.inputs, input_values)
+            input_values = tuple(mapping[inp] for inp in inputs)
+            yield [tuple(OptValue(stream.name, inputs, input_values, out)
+                         for out in stream.outputs)]
+        return gen_fn
 
 def get_constant_gen_fn(stream, constant):
     def gen_fn(*input_values):
-        assert(len(stream.inputs) == len(input_values))
-        output_values = tuple(constant for _ in range(len(stream.outputs)))
-        yield [output_values]
+        assert (len(stream.inputs) == len(input_values))
+        yield [tuple(constant for _ in range(len(stream.outputs)))]
     return gen_fn
+
+##################################################
+
+UniqueOptValue = namedtuple('UniqueOpt', ['instance', 'sequence_index', 'output_index'])
 
 # def get_unique_fn(stream):
 #     # TODO: this should take into account the output number...
@@ -57,6 +63,10 @@ def get_constant_gen_fn(stream, constant):
 #         output_values = tuple(object() for _ in range(len(stream.outputs)))
 #         return [output_values]
 #     return fn
+
+def get_debug_gen_fn(stream):
+    return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o)
+                                       for o in stream.outputs))
 
 class DebugValue(object): # TODO: could just do an object
     _output_counts = defaultdict(count)
@@ -71,7 +81,7 @@ class DebugValue(object): # TODO: could just do an object
 ##################################################
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=None, eager=False,
+    def __init__(self, opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), eager=False,
                  p_success=None, overhead=None, negate=False):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead)
@@ -172,7 +182,7 @@ class StreamInstance(Instance):
             new_results = [self.external._Result(self, tuple(map(Object.from_value, ov))) for ov in new_values]
             all_results.extend(new_results)
             self.update_statistics(start_time, new_results)
-        if verbose and (VEBOSE_FAILURES or all_new_values):
+        if verbose and (VERBOSE_FAILURES or all_new_values):
             print('{}-{}) {}:{}->[{}]'.format(start_calls, self.num_calls, self.external.name,
                                            str_from_tuple(self.get_input_values()),
                                        ', '.join(map(str_from_tuple, all_new_values))))
@@ -194,8 +204,9 @@ class StreamInstance(Instance):
         for i, output_values in enumerate(new_values):
             output_objects = []
             for j, value in enumerate(output_values):
+                # TODO: maybe record history of values here?
                 #unique = object()
-                unique = (self, i, j)
+                unique = UniqueOptValue(self, i, j)
                 param = unique if (self.opt_index == 0) else value
                 output_objects.append(OptimisticObject.from_opt(value, param))
             results.append(self.external._Result(self, output_objects, opt_index=self.opt_index))
@@ -235,8 +246,6 @@ class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
-        if info is None:
-            info = StreamInfo(p_success=None, overhead=None)
         for p, c in Counter(outputs).items():
             if c != 1:
                 raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
@@ -248,27 +257,18 @@ class Stream(External):
         super(Stream, self).__init__(name, info, inputs, domain)
 
         # Each stream could certify a stream-specific fact as well
-        if gen_fn == DEBUG:
-            #gen_fn = from_fn(lambda *args: tuple(object() for _ in self.outputs))
-            gen_fn = from_fn(lambda *args: tuple(DebugValue(name, args, o) for o in self.outputs))
-        self.gen_fn = gen_fn
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
+        self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
 
-        # TODO: generalize to a hierarchical sequence
-        always_unique = False
-        if always_unique:
-            self.num_opt_fns = 0
-            #self.opt_list_fn = get_unique_fn(self)
-            self.opt_gen_fn = get_constant_gen_fn(self, None)
-            raise NotImplementedError()
+        self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
+        if isinstance(self.info.opt_gen_fn, PartialInputs):
+            self.opt_gen_fn = self.info.opt_gen_fn.get_opt_gen_fn(self)
         else:
-            self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
-            self.opt_gen_fn = get_shared_gen_fn(self) if (self.info.opt_gen_fn is None) else self.info.opt_gen_fn
-        #self.bound_list_fn = None
+            self.opt_gen_fn = self.info.opt_gen_fn
+        #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
-        #self.opt_fns = [get_unique_fn(self)] # get_unique_fn | get_shared_fn
 
         self.fluents = fluents
         self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
@@ -302,7 +302,8 @@ class Stream(External):
 
 def parse_stream(lisp_list, stream_map, stream_info):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':stream', ':wild-stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified'}
+    assert set(value_from_attribute) <= {':stream', ':wild-stream', ':inputs',
+                                         ':domain', ':fluents', ':outputs', ':certified'}
     is_wild = (':wild-stream' in value_from_attribute)
     name = value_from_attribute[':wild-stream'] if is_wild else value_from_attribute[':stream']
     domain = value_from_attribute.get(':domain', None)
@@ -318,6 +319,6 @@ def parse_stream(lisp_list, stream_map, stream_info):
                   list_from_conjunction(domain),
                   value_from_attribute.get(':outputs', []),
                   list_from_conjunction(certified),
-                  stream_info.get(name, None),
+                  stream_info.get(name, StreamInfo()),
                   fluents=value_from_attribute.get(':fluents', []),
                   is_wild=is_wild)

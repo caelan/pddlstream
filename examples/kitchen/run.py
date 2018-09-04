@@ -4,6 +4,9 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import Equal, AND, PDDLProblem
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
+import cProfile
+import pstats
+
 ROBOT = 'gripper'
 CUP = 'cup'
 COASTER = 'block'
@@ -23,12 +26,12 @@ def create_problem(initial_poses):
 
     goal_literals = [
         ('Empty', ROBOT),
-        #('AtPose', COASTER, block_goal),
-        #('On', CUP, COASTER),
+        ('AtPose', COASTER, block_goal),
+        ('On', CUP, COASTER),
         ('HasCoffee', CUP),
         ('HasCream', CUP),
-        #('HasSugar', CUP),
-        #('Mixed', CUP),
+        ('HasSugar', CUP),
+        ('Mixed', CUP),
     ]
 
     for name, pose in initial_poses.items():
@@ -66,8 +69,12 @@ def main():
     }
 
     problem = create_problem(initial_poses)
-    solution = solve_focused(problem, unit_costs=True, planner='ff-eager', debug=True)
+    pr = cProfile.Profile()
+    pr.enable()
+    solution = solve_focused(problem, unit_costs=True, planner='ff-eager', debug=True) # max_planner_time=5,
+    pr.disable()
     print_solution(solution)
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
 if __name__ == '__main__':
     main()
