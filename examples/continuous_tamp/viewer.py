@@ -134,6 +134,7 @@ class ContinuousTMPViewer(object):
         self.canvas.delete('all')
 
     def save(self, filename):
+        # TODO: only works on windows
         # self.canvas.postscript(file='%s.ps'%filename, colormode='color')
         from PIL import ImageGrab
         ImageGrab.grab((0, 0, self.width, self.height)).save(filename + '.jpg')

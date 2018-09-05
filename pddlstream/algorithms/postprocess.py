@@ -9,6 +9,7 @@ from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_strea
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
+from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.language.synthesizer import SynthStreamResult, get_synthetic_stream_plan
 
@@ -44,13 +45,7 @@ def extract_order(evaluations, preimage):
             ordered_results.append(result)
     return ordered_results
 
-def locally_optimize(evaluations, store, goal_expression, domain, functions, negative, dynamic_streams):
-    action_plan = store.best_plan
-    if action_plan is None:
-        return None
-    print('\nPostprocessing') # TODO: postprocess current skeleton as well
-
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
+def recover_opt_stream_plan(evaluations, action_plan, task):
     plan_instances = get_action_instances(task, action_plan) + [get_goal_instance(task.goal)]
     replace_derived(task, set(), plan_instances)
     preimage = filter(lambda a: not a.negated, plan_preimage(plan_instances, []))
@@ -60,6 +55,9 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     for stream_result in extract_order(evaluations, preimage):
         input_objects = tuple(opt_from_obj.get(o, o) for o in stream_result.instance.input_objects)
         instance = stream_result.instance.external.get_instance(input_objects)
+        #instance.opt_index = stream_result.instance.opt_index
+        #assert(instance.opt_index == 0)
+        instance.opt_index = 0
         #assert(not instance.disabled)
         instance.disabled = False
         opt_results = instance.next_optimistic()
@@ -69,25 +67,38 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
         opt_stream_plan.append(opt_result)
         for obj, opt in zip(stream_result.output_objects, opt_result.output_objects):
             opt_from_obj[obj] = opt
+    return opt_stream_plan, opt_from_obj
 
+def locally_optimize(evaluations, store, goal_expression, domain, functions, negative,
+                     dynamic_streams, visualize, sampling_time=0):
+    action_plan = store.best_plan
+    if action_plan is None:
+        return None
+    print('\nPostprocessing') # TODO: postprocess current skeleton as well
+
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
+    opt_stream_plan, opt_from_obj = recover_opt_stream_plan(evaluations, action_plan, task)
     opt_stream_plan += optimistic_process_streams(evaluations_from_stream_plan(evaluations, opt_stream_plan), functions)
     opt_action_plan = [(name, tuple(opt_from_obj.get(o, o) for o in args)) for name, args in action_plan]
     pddl_plan = [(name, map(pddl_from_object, args)) for name, args in opt_action_plan]
-    stream_plan = recover_stream_plan(evaluations, goal_expression, domain, opt_stream_plan, pddl_plan, negative, unit_costs=False)
+    stream_plan = recover_stream_plan(evaluations, goal_expression, domain,
+                                      opt_stream_plan, pddl_plan, negative, unit_costs=False)
 
     stream_plan = reorder_stream_plan(stream_plan)
     stream_plan = get_synthetic_stream_plan(stream_plan, dynamic_streams)
     print('Stream plan: {}\n'
           'Action plan: {}'.format(stream_plan, opt_action_plan))
     opt_cost = 0 # TODO: compute this cost for real
+    if visualize:
+        create_visualizations(evaluations, stream_plan, -1)
 
     store.start_time = time.time()
     store.max_cost = store.best_cost
-    #sampling_time = 10
-    sampling_time = 0
-    queue = SkeletonQueue(evaluations, store)
+    queue = SkeletonQueue(store, evaluations, domain)
     queue.new_skeleton(stream_plan, opt_action_plan, opt_cost)
-    queue.greedily_process(sampling_time)
+    queue.greedily_process()
+    queue.timed_process(sampling_time)
     # TODO: compare solution cost and validity?
     # TODO: select which binding
     # TODO: repeatedly do this
+    # TODO: can do this during the search & with all queued plan skeletons

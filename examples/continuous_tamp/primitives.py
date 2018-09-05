@@ -152,21 +152,21 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
 
 
-def get_blocked_problem():
+def get_blocked_problem(n_blocks=2):
     regions = {
         GROUND_NAME: (-15, 15),
         REGION_NAME: (5, 10)
     }
 
-    blocks = ['{}'.format(BLOCK_PREFIX, i) for i in range(2)]
-    poses = [np.zeros(2), np.array([7.5, 0])]
-    block_poses = dict(zip(blocks, poses))
+    blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
+    #poses = [np.zeros(2), np.array([7.5, 0])]
+    #block_poses = dict(zip(blocks, poses))
 
-    #block_regions = {
-    #    blocks[0]: GROUND,
-    #    blocks[1]: REGION_NAME,
-    #}
-    #block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+    block_regions = {
+        blocks[0]: GROUND_NAME,
+        blocks[1]: REGION_NAME,
+    }
+    block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
     initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}

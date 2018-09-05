@@ -50,6 +50,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
     if index is None:
         index = 0
         instance = stream_plan[index].instance
+        #assert(instance.opt_index == 0)
         assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
         new_results, new_facts = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
         if new_results and isinstance(instance, StreamInstance):
@@ -183,7 +184,7 @@ class SkeletonQueue(Sized):
 
     def timed_process(self, max_time):
         start_time = time.time()
-        while self.is_active() and (max_time <= elapsed_time(start_time)):
+        while self.is_active() and (elapsed_time(start_time) <= max_time):
             _, skeleton = heappop(self.queue)
             process_stream_plan(skeleton, self)
             self.greedily_process()

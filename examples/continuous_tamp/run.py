@@ -4,10 +4,12 @@ from __future__ import print_function
 
 import cProfile
 import pstats
-
+import os
 import numpy as np
+
 from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.utils import clear_dir, ensure_dir
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
@@ -18,6 +20,7 @@ from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.search import ABSTRIPSLayer
+from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.language.constants import And, Equal, PDDLProblem
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
@@ -76,12 +79,12 @@ def pddlstream_from_tamp(tamp_problem):
         'plan-motion': from_fn(plan_motion),
         'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         'test-region': from_test(get_region_test(tamp_problem.regions)),
-        'inverse-kinematics':  from_fn(inverse_kin_fn),
-        'test-cfree': from_test(lambda *args: not collision_test(*args)),
-        #'cfree': lambda *args: not collision_test(*args),
-        'posecollision': collision_test,
-        'trajcollision': lambda *args: False,
+        'inverse-kinematics': from_fn(inverse_kin_fn),
         'distance': distance_fn,
+
+        'test-cfree': from_test(lambda *args: not collision_test(*args)),
+        'posecollision': collision_test, # Redundant
+        'trajcollision': lambda *args: False,
         #'reachable': from_test(reachable_test),
         #'Valid': valid_state_fn,
     }
@@ -113,14 +116,14 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True):
+def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -154,7 +157,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
                                  max_time=10, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
+                                 effort_weight=None, unit_costs=unit_costs, postprocess=True,
                                  visualize=True)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
@@ -163,8 +166,11 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     plan, cost, evaluations = solution
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    if plan is None:
-        return
+
+    #example_name = os.path.basename (os.path.dirname(__file__))
+    #directory = os.path.join(VISUALIZATIONS_DIR, example_name)
+    #clear_dir(directory)
+    #ensure_dir(directory)
 
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
@@ -173,12 +179,15 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     print(state)
     draw_state(viewer, state, colors)
     user_input('Continue?')
-    for i, action in enumerate(plan):
-        print(i, *action)
-        for state in apply_action(state, action):
-            print(state)
-            draw_state(viewer, state, colors)
-            user_input('Continue?')
+
+    if plan is not None:
+        for i, action in enumerate(plan):
+            print(i, *action)
+            for j, state in enumerate(apply_action(state, action)):
+                print(i, j, state)
+                draw_state(viewer, state, colors)
+                #viewer.save(os.path.join('{}_{}'.format(i, j)))
+                user_input('Continue?')
     user_input('Finish?')
 
 

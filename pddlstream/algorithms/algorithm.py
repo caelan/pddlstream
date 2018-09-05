@@ -4,7 +4,7 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
-from pddlstream.algorithms.search import solve_from_task
+from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
@@ -66,7 +66,7 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs
         unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    plan_pddl, cost = solve_from_task(task, **kwargs)
+    plan_pddl, cost = abstrips_solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
 

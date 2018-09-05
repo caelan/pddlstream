@@ -110,6 +110,7 @@ class StreamResult(Result):
         fluent_facts = [(get_prefix(f),) + remap_objects(get_args(f), bindings)
                         for f in self.instance.fluent_facts]
         new_instance = self.instance.external.get_instance(input_objects, fluent_facts=fluent_facts)
+        new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.output_objects, self.opt_index)
     def is_successful(self):
         return True

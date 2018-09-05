@@ -37,6 +37,7 @@ class FunctionResult(Result):
         # TODO: move this to the instance class?
         input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
         new_instance = self.instance.external.get_instance(input_objects)
+        new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.value, self.opt_index)
 
     def is_successful(self):

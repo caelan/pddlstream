@@ -41,27 +41,30 @@ def partition_externals(externals):
 ##################################################
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_cost=INF, unit_costs=None,
-                  effort_weight=None, eager_layers=1,
+                  max_time=INF, max_cost=INF, unit_costs=False,
+                  effort_weight=None, eager_layers=1, search_sampling_ratio=1,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
     :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
+    :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_cost: a strict upper bound on plan cost
+    :param unit_costs: use unit costs rather than numeric costs
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param eager_layers: the number of eager stream application layers per iteration
+    :param search_sampling_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
+    :param postprocess: postprocess the stream plan to find a better solution
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
     # TODO: return to just using the highest level samplers at the start
-    search_sampling_ratio = 1
     solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
     #solve_stream_plan_fn = incremental_stream_plan # sequential_stream_plan | incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
@@ -70,8 +73,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
     compile_fluent_streams(domain, externals)
-    if unit_costs is None:
-        unit_costs = not has_costs(domain)
+    unit_costs &= has_costs(domain)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)
     if visualize:
@@ -111,7 +113,6 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             if not queue:
                 break
             queue.process_until_success()
-            #queue.fairly_process()
         else:
             if visualize:
                 create_visualizations(evaluations, stream_plan, num_iterations)
@@ -123,7 +124,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         queue.timed_process(search_sampling_ratio*search_time - sample_time)
         sample_time += elapsed_time(start_time)
 
-    if postprocess and (not unit_costs):
-        locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
+    if postprocess and (not unit_costs): # and synthesizers
+        locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers, visualize)
     write_stream_statistics(externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)
