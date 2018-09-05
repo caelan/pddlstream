@@ -22,12 +22,6 @@ from viewer import DiscreteTAMPViewer, COLORS, MAX_COLS, MAX_ROWS
 
 GRASP = np.array([0, 0])
 
-#def ik_fn(p):
-#    q = p + GRASP
-#    outputs = []
-#    facts = [('Kin', q, p)]
-#    return outputs, facts
-
 def is_valid(p):
     return np.greater_equal(p, [0, 0]) and np.greater([MAX_COLS, MAX_ROWS], p)
 
@@ -88,11 +82,8 @@ def pddlstream_from_tamp(tamp_problem):
         #'sample-pose': from_gen_fn(lambda: ((np.array([x, 0]),) for x in range(len(poses), n_poses))),
         'sample-pose': from_gen_fn(lambda: ((p,) for p in tamp_problem.poses)),
         'inverse-kinematics':  from_fn(lambda p: (p + GRASP,)),
-        #'inverse-kinematics': from_list_fn(ik_fn),
-        #'inverse-kinematics': IKGenerator,
-        #'inverse-kinematics': IKFactGenerator,
-        'collision-free': from_test(lambda *args: not collision_test(*args)),
-        #'collision-free': from_gen_fn(noisy_collision_gen_fn),
+        'test-cfree': from_test(lambda *args: not collision_test(*args)),
+        #'test-cfree': from_gen_fn(noisy_collision_gen_fn),
         'collision': collision_test,
         #'constraint-solver': None,
         'distance': distance_fn,
@@ -105,9 +96,11 @@ def pddlstream_from_tamp(tamp_problem):
 DiscreteTAMPState = namedtuple('DiscreteTAMPState', ['conf', 'holding', 'block_poses'])
 DiscreteTAMPProblem = namedtuple('DiscreteTAMPProblem', ['initial', 'poses', 'goal_poses'])
 
+BLOCK_TEMPLATE = 'b{}'
+
 def get_shift_one_problem(n_blocks=2, n_poses=9):
     assert(2 <= n_blocks <= n_poses)
-    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    blocks = [BLOCK_TEMPLATE.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_poses)]
     conf = np.array([0, -5])
 
@@ -120,7 +113,7 @@ def get_shift_one_problem(n_blocks=2, n_poses=9):
 
 def get_shift_all_problem(n_blocks=2, n_poses=9):
     assert(n_blocks + 1 <= n_poses)
-    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    blocks = [BLOCK_TEMPLATE.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_poses)]
     conf = np.array([0, -5])
 
@@ -138,11 +131,11 @@ def draw_state(viewer, state, colors):
     viewer.draw_robot(*state.conf[::-1])
     for block, pose in state.block_poses.items():
         r, c = pose[::-1]
-        viewer.draw_block(r, c, color=colors[block])
+        viewer.draw_block(r, c, name=block, color=colors[block])
     if state.holding is not None:
         pose = state.conf - GRASP
         r, c = pose[::-1]
-        viewer.draw_block(r, c, color=colors[state.holding])
+        viewer.draw_block(r, c, name=state.holding, color=colors[state.holding])
 
 
 def apply_action(state, action):
@@ -187,13 +180,13 @@ def main(focused=True, unit_costs=False):
     print(tamp_problem)
 
     stream_info = {
-        'collision-free': StreamInfo(negate=True),
+        'test-cfree': StreamInfo(negate=True),
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
         #solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info, debug=True)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info, debug=False)
     else:
         solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)

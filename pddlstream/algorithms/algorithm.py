@@ -184,9 +184,9 @@ def apply_rules_to_streams(rules, streams):
 def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     streams = []
     if stream_pddl is None:
-        return None, streams
+        return streams
     if all(isinstance(e, External) for e in stream_pddl):
-        return None, stream_pddl
+        return stream_pddl
     if stream_map != DEBUG:
         stream_map = {k.lower(): v for k, v in stream_map.items()}
     stream_info = {k.lower(): v for k, v in stream_info.items()}

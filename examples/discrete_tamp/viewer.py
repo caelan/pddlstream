@@ -117,12 +117,15 @@ class DiscreteTAMPViewer(object):
             ]
 
 
-    def draw_block(self, r, c, color='red'):
+    def draw_block(self, r, c, name='', color='red'):
         x = self.transform_c(c)
         y = self.transform_r(r)
-        self.cells[(x, y)] = self.canvas.create_rectangle(x - self.side / 2., y - self.side / 2.,
-                                                          x + self.side / 2., y + self.side / 2.,
-                                                          fill=color, outline='black', width=2)
+        self.cells[(x, y)] = [
+            self.canvas.create_rectangle(x - self.side / 2., y - self.side / 2.,
+                                         x + self.side / 2., y + self.side / 2.,
+                                         fill=color, outline='black', width=2),
+            self.canvas.create_text(x, y, text=name),
+        ]
 
     # def delete(self, (x, y)):
     #  if (x, y) in self.cells:

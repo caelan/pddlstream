@@ -6,7 +6,7 @@ from time import time
 from pddlstream.algorithms.downward import write_task, parse_solution, run_search, TEMP_DIR, translate_task
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
-def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
@@ -47,7 +47,7 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     return full_plan, full_cost
 
 
-def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: specify goal grouping / group by predicate & objects
     # TODO: version that solves for all subgoals at once
     start_time = time()

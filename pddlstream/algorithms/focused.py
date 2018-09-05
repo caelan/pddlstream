@@ -10,6 +10,7 @@ from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan, opt
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
+from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
@@ -66,7 +67,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     """
     # TODO: return to just using the highest level samplers at the start
     solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
-    #solve_stream_plan_fn = incremental_stream_plan # sequential_stream_plan | incremental_stream_plan | exhaustive_stream_plan
+    #solve_stream_plan_fn = sequential_stream_plan # simultaneous_stream_plan | sequential_stream_plan
+    #solve_stream_plan_fn = incremental_stream_plan # incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     num_iterations = 0
     search_time = sample_time = 0
@@ -80,6 +82,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         clear_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
+    if verbose:
+        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
     queue = SkeletonQueue(store, evaluations, domain)
     # TODO: decide max_sampling_time based on total search_time or likelihood estimates
     # TODO: switch to searching if believe chance of search better than sampling

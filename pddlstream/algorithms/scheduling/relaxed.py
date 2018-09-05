@@ -115,6 +115,7 @@ def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
     reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the even that axioms are needed?
     new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_time=10, debug=True)
     return [stream_result_from_name[name] for name, _ in new_plan]
 
@@ -214,7 +215,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
             apply_action(real_state, action_instance)
             real_states.append(real_state.copy())
             if not unit_costs and (pair is not None):
-                function_plan.update(extract_function_results(results_from_head, *pair))
+                function_result = extract_function_results(results_from_head, *pair)
+                if function_result is not None:
+                    function_plan.add(function_result)
             break
         else:
             raise RuntimeError('No action instances are applicable')

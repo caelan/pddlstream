@@ -134,7 +134,7 @@ def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=Tr
     }
     stream_info = {
         'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        'cfree': StreamInfo(negate=True),
+        'test-cfree': StreamInfo(negate=True),
     }
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),

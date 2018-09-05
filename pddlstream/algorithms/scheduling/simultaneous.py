@@ -10,6 +10,7 @@ from pddlstream.utils import INF, find, int_ceil
 
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
+    # TODO: move this to another file
     result_from_evaluation = {e: None for e in evaluations}
     opt_evaluations = set(evaluations)
     for result in stream_plan:
@@ -36,17 +37,26 @@ def get_results_from_head(evaluations):
         #results_from_head[evaluation.head].append(stream_result)
     return results_from_head
 
-def get_stream_action(result, name, unit_cost, effect_scale=1):
+def combine_function_evaluations(evaluations, stream_results):
+    function_evaluations = {e: None for e in evaluations}
+    for result in stream_results:
+        if isinstance(result, FunctionResult):
+            for fact in result.get_certified():
+                function_evaluations[evaluation_from_fact(fact)] = result
+    return function_evaluations
+
+##################################################
+
+def get_stream_action(result, name, unit=True, effect_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
 
     parameters = []
     preconditions = [fd_from_fact(fact) for fact in result.instance.get_domain()]
-    precondition = pddl.Conjunction(preconditions)
     effects = [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact))
                for fact in result.get_certified()]
 
-    effort = 1 if unit_cost else result.instance.get_effort()
+    effort = 1 if unit else result.instance.get_effort()
     if effort == INF:
         return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
@@ -56,11 +66,11 @@ def get_stream_action(result, name, unit_cost, effect_scale=1):
     # TODO: is num_external_parameters correct?
     # Usually all parameters are external
     return pddl.Action(name=name, parameters=parameters, num_external_parameters=len(parameters),
-                    precondition=precondition, effects=effects, cost=cost)
+                       precondition=pddl.Conjunction(preconditions), effects=effects, cost=cost)
     # TODO: previous problem seemed to be new predicates
 
 
-def get_stream_actions(results, unit_costs=False):
+def get_stream_actions(results):
     stream_result_from_name = {}
     stream_actions = []
     for i, stream_result in enumerate(results):
@@ -68,7 +78,7 @@ def get_stream_actions(results, unit_costs=False):
         if type(stream_result) == FunctionResult:
             continue
         name = '{}-{}'.format(stream_result.instance.external.name, i)
-        stream_action = get_stream_action(stream_result, name, unit_costs)
+        stream_action = get_stream_action(stream_result, name)
         if stream_action is None:
             continue
         stream_result_from_name[name] = stream_result
@@ -82,7 +92,7 @@ def add_stream_actions(domain, stream_results):
     output_objects = []
     for stream_result in stream_result_from_name.values():
         if isinstance(stream_result, StreamResult):
-            output_objects += list(map(pddl_from_object, stream_result.output_objects))
+            output_objects.extend(map(pddl_from_object, stream_result.output_objects))
     new_constants = list({pddl.TypedObject(obj, OBJECT) for obj in output_objects} | set(domain.constants))
     # to_untyped_strips
     # free_variables
@@ -92,7 +102,9 @@ def add_stream_actions(domain, stream_results):
                         domain.actions[:] + stream_actions, domain.axioms)
     return new_domain, stream_result_from_name
 
-def get_cost(domain, results_from_head, name, args):
+##################################################
+
+def get_action_cost(domain, results_from_head, name, args):
     import pddl
     action = find(lambda a: a.name == name, domain.actions)
     if action.cost is None:
@@ -105,50 +117,64 @@ def get_cost(domain, results_from_head, name, args):
     [(value, _)] = results_from_head[head]
     return value
 
+def get_plan_cost(function_evaluations, action_plan, domain):
+    action_cost = 0
+    results_from_head = get_results_from_head(function_evaluations)
+    for name, args in action_plan:
+        action_cost += get_action_cost(domain, results_from_head, name, args)
+    return action_cost
+
+##################################################
+
 def extract_function_results(results_from_head, action, pddl_args):
     import pddl
     if (action.cost is None) or not isinstance(action.cost.expression, pddl.PrimitiveNumericExpression):
-        return []
+        return None
     var_mapping = {p.name: a for p, a in zip(action.parameters, pddl_args)}
     pddl_args = tuple(obj_from_pddl(var_mapping[p]) for p in action.cost.expression.args)
     head = Head(action.cost.expression.symbol, pddl_args)
     [(value, stream_result)] = results_from_head[head]
     if stream_result is None:
-        return []
-    return [stream_result]
+        return None
+    return stream_result
+
+def extract_function_plan(function_evaluations, action_plan, domain):
+    function_plan = set()
+    results_from_head = get_results_from_head(function_evaluations)
+    for name, args in action_plan:
+        action = find(lambda a: a.name == name, domain.actions)
+        pddl_args = tuple(map(pddl_from_object, args))
+        result = extract_function_results(results_from_head, action, pddl_args)
+        if result is not None:
+            function_plan.add(result)
+    return list(function_plan)
+
+##################################################
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,
                              negated, unit_costs=True, **kwargs):
     if negated:
-        raise NotImplementedError()
-    function_evaluations = {e: None for e in evaluations}
-    for result in stream_results:
-        if isinstance(result, FunctionResult):
-            for fact in result.get_certified():
-                function_evaluations[evaluation_from_fact(fact)] = result
-    new_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
-    combined_plan, _ = solve_finite(function_evaluations, goal_expression, new_domain,
-                                                unit_costs=unit_costs, **kwargs)
+        raise NotImplementedError(negated)
+
+    function_evaluations = combine_function_evaluations(evaluations, stream_results)
+    stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
+    combined_plan, _ = solve_finite(function_evaluations, goal_expression, stream_domain,
+                                    unit_costs=unit_costs, **kwargs)
     if combined_plan is None:
         return None, INF # TODO: return plan cost
-    stream_plan = []
-    action_plan = []
+
+    stream_plan, action_plan = [], []
     for name, args in combined_plan:
         if name in stream_result_from_name:
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append((name, args))
 
-    action_cost = len(action_plan)
-    function_plan = set()
-    if not unit_costs:
-        action_cost = 0
-        results_from_head = get_results_from_head(function_evaluations)
-        for name, args in action_plan:
-            action = find(lambda a: a.name == name, domain.actions)
-            pddl_args = tuple(map(pddl_from_object, args))
-            function_plan.update(extract_function_results(results_from_head, action, pddl_args))
-            action_cost += get_cost(domain, results_from_head, name, args)
-    stream_plan += list(function_plan)
-    combined_plan = stream_plan + action_plan
+    if unit_costs:
+        action_cost = len(action_plan)
+        function_plan = []
+    else:
+        action_cost = get_plan_cost(function_evaluations, action_plan, domain)
+        function_plan = extract_function_plan(function_evaluations, action_plan, domain)
+    combined_plan = stream_plan + function_plan + action_plan
     return combined_plan, action_cost

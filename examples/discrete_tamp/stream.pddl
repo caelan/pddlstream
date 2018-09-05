@@ -18,7 +18,7 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
-  ;(:predicate (Collision ?p1 ?p2) ; TODO: automatically convert these
+  ;(:predicate (Collision ?p1 ?p2)
   ;  (and (Pose ?p1) (Pose ?p2))
   ;)
 
@@ -26,14 +26,13 @@
     :outputs (?p)
     :certified (Pose ?p)
   )
-  ;(:wild-stream inverse-kinematics ; TODO: push wild-stream?
   (:stream inverse-kinematics
     :inputs (?p)
     :domain (Pose ?p)
     :outputs (?q)
     :certified (Kin ?q ?p)
   )
-  (:stream collision-free
+  (:stream test-cfree
     :inputs (?p1 ?p2)
     :domain (and (Pose ?p1) (Pose ?p2))
     :certified (CFree ?p1 ?p2)

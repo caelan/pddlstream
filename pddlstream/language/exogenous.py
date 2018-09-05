@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import count
 
-from pddlstream.algorithms.downward import fd_from_fact, TOTAL_COST
+from pddlstream.algorithms.downward import fd_from_fact, TOTAL_COST, OBJECT
 from pddlstream.language.conversion import evaluation_from_fact, \
     is_atom
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
@@ -110,7 +110,7 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
         streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
         stream_atom = streams[-1].certified[0]
-        parameters = [pddl.TypedObject(p, 'object') for p in get_args(stream_atom)]
+        parameters = [pddl.TypedObject(p, OBJECT) for p in get_args(stream_atom)]
         # TODO: add to predicates as well?
         domain.predicate_dict[get_prefix(stream_atom)] = pddl.Predicate(get_prefix(stream_atom), parameters)
         precondition = pddl.Conjunction(tuple(map(fd_from_fact, (stream_atom,) + tuple(stream.domain))))
@@ -187,8 +187,8 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
             external_params = derived_fact.args
             internal_params = tuple(p for p in (stream.inputs + stream.outputs)
                                         if p not in derived_fact.args)
-            parameters = tuple(pddl.TypedObject(p, 'object')
-                                     for p in (external_params + internal_params))
+            parameters = tuple(pddl.TypedObject(p, OBJECT)
+                               for p in (external_params + internal_params))
             #precondition = pddl.Conjunction(tuple(map(fd_from_fact, [stream_atom] +
             #                                        list(map(rename_derived, stream.domain)))))
             #precondition = pddl.Disjunction([fd_from_fact(fact), precondition]) # TODO: quantifier
@@ -209,5 +209,5 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
 
 def compile_to_exogenous(evaluations, domain, streams, use_axioms=True):
     if use_axioms:
-        return compile_to_exogenous_axioms(evaluations, domain, streams)
-    return compile_to_exogenous_actions(evaluations, domain, streams)
+        compile_to_exogenous_axioms(evaluations, domain, streams)
+    compile_to_exogenous_actions(evaluations, domain, streams)

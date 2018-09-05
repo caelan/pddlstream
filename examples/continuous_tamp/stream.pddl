@@ -1,15 +1,4 @@
 (define (stream pick-and-place)
-  (:function (Distance ?q1 ?q2)
-    (and (Conf ?q1) (Conf ?q2))
-  )
-
-  (:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
-    (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-  )
-  (:predicate (TrajCollision ?t ?b2 ?p2)
-    (and (Traj ?t) (Pose ?b2 ?p2))
-  )
-
   (:stream sample-pose
     :inputs (?b ?r)
     :domain (Placeable ?b ?r)
@@ -39,6 +28,17 @@
     :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
     :certified (CFree ?b1 ?p1 ?b2 ?p2)
   )
+
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
+  )
+
+  ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
+  ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+  ;)
+  ;(:predicate (TrajCollision ?t ?b2 ?p2)
+  ;  (and (Traj ?t) (Pose ?b2 ?p2))
+  ;)
 
   ;(:stream reachable
   ;  :inputs (?q1 ?q2)

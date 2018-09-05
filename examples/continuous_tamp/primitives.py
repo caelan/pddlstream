@@ -164,8 +164,8 @@ def get_blocked_problem(n_blocks=2):
 
     block_regions = {
         blocks[0]: GROUND_NAME,
-        blocks[1]: REGION_NAME,
     }
+    block_regions.update({b: REGION_NAME for b in blocks[1:]})
     block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
     initial = TAMPState(INITIAL_CONF, None, block_poses)

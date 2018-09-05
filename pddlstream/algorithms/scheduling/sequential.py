@@ -1,14 +1,14 @@
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, TOTAL_COST
-from pddlstream.algorithms.search import solve_from_task
+from pddlstream.algorithms.search import solve_from_task, abstrips_solve_from_task
 from pddlstream.algorithms.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
-    extract_function_results, get_results_from_head
+    extract_function_results, get_results_from_head, add_stream_actions
 from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.utils import find_unique, INF, MockSet
 
 
 # TODO: interpolate between all the scheduling options
 
-def simplify_actions(opt_evaluations, action_plan, task, unit_costs):
+def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
     # TODO: add ordering constraints to simplify the optimization
     import pddl
     import instantiate
@@ -21,7 +21,7 @@ def simplify_actions(opt_evaluations, action_plan, task, unit_costs):
     action_from_name = {}
     function_plan = set()
     for i, (name, args) in enumerate(action_plan):
-        action = find_unique(lambda a: a.name == name, task.domain.actions)
+        action = find_unique(lambda a: a.name == name, actions)
         assert (len(action.parameters) == len(args))
         # parameters = action.parameters[:action.num_external_parameters]
         var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
@@ -41,36 +41,41 @@ def simplify_actions(opt_evaluations, action_plan, task, unit_costs):
                                         pddl.Conjunction(new_preconditions), new_effects, cost))
         action_from_name[new_name] = (name, map(obj_from_pddl, args))
         if not unit_costs:
-            function_plan.update(extract_function_results(results_from_head, action, args))
-    return action_from_name, function_plan
+            function_result = extract_function_results(results_from_head, action, args)
+            if function_result is not None:
+                function_plan.add(function_result)
+    return action_from_name, list(function_plan)
 
 
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
                            negated, unit_costs=True, **kwargs):
     if negated:
-        raise NotImplementedError()
+        raise NotImplementedError(negated)
+
     # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    action_plan, action_cost = solve_from_task(opt_task, **kwargs)
+    action_plan, action_cost = abstrips_solve_from_task(opt_task, **kwargs)
     if action_plan is None:
         return None, action_cost
 
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
-    task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    action_from_name, function_plan = simplify_actions(opt_evaluations, action_plan, task, unit_costs)
+    actions = domain.actions[:]
+    domain.actions[:] = []
+    stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
+    domain.actions.extend(actions)
+    stream_task = task_from_domain_problem(stream_domain, get_problem(evaluations, goal_expression, stream_domain, unit_costs))
+    action_from_name, function_plan = simplify_actions(opt_evaluations, action_plan, stream_task, actions, unit_costs)
 
     planner = kwargs.get('planner', 'ff-astar')
-    combined_plan, _ = solve_from_task(task, planner=planner, **kwargs)
+    combined_plan, _ = solve_from_task(stream_task, planner=planner, **kwargs) # TODO: abstrips?
     if combined_plan is None:
         return None, INF
-    stream_plan = []
-    action_plan = []
+
+    stream_plan, action_plan = [], []
     for name, args in combined_plan:
         if name in stream_result_from_name:
             stream_plan.append(stream_result_from_name[name])
         else:
             action_plan.append(action_from_name[name])
-    stream_plan += list(function_plan)
-    combined_plan = stream_plan + action_plan
+    combined_plan = stream_plan + function_plan + action_plan
     return combined_plan, action_cost

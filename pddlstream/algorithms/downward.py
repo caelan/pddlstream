@@ -70,7 +70,8 @@ for w in [1, 3, 5]:
                    '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=5,' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
 
-# TODO: goal serialization
+DEFAULT_MAX_TIME = 30 # INF
+DEFAULT_PLANNER = 'ff-astar'
 
 ##################################################
 
@@ -213,7 +214,7 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 ##################################################
 
-def run_search(temp_dir, planner='max-astar', max_time=INF, max_cost=INF, debug=False):
+def run_search(temp_dir, planner=DEFAULT_PLANNER, max_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
     max_time = INFINITY if max_time == INF else int(max_time)
     max_cost = INFINITY if max_cost == INF else int(max_cost)
     start_time = time()
