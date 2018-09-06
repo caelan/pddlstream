@@ -171,10 +171,10 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
             action_plan.append((name, args))
 
     if unit_costs:
-        action_cost = len(action_plan)
         function_plan = []
+        action_cost = len(action_plan)
     else:
-        action_cost = get_plan_cost(function_evaluations, action_plan, domain)
         function_plan = extract_function_plan(function_evaluations, action_plan, domain)
+        action_cost = get_plan_cost(function_evaluations, action_plan, domain)
     combined_plan = stream_plan + function_plan + action_plan
     return combined_plan, action_cost

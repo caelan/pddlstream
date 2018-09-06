@@ -150,12 +150,40 @@ def prune_stream_plan(evaluations, stream_plan, target_facts):
         stream_plan = new_stream_plan
     return stream_plan
 
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
-    # TODO: toggle optimize more
+def extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name):
     import pddl_to_prolog
     import build_model
-    import pddl
     import axiom_rules
+    import instantiate
+
+    opt_task.init = opt_state
+    original_axioms = opt_task.axioms
+    axiom_from_action = get_necessary_axioms(action_instance, original_axioms, negative_from_name)
+    opt_task.axioms = []
+    opt_task.actions = axiom_from_action.keys()
+    # TODO: maybe it would just be better to drop the negative throughout this process until this end
+    with Verbose(False):
+        model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
+    opt_task.axioms = original_axioms
+    #print(axiom_from_action)
+
+    delta_state = (opt_state - real_state)  # Optimistic facts
+    opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
+    mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
+    instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
+    with Verbose(False):
+        helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
+    axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
+    axiom_plan = []  # Could always add all conditions
+    extract_axioms(axiom_from_atom, action_instance.precondition, axiom_plan)
+    # TODO: test if no derived solution
+    # TODO: add axiom init to reset state?
+    return axiom_plan
+
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
+    # TODO: toggle optimize more
+
+    import pddl
     import instantiate
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
@@ -187,29 +215,8 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
                                         if l.predicate not in axioms_from_name]
             if not conditions_hold(opt_state, nonderived_preconditions):
                 continue
-            opt_task.init = opt_state
-            original_axioms = opt_task.axioms
-            axiom_from_action = get_necessary_axioms(action_instance, original_axioms, negative_from_name)
-            opt_task.axioms = []
-            opt_task.actions = axiom_from_action.keys()
-            # TODO: maybe it would just be better to drop the negative throughout this process until this end
-            with Verbose(False):
-                model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
-            opt_task.axioms = original_axioms
-
-            delta_state = (opt_state - real_state) # Optimistic facts
-            opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
-            mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
-            instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
-            with Verbose(False):
-                helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
-            axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
-            axiom_plan = []  # Could always add all conditions
-            extract_axioms(axiom_from_atom, action_instance.precondition, axiom_plan)
+            axiom_plan = extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name)
             simplify_conditional_effects(real_state, opt_state, action_instance, axioms_from_name)
-            # TODO: test if no derived solution
-
-            # TODO: add axiom init to reset state?
             preimage_plan.extend(axiom_plan + [action_instance])
             apply_action(opt_state, action_instance)
             apply_action(real_state, action_instance)

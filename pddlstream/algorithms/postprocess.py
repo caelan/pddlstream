@@ -5,13 +5,15 @@ from pddlstream.algorithms.downward import task_from_domain_problem, get_problem
     get_goal_instance, plan_preimage
 from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
 from pddlstream.algorithms.algorithm import topological_sort
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, \
+    combine_function_evaluations, get_plan_cost
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
 from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.language.synthesizer import SynthStreamResult, get_synthetic_stream_plan
+from pddlstream.utils import get_length
 
 
 # TODO: convert back into plan for any sampled value
@@ -83,12 +85,14 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     pddl_plan = [(name, map(pddl_from_object, args)) for name, args in opt_action_plan]
     stream_plan = recover_stream_plan(evaluations, goal_expression, domain,
                                       opt_stream_plan, pddl_plan, negative, unit_costs=False)
+    stream_plan = get_synthetic_stream_plan(reorder_stream_plan(stream_plan), dynamic_streams)
 
-    stream_plan = reorder_stream_plan(stream_plan)
-    stream_plan = get_synthetic_stream_plan(stream_plan, dynamic_streams)
-    print('Stream plan: {}\n'
-          'Action plan: {}'.format(stream_plan, opt_action_plan))
-    opt_cost = 0 # TODO: compute this cost for real
+
+    function_evaluations = combine_function_evaluations(evaluations, stream_plan)
+    opt_cost = get_plan_cost(function_evaluations, opt_action_plan, domain)
+    print('Stream plan ({}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), stream_plan,
+                                                                  get_length(action_plan), opt_cost, action_plan))
+
     if visualize:
         create_visualizations(evaluations, stream_plan, -1)
 

@@ -60,6 +60,8 @@ SEARCH_OPTIONS = {
                      '--search "eager_greedy([hff],preferred=[hff],max_time=%s,bound=%s)"',
     'ff-lazy': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
                '--search "lazy_greedy([hff],preferred=[hff],max_time=%s,bound=%s)"',
+    'goal-lazy': '--heuristic "h=goalcount(transform=no_transform())" '
+                 '--search "lazy_greedy([h],max_time=%s,bound=%s)"',
 }
 
 for w in [1, 3, 5]:

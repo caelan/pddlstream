@@ -1,6 +1,7 @@
 from collections import defaultdict, deque
 
 from pddlstream.algorithms.downward import get_literals
+from pddlstream.language.constants import is_parameter
 
 def get_derived_predicates(axioms):
     axioms_from_name = defaultdict(list)
@@ -32,7 +33,7 @@ def get_necessary_axioms(instance, axioms, negative_from_name):
         literal = atom_queue.pop()
         for axiom in axioms_from_name[literal.predicate]:
             derived_parameters = axiom.parameters[:axiom.num_external_parameters]
-            var_mapping = {p.name: a for p, a in zip(derived_parameters, literal.args) if a[0] != '?'}
+            var_mapping = {p.name: a for p, a in zip(derived_parameters, literal.args) if not is_parameter(a)}
             key = (axiom, frozenset(var_mapping.items()))
             if key in partial_instantiations:
                 continue
