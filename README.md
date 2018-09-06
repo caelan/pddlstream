@@ -13,7 +13,7 @@ This repository is the "third version" of the STRIPStream framework, intended to
 $ git clone https://github.com/caelan/pddlstream.git
 $ cd pddlstream
 $ git submodule update --init --recursive
-$ ./FastDownward/build.py
+$ ./../FastDownward/build.py
 ```
 
 If `./FastDownward/build.py` fails, install FastDownward's dependencies using your package manager:
