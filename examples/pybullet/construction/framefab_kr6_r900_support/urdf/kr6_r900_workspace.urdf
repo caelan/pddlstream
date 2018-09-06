@@ -15,7 +15,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/visual/base_link.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/visual/base_link.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.505882352941 0.470588235294 0.388235294118 1.0"/>
@@ -24,7 +24,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/collision/base_link.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/collision/base_link.stl"/>
       </geometry>
     </collision>
   </link>
@@ -32,7 +32,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/visual/link_1.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/visual/link_1.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.964705882353 0.470588235294 0.156862745098 1.0"/>
@@ -41,7 +41,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/collision/link_1.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/collision/link_1.stl"/>
       </geometry>
     </collision>
   </link>
@@ -49,7 +49,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6r900sixx/visual/link_2.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6r900sixx/visual/link_2.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.964705882353 0.470588235294 0.156862745098 1.0"/>
@@ -58,7 +58,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6r900sixx/collision/link_2.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6r900sixx/collision/link_2.stl"/>
       </geometry>
     </collision>
   </link>
@@ -66,7 +66,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/visual/link_3.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/visual/link_3.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.964705882353 0.470588235294 0.156862745098 1.0"/>
@@ -75,7 +75,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/collision/link_3.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/collision/link_3.stl"/>
       </geometry>
     </collision>
   </link>
@@ -83,7 +83,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6r900sixx/visual/link_4.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6r900sixx/visual/link_4.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.964705882353 0.470588235294 0.156862745098 1.0"/>
@@ -92,7 +92,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6r900sixx/collision/link_4.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6r900sixx/collision/link_4.stl"/>
       </geometry>
     </collision>
   </link>
@@ -100,7 +100,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/visual/link_5.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/visual/link_5.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.964705882353 0.470588235294 0.156862745098 1.0"/>
@@ -109,7 +109,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/collision/link_5.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/collision/link_5.stl"/>
       </geometry>
     </collision>
   </link>
@@ -117,7 +117,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/visual/link_6.dae"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/visual/link_6.dae"/>
       </geometry>
       <material name="">
         <color rgba="0.505882352941 0.470588235294 0.388235294118 1.0"/>
@@ -126,7 +126,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://kuka_kr6_support/meshes/kr6_agilus/collision/link_6.stl"/>
+        <mesh filename="../../kuka_kr6_support/meshes/kr6_agilus/collision/link_6.stl"/>
       </geometry>
     </collision>
   </link>
@@ -191,7 +191,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="8.8e-05 0.000769 -0.002121"/>
       <geometry>
-        <mesh filename="package://asw_end_effector/meshes/visual/asw_hotend_end_effector.stl" scale=".001 .001 .001"/>
+        <mesh filename="../../asw_end_effector/meshes/visual/asw_hotend_end_effector.stl" scale=".001 .001 .001"/>
       </geometry>
       <material name="grey">
         <color rgba="0.5 0.5 0.5 1.0"/>
@@ -200,7 +200,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="8.8e-05 0.000769 -0.002121"/>
       <geometry>
-        <mesh filename="package://asw_end_effector/meshes/collision/asw_hotend_end_effector_shrinked_tip-4mm.stl" scale=".001 .001 .001"/>
+        <mesh filename="../../asw_end_effector/meshes/collision/asw_hotend_end_effector_shrinked_tip-4mm.stl" scale=".001 .001 .001"/>
       </geometry>
       <material name="red">
         <color rgba="1 0 0 1"/>
@@ -221,7 +221,7 @@
   <link name="material_feeder_material_feeder">
     <visual>
       <geometry>
-        <mesh filename="package://asw_material_feeder/meshes/visual/asw_material_feeder_visual_model.stl" scale=".001 .001 .001"/>
+        <mesh filename="../../asw_material_feeder/meshes/visual/asw_material_feeder_visual_model.stl" scale=".001 .001 .001"/>
       </geometry>
       <material name="grey">
         <color rgba="0.5 0.5 0.5 1.0"/>
@@ -229,7 +229,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://asw_material_feeder/meshes/collision/asw_material_feeder_collision_model.stl" scale=".001 .001 .001"/>
+        <mesh filename="../../asw_material_feeder/meshes/collision/asw_material_feeder_collision_model.stl" scale=".001 .001 .001"/>
       </geometry>
       <material name="red">
         <color rgba="1 0 0 1"/>
@@ -245,7 +245,7 @@
   <link name="workspace_objects">
     <visual>
       <geometry>
-        <mesh filename="package://framefab_kr6_r900_support/meshes/visual/MIT_3-412_workspace_full.stl"/>
+        <mesh filename="../../framefab_kr6_r900_support/meshes/visual/MIT_3-412_workspace_full.stl"/>
       </geometry>
       <material name="grey">
         <color rgba="0.5 0.5 0.5 1.0"/>
@@ -253,7 +253,7 @@
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://framefab_kr6_r900_support/meshes/collision/MIT_3-412_workspace_simplified.stl"/>
+        <mesh filename="../../framefab_kr6_r900_support/meshes/collision/MIT_3-412_workspace_simplified.stl"/>
       </geometry>
     </collision>
   </link>
