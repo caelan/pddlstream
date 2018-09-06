@@ -1,11 +1,15 @@
-(define (domain pick-and-place)
+(define (domain construction)
   (:requirements :strips :equality)
   (:predicates
     (Node ?n)
     (Connected ?n)
     (Element ?e)
     (Printed ?e)
-    (Connection ?n1 ?e ?n2)
+    (Connection ?n1 ?e ?t ?n2)
+    (AtNode ?n)
+    (Traj ?t)
+    (CFree ?t ?e)
+    (Unsafe ?t)
   )
 
   ; Negative printed for the fluent condition
@@ -18,10 +22,15 @@
   ;)
 
   (:action print
-    :parameters (?n1 ?e ?n2)
-    :precondition (and (Connection ?n1 ?e ?n2)
-                       (Connected ?n1) (not (Printed ?e)))
-    :effect (and (Connected ?n2) (Printed ?e))
+    :parameters (?n1 ?e ?t ?n2)
+    :precondition (and (Connection ?n1 ?e ?t ?n2)
+                       (Connected ?n1) (not (Printed ?e)) (not (Unsafe ?t)))
+    :effect (and (Connected ?n2) (Printed ?e) (AtNode ?n2)
+                 (forall (?t2)
+                    (when (and (Traj ?t2) (not (CFree ?t2 ?e)))
+                          (Unsafe ?t2)))
+                 (not (AtNode ?n1)))
+    ; Conditional effect here or derived predicate?
   )
 
   ;(:action move

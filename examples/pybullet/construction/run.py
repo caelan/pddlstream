@@ -15,6 +15,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, dis
 from pddlstream.utils import read, get_file_path, print_solution, user_input, get_length
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.language.generator import from_test
+from pddlstream.algorithms.incremental import solve_exhaustive
 
 JSON_FILENAME = 'voronoi_S1.0_09-05-2018.json'
 #KUKA_PATH = 'framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
@@ -89,16 +91,32 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
         set_quat(body, quat)
     return element_bodies
 
-def pddlstream(node_points, elements, ground_nodes):
+def check_trajectory_collision(robot, trajectory, bodies):
+    movable_joints = get_movable_joints(robot)
+    for q in trajectory:
+        set_joint_positions(robot, movable_joints, q)
+        if any(pairwise_collision(robot, body) for body in bodies):
+            return True
+    return False
+
+def get_test_cfree(element_bodies):
+    def test(traj, element):
+        return not check_trajectory_collision(traj.robot, traj.trajectory, [element_bodies[element]])
+    return test
+
+
+def get_pddlstream_test(node_points, elements, ground_nodes):
     # stripstream/lis_scripts/run_print.py
     # stripstream/lis_scripts/print_data.txt
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
 
-    #stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    stream_pddl = None
-    stream_map = {}
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    #stream_pddl = None
+    stream_map = {
+        'test-cfree': from_test(get_test_cfree({})),
+    }
 
     nodes = list(range(len(node_points))) # TODO: sort nodes by height?
 
@@ -110,9 +128,10 @@ def pddlstream(node_points, elements, ground_nodes):
     for e in elements:
         init.append(('Element', e))
         n1, n2 = e
+        t = None
         init.extend([
-            ('Connection', n1, e, n2),
-            ('Connection', n2, e, n1),
+            ('Connection', n1, e, t, n2),
+            ('Connection', n2, e, t, n1),
         ])
         #init.append(('Edge', n1, n2))
 
@@ -120,6 +139,37 @@ def pddlstream(node_points, elements, ground_nodes):
     goal = And(*goal_literals)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+
+
+def get_pddlstream(trajectories, element_bodies, ground_nodes):
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    constant_map = {}
+
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    stream_map = {
+        'test-cfree': from_test(get_test_cfree(element_bodies)),
+    }
+
+    init = []
+    for n in ground_nodes:
+        init.append(('Connected', n))
+    for t in trajectories:
+        e = t.element
+        n1, n2 = e
+        init.extend([
+            ('Node', n1),
+            ('Node', n2),
+            ('Element', e),
+            ('Traj', t),
+            ('Connection', n1, e, t, n2),
+            ('Connection', n2, e, t, n1),
+        ])
+
+    goal_literals = [('Printed', e) for e in element_bodies]
+    goal = And(*goal_literals)
+
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+
 
 def test_ik(robot, node_order, node_points):
     link = link_from_name(robot, TOOL_NAME)
@@ -222,7 +272,7 @@ def optimize_angle(robot, link, element_pose, translation, direction, initial_an
     #    wait_for_interrupt()
     return best_angle, best_conf
 
-def compute_print_path(robot, p1, p2, element_body, direction, collision_fn):
+def compute_direction_path(robot, p1, p2, element_body, direction, collision_fn):
     step_size = 0.0025 # 0.005
     #angle_step_size = np.pi / 128
     angle_step_size = np.math.radians(0.25)
@@ -234,7 +284,8 @@ def compute_print_path(robot, p1, p2, element_body, direction, collision_fn):
     steps = np.append(np.arange(start, end, step_size), [end])
     #print('Length: {} | Steps: {}'.format(length, len(steps)))
 
-    initial_angles = [wrap_angle(angle) for angle in np.linspace(0, 2*np.pi, num_initial, endpoint=False)]
+    #initial_angles = [wrap_angle(angle) for angle in np.linspace(0, 2*np.pi, num_initial, endpoint=False)]
+    initial_angles = [wrap_angle(angle) for angle in np.random.uniform(0, 2*np.pi, num_initial)]
     movable_joints = get_movable_joints(robot)
     sample_fn = get_sample_fn(robot, movable_joints)
     set_joint_positions(robot, movable_joints, sample_fn())
@@ -257,14 +308,14 @@ def compute_print_path(robot, p1, p2, element_body, direction, collision_fn):
         trajectory.append(current_conf)
     return trajectory
 
-def compute_stuff(robot, node_points, element, element_body, collision_fn):
-    #num_directions = 10
-    num_directions = 16
+def sample_print_path(robot, node_points, element, element_body, collision_fn):
+    #max_directions = 10
+    max_directions = 16
     #for direction in np.linspace(0, 2*np.pi, 10, endpoint=False):
-    for direction in np.random.uniform(0, 2*np.pi, num_directions):
+    for direction in np.random.uniform(0, 2*np.pi, max_directions):
         n1, n2 = element
-        trajectory = compute_print_path(robot, node_points[n1], node_points[n2],
-                                        element_body, direction, collision_fn)
+        trajectory = compute_direction_path(robot, node_points[n1], node_points[n2],
+                                            element_body, direction, collision_fn)
         if trajectory is not None:
             return trajectory
     return None
@@ -277,24 +328,80 @@ def load_world():
     set_point(floor, Point(z=-0.01))
     return floor, robot
 
-def plan_sequence(node_points, elements, ground_nodes):
+def plan_sequence_test(node_points, elements, ground_nodes):
     pr = cProfile.Profile()
     pr.enable()
-    pddlstream_problem = pddlstream(node_points, elements, ground_nodes)
-    solution = solve_focused(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
+    pddlstream_problem = get_pddlstream_test(node_points, elements, ground_nodes)
+    #solution = solve_focused(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
+    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
     print_solution(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     plan, _, _ = solution
     return plan
 
-def check_trajectory_collision(robot, trajectory, bodies):
+def plan_sequence(trajectories, element_bodies, ground_nodes):
+    pr = cProfile.Profile()
+    pr.enable()
+    pddlstream_problem = get_pddlstream(trajectories, element_bodies, ground_nodes)
+    #solution = solve_focused(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
+    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=30, debug=True)
+    print_solution(solution)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    plan, _, _ = solution
+    return plan
+
+class PrintTrajectory(object):
+    def __init__(self, robot, trajectory, element):
+        self.robot = robot
+        self.trajectory = trajectory
+        self.element = element
+    def __repr__(self):
+        return 't{}'.format(self.element)
+
+
+def who_even_knows(robot, obstacles, node_points, element_bodies):
+    disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
+    collision_fn = get_collision_fn(robot, get_movable_joints(robot), obstacles, [],
+                                    self_collisions=True, disabled_collisions=disabled, use_limits=False)
+    trajectories = {}
+    for element, element_body in element_bodies.items():
+        trajectory = sample_print_path(robot, node_points, element, element_body, collision_fn)
+        print(element, get_length(trajectory))
+        if trajectory is None:
+            continue
+        trajectories[element] = PrintTrajectory(robot, trajectory, element)
+        #print(sum(check_trajectory_collision(robot, trajectory, [body])
+        #          for body in element_bodies.values()))
+    return trajectories
+
+def display(elements, trajectories):
+    connect(use_gui=True)
+    floor, robot = load_world()
     movable_joints = get_movable_joints(robot)
-    for q in trajectory:
-        set_joint_positions(robot, movable_joints, q)
-        if any(pairwise_collision(robot, body) for body in bodies):
-            return True
-    return False
+    #element_bodies = dict(zip(elements, create_elements(node_points, elements)))
+    #for body in element_bodies.values():
+    #    set_color(body, (1, 0, 0, 0))
+    #for element, trajectory in trajectories.items():
+    for element in elements:
+        if element not in trajectories:
+            continue
+        trajectory = trajectories[element].trajectory
+        print(element, len(trajectory))
+        #wait_for_interrupt()
+        #set_color(element_bodies[element], (1, 0, 0, 1))
+        last_point = None
+        for conf in trajectory:
+            set_joint_positions(robot, movable_joints, conf)
+            current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
+            if last_point is not None:
+                handle = add_line(last_point, current_point, color=(1, 0, 0))
+            last_point = current_point
+            wait_for_duration(0.025)
+    #user_input('Finish?')
+    wait_for_interrupt()
+    disconnect()
 
 def main(viewer=False):
     root_directory = os.path.dirname(os.path.abspath(__file__))
@@ -313,17 +420,15 @@ def main(viewer=False):
     #node_order = node_order[:100]
     ground_nodes = [n for n in ground_nodes if n in node_order]
     elements = [element for element in elements if all(n in node_order for n in element)]
-    elements = elements[:150]
-    #elements = elements[:]
-
-    # TODO: downsample the structure by removing nodes
+    elements = elements[:25]
+    #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
         len(node_points), len(ground_nodes), len(elements)))
     #print(json_data['assembly_type']) # extrusion
     #print(json_data['model_type']) # spatial_frame
     #print(json_data['unit']) # millimeter
-    #plan = plan_sequence(node_points, elements, ground_nodes)
+    #plan = plan_sequence_test(node_points, elements, ground_nodes)
 
     connect(use_gui=viewer)
     floor, robot = load_world()
@@ -339,55 +444,15 @@ def main(viewer=False):
 
     #test_ik(robot, node_order, node_points)
 
-    #element = elements[0]
-    #element = elements[-1]
-    #[element_body] = create_elements(node_points, [element])
-
-    movable_joints = get_movable_joints(robot)
-    disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
-    collision_fn = get_collision_fn(robot, get_movable_joints(robot), [floor], [],
-                                    self_collisions=True, disabled_collisions=disabled, use_limits=False)
-
     element_bodies = dict(zip(elements, create_elements(node_points, elements)))
-    trajectories = {}
-    for element, element_body in element_bodies.items():
-        trajectory = compute_stuff(robot, node_points, element, element_body, collision_fn)
-        print(element, get_length(trajectory))
-        if trajectory is None:
-            continue
-        trajectories[element] = trajectory
-        print(sum(check_trajectory_collision(robot, trajectory, [body]) for body in element_bodies.values()))
+    trajectories = who_even_knows(robot, [floor], node_points, element_bodies)
 
-
+    plan_sequence(trajectories.values(), element_bodies, ground_nodes)
 
 
     disconnect()
+    #display(elements, trajectories)
 
-    connect(use_gui=True)
-    floor, robot = load_world()
-    #element_bodies = dict(zip(elements, create_elements(node_points, elements)))
-    #for body in element_bodies.values():
-    #    set_color(body, (1, 0, 0, 0))
-    #for element, trajectory in trajectories.items():
-    for element in elements:
-        if element not in trajectories:
-            continue
-        trajectory = trajectories[element]
-        print(element, len(trajectory))
-        #wait_for_interrupt()
-        #set_color(element_bodies[element], (1, 0, 0, 1))
-        last_point = None
-        for conf in trajectory:
-            set_joint_positions(robot, movable_joints, conf)
-            current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
-            if last_point is not None:
-                handle = add_line(last_point, current_point, color=(1, 0, 0))
-            last_point = current_point
-            wait_for_duration(0.025)
-
-    #user_input('Finish?')
-    wait_for_interrupt()
-    disconnect()
 
 if __name__ == '__main__':
     main()
