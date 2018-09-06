@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>asw_end_effector</name>
+  <version>0.1.0</version>
+  <description>
+    URDF robot description model for asw 3D printing end effector. Original designer of the end effector: Lei Yu (asworkshop@vip.163.com). Fabricator: Lei Yu, Yanxin Wang, Yijiang Huang.
+  </description>
+
+  <maintainer email="yijiangh@mit.edu">Yijiang Huang</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>

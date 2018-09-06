@@ -74,6 +74,24 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
         set_quat(body, quat)
     return element_bodies
 
+def pddlstream(node_points, elements, ground_nodes):
+    # stripstream/lis_scripts/run_print.py
+    # stripstream/lis_scripts/print_data.txt
+
+    nodes = list(range(node_points))
+
+    init = []
+
+    for n in nodes:
+        init.append(('Node', n))
+    for n in ground_nodes:
+        init.append(('Connected', n))
+    for e in elements:
+        #init.append(('Element', e))
+        n1, n2 = e
+        #init.append(('Edge', n1, n2))
+        init.append(('Connection', n1, e, n2))
+
 
 def main(viewer=True):
     root_directory = os.path.dirname(os.path.abspath(__file__))

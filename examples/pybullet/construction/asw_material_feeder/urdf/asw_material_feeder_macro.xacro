@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+	<xacro:property name="half_pi" value="1.5707963267948966"/>
+
+	<xacro:macro name="asw_material_feeder_definition" params="prefix">
+	<!-- material_feeder_mount_point is Base Link, inherit from host robot -->
+	<link name="${prefix}mount_point"/>
+
+	<link name="${prefix}material_feeder">
+	  <visual>
+		<geometry>
+		  <mesh filename="package://asw_material_feeder/meshes/visual/asw_material_feeder_visual_model.stl" scale=".001 .001 .001"/>
+		</geometry>
+		<material name="grey">
+		  <color rgba="0.5 0.5 0.5 1.0"/>
+		</material>
+	  </visual>
+	  <collision>
+		<geometry>
+		  <mesh filename="package://asw_material_feeder/meshes/collision/asw_material_feeder_collision_model.stl" scale=".001 .001 .001"/>
+		</geometry>
+		<material name="red">
+		  <color rgba="1 0 0 1"/>
+		</material>
+	  </collision>
+	</link>
+
+	<joint name="mount_point_to_material_feeder" type="fixed">
+		<parent link="${prefix}mount_point"/>
+		<child link="${prefix}material_feeder"/>
+		<origin xyz="0 0 0" rpy="0 0 0"/>
+	</joint>
+
+	</xacro:macro>
+</robot>
