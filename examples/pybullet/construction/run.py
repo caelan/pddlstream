@@ -6,6 +6,8 @@ import cProfile
 import pstats
 import numpy as np
 
+from collections import defaultdict
+
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, get_joint_name, link_from_name, set_point, set_quat, \
     add_line, quat_from_euler, Euler, HideOutput, create_cylinder, load_pybullet, inverse_kinematics, \
@@ -30,6 +32,8 @@ disabled_collisions = [
     # ('robot_link_4', 'workspace_objects'),
     ('robot_link_5', 'eef_base_link'),
 ]
+
+# TODO: extrude slightly off of the element
 
 # [u'base_frame_in_rob_base', u'element_list', u'node_list', u'assembly_type', u'model_type', u'unit']
 
@@ -67,13 +71,21 @@ def draw_element(node_points, element, color=(1, 0, 0, 1)):
     return add_line(p1, p2, color=color[:3])
 
 def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
+    # TODO: just shrink the structure to prevent worrying about collisions at end-points
+    #radius = 0.0001
+    #radius = 0.00005
+    #radius = 0.000001
+    radius = 1e-6
+    # TODO: seems to be a min radius
+
+    shrink = 0.01
     element_bodies = []
     for (n1, n2) in elements:
         p1 = node_points[n1]
         p2 = node_points[n2]
-        height = np.linalg.norm(p2 - p1)
-        if height == 0:
-            continue
+        height = max(np.linalg.norm(p2 - p1) - 2*shrink, 0)
+        #if height == 0: # Cannot keep this here
+        #    continue
         center = (p1 + p2) / 2
         # extents = (p2 - p1) / 2
         body = create_cylinder(radius, height, color=color)
@@ -92,7 +104,9 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
     return element_bodies
 
 def check_trajectory_collision(robot, trajectory, bodies):
+    #offset = 4
     movable_joints = get_movable_joints(robot)
+    #for q in trajectory[offset:-offset]:
     for q in trajectory:
         set_joint_positions(robot, movable_joints, q)
         if any(pairwise_collision(robot, body) for body in bodies):
@@ -244,7 +258,10 @@ def get_grasp_rotation(direction, angle):
     return Pose(euler=Euler(roll=np.pi / 2, pitch=direction, yaw=angle))
 
 def get_grasp_pose(translation, direction, angle):
-    return multiply(get_grasp_rotation(direction, angle), Pose(point=Point(z=translation)))
+    offset = 1e-3
+    return multiply(Pose(point=Point(z=offset)),
+                    get_grasp_rotation(direction, angle),
+                    Pose(point=Point(z=translation)))
 
 def optimize_angle(robot, link, element_pose, translation, direction, initial_angles, collision_fn, max_error=1e-2):
     movable_joints = get_movable_joints(robot)
@@ -341,58 +358,107 @@ def plan_sequence_test(node_points, elements, ground_nodes):
     return plan
 
 def plan_sequence(trajectories, element_bodies, ground_nodes):
+    # randomize_successors=True
     pr = cProfile.Profile()
     pr.enable()
     pddlstream_problem = get_pddlstream(trajectories, element_bodies, ground_nodes)
     #solution = solve_focused(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
-    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=30, debug=True)
+    solution = solve_exhaustive(pddlstream_problem, planner='ff-lazy', max_time=120, debug=True)
+    # Reachability heuristics good for detecting dead-ends
+    # Infeasibility from the start means disconnected or
+
+    # Random restart based strategy here
     print_solution(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     plan, _, _ = solution
-    return plan
+    if plan is None:
+        return None
+    return [t for _, (n1, e, t, n2) in plan]
 
 class PrintTrajectory(object):
-    def __init__(self, robot, trajectory, element):
+    def __init__(self, robot, trajectory, element, colliding=set()):
         self.robot = robot
         self.trajectory = trajectory
         self.element = element
+        self.colliding = colliding
     def __repr__(self):
         return 't{}'.format(self.element)
 
 
-def who_even_knows(robot, obstacles, node_points, element_bodies):
+def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=5):
     disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
     collision_fn = get_collision_fn(robot, get_movable_joints(robot), obstacles, [],
                                     self_collisions=True, disabled_collisions=disabled, use_limits=False)
-    trajectories = {}
+
+    # TODO: can cache which elements collide and prune dominated
+    node_neighbors = defaultdict(set)
+    for e in element_bodies:
+        n1, n2 = e
+        node_neighbors[n1].add(e)
+        node_neighbors[n2].add(e)
+    element_neighbors = defaultdict(set)
+    for e in element_bodies:
+        n1, n2 = e
+        element_neighbors[e].update(node_neighbors[n1])
+        element_neighbors[e].update(node_neighbors[n2])
+        element_neighbors[e].remove(e)
+
+    trajectories = []
     for element, element_body in element_bodies.items():
-        trajectory = sample_print_path(robot, node_points, element, element_body, collision_fn)
-        print(element, get_length(trajectory))
-        if trajectory is None:
-            continue
-        trajectories[element] = PrintTrajectory(robot, trajectory, element)
-        #print(sum(check_trajectory_collision(robot, trajectory, [body])
-        #          for body in element_bodies.values()))
+        # TODO: prune elements that collide with all their neighbors
+        initial_size = len(trajectories)
+        for i in range(num_trajs):
+            trajectory = sample_print_path(robot, node_points, element, element_body, collision_fn)
+            print(i, element, get_length(trajectory))
+            if trajectory is None:
+                print('Failure!')
+                continue
+            colliding = {e for e, body in element_bodies.items()
+                         if check_trajectory_collision(robot, trajectory, [body])}
+            print(len(colliding), len(element_bodies))
+            if (element_neighbors[element] <= colliding) and not any(n in ground_nodes for n in element):
+                print('All collide!')
+                continue
+            traj = PrintTrajectory(robot, trajectory, element, colliding)
+            trajectories.append(traj) # TODO: make more if many collisions in particular
+
+            # for e, body in element_bodies.items():
+            #     if e == element:
+            #         set_color(body, (0, 1, 0, 1))
+            #     elif e in colliding:
+            #         set_color(body, (1, 0, 0, 1))
+            #     else:
+            #         set_color(body, (1, 0, 0, 0))
+            # wait_for_interrupt()
+            if not colliding:
+                break
+        if initial_size == len(trajectories):
+            for e, body in element_bodies.items():
+                if e == element:
+                    set_color(body, (0, 1, 0, 1))
+                elif e in element_neighbors[e]:
+                    set_color(body, (1, 0, 0, 1))
+                else:
+                    set_color(body, (1, 0, 0, 0))
+            wait_for_interrupt()
+            return None
     return trajectories
 
-def display(elements, trajectories):
+def display(trajectories):
     connect(use_gui=True)
     floor, robot = load_world()
+    wait_for_interrupt()
     movable_joints = get_movable_joints(robot)
     #element_bodies = dict(zip(elements, create_elements(node_points, elements)))
     #for body in element_bodies.values():
     #    set_color(body, (1, 0, 0, 0))
-    #for element, trajectory in trajectories.items():
-    for element in elements:
-        if element not in trajectories:
-            continue
-        trajectory = trajectories[element].trajectory
-        print(element, len(trajectory))
+    for trajectory in trajectories:
+        print(trajectory.element, len(trajectory.trajectory))
         #wait_for_interrupt()
         #set_color(element_bodies[element], (1, 0, 0, 1))
         last_point = None
-        for conf in trajectory:
+        for conf in trajectory.trajectory:
             set_joint_positions(robot, movable_joints, conf)
             current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
             if last_point is not None:
@@ -420,7 +486,7 @@ def main(viewer=False):
     #node_order = node_order[:100]
     ground_nodes = [n for n in ground_nodes if n in node_order]
     elements = [element for element in elements if all(n in node_order for n in element)]
-    elements = elements[:25]
+    elements = elements[:50]
     #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
@@ -441,17 +507,18 @@ def main(viewer=False):
     #    n1, e, n2 = args
     #    draw_element(node_points, e)
     #    user_input('Continue?')
-
     #test_ik(robot, node_order, node_points)
 
     element_bodies = dict(zip(elements, create_elements(node_points, elements)))
-    trajectories = who_even_knows(robot, [floor], node_points, element_bodies)
-
-    plan_sequence(trajectories.values(), element_bodies, ground_nodes)
-
-
+    trajectories = sample_trajectories(robot, [floor], node_points, element_bodies, ground_nodes)
+    plan = plan_sequence(trajectories, element_bodies, ground_nodes)
     disconnect()
-    #display(elements, trajectories)
+
+    #display(trajectories)
+    if plan is not None:
+        display(plan)
+
+    # Collisions at the end points?
 
 
 if __name__ == '__main__':
