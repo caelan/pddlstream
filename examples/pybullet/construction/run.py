@@ -104,18 +104,23 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
     return element_bodies
 
 def check_trajectory_collision(robot, trajectory, bodies):
+    # TODO: each new addition makes collision checking more expensive
     #offset = 4
     movable_joints = get_movable_joints(robot)
     #for q in trajectory[offset:-offset]:
+    collisions = [False for _ in range(len(bodies))] # TODO: batch collision detection
     for q in trajectory:
         set_joint_positions(robot, movable_joints, q)
-        if any(pairwise_collision(robot, body) for body in bodies):
-            return True
-    return False
+        for i, body in enumerate(bodies):
+            if not collisions[i]:
+                collisions[i] |= pairwise_collision(robot, body)
+    return collisions
 
 def get_test_cfree(element_bodies):
     def test(traj, element):
-        return not check_trajectory_collision(traj.robot, traj.trajectory, [element_bodies[element]])
+        return element not in traj.colliding
+        #collisions = check_trajectory_collision(traj.robot, traj.trajectory, [element_bodies[element]])
+        #return not any(collisions)
     return test
 
 
@@ -267,26 +272,26 @@ def optimize_angle(robot, link, element_pose, translation, direction, initial_an
     movable_joints = get_movable_joints(robot)
     initial_conf = get_joint_positions(robot, movable_joints)
     best_error, best_angle, best_conf = max_error, None, None
-    for angle in initial_angles:
+    for i, angle in enumerate(initial_angles):
         grasp_pose = get_grasp_pose(translation, direction, angle)
         target_pose = multiply(element_pose, invert(grasp_pose))
-        set_joint_positions(robot, movable_joints, initial_conf)
         conf = inverse_kinematics(robot, link, target_pose)
         # if conf is None:
         #    continue
         #if pairwise_collision(robot, robot):
         conf = get_joint_positions(robot, movable_joints)
-        if collision_fn(conf):
-            continue
-        link_pose = get_link_pose(robot, link)
-        error = get_distance(point_from_pose(target_pose), point_from_pose(link_pose))
-        if error < best_error:  # TODO: error a function of direction as well
-            best_error, best_angle, best_conf = error, angle, conf
-        # wait_for_interrupt()
+        if not collision_fn(conf):
+            link_pose = get_link_pose(robot, link)
+            error = get_distance(point_from_pose(target_pose), point_from_pose(link_pose))
+            if error < best_error:  # TODO: error a function of direction as well
+                best_error, best_angle, best_conf = error, angle, conf
+            # wait_for_interrupt()
+        if i != len(initial_angles)-1:
+            set_joint_positions(robot, movable_joints, initial_conf)
     #print(best_error, translation, direction, best_angle)
-    #if best_conf is not None:
-    #    set_joint_positions(robot, movable_joints, best_conf)
-    #    wait_for_interrupt()
+    if best_conf is not None:
+        set_joint_positions(robot, movable_joints, best_conf)
+        #wait_for_interrupt()
     return best_angle, best_conf
 
 def compute_direction_path(robot, p1, p2, element_body, direction, collision_fn):
@@ -294,7 +299,8 @@ def compute_direction_path(robot, p1, p2, element_body, direction, collision_fn)
     #angle_step_size = np.pi / 128
     angle_step_size = np.math.radians(0.25)
     angle_deltas = [-angle_step_size, 0, angle_step_size]
-    num_initial = 12
+    #num_initial = 12
+    num_initial = 1
 
     length = np.linalg.norm(p2 - p1) # 5cm
     start, end = -length / 2, length / 2
@@ -316,7 +322,7 @@ def compute_direction_path(robot, p1, p2, element_body, direction, collision_fn)
     # TODO: alternating minimization for just position and also orientation
     trajectory = [current_conf]
     for translation in steps[1:]:
-        set_joint_positions(robot, movable_joints, current_conf)
+        #set_joint_positions(robot, movable_joints, current_conf)
         initial_angles = [wrap_angle(current_angle + delta) for delta in angle_deltas]
         current_angle, current_conf = optimize_angle(robot, link, element_pose,
                                                      translation, direction, initial_angles, collision_fn)
@@ -327,7 +333,8 @@ def compute_direction_path(robot, p1, p2, element_body, direction, collision_fn)
 
 def sample_print_path(robot, node_points, element, element_body, collision_fn):
     #max_directions = 10
-    max_directions = 16
+    #max_directions = 16
+    max_directions = 1
     #for direction in np.linspace(0, 2*np.pi, 10, endpoint=False):
     for direction in np.random.uniform(0, 2*np.pi, max_directions):
         n1, n2 = element
@@ -362,8 +369,8 @@ def plan_sequence(trajectories, element_bodies, ground_nodes):
     pr = cProfile.Profile()
     pr.enable()
     pddlstream_problem = get_pddlstream(trajectories, element_bodies, ground_nodes)
-    #solution = solve_focused(pddlstream_problem, planner='goal-lazy', max_time=10, debug=False)
-    solution = solve_exhaustive(pddlstream_problem, planner='ff-lazy', max_time=120, debug=True)
+    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=120, debug=True)
+    #solution = solve_exhaustive(pddlstream_problem, planner='ff-lazy', max_time=120, debug=True)
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or
 
@@ -386,7 +393,7 @@ class PrintTrajectory(object):
         return 't{}'.format(self.element)
 
 
-def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=5):
+def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=50):
     disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
     collision_fn = get_collision_fn(robot, get_movable_joints(robot), obstacles, [],
                                     self_collisions=True, disabled_collisions=disabled, use_limits=False)
@@ -404,19 +411,22 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
         element_neighbors[e].update(node_neighbors[n2])
         element_neighbors[e].remove(e)
 
-    trajectories = []
-    for element, element_body in element_bodies.items():
+    elements_order = list(element_bodies.keys())
+    bodies_order = [element_bodies[e] for e in elements_order]
+
+    all_trajectories = []
+    for j, (element, element_body) in enumerate(element_bodies.items()):
         # TODO: prune elements that collide with all their neighbors
-        initial_size = len(trajectories)
+        trajectories = []
         for i in range(num_trajs):
             trajectory = sample_print_path(robot, node_points, element, element_body, collision_fn)
-            print(i, element, get_length(trajectory))
             if trajectory is None:
-                print('Failure!')
                 continue
-            colliding = {e for e, body in element_bodies.items()
-                         if check_trajectory_collision(robot, trajectory, [body])}
-            print(len(colliding), len(element_bodies))
+            collisions = check_trajectory_collision(robot, trajectory, bodies_order)
+            colliding = [e for k, e in enumerate(elements_order) if (element != e) and collisions[k]]
+            #colliding = {e for e, body in element_bodies.items()
+            #             if check_trajectory_collision(robot, trajectory, [body])}
+            print(j, i, element, get_length(trajectory), len(colliding), len(element_bodies))
             if (element_neighbors[element] <= colliding) and not any(n in ground_nodes for n in element):
                 print('All collide!')
                 continue
@@ -433,7 +443,14 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
             # wait_for_interrupt()
             if not colliding:
                 break
-        if initial_size == len(trajectories):
+
+        for traj1 in list(trajectories):
+            if any((traj1 != traj2) and (traj2.colliding <= traj1.colliding) for traj2 in trajectories):
+                print('Pruned')
+                trajectories.remove(traj1)
+
+        all_trajectories.extend(trajectories)
+        if not trajectories:
             for e, body in element_bodies.items():
                 if e == element:
                     set_color(body, (0, 1, 0, 1))
@@ -443,7 +460,7 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
                     set_color(body, (1, 0, 0, 0))
             wait_for_interrupt()
             return None
-    return trajectories
+    return all_trajectories
 
 def display(trajectories):
     connect(use_gui=True)
@@ -486,7 +503,9 @@ def main(viewer=False):
     #node_order = node_order[:100]
     ground_nodes = [n for n in ground_nodes if n in node_order]
     elements = [element for element in elements if all(n in node_order for n in element)]
-    elements = elements[:50]
+    #elements = elements[:20]
+    #elements = elements[:50]
+    elements = elements[:150]
     #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
@@ -510,7 +529,12 @@ def main(viewer=False):
     #test_ik(robot, node_order, node_points)
 
     element_bodies = dict(zip(elements, create_elements(node_points, elements)))
+    pr = cProfile.Profile()
+    pr.enable()
     trajectories = sample_trajectories(robot, [floor], node_points, element_bodies, ground_nodes)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+
     plan = plan_sequence(trajectories, element_bodies, ground_nodes)
     disconnect()
 
