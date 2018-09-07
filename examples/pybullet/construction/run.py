@@ -5,6 +5,7 @@ import os
 import cProfile
 import pstats
 import numpy as np
+import re
 
 from collections import defaultdict
 
@@ -12,7 +13,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, dis
     get_movable_joints, get_sample_fn, set_joint_positions, get_joint_name, link_from_name, set_point, set_quat, \
     add_line, quat_from_euler, Euler, HideOutput, create_cylinder, load_pybullet, inverse_kinematics, \
     get_link_pose, Pose, multiply, set_pose, Point, workspace_trajectory, pairwise_collision, wait_for_duration, \
-    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn, load_model, set_color
+    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn, \
+    load_model, set_color, has_gui
 
 from pddlstream.utils import read, get_file_path, print_solution, user_input, get_length
 from pddlstream.language.constants import PDDLProblem, And
@@ -365,6 +367,8 @@ def plan_sequence_test(node_points, elements, ground_nodes):
     return plan
 
 def plan_sequence(trajectories, element_bodies, ground_nodes):
+    if trajectories is None:
+        return None
     # randomize_successors=True
     pr = cProfile.Profile()
     pr.enable()
@@ -392,8 +396,13 @@ class PrintTrajectory(object):
     def __repr__(self):
         return 't{}'.format(self.element)
 
+def prune_dominated(trajectories):
+    for traj1 in list(trajectories):
+        if any((traj1 != traj2) and (traj2.colliding <= traj1.colliding) for traj2 in trajectories):
+            print('Pruned')
+            trajectories.remove(traj1)
 
-def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=50):
+def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=100):
     disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
     collision_fn = get_collision_fn(robot, get_movable_joints(robot), obstacles, [],
                                     self_collisions=True, disabled_collisions=disabled, use_limits=False)
@@ -413,6 +422,8 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
 
     elements_order = list(element_bodies.keys())
     bodies_order = [element_bodies[e] for e in elements_order]
+    #max_trajs = 5
+    max_trajs = np.inf
 
     all_trajectories = []
     for j, (element, element_body) in enumerate(element_bodies.items()):
@@ -423,7 +434,7 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
             if trajectory is None:
                 continue
             collisions = check_trajectory_collision(robot, trajectory, bodies_order)
-            colliding = [e for k, e in enumerate(elements_order) if (element != e) and collisions[k]]
+            colliding = {e for k, e in enumerate(elements_order) if (element != e) and collisions[k]}
             #colliding = {e for e, body in element_bodies.items()
             #             if check_trajectory_collision(robot, trajectory, [body])}
             print(j, i, element, get_length(trajectory), len(colliding), len(element_bodies))
@@ -432,33 +443,32 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
                 continue
             traj = PrintTrajectory(robot, trajectory, element, colliding)
             trajectories.append(traj) # TODO: make more if many collisions in particular
+            prune_dominated(trajectories)
 
-            # for e, body in element_bodies.items():
-            #     if e == element:
-            #         set_color(body, (0, 1, 0, 1))
-            #     elif e in colliding:
-            #         set_color(body, (1, 0, 0, 1))
-            #     else:
-            #         set_color(body, (1, 0, 0, 0))
-            # wait_for_interrupt()
-            if not colliding:
+            if has_gui():
+                for e, body in element_bodies.items():
+                    if e == element:
+                        set_color(body, (0, 1, 0, 1))
+                    elif e in colliding:
+                        set_color(body, (1, 0, 0, 1))
+                    else:
+                        set_color(body, (1, 0, 0, 0))
+                wait_for_interrupt()
+            if not colliding or (max_trajs <= len(trajectories)):
                 break
 
-        for traj1 in list(trajectories):
-            if any((traj1 != traj2) and (traj2.colliding <= traj1.colliding) for traj2 in trajectories):
-                print('Pruned')
-                trajectories.remove(traj1)
-
+        prune_dominated(trajectories)
         all_trajectories.extend(trajectories)
         if not trajectories:
-            for e, body in element_bodies.items():
-                if e == element:
-                    set_color(body, (0, 1, 0, 1))
-                elif e in element_neighbors[e]:
-                    set_color(body, (1, 0, 0, 1))
-                else:
-                    set_color(body, (1, 0, 0, 0))
-            wait_for_interrupt()
+            if has_gui():
+                for e, body in element_bodies.items():
+                    if e == element:
+                        set_color(body, (0, 1, 0, 1))
+                    elif e in element_neighbors[e]:
+                        set_color(body, (1, 0, 0, 1))
+                    else:
+                        set_color(body, (1, 0, 0, 0))
+                wait_for_interrupt()
             return None
     return all_trajectories
 
@@ -486,8 +496,35 @@ def display(trajectories):
     wait_for_interrupt()
     disconnect()
 
+
+def read_minizinc_data(path):
+    # https://github.com/yijiangh/Choreo/blob/9481202566a4cff4d49591bec5294b1e02abcc57/framefab_task_sequence_planning/framefab_task_sequence_planner/minizinc/as_minizinc_data_layer_1.dzn
+
+    data = read(path)
+
+    n = int(re.findall(r'n = (\d+);', data)[0])
+    m = int(re.findall(r'm = (\d+);', data)[0])
+    # print re.search(r'n = (\d+);', data).group(0)
+    g_data = np.array(re.findall(r'G_data = \[([01,]*)\];', data)[0].split(',')[:-1], dtype=int)
+    a_data = np.array(re.findall(r'A_data = \[([01,]*)\];', data)[0].split(',')[:-1], dtype=int).reshape([n, n])
+    t_data = np.array(re.findall(r'T_data = \[([01,]*)\];', data)[0].split(',')[:-1], dtype=int).reshape([n, n, m])
+
+    print(n, m)
+    print(g_data.shape, g_data.size, np.sum(g_data))  # 1 if edge(e) is grounded
+    print(a_data.shape, a_data.size, np.sum(a_data))  # 1 if edge(e) and edge(j) share a node
+    print(t_data.shape, t_data.size, np.sum(t_data))  # 1 if printing edge e with orientation a does not collide with edge j
+
+    elements = list(range(n))
+    orientations = list(range(m))
+    #orientations = random.sample(orientations, 10)
+
+    return g_data, a_data, t_data
+
 def main(viewer=False):
     root_directory = os.path.dirname(os.path.abspath(__file__))
+    #read_minizinc_data(os.path.join(root_directory, 'print_data.txt'))
+    #return
+
     with open(os.path.join(root_directory, JSON_FILENAME), 'r') as f:
         json_data = json.loads(f.read())
 
@@ -505,6 +542,7 @@ def main(viewer=False):
     elements = [element for element in elements if all(n in node_order for n in element)]
     #elements = elements[:20]
     #elements = elements[:50]
+    #elements = elements[:100]
     elements = elements[:150]
     #elements = elements[150:]
 
@@ -534,6 +572,7 @@ def main(viewer=False):
     trajectories = sample_trajectories(robot, [floor], node_points, element_bodies, ground_nodes)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    user_input('Continue?')
 
     plan = plan_sequence(trajectories, element_bodies, ground_nodes)
     disconnect()
