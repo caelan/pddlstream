@@ -188,6 +188,7 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
 
     goal_literals = [('Printed', e) for e in element_bodies]
     goal = And(*goal_literals)
+    # TODO: weight or order these in some way
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
@@ -373,8 +374,8 @@ def plan_sequence(trajectories, element_bodies, ground_nodes):
     pr = cProfile.Profile()
     pr.enable()
     pddlstream_problem = get_pddlstream(trajectories, element_bodies, ground_nodes)
-    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=120, debug=True)
-    #solution = solve_exhaustive(pddlstream_problem, planner='ff-lazy', max_time=120, debug=True)
+    solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=300, debug=True)
+    #solution = solve_exhaustive(pddlstream_problem, planner='ff-lazy', max_time=300, debug=True)
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or
 
@@ -399,7 +400,6 @@ class PrintTrajectory(object):
 def prune_dominated(trajectories):
     for traj1 in list(trajectories):
         if any((traj1 != traj2) and (traj2.colliding <= traj1.colliding) for traj2 in trajectories):
-            print('Pruned')
             trajectories.remove(traj1)
 
 def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes, num_trajs=100):
@@ -426,7 +426,7 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
     max_trajs = np.inf
 
     all_trajectories = []
-    for j, (element, element_body) in enumerate(element_bodies.items()):
+    for index, (element, element_body) in enumerate(element_bodies.items()):
         # TODO: prune elements that collide with all their neighbors
         trajectories = []
         for i in range(num_trajs):
@@ -437,13 +437,11 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
             colliding = {e for k, e in enumerate(elements_order) if (element != e) and collisions[k]}
             #colliding = {e for e, body in element_bodies.items()
             #             if check_trajectory_collision(robot, trajectory, [body])}
-            print(j, i, element, get_length(trajectory), len(colliding), len(element_bodies))
             if (element_neighbors[element] <= colliding) and not any(n in ground_nodes for n in element):
-                print('All collide!')
                 continue
             traj = PrintTrajectory(robot, trajectory, element, colliding)
             trajectories.append(traj) # TODO: make more if many collisions in particular
-            prune_dominated(trajectories)
+            #prune_dominated(trajectories)
 
             if has_gui():
                 for e, body in element_bodies.items():
@@ -458,6 +456,7 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
                 break
 
         prune_dominated(trajectories)
+        print(index, len(trajectories), sorted([len(t.colliding) for t in trajectories]))
         all_trajectories.extend(trajectories)
         if not trajectories:
             if has_gui():
@@ -540,10 +539,10 @@ def main(viewer=False):
     #node_order = node_order[:100]
     ground_nodes = [n for n in ground_nodes if n in node_order]
     elements = [element for element in elements if all(n in node_order for n in element)]
-    #elements = elements[:20]
+    elements = elements[:25]
     #elements = elements[:50]
     #elements = elements[:100]
-    elements = elements[:150]
+    #elements = elements[:150]
     #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
