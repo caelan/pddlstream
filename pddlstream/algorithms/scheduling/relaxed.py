@@ -1,5 +1,5 @@
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    conditions_hold, fd_from_fact, get_goal_instance, plan_preimage
+    conditions_hold, fd_from_fact, get_goal_instance, plan_preimage, get_literals
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
     get_derived_predicates, get_necessary_axioms, instantiate_necessary_axioms
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
@@ -7,10 +7,12 @@ from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_strea
     get_results_from_head, get_stream_actions
 from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
 from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, evaluation_from_fact
-from pddlstream.language.constants import And
+from pddlstream.language.constants import And, is_parameter
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.utils import Verbose, MockSet, INF, flatten
+
+from collections import defaultdict
 
 DO_RESCHEDULE = False
 RESCHEDULE_PLANNER = 'ff-astar' # TODO: investigate other admissible heuristics
@@ -155,25 +157,36 @@ def extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negativ
     import build_model
     import axiom_rules
     import instantiate
+    import pddl
 
-    opt_task.init = opt_state
     original_axioms = opt_task.axioms
     axiom_from_action = get_necessary_axioms(action_instance, original_axioms, negative_from_name)
+    if not axiom_from_action:
+        return []
+    conditions_from_predicate = defaultdict(set)
+    for axiom, var_mapping in axiom_from_action.values():
+        for literal in get_literals(axiom.condition):
+            conditions_from_predicate[literal.predicate].add(
+                literal.rename_variables(var_mapping))
+
+    # TODO: store map from predicate to atom
+    opt_task.init = {atom for atom in opt_state if isinstance(atom, pddl.Atom) and
+                     any(all(is_parameter(a2) or (a1 == a2) for a1, a2 in zip(atom.args, atom2.args))
+                         for atom2 in conditions_from_predicate[atom.predicate])}
     opt_task.axioms = []
     opt_task.actions = axiom_from_action.keys()
     # TODO: maybe it would just be better to drop the negative throughout this process until this end
     with Verbose(False):
         model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
     opt_task.axioms = original_axioms
-    #print(axiom_from_action)
 
-    delta_state = (opt_state - real_state)  # Optimistic facts
+    delta_state = (opt_task.init - real_state)  # Optimistic facts
     opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
     mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
     instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
     with Verbose(False):
         helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
-    axiom_from_atom = get_achieving_axioms(opt_state, helpful_axioms, axiom_init, negative_from_name)
+    axiom_from_atom = get_achieving_axioms(opt_task.init, helpful_axioms, axiom_init, negative_from_name)
     axiom_plan = []  # Could always add all conditions
     extract_axioms(axiom_from_atom, action_instance.precondition, axiom_plan)
     # TODO: test if no derived solution

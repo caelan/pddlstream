@@ -13,6 +13,8 @@ def get_derived_predicates(axioms):
 def get_necessary_axioms(instance, axioms, negative_from_name):
     import pddl
 
+    if not axioms:
+        return {}
     axioms_from_name = get_derived_predicates(axioms)
     atom_queue = []
     processed_atoms = set()
@@ -39,10 +41,9 @@ def get_necessary_axioms(instance, axioms, negative_from_name):
                 continue
             partial_instantiations.add(key)
             parts = []
-            for literal in get_literals(axiom.condition):
-                if literal.predicate in negative_from_name:
-                    continue
-                parts.append(literal.rename_variables(var_mapping))
+            for literal in get_literals(axiom.condition): # TODO: assumes a conjunction?
+                if literal.predicate not in negative_from_name:
+                    parts.append(literal.rename_variables(var_mapping))
             # new_condition = axiom.condition.uniquify_variables(None, var_mapping)
             effect_args = [var_mapping.get(a.name, a.name) for a in derived_parameters]
             effect = pddl.Effect([], pddl.Truth(), pddl.conditions.Atom(axiom.name, effect_args))

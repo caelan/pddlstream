@@ -82,7 +82,7 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     opt_stream_plan, opt_from_obj = recover_opt_stream_plan(evaluations, action_plan, task)
     opt_stream_plan += optimistic_process_streams(evaluations_from_stream_plan(evaluations, opt_stream_plan), functions)
     opt_action_plan = [(name, tuple(opt_from_obj.get(o, o) for o in args)) for name, args in action_plan]
-    pddl_plan = [(name, map(pddl_from_object, args)) for name, args in opt_action_plan]
+    pddl_plan = [(name, tuple(map(pddl_from_object, args))) for name, args in opt_action_plan]
     stream_plan = recover_stream_plan(evaluations, goal_expression, domain,
                                       opt_stream_plan, pddl_plan, negative, unit_costs=False)
     stream_plan = get_synthetic_stream_plan(reorder_stream_plan(stream_plan), dynamic_streams)

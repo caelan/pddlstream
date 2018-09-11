@@ -14,15 +14,16 @@ from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
-from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
+from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations, has_pygraphviz
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.stream import Stream
+from pddlstream.language.external import get_plan_effort
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.utils import INF, elapsed_time, get_length
+from pddlstream.utils import INF, elapsed_time, get_length, str_from_plan
 
 
 # TODO: compute total stream plan p_success and overhead
@@ -75,9 +76,12 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
     compile_fluent_streams(domain, externals)
-    unit_costs &= has_costs(domain)
+    unit_costs |= not has_costs(domain)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)
+    if visualize and not has_pygraphviz():
+        visualize = False
+        print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
     if visualize:
         clear_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
@@ -106,10 +110,10 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
+        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan
         stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
-        print('Stream plan ({}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), stream_plan,
-                                                                      get_length(action_plan), cost, action_plan))
+        print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), get_plan_effort(stream_plan), stream_plan,
+                                                                              get_length(action_plan), cost, str_from_plan(action_plan)))
         search_time += elapsed_time(start_time)
 
         start_time = time.time()

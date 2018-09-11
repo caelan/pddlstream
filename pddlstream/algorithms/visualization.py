@@ -6,9 +6,9 @@ from pddlstream.language.conversion import evaluation_from_fact, str_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
 from pddlstream.language.synthesizer import SynthStreamResult
-from pddlstream.utils import clear_dir
+from pddlstream.utils import clear_dir, ensure_dir
 
-# https://www.graphviz.org/doc/info/colors.html
+# https://www.graphviz.org/doc/info/
 
 PARAMETER_COLOR = 'LightGreen'
 CONSTRAINT_COLOR = 'LightBlue'
@@ -25,9 +25,15 @@ SYNTHESIZER_TEMPLATE = '{}_{}.pdf'
 
 ##################################################
 
+def has_pygraphviz():
+    try:
+        import pygraphviz
+    except ImportError:
+        return False
+    return True
+
 def clear_visualizations():
-    clear_dir(CONSTRAINT_NETWORK_DIR)
-    clear_dir(STREAM_PLAN_DIR)
+    clear_dir(VISUALIZATIONS_DIR)
 
 def get_optimistic_constraints(evaluations, stream_plan):
     # TODO: approximates needed facts using produced ones
@@ -47,6 +53,8 @@ def create_synthesizer_visualizations(result, num_iterations):
 
 def create_visualizations(evaluations, stream_plan, num_iterations):
     # TODO: place it in the temp_dir?
+    ensure_dir(CONSTRAINT_NETWORK_DIR)
+    ensure_dir(STREAM_PLAN_DIR)
     for result in stream_plan:
         if isinstance(result, SynthStreamResult):
             create_synthesizer_visualizations(result, num_iterations)
@@ -63,10 +71,21 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
 
     graph = AGraph(strict=True, directed=False)
     graph.node_attr['style'] = 'filled'
-    graph.node_attr['shape'] = 'circle'
-    graph.node_attr['fontcolor'] = 'black'
+    #graph.node_attr['fontcolor'] = 'black'
+    #graph.node_attr['fontsize'] = 12
     graph.node_attr['colorscheme'] = 'SVG'
     graph.edge_attr['colorscheme'] = 'SVG'
+    #graph.graph_attr['rotate'] = 90
+    #graph.node_attr['fixedsize'] = True
+    graph.node_attr['width'] = 0
+    graph.node_attr['height'] = 0.02 # Minimum height is 0.02
+    graph.node_attr['margin'] = 0
+    graph.graph_attr['rankdir'] = 'RL'
+    graph.graph_attr['nodesep'] = 0.05
+    graph.graph_attr['ranksep'] = 0.25
+    #graph.graph_attr['pad'] = 0
+    # splines="false";
+    graph.graph_attr['outputMode'] = 'nodesfirst'
 
     functions = set()
     negated = set()
@@ -113,6 +132,12 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     graph.node_attr['style'] = 'filled'
     graph.node_attr['shape'] = 'box'
     graph.node_attr['color'] = STREAM_COLOR
+    graph.node_attr['fontcolor'] = 'black'
+    #graph.node_attr['fontsize'] = 12
+    graph.node_attr['width'] = 0
+    graph.node_attr['height'] = 0.02 # Minimum height is 0.02
+    graph.node_attr['margin'] = 0
+    graph.graph_attr['outputMode'] = 'nodesfirst'
 
     for stream in stream_plan:
         graph.add_node(str(stream))
@@ -131,17 +156,28 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
     graph.node_attr['shape'] = 'box'
+    graph.node_attr['fontcolor'] = 'black'
+    #graph.node_attr['fontsize'] = 12
+    graph.node_attr['width'] = 0
+    graph.node_attr['height'] = 0.02 # Minimum height is 0.02
+    graph.node_attr['margin'] = 0
+    #graph.graph_attr['rankdir'] = 'LR'
+    graph.graph_attr['nodesep'] = 0.1
+    graph.graph_attr['ranksep'] = 0.25
+    graph.graph_attr['outputMode'] = 'nodesfirst'
 
     def add_fact(fact):
         head, color = (fact[1], COST_COLOR) if get_prefix(fact) == EQ else (fact, CONSTRAINT_COLOR)
         s_fact = str_from_fact(head)
-        graph.add_node(s_fact, shape='box', color=color)
+        graph.add_node(s_fact, color=color)
         return s_fact
 
     def add_stream(stream):
         color = FUNCTION_COLOR if isinstance(stream, FunctionResult) else STREAM_COLOR
         s_stream = str(stream.instance) if isinstance(stream, FunctionResult) else str(stream)
-        graph.add_node(s_stream, shape='oval', color=color)
+        graph.add_node(s_stream, style='rounded,filled', color=color)
+        # shape: oval, plaintext, polygon, rarrow, cds
+        # style: rounded, filled, bold
         return s_stream
 
     achieved_facts = set()

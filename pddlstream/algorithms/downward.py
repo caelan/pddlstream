@@ -11,6 +11,7 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
 from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique
 
+# TODO: possible bug when path has a space or period
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
@@ -54,14 +55,16 @@ SEARCH_OPTIONS = {
     # Suboptimal
     'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'ff-eager': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
-                '--search "eager_greedy([hff],max_time=%s,bound=%s)"',
-    'ff-eager-pref': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
-                     '--search "eager_greedy([hff],preferred=[hff],max_time=%s,bound=%s)"',
-    'ff-lazy': '--heuristic "hff=ff(transform=adapt_costs(cost_type=PLUSONE))" '
-               '--search "lazy_greedy([hff],preferred=[hff],max_time=%s,bound=%s)"',
+    'ff-eager': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "eager_greedy([h],max_time=%s,bound=%s)"',
+    'ff-eager-pref': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                     '--search "eager_greedy([h],preferred=[h],max_time=%s,bound=%s)"',
+    'ff-lazy': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+               '--search "lazy_greedy([h],preferred=[h],max_time=%s,bound=%s)"',
     'goal-lazy': '--heuristic "h=goalcount(transform=no_transform())" '
-                 '--search "lazy_greedy([h],max_time=%s,bound=%s)"',
+                 '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
+    'add-random-lazy': '--heuristic "h=add(transform=adapt_costs(cost_type=PLUSONE))" '
+                       '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
 }
 
 for w in [1, 3, 5]:
@@ -117,11 +120,11 @@ def fd_from_fact(fact):
     if prefix == EQ:
         _, head, value = fact
         predicate = get_prefix(head)
-        args = map(pddl_from_object, get_args(head))
+        args = list(map(pddl_from_object, get_args(head)))
         fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=predicate, args=args)
         expression = pddl.f_expression.NumericConstant(value)
         return pddl.f_expression.Assign(fluent, expression)
-    args = map(pddl_from_object, get_args(fact))
+    args = list(map(pddl_from_object, get_args(fact)))
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
@@ -151,8 +154,8 @@ def fd_from_evaluation(evaluation):
 ##################################################
 
 def get_problem(init_evaluations, goal_expression, domain, unit_costs):
-    objects = map(pddl_from_object, objects_from_evaluations(init_evaluations))
-    typed_objects = list({pddl.TypedObject(obj, OBJECT) for obj in objects} - set(domain.constants))
+    objects = objects_from_evaluations(init_evaluations)
+    typed_objects = list({pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_condition(pddl_list_from_expression(goal_expression),
@@ -216,8 +219,8 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 ##################################################
 
-def run_search(temp_dir, planner=DEFAULT_PLANNER, max_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
-    max_time = INFINITY if max_time == INF else int(max_time)
+def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
+    max_time = INFINITY if max_planner_time == INF else int(max_planner_time)
     max_cost = INFINITY if max_cost == INF else int(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
@@ -329,7 +332,7 @@ def get_action_instances(task, action_plan):
         # TODO: what if more than one action of the same name due to normalization?
         # Normalized actions have same effects, so I just have to pick one
         action = find_unique(lambda a: a.name == name, task.actions)
-        args = map(pddl_from_object, objects)
+        args = list(map(pddl_from_object, objects))
         assert (len(action.parameters) == len(args))
         variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
         instance = action.instantiate(variable_mapping, init_facts,

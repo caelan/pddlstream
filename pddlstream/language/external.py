@@ -4,7 +4,7 @@ from pddlstream.language.conversion import substitute_expression, values_from_ob
 from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance
-from pddlstream.utils import elapsed_time, get_mapping
+from pddlstream.utils import elapsed_time, get_mapping, INF
 
 DEBUG = 'debug'
 
@@ -146,6 +146,13 @@ class External(Performance):
         return self.instances[input_objects]
 
 ##################################################
+
+def get_plan_effort(stream_plan):
+    if stream_plan is None:
+        return INF
+    if not stream_plan:
+        return 0
+    return sum(result.instance.get_effort() for result in stream_plan)
 
 def get_procedure_fn(stream_map, name):
     if stream_map == DEBUG:

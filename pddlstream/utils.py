@@ -217,3 +217,12 @@ def str_from_object(obj):  # str_object
 
 def str_from_tuple(tup):
     return str_from_object(tup)
+
+def str_from_action(action):
+    name, args = action
+    return '{}{}'.format(name, str_from_object(tuple(args)))
+
+def str_from_plan(plan):
+    if plan is None:
+        return str(plan)
+    return str_from_object(list(map(str_from_action, plan)))
