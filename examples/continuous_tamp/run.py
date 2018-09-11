@@ -11,7 +11,7 @@ from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.utils import clear_dir, ensure_dir
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
+from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn, has_gurobi
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, \
     get_blocked_problem, draw_state, get_random_seed, \
@@ -26,28 +26,6 @@ from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
-
-
-#def valid_state_fn(fluents, parameters):
-#    new_fluents = set(fluents)
-#    # TODO: could return action descriptions or could just return fluents
-#    return
-#
-# def reachable_test(q1, q2, fluents=[]):
-#     placed_blocks = {}
-#     holding_block = None
-#     for fluent in fluents:
-#         if fluent[0] == 'atpose':
-#             b, p = fluent[1:]
-#             placed_blocks[b] = p
-#         if fluent[0] == 'holding':
-#             b, = fluent[1:]
-#             holding_block = b
-#     print(q1, q2, holding_block, placed_blocks)
-#     #return True
-#     return False
-
-##################################################
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -76,13 +54,13 @@ def pddlstream_from_tamp(tamp_problem):
     goal = And(*goal_literals)
 
     stream_map = {
-        'plan-motion': from_fn(plan_motion),
-        'sample-pose': from_gen_fn(get_pose_gen(tamp_problem.regions)),
-        'test-region': from_test(get_region_test(tamp_problem.regions)),
-        'inverse-kinematics': from_fn(inverse_kin_fn),
+        's-motion': from_fn(plan_motion),
+        's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        't-region': from_test(get_region_test(tamp_problem.regions)),
+        's-ik': from_fn(inverse_kin_fn),
         'distance': distance_fn,
 
-        'test-cfree': from_test(lambda *args: not collision_test(*args)),
+        't-cfree': from_test(lambda *args: not collision_test(*args)),
         'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
         #'reachable': from_test(reachable_test),
@@ -116,14 +94,18 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=True):
+def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True, display=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
         np.random.seed(seed)
     print('Seed:', get_random_seed())
+    if use_synthesizers and not has_gurobi():
+        use_synthesizers = False
+        print('Warning, use_synthesizers=True requires gurobipy. Setting use_synthesizers=False')
+    print('Focused: {} | Costs: {} | Synthesizers: {}'.format(focused, not unit_costs, use_synthesizers))
 
-    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -133,18 +115,18 @@ def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=Tr
         #'place': ActionInfo(terminal=True),
     }
     stream_info = {
-        'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        'test-cfree': StreamInfo(negate=True),
+        't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
+        't-cfree': StreamInfo(eager=False, negate=True),
     }
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
     ]
 
     synthesizers = [
-        #StreamSynthesizer('cfree-motion', {'plan-motion': 1, 'trajcollision': 0},
+        #StreamSynthesizer('cfree-motion', {'s-motion': 1, 'trajcollision': 0},
         #                  gen_fn=from_fn(cfree_motion_fn)),
-        StreamSynthesizer('optimize', {'sample-pose': 1, 'inverse-kinematics': 1,
-                                       'posecollision': 0, 'test-cfree': 0, 'distance': 0},
+        StreamSynthesizer('optimize', {'s-region': 1, 's-ik': 1,
+                                       'posecollision': 0, 't-cfree': 0, 'distance': 0},
                           gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ] if use_synthesizers else []
 
@@ -156,7 +138,7 @@ def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=Tr
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
-                                 max_time=10, max_cost=INF, debug=False, hierarchy=hierarchy,
+                                 max_time=30, max_cost=INF, debug=False, hierarchy=hierarchy,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=True,
                                  visualize=True)
     else:
@@ -167,10 +149,9 @@ def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=Tr
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
-    #example_name = os.path.basename (os.path.dirname(__file__))
-    #directory = os.path.join(VISUALIZATIONS_DIR, example_name)
-    #clear_dir(directory)
-    #ensure_dir(directory)
+    example_name = os.path.basename(os.path.dirname(__file__))
+    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
+    ensure_dir(directory)
 
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
@@ -178,17 +159,19 @@ def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=Tr
     print()
     print(state)
     draw_state(viewer, state, colors)
-    user_input('Continue?')
-
+    if display:
+        user_input('Continue?')
     if plan is not None:
         for i, action in enumerate(plan):
             print(i, *action)
             for j, state in enumerate(apply_action(state, action)):
                 print(i, j, state)
                 draw_state(viewer, state, colors)
-                #viewer.save(os.path.join('{}_{}'.format(i, j)))
-                user_input('Continue?')
-    user_input('Finish?')
+                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
+                if display:
+                    user_input('Continue?')
+    if display:
+        user_input('Finish?')
 
 
 if __name__ == '__main__':

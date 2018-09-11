@@ -34,29 +34,6 @@ def get_block_interval(b, p):
 
 ##################################################
 
-# def get_pose_generator(regions):
-#     class PoseGenerator(Generator):
-#         def __init__(self, *inputs):
-#             super(PoseGenerator, self).__init__()
-#             self.b, self.r = inputs
-#         def generate(self, outputs=None, streams=tuple()):
-#             # TODO: designate which streams can be handled
-#             placed = {}
-#             for stream in streams:
-#                 name, args = stream[0], stream[1:]
-#                 if name in ['collision-free', 'cfree']:
-#                     for i in range(0, len(args), 2):
-#                         b, p = args[i:i+2]
-#                         if self.b != b:
-#                             placed[b] = p
-#             #p = sample_region(self.b, regions[self.r])
-#             p = rejection_sample_region(self.b, regions[self.r], placed=placed)
-#             if p is None:
-#                 return []
-#             return [(p,)]
-#     return PoseGenerator
-
-
 def collision_test(b1, p1, b2, p2):
     return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
 
@@ -133,7 +110,7 @@ TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goa
 
 BLOCK_PREFIX = 'b'
 REGION_NAME = 'red'
-INITIAL_CONF = np.array([0, 10])
+INITIAL_CONF = np.array([-7.5, 5])
 
 def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
@@ -152,21 +129,21 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
 
 
-def get_blocked_problem(n_blocks=2):
+def get_blocked_problem(n_blocks=2, deterministic=True):
     regions = {
         GROUND_NAME: (-15, 15),
         REGION_NAME: (5, 10)
     }
 
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
-    #poses = [np.zeros(2), np.array([7.5, 0])]
-    #block_poses = dict(zip(blocks, poses))
 
-    block_regions = {
-        blocks[0]: GROUND_NAME,
-    }
-    block_regions.update({b: REGION_NAME for b in blocks[1:]})
-    block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+    if deterministic:
+        poses = [np.zeros(2), np.array([7.5, 0])]
+        block_poses = dict(zip(blocks, poses))
+    else:
+        block_regions = {blocks[0]: GROUND_NAME}
+        block_regions.update({b: REGION_NAME for b in blocks[1:]})
+        block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
     initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
@@ -187,7 +164,7 @@ def draw_state(viewer, state, colors):
         x, y = state.conf + GRASP
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
                           name=state.holding, color=colors[state.holding])
+    viewer.tk.update()
 
 def get_random_seed():
-    import numpy
-    return numpy.random.get_state()[1][0]
+    return np.random.get_state()[1][0]

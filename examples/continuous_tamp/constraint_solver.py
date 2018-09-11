@@ -37,6 +37,13 @@ def get_cfree_pose_fn(regions):
 
 ##################################################
 
+def has_gurobi():
+    try:
+        import gurobipy
+    except ImportError:
+        return False
+    return True
+
 def value_from_var(vars):
     import gurobipy
     if isinstance(vars, gurobipy.Var):
@@ -47,6 +54,8 @@ def value_from_var(vars):
     return new_vars
 
 def get_optimize_fn(regions, max_time=5, verbose=False):
+    if not has_gurobi():
+        raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
     from gurobipy import Model, GRB, quicksum, Var
     def fn(outputs, facts):
         m = Model(name='TAMP')
@@ -131,3 +140,27 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         output_values = tuple(value_from_var(get_var(out)) for out in outputs)
         return output_values
     return fn
+
+##################################################
+
+# def get_pose_generator(regions):
+#     class PoseGenerator(Generator):
+#         def __init__(self, *inputs):
+#             super(PoseGenerator, self).__init__()
+#             self.b, self.r = inputs
+#         def generate(self, outputs=None, streams=tuple()):
+#             # TODO: designate which streams can be handled
+#             placed = {}
+#             for stream in streams:
+#                 name, args = stream[0], stream[1:]
+#                 if name in ['collision-free', 'cfree']:
+#                     for i in range(0, len(args), 2):
+#                         b, p = args[i:i+2]
+#                         if self.b != b:
+#                             placed[b] = p
+#             #p = sample_region(self.b, regions[self.r])
+#             p = rejection_sample_region(self.b, regions[self.r], placed=placed)
+#             if p is None:
+#                 return []
+#             return [(p,)]
+#     return PoseGenerator

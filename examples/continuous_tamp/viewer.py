@@ -24,7 +24,7 @@ def get_width(interval):
     return interval[1] - interval[0]
 
 class ContinuousTMPViewer(object):
-    def __init__(self, regions, tl_x=0, tl_y=0, width=500, height=250, title='Grid', background='tan'):
+    def __init__(self, regions, tl_x=0, tl_y=0, width=500, height=150, title='Grid', background='tan'):
         self.tk = Tk()
         # tk.geometry('%dx%d+%d+%d'%(width, height, 100, 0))
         self.tk.withdraw()
@@ -134,7 +134,18 @@ class ContinuousTMPViewer(object):
         self.canvas.delete('all')
 
     def save(self, filename):
+        # TODO: screen recording based on location like I did before
         # TODO: only works on windows
         # self.canvas.postscript(file='%s.ps'%filename, colormode='color')
-        from PIL import ImageGrab
-        ImageGrab.grab((0, 0, self.width, self.height)).save(filename + '.jpg')
+        #from PIL import ImageGrab
+        try:
+            import pyscreenshot as ImageGrab
+        except ImportError:
+            return None
+        x, y = self.top.winfo_x(), 2*self.top.winfo_y()
+        width, height = self.top.winfo_width(), self.top.winfo_height() # winfo_width, winfo_reqheight
+        path = filename + '.png'
+        ImageGrab.grab((x, y, x+width, y+height)).save(path)
+        return path
+        #os.system("screencapture -R {},{},{},{} {}".format(
+        #    225, 200, 600, 500, image_path))
