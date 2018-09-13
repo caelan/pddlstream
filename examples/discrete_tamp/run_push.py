@@ -113,7 +113,7 @@ def pddlstream_from_tamp(tamp_problem):
 
 def get_shift_one_problem(n_blocks=2, n_poses=MAX_COLS):
     assert(1 <= n_blocks <= n_poses)
-    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    blocks = ['b{}'.format(i) for i in range(n_blocks)]
     poses = [array([x, 0]) for x in range(n_poses)]
     conf = array([0, -5])
 

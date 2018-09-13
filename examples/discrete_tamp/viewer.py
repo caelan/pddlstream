@@ -1,6 +1,6 @@
 try:
     from Tkinter import Tk, Canvas, Toplevel
-except ModuleNotFoundError:
+except ImportError:
     from tkinter import Tk, Canvas, Toplevel
 
 

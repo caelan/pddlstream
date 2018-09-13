@@ -89,12 +89,13 @@ def add_result_outputs(result, param_from_obj, local_mapping, outputs, output_ob
         local_mapping[out] = param_from_obj[output_object]
 
 class StreamSynthesizer(Performance): # JointStream | Stream Combiner
-    def __init__(self, name, streams, gen_fn):
+    def __init__(self, name, streams, gen_fn, post_only=False):
         super(StreamSynthesizer, self).__init__(name, StreamInfo())
         self.name = name
         self.streams = {s.lower(): m for s, m in streams.items()}
         self.gen_fn = gen_fn
         self.macro_results = {}
+        self.post_only = post_only
     #def get_instances(self):
     #    raise NotImplementedError()
     def get_synth_stream(self, stream_plan):
@@ -122,6 +123,8 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
                 certified.update(substitute_expression(stream.certified, local_mapping))
                 streams.append(stream)
                 macro_from_micro.append(local_mapping)
+        if len(streams) < 1: # No point if only one...
+            return None
 
         mega_stream = SynthStream(self, inputs=inputs, domain=domain,
                                   outputs=outputs, certified=certified, functions=functions,
@@ -137,6 +140,18 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
 ##################################################
 
 # TODO: factor this into algorithms
+
+# TODO: 
+# 1) Iteratively resolve for the next stream plan to apply rather than do in sequence
+# 2) Apply to a constraint network specifcation
+# 3) Satisfy a constraint network were free variables aren't given by streams
+# 4) Allow algorithms to return not feasible to combine rather than impose minimums
+# 5) Make a method (rather than a spec) that traverses the constraint graph and prunes weak links/constraints that can't be planned 
+# 6) Post process all feasible skeletons at once
+# 7) Planning and execution view of the algorithm
+# 8) Algorithm that does the matching of streams to variables
+# 9) Add implied facts (e.g. types) to the constraint network as preconditons
+
 
 def expand_cluster(synthesizer, v, neighbors, processed):
     cluster = {v}
@@ -182,7 +197,10 @@ def get_synthetic_stream_plan(stream_plan, synthesizers):
             if not all(n <= counts[name] for name, n in synthesizer.streams.items()):
                 continue
             ordered_cluster = [r for r in stream_plan if r in cluster]
-            new_stream_plan.append(synthesizer.get_synth_stream(ordered_cluster))
+            synthesizer_result = synthesizer.get_synth_stream(ordered_cluster)
+            if synthesizer_result is None:
+                continue
+            new_stream_plan.append(synthesizer_result)
             new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), ordered_cluster)
             break
         else:

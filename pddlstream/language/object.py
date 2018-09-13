@@ -1,5 +1,6 @@
 from collections import Hashable, namedtuple
 from pddlstream.utils import str_from_object
+# TODO: issue with hashable and numpy 2.7.6
 
 USE_HASH = True
 USE_STRING = False

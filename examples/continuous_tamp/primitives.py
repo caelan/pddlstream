@@ -3,13 +3,15 @@ from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.viewer import SUCTION_HEIGHT, GROUND_NAME
-
+GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
+
+SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
-SCALE_COST = 1.
 CARRY_Y = 5
+
+SCALE_COST = 1.
 
 
 def scale_cost(cost):
