@@ -8,6 +8,16 @@ from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.statistics import Performance
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
 
+def decompose_stream_plan(stream_plan):
+    if stream_plan is None:
+        return None
+    new_stream_plan = []
+    for result in stream_plan:
+        if isinstance(result, SynthStreamResult):
+            new_stream_plan.extend(result.decompose())
+        else:
+            new_stream_plan.append(result)
+    return new_stream_plan
 
 class SynthStreamResult(StreamResult):
     def get_functions(self):

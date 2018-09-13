@@ -105,7 +105,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         print('Warning, use_synthesizers=True requires gurobipy. Setting use_synthesizers=False')
     print('Focused: {} | Costs: {} | Synthesizers: {}'.format(focused, not unit_costs, use_synthesizers))
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -139,7 +139,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
                                  max_time=30, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=None, unit_costs=unit_costs, postprocess=True,
+                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=True)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,

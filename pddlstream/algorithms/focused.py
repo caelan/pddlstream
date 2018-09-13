@@ -2,45 +2,26 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_fluent_streams
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_fluent_streams, dump_plans, \
+    partition_externals
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
-from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan, optimistic_process_streams
+from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
-from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations, has_pygraphviz
+from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
+    has_pygraphviz, log_plans
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
-from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
-from pddlstream.language.stream import Stream
-from pddlstream.language.external import get_plan_effort
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
-from pddlstream.utils import INF, elapsed_time, get_length, str_from_plan
-
-
-# TODO: compute total stream plan p_success and overhead
-# TODO: ensure search and sampling have equal time
-# TODO: select whether to search or sample based on expected success rates
-# TODO: estimate the success rate for a stream_plan given past outcomes
-# TODO: make a subroutine that does commit
-
-def partition_externals(externals):
-    functions = list(filter(lambda s: type(s) is Function, externals))
-    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
-    negative = predicates + negated_streams
-    streams = list(filter(lambda s: s not in (functions + negative), externals))
-    return streams, functions, negative
-
-##################################################
+from pddlstream.utils import INF, elapsed_time
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
@@ -67,6 +48,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         using stream applications
     """
     # TODO: return to just using the highest level samplers at the start
+    # TODO: select whether to search or sample based on expected success rates
     solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
     #solve_stream_plan_fn = sequential_stream_plan # simultaneous_stream_plan | sequential_stream_plan
     #solve_stream_plan_fn = incremental_stream_plan # incremental_stream_plan | exhaustive_stream_plan
@@ -83,7 +65,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         visualize = False
         print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
     if visualize:
-        clear_visualizations()
+        reset_visualizations()
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
     if verbose:
@@ -112,8 +94,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan
         stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
-        print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), get_plan_effort(stream_plan), stream_plan,
-                                                                              get_length(action_plan), cost, str_from_plan(action_plan)))
+        dump_plans(stream_plan, action_plan, cost)
         search_time += elapsed_time(start_time)
 
         start_time = time.time()
@@ -123,6 +104,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             queue.process_until_success()
         else:
             if visualize:
+                log_plans(stream_plan, action_plan, num_iterations)
                 create_visualizations(evaluations, stream_plan, num_iterations)
             queue.new_skeleton(stream_plan, action_plan, cost)
             queue.greedily_process()
