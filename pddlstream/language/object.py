@@ -1,4 +1,5 @@
 from collections import Hashable, namedtuple
+# TODO: issue with hashable and numpy 2.7.6
 
 USE_HASH = True
 USE_STRING = False

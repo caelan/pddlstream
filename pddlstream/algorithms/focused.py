@@ -111,10 +111,13 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan
-        stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
+        stream_plan = get_synthetic_stream_plan(stream_plan, [s for s in synthesizers if not s.post_only])
         print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), get_plan_effort(stream_plan), stream_plan,
                                                                               get_length(action_plan), cost, str_from_plan(action_plan)))
         search_time += elapsed_time(start_time)
+
+        # TODO: more generally just add the original plan skeleton to the plan
+        # TOOD: cutoff search exploration time at a certain point
 
         start_time = time.time()
         if stream_plan is None:
