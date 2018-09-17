@@ -8,7 +8,6 @@ from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
-from pddlstream.utils import int_ceil
 
 
 # TODO: can do this whole story within the focused algorithm as well
@@ -121,7 +120,7 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
         #if effort == INF:
         #    continue
         fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-        expression = pddl.NumericConstant(int_ceil(effort)) # Integer
+        expression = pddl.NumericConstant(effort)
         cost = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
         domain.actions.append(pddl.Action(name='call-{}'.format(stream.name),
                                           parameters=parameters,

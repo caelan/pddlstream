@@ -67,11 +67,11 @@ class FunctionInstance(Instance):  # Head(Instance):
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
         #if not isinstance(self.value, self.external._codomain):
-        if self.value != value:
-            raise ValueError('Function [{}] produced a nonintegral value [{}]. '
-                             'FastDownward only supports integral costs. '
-                             'To "use" real costs, scale each cost by a large factor, '
-                             'capturing the most significant bits.'.format(self.external.name, self.value))
+        #if self.value != value:
+        #    raise ValueError('Function [{}] produced a nonintegral value [{}]. '
+        #                     'FastDownward only supports integral costs. '
+        #                     'To "use" real costs, scale each cost by a large factor, '
+        #                     'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if verbose:
@@ -102,7 +102,8 @@ class Function(External):
     """
     _Instance = FunctionInstance
     _Result = FunctionResult
-    _codomain = int
+    #_codomain = int
+    _codomain = float
     _default_p_success = 1
     _default_overhead = None
     def __init__(self, head, fn, domain, info):

@@ -17,6 +17,7 @@ INTERNAL = False
 DEFAULT_UNIQUE = False
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
+# TODO: default effort cost of streams with more inputs to be higher (but negated are free)
 
 def get_empty_fn():
     return lambda *input_values: None

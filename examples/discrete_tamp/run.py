@@ -42,7 +42,7 @@ def noisy_collision_gen_fn(*args):
             yield outputs_from_boolean(not collision_test(*args))
 
 def distance_fn(q1, q2):
-    return int(math.ceil(get_length(get_difference(q1, q2))))
+    return get_length(get_difference(q1, q2))
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial

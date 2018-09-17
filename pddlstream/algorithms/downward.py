@@ -9,7 +9,7 @@ from time import time
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique
+from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 # TODO: possible bug when path has a space or period
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
@@ -21,6 +21,11 @@ PROBLEM_INPUT = 'problem.pddl'
 TRANSLATE_FLAGS = [] # '--negative-axioms'
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
+
+COST_SCALE = 1000 # TODO: make unit costs be equivalent to cost scale = 0
+import pddl.f_expression
+pddl.f_expression.COST_SCALE = COST_SCALE
+# TODO: method for setting this globally
 
 import translate
 import pddl
@@ -37,7 +42,7 @@ SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
-# TODO: use goal_serialization / hierarchy on the inside loop of these algorithms
+# TODO: modify parsing_functions to support multiple costs
 
 OBJECT = 'object'
 TOTAL_COST = 'total-cost' # TotalCost
@@ -80,6 +85,9 @@ DEFAULT_PLANNER = 'ff-astar'
 
 ##################################################
 
+def scale_cost(cost):
+    return int_ceil(COST_SCALE * float(cost))
+
 def parse_lisp(lisp):
     return pddl_parser.lisp_parser.parse_nested_list(lisp.splitlines())
 
@@ -87,7 +95,11 @@ Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'co
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
 def parse_domain(domain_pddl):
-    return Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    #for action in domain.actions:
+    #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
+    #        action.cost.expression.value = scale_cost(action.cost.expression.value)
+    return domain
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements', 'objects', 'init',
                                'goal', 'use_metric'])
@@ -128,7 +140,7 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(not fd.negated)
+    assert(isinstance(fd, pddl.Literal) and not fd.negated)
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def evaluation_from_fd(fd):
@@ -136,8 +148,9 @@ def evaluation_from_fd(fd):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
     if isinstance(fd, pddl.f_expression.Assign):
-        head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
-        return Evaluation(head, fd.expression.value)
+        raise not NotImplementedError()
+        #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
+        #return Evaluation(head, float(fd.expression.value) / COST_SCALE) # Need to be careful
     raise ValueError(fd)
 
 def fd_from_evaluation(evaluation):
@@ -148,7 +161,7 @@ def fd_from_evaluation(evaluation):
     elif is_negated_atom(evaluation):
         return pddl.NegatedAtom(name, args)
     fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
-    expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
+    expression = pddl.f_expression.NumericConstant(evaluation.value)
     return pddl.f_expression.Assign(fluent, expression)
 
 ##################################################
@@ -176,7 +189,7 @@ def task_from_domain_problem(domain, problem):
     check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
-    init += [pddl.Atom("=", (obj.name, obj.name)) for obj in objects]
+    init.extend(pddl.Atom("=", (obj.name, obj.name)) for obj in objects)
 
     task = pddl.Task(domain_name, task_name, requirements, types, objects,
                      predicates, functions, init, goal, actions, axioms, use_metric)
@@ -221,7 +234,7 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
     max_time = INFINITY if max_planner_time == INF else int(max_planner_time)
-    max_cost = INFINITY if max_cost == INF else int(max_cost)
+    max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
@@ -248,7 +261,7 @@ def parse_solution(solution):
     cost_regex = r'cost\s*=\s*(\d+)'
     matches = re.findall(cost_regex, solution)
     if matches:
-        cost = int(matches[0])
+        cost = float(matches[0]) / COST_SCALE
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = []
     for line in lines:

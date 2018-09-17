@@ -6,7 +6,7 @@ from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, eval
 from pddlstream.language.constants import Head
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, find, int_ceil
+from pddlstream.utils import INF, find
 
 
 def evaluations_from_stream_plan(evaluations, stream_plan):
@@ -47,7 +47,7 @@ def combine_function_evaluations(evaluations, stream_results):
 
 ##################################################
 
-def get_stream_action(result, name, unit=True, effect_scale=1):
+def get_stream_action(result, name, unit=True, effort_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
 
@@ -60,7 +60,7 @@ def get_stream_action(result, name, unit=True, effect_scale=1):
     if effort == INF:
         return None
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-    expression = pddl.NumericConstant(int_ceil(effect_scale*effort)) # Integer
+    expression = pddl.NumericConstant(effort_scale * effort)
     cost = pddl.Increase(fluent=fluent, expression=expression) # Can also be None
 
     # TODO: is num_external_parameters correct?
