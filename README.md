@@ -38,12 +38,22 @@ http://www.fast-downward.org/ObtainingAndRunningFastDownward
 These are simple examples that can be run without additional depedencies:
 * Blocksworld: `$ python -m examples.blocksworld.blocksworld`
 * Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.blocksworld_derived`
+* Discrete Belief Space: `$ python -m examples.discrete_belief.run`
+* Rovers: `$ python -m examples.ipc.rovers.run`
+* Satellites: `$ python -m examples.ipc.satellites.run`
+
+### Python TKinter
+
+Install numpy and Python TKinter on Linux using: 
+```
+$ pip install numpy
+$ sudo apt-get install python-tk
+```
+
+Examples:
 * Discrete TAMP: `$ python -m examples.discrete_tamp.run`
 * 1D Continuous TAMP: `$ python -m examples.continuous_tamp.run`
 * 2D Motion Planning: `$ python -m examples.motion.run`
-* Discrete Belief Space: `$ python -m examples.discrete_belief.run`
-* Rovers: `$ python -m examples.rovers.run`
-* Satellites: `$ python -m examples.satellites.run`
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
 
@@ -51,7 +61,7 @@ These are simple examples that can be run without additional depedencies:
 
 Install PyBullet on OS X or Linux using: 
 ```
-pip install numpy pybullet
+$ pip install numpy pybullet
 ```
 
 Examples:
