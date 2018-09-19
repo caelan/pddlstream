@@ -10,7 +10,7 @@ from examples.pybullet.construction.utils import parse_elements, parse_node_poin
     prune_dominated, get_element_neighbors, sample_direction, draw_element
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
-    get_link_pose, multiply, wait_for_duration, set_color, has_gui, \
+    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.constants import PDDLProblem, And
@@ -26,7 +26,7 @@ class PrintTrajectory(object):
         self.element = element
         self.colliding = colliding
     def __repr__(self):
-        return 't{}'.format(self.element)
+        return '{}->{}'.format(self.n1, self.n2)
 
 
 def get_pddlstream(trajectories, element_bodies, ground_nodes):
@@ -61,6 +61,7 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
 def plan_sequence(trajectories, element_bodies, ground_nodes):
     if trajectories is None:
         return None
+    # TODO: Iterated search
     # http://www.fast-downward.org/Doc/Heuristic#h.5Em_heuristic
     # randomize_successors=True
     pr = cProfile.Profile()
@@ -173,23 +174,30 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
     #max_trajs = 4
     max_trajs = np.inf
     num_trajs = 100
+    check_collisions = False
     # 50 doesn't seem to be enough
 
     all_trajectories = []
     for index, (element, element_body) in enumerate(element_bodies.items()):
         # TODO: prune elements that collide with all their neighbors
-        n1, n2 = element
-        length = np.linalg.norm(node_points[n2] - node_points[n1])  # 5cm
+        combined_trajectories = []
+        add_text(element[0], position=(0, 0, -0.05), parent=element_body)
+        add_text(element[1], position=(0, 0, +0.05), parent=element_body)
         for reverse in [False, True]:
+            n1, n2 = reversed(element) if reverse else element
+            length = np.linalg.norm(node_points[n2] - node_points[n1])  # 5cm
             trajectories = []
             for i in range(num_trajs):
                 trajectory = sample_print_path(robot, length, reverse, element_body, collision_fn)
                 if trajectory is None:
                     continue
-                collisions = check_trajectory_collision(robot, trajectory, bodies_order)
-                colliding = {e for k, e in enumerate(elements_order) if (element != e) and collisions[k]}
-                #colliding = {e for e, body in element_bodies.items()
-                #             if check_trajectory_collision(robot, trajectory, [body])}
+                if check_collisions:
+                    collisions = check_trajectory_collision(robot, trajectory, bodies_order)
+                    colliding = {e for k, e in enumerate(elements_order) if (element != e) and collisions[k]}
+                    # colliding = {e for e, body in element_bodies.items()
+                    #             if check_trajectory_collision(robot, trajectory, [body])}
+                else:
+                    colliding = set()
                 if (element_neighbors[element] <= colliding) and not any(n in ground_nodes for n in element):
                     # Only need to consider neighbors on one side
                     continue
@@ -208,25 +216,25 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
                 # TODO: make more if many collisions in particular
                 if not colliding or (max_trajs <= len(trajectories)):
                     break
-
             prune_dominated(trajectories)
-            print(index, reverse, len(trajectories), sorted(len(t.colliding) for t in trajectories))
-            all_trajectories.extend(trajectories)
-            if not trajectories:
-                # TODO: only break if both directions infeasible
-                if has_gui():
-                    for e, body in element_bodies.items():
-                        if e == element:
-                            set_color(body, (0, 1, 0, 1))
-                        elif e in element_neighbors[e]:
-                            set_color(body, (1, 0, 0, 1))
-                        else:
-                            set_color(body, (1, 0, 0, 0))
-                    wait_for_interrupt()
-                return None
+            print('{}) {}->{} | {} | {}'.format(index, n1, n2, len(trajectories), sorted(len(t.colliding) for t in trajectories)))
+            combined_trajectories.extend(trajectories)
+        all_trajectories.extend(combined_trajectories)
+        if not combined_trajectories:
+            # TODO: only break if both directions infeasible
+            if has_gui():
+                for e, body in element_bodies.items():
+                    if e == element:
+                        set_color(body, (0, 1, 0, 1))
+                    elif e in element_neighbors[e]:
+                        set_color(body, (1, 0, 0, 1))
+                    else:
+                        set_color(body, (1, 0, 0, 0))
+                wait_for_interrupt()
+            return None
     return all_trajectories
 
-def display(ground_nodes, trajectories):
+def display(ground_nodes, trajectories, time_step=0.05):
     connect(use_gui=True)
     floor, robot = load_world()
     wait_for_interrupt()
@@ -236,33 +244,39 @@ def display(ground_nodes, trajectories):
     #    set_color(body, (1, 0, 0, 0))
     connected = set(ground_nodes)
     for trajectory in trajectories:
-        print(trajectory.element, trajectory.n1 in connected, len(trajectory.trajectory))
+        print(trajectory, trajectory.n1 in connected, trajectory.n2 in connected,
+              is_ground(trajectory.element, ground_nodes), len(trajectory.trajectory))
         #wait_for_interrupt()
         #set_color(element_bodies[element], (1, 0, 0, 1))
         last_point = None
+        handles = []
         for conf in trajectory.trajectory:
             set_joint_positions(robot, movable_joints, conf)
             current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
             if last_point is not None:
-                handle = add_line(last_point, current_point, color=(1, 0, 0))
+                color = (0, 0, 1) if is_ground(trajectory.element, ground_nodes) else (1, 0, 0)
+                handles.append(add_line(last_point, current_point, color=color))
             last_point = current_point
-            #wait_for_duration(0.025)
-            wait_for_duration(0.1)
+            wait_for_duration(time_step)
         connected.add(trajectory.n2)
+        #wait_for_interrupt()
     #user_input('Finish?')
     wait_for_interrupt()
     disconnect()
 
+def is_ground(element, ground_nodes):
+    return any(n in ground_nodes for n in element)
 
 def draw_model(elements, node_points, ground_nodes):
     handles = []
     for element in elements:
-        is_ground = any(n in ground_nodes for n in element)
-        color = (0, 0, 1, 1) if is_ground else (1, 0, 0, 1)
+        color = (0, 0, 1) if is_ground(element, ground_nodes) else (1, 0, 0)
         handles.append(draw_element(node_points, element, color=color))
     return handles
 
 def main(viewer=False):
+    # TODO: setCollisionFilterGroupMask,
+
     # https://github.mit.edu/yijiangh/assembly-instances
     #read_minizinc_data(os.path.join(root_directory, 'print_data.txt'))
     #return
@@ -280,16 +294,13 @@ def main(viewer=False):
     elements = [element for element in elements if all(n in node_order for n in element)]
     #elements = elements[:5]
     #elements = elements[:25]
-    elements = elements[:50]
+    #elements = elements[:50]
     #elements = elements[:100]
     #elements = elements[:150]
     #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
         len(node_points), len(ground_nodes), len(elements)))
-    #print(json_data['assembly_type']) # extrusion
-    #print(json_data['model_type']) # spatial_frame
-    #print(json_data['unit']) # millimeter
     #plan = plan_sequence_test(node_points, elements, ground_nodes)
 
     connect(use_gui=viewer)

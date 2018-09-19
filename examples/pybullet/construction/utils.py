@@ -37,9 +37,19 @@ disabled_collisions = [
 def load_extrusion(extrusion_name):
     root_directory = os.path.dirname(os.path.abspath(__file__))
     extrusion_path = os.path.join(root_directory, EXTRUSION_DIRECTORY, EXTRUSION_FILENAMES[extrusion_name])
+    print('Name: {}'.format(extrusion_name))
+    print('Path: {}'.format(extrusion_path))
     with open(extrusion_path, 'r') as f:
         json_data = json.loads(f.read())
-    return parse_elements(json_data), parse_node_points(json_data), parse_ground_nodes(json_data)
+
+    elements = parse_elements(json_data)
+    node_points = parse_node_points(json_data)
+    ground_nodes = parse_ground_nodes(json_data)
+    print('Assembly: {} | Model: {} | Unit: {}'.format(
+        json_data['assembly_type'], json_data['model_type'], json_data['unit'])) # extrusion, spatial_frame, millimeter
+    print('Nodes: {} | Ground: {} | Elements: {}'.format(
+        len(node_points), len(ground_nodes), len(elements)))
+    return elements, node_points, ground_nodes
 
 def parse_point(json_point):
     return np.array([json_point['X'], json_point['Y'], json_point['Z']]) / 1e3 # / 1e3
@@ -63,7 +73,7 @@ def parse_ground_nodes(json_data):
     return {i for i, json_node in enumerate(json_data['node_list']) if json_node['is_grounded'] == 1}
 
 
-def draw_element(node_points, element, color=(1, 0, 0, 1)):
+def draw_element(node_points, element, color=(1, 0, 0)):
     n1, n2 = element
     p1 = node_points[n1]
     p2 = node_points[n2]
@@ -96,10 +106,8 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
         x, y, z = delta
         phi = np.math.atan2(y, x)
         theta = np.math.acos(z / np.linalg.norm(delta))
-
-        euler = Euler(pitch=theta, yaw=phi)  # Default is vertical
-        quat = quat_from_euler(euler)
-        set_quat(body, quat)
+        set_quat(body, quat_from_euler(Euler(pitch=theta, yaw=phi)))
+        # p1 is z=-height/2, p2 is z=+height/2
     return element_bodies
 
 
@@ -139,7 +147,7 @@ def get_grasp_pose(translation, direction, angle, reverse, offset=1e-3):
                     Pose(euler=Euler(yaw=angle)),
                     direction,
                     Pose(point=Point(z=translation)),
-                    Pose(euler=Euler(yaw=reverse * np.pi)))
+                    Pose(euler=Euler(roll=(1-reverse) * np.pi)))
 
 
 def load_world():

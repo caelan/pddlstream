@@ -102,7 +102,7 @@ def test_grasps(robot, node_points, elements):
     p2 = node_points[n2]
     length = np.linalg.norm(p2 - p1)
     # Bottom of cylinder is p1, top is p2
-    print(p1, p2)
+    print(element, p1, p2)
     for phi in np.linspace(0, np.pi, 10, endpoint=True):
         theta = np.pi/4
         for t in np.linspace(-length/2, length/2, 10):
@@ -115,16 +115,15 @@ def test_grasps(robot, node_points, elements):
             wait_for_interrupt()
             #user_input('Continue?')
 
-    return
-    for theta in np.linspace(0, 2 * np.pi, 10, endpoint=False):
-        n1, n2 = element
-        length = np.linalg.norm(node_points[n2] - node_points[n1])
-        for t in np.linspace(-length/2, length/2, 10):
-            grasp_pose = get_grasp_pose(t, phi, theta)
-            element_pose = multiply(link_pose, grasp_pose)
-            set_pose(element_body, element_pose)
-            wait_for_interrupt()
-            #user_input('Continue?')
+    #for theta in np.linspace(0, 2 * np.pi, 10, endpoint=False):
+    #    n1, n2 = element
+    #    length = np.linalg.norm(node_points[n2] - node_points[n1])
+    #    for t in np.linspace(-length/2, length/2, 10):
+    #        grasp_pose = get_grasp_pose(t, phi, theta)
+    #        element_pose = multiply(link_pose, grasp_pose)
+    #        set_pose(element_body, element_pose)
+    #        wait_for_interrupt()
+    #        #user_input('Continue?')
 
 
 def test_print(robot, node_points, elements):
