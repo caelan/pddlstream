@@ -27,6 +27,8 @@ def test_confs(robot, num_samples=10):
 
 def get_test_cfree(element_bodies):
     def test(traj, element):
+        if traj.element == element:
+            return True
         return element not in traj.colliding
         #collisions = check_trajectory_collision(traj.robot, traj.trajectory, [element_bodies[element]])
         #return not any(collisions)

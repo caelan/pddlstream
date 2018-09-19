@@ -57,16 +57,56 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
+def get_pddlstream2(trajectories, element_bodies, ground_nodes):
+    domain_pddl = read(get_file_path(__file__, 'domain2.pddl'))
+    constant_map = {}
 
-def plan_sequence(trajectories, element_bodies, ground_nodes):
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    stream_map = {
+        'test-cfree': from_test(get_test_cfree(element_bodies)),
+    }
+
+    init = []
+    for n in ground_nodes:
+        init.append(('Grounded', n))
+    for e in element_bodies:
+        n1, n2 = e
+        init.extend([
+            ('Element', e),
+            ('Printed', e),
+            ('Edge', n1, e, n2),
+            ('Edge', n2, e, n1),
+            ('StartNode', n1, e),
+            ('StartNode', n2, e),
+        ])
+        #if is_ground(e, ground_nodes):
+        #    init.append(('Grounded', e))
+    #for e1, neighbors in get_element_neighbors(element_bodies).items():
+    #    for e2 in neighbors:
+    #        init.append(('Supports', e1, e2))
+    for t in trajectories:
+        init.extend([
+            ('Traj', t),
+            ('PrintAction', t.n1, t.element, t),
+        ])
+
+    goal = And(*[('Removed', e) for e in element_bodies])
+
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+
+
+def plan_sequence(trajectories, element_bodies, ground_nodes, ):
     if trajectories is None:
         return None
+    pddlstream_fn = get_pddlstream2 # get_pddlstream | get_pddlstream2
+
+
     # TODO: Iterated search
     # http://www.fast-downward.org/Doc/Heuristic#h.5Em_heuristic
     # randomize_successors=True
     pr = cProfile.Profile()
     pr.enable()
-    pddlstream_problem = get_pddlstream(trajectories, element_bodies, ground_nodes)
+    pddlstream_problem = pddlstream_fn(trajectories, element_bodies, ground_nodes)
     #solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=300, debug=True)
     solution = solve_exhaustive(pddlstream_problem, planner='add-random-lazy', max_time=300,
                                 max_planner_time=300, debug=True)
@@ -80,7 +120,12 @@ def plan_sequence(trajectories, element_bodies, ground_nodes):
     plan, _, _ = solution
     if plan is None:
         return None
-    return [t for _, (n1, e, t, n2) in plan]
+    if pddlstream_fn == get_pddlstream:
+        return [t for _, (n1, e, t, n2) in plan]
+    elif pddlstream_fn == get_pddlstream2:
+        return [t for _, (n1, e, t) in reversed(plan)]
+    else:
+        raise ValueError(pddlstream_fn)
 
 
 def optimize_angle(robot, link, element_pose, translation, direction, reverse, initial_angles,
@@ -174,7 +219,8 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
     #max_trajs = 4
     max_trajs = np.inf
     num_trajs = 100
-    check_collisions = False
+    #num_trajs = 50
+    check_collisions = True
     # 50 doesn't seem to be enough
 
     all_trajectories = []
@@ -282,7 +328,7 @@ def main(viewer=False):
     #return
 
     # djmm_test_block | mars_bubble | sig_artopt-bunny | topopt-100 | topopt-205 | topopt-310 | voronoi
-    elements, node_points, ground_nodes = load_extrusion('topopt-100')
+    elements, node_points, ground_nodes = load_extrusion('voronoi')
 
     node_order = list(range(len(node_points)))
     #np.random.shuffle(node_order)
