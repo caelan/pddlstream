@@ -23,6 +23,9 @@ from pddlstream.language.statistics import load_stream_statistics, \
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
 
+# TODO: make stream_info just a dict
+# TODO: implement the holdout of evaluations strategy
+
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
                   effort_weight=None, eager_layers=1, search_sampling_ratio=1,
@@ -93,7 +96,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan
-        stream_plan = get_synthetic_stream_plan(stream_plan, [s for s in synthesizers if not s.post_only])
+        stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
+                                                [s for s in synthesizers if not s.post_only])
         dump_plans(stream_plan, action_plan, cost)
         search_time += elapsed_time(start_time)
 

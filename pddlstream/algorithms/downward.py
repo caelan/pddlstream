@@ -262,6 +262,7 @@ def parse_solution(solution):
     matches = re.findall(cost_regex, solution)
     if matches:
         cost = float(matches[0]) / COST_SCALE
+    # TODO: recover the actual cost of the plan from the evaluations
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = []
     for line in lines:
@@ -284,6 +285,7 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
 
 def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
     # TODO: combine
+    # TODO: can solve using another planner and then still translate using FastDownward
     start_time = time()
     with Verbose(debug):
         write_pddl(domain_pddl, problem_pddl, temp_dir)

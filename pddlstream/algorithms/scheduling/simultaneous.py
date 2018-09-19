@@ -2,33 +2,12 @@ from collections import defaultdict
 
 from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.algorithms.downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
-from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact
 from pddlstream.language.constants import Head
+from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, find
 
-
-def evaluations_from_stream_plan(evaluations, stream_plan):
-    # TODO: move this to another file
-    result_from_evaluation = {e: None for e in evaluations}
-    opt_evaluations = set(evaluations)
-    for result in stream_plan:
-        if isinstance(result, StreamResult):
-            effort = result.instance.get_effort()
-            if effort == INF:
-                continue
-        assert(not result.instance.disabled)
-        assert(not result.instance.enumerated)
-        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
-        if not (domain <= opt_evaluations):
-            continue
-        for fact in result.get_certified():
-            evaluation = evaluation_from_fact(fact)
-            if evaluation not in result_from_evaluation:
-                result_from_evaluation[evaluation] = result
-                opt_evaluations.add(evaluation)
-    return result_from_evaluation
 
 def get_results_from_head(evaluations):
     results_from_head = defaultdict(list)

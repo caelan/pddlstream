@@ -6,6 +6,13 @@ from time import time
 from pddlstream.algorithms.downward import write_task, parse_solution, run_search, TEMP_DIR, translate_task
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
+# TODO: manual_patterns
+# Specify on the discrete variables that are updated via conditional effects
+# http://www.fast-downward.org/Doc/PatternCollectionGenerator
+# TODO: receding horizon planning
+# TODO: allow switch to higher-level in heuristic
+# TODO: recursive application of these
+
 def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     start_time = time()
     with Verbose(debug):

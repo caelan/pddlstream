@@ -137,6 +137,8 @@ Skeleton = namedtuple('Skeleton', ['stream_plan', 'plan_attempts',
 SkeletonPlan = namedtuple('SkeletonPlan', ['stream_plan', 'action_plan', 'cost'])
 
 class SkeletonQueue(Sized):
+    # TODO: hash existing plan skeletons to prevent the same
+    # TODO: iteratively recompute plan skeletons
     def __init__(self, store, evaluations, domain):
         self.store = store
         self.evaluations = evaluations

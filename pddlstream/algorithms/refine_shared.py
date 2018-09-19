@@ -2,7 +2,7 @@ from itertools import product
 
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.object import OptimisticObject
@@ -44,6 +44,8 @@ def is_double_bound(stream_instance, double_bindings):
 
 def optimistic_process_streams(evaluations, streams, double_bindings=None, max_effort=INF):
     # TODO: iteratively increase max_effort to bias towards easier streams to start
+    # TODO: cut off instantiation using max_effort
+    # TODO: make each repeated optimistic object have ordinal more effort
     # Can even fall back on converting streams to test streams
     # Additive max effort in case something requires a long sequence to achieve
     stream_results = []

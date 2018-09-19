@@ -9,10 +9,13 @@ from pddlstream.utils import elapsed_time, get_mapping, INF
 DEBUG = 'debug'
 
 class ExternalInfo(object):
-    def __init__(self, eager, p_success, overhead):
+    def __init__(self, eager, p_success, overhead, effort_fn):
+        # TODO: enable eager=True for inexpensive test streams by default
         self.eager = eager
         self.p_success = p_success
         self.overhead = overhead
+        self.effort_fn = effort_fn
+        # TODO: allow specification of p_success & overhead as effort
 
 ##################################################
 
@@ -35,7 +38,6 @@ class Result(object):
 class Instance(object):
     def __init__(self, external, input_objects):
         self.external = external
-        assert(len(input_objects) == len(external.inputs))
         self.input_objects = tuple(input_objects)
         self.enumerated = False
         self.disabled = False
@@ -92,14 +94,16 @@ class Instance(object):
         # TODO: direct estimation of different buckets in which it will finish
         # TODO: we have samples from the CDF or something
 
-    def get_p_success(self):
-        return self.external.get_p_success()
-
-    def get_overhead(self):
-        return self.external.get_overhead()
+    #def get_p_success(self):
+    #    return self.external.get_p_success()
+    #
+    #def get_overhead(self):
+    #    return self.external.get_overhead()
 
     def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
+        if self.external.info.effort_fn is not None:
+            return self.external.info.effort_fn(*self.get_input_values())
+        return geometric_cost(self.external.get_overhead(), self.external.get_p_success())
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -160,7 +164,6 @@ def get_procedure_fn(stream_map, name):
     if name not in stream_map:
         raise ValueError('Undefined external procedure: {}'.format(name))
     return stream_map[name]
-
 
 def parse_lisp_list(lisp_list):
     assert(len(lisp_list) % 2 == 0)

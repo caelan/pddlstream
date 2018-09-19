@@ -85,9 +85,9 @@ class DebugValue(object): # TODO: could just do an object
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), eager=False,
-                 p_success=None, overhead=None, negate=False):
+                 p_success=None, overhead=None, negate=False, effort_fn=None):
         # TODO: could change frequency/priority for the incremental algorithm
-        super(StreamInfo, self).__init__(eager, p_success, overhead)
+        super(StreamInfo, self).__init__(eager, p_success, overhead, effort_fn)
         self.opt_gen_fn = opt_gen_fn
         self.negate = negate
         #self.order = 0
@@ -251,22 +251,22 @@ class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
-        for p, c in Counter(outputs).items():
-            if c != 1:
-                raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
-        for p in set(inputs) & set(outputs):
-            raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
-        certified_parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
-        for p in (certified_parameters - set(inputs + outputs)):
-            raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
-        super(Stream, self).__init__(name, info, inputs, domain)
-
         # Each stream could certify a stream-specific fact as well
+        super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
-        self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
 
+        for p, c in Counter(self.outputs).items():
+            if c != 1:
+                raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
+        for p in set(self.inputs) & set(self.outputs):
+            raise ValueError('Parameter [{}] for stream [{}] is both an input and output'.format(p, name))
+        certified_parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
+        for p in (certified_parameters - set(self.inputs + self.outputs)):
+            raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
+
+        self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             self.opt_gen_fn = self.info.opt_gen_fn.get_opt_gen_fn(self)

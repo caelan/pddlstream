@@ -4,7 +4,7 @@ from pddlstream.algorithms.algorithm import neighbors_from_orders, topological_s
 from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
     is_applicable, apply_action, get_action_instances
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.language.constants import EQ, And, get_prefix
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result
@@ -73,7 +73,8 @@ def get_future_p_successes(stream_plan):
 ##################################################
 
 def get_stream_stats(result):
-    return result.instance.get_p_success(), result.instance.get_overhead()
+    #return result.instance.get_p_success(), result.instance.get_overhead()
+    return result.instance.external.get_p_success(), result.instance.external.get_overhead()
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     # TODO: prioritize cost functions as they can prune when we have a better plan

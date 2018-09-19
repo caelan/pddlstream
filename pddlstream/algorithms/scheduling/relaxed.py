@@ -1,21 +1,22 @@
+from collections import defaultdict
+
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    conditions_hold, fd_from_fact, get_goal_instance, plan_preimage, get_literals
+    conditions_hold, get_goal_instance, plan_preimage, get_literals
+from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
     get_derived_predicates, get_necessary_axioms, instantiate_necessary_axioms
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, extract_function_results, \
-    get_results_from_head, get_stream_actions
-from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
-from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, evaluation_from_fact
-from pddlstream.language.constants import And, is_parameter
+from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
+    get_results_from_head
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
+from pddlstream.algorithms.search import abstrips_solve_from_task
+from pddlstream.language.constants import is_parameter
+from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet, INF, flatten
-
-from collections import defaultdict
+from pddlstream.utils import Verbose, MockSet
 
 DO_RESCHEDULE = False
-RESCHEDULE_PLANNER = 'ff-astar' # TODO: investigate other admissible heuristics
 
 # TODO: reuse the ground problem when solving for sequential subgoals
 
@@ -110,47 +111,6 @@ def convert_fluent_streams(stream_plan, real_states, steps_from_stream):
         new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
         new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
     return new_stream_plan
-
-def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
-    # TODO: search in space of partially ordered plans
-    # TODO: constrain selection order to be alphabetical?
-    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
-    reschedule_task = task_from_domain_problem(domain, reschedule_problem)
-    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
-    #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the even that axioms are needed?
-    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_time=10, debug=True)
-    return [stream_result_from_name[name] for name, _ in new_plan]
-
-def shorten_stream_plan(evaluations, stream_plan, target_facts):
-    all_subgoals = set(target_facts) | set(flatten(r.instance.get_domain() for r in stream_plan))
-    evaluation_subgoals = set(filter(evaluations.__contains__, map(evaluation_from_fact, all_subgoals)))
-    open_subgoals = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, all_subgoals))
-    results_from_fact = {}
-    for result in stream_plan:
-        for fact in result.get_certified():
-            results_from_fact.setdefault(fact, []).append(result)
-
-    for removed_result in reversed(stream_plan): # TODO: only do in order?
-        certified_subgoals = open_subgoals & set(removed_result.get_certified())
-        if not certified_subgoals: # Could combine with following
-            new_stream_plan = stream_plan[:]
-            new_stream_plan.remove(removed_result)
-            return new_stream_plan
-        if all(2 <= len(results_from_fact[fact]) for fact in certified_subgoals):
-            node_from_atom = get_achieving_streams(evaluation_subgoals, set(stream_plan) - {removed_result})
-            if all(fact in node_from_atom for fact in target_facts):
-                new_stream_plan = []
-                extract_stream_plan(node_from_atom, target_facts, new_stream_plan)
-                return new_stream_plan
-    return None
-
-def prune_stream_plan(evaluations, stream_plan, target_facts):
-    while True:
-        new_stream_plan = shorten_stream_plan(evaluations, stream_plan, target_facts)
-        if new_stream_plan is None:
-            break
-        stream_plan = new_stream_plan
-    return stream_plan
 
 def extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name):
     import pddl_to_prolog
@@ -276,6 +236,8 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     return stream_plan + list(function_plan)
 
 ##################################################
+
+# TODO: modify action costs to include stream costs
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them

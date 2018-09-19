@@ -5,8 +5,8 @@ from pddlstream.algorithms.downward import task_from_domain_problem, get_problem
     get_goal_instance, plan_preimage
 from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
 from pddlstream.algorithms.algorithm import topological_sort, dump_plans
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, \
-    combine_function_evaluations, get_plan_cost
+from pddlstream.algorithms.scheduling.simultaneous import combine_function_evaluations, get_plan_cost
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
