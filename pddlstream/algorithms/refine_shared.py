@@ -46,6 +46,7 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None, max_e
     # TODO: iteratively increase max_effort to bias towards easier streams to start
     # TODO: cut off instantiation using max_effort
     # TODO: make each repeated optimistic object have ordinal more effort
+    # TODO: enforce that the search uses one optimistic object before claiming the next (like in my first version)
     # Can even fall back on converting streams to test streams
     # Additive max effort in case something requires a long sequence to achieve
     stream_results = []

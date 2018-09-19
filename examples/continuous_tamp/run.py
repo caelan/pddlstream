@@ -30,7 +30,7 @@ def pddlstream_from_tamp(tamp_problem):
     assert(initial.holding is None)
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    stream_pddl = read(get_file_path(__file__, 'optimizer.pddl')) # optimizer | stream
     constant_map = {}
 
     init = [
@@ -61,6 +61,7 @@ def pddlstream_from_tamp(tamp_problem):
         't-cfree': from_test(lambda *args: not collision_test(*args)),
         'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
+        'gurobi': from_fn(get_optimize_fn(tamp_problem.regions)),
         #'reachable': from_test(reachable_test),
         #'Valid': valid_state_fn,
     }
@@ -121,7 +122,7 @@ def display_plan(tamp_problem, plan, display=True):
         user_input('Finish?')
 
 
-def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True):
+def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -132,7 +133,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         print('Warning! use_synthesizers=True requires gurobipy. Setting use_synthesizers=False.')
     print('Focused: {} | Costs: {} | Synthesizers: {}'.format(focused, not unit_costs, use_synthesizers))
 
-    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -165,9 +166,9 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
-                                 max_time=30, max_cost=INF, debug=False, hierarchy=hierarchy,
+                                 max_time=60, max_cost=INF, debug=False, hierarchy=hierarchy,
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
-                                 visualize=True)
+                                 visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
                                      unit_costs=unit_costs)
@@ -175,7 +176,8 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     plan, cost, evaluations = solution
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    display_plan(tamp_problem, plan)
+    if plan is not None:
+        display_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()

@@ -24,7 +24,7 @@
     :certified (Contained ?b ?p ?r))
 
   (:function (Distance ?q1 ?q2)
-    (and (Conf ?q1) (Conf ?q2))
+    (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
   )
 
   ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)

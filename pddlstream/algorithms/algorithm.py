@@ -181,15 +181,15 @@ def apply_rules_to_streams(rules, streams):
                     if new_facts and (stream in rules):
                             processed_rules.append(stream)
 
-def parse_stream_pddl(stream_pddl, stream_map, stream_info):
+def parse_stream_pddl(stream_pddl, procedure_map, procedure_info):
     streams = []
     if stream_pddl is None:
         return streams
     if all(isinstance(e, External) for e in stream_pddl):
         return stream_pddl
-    if stream_map != DEBUG:
-        stream_map = {k.lower(): v for k, v in stream_map.items()}
-    stream_info = {k.lower(): v for k, v in stream_info.items()}
+    if procedure_map != DEBUG:
+        procedure_map = {k.lower(): v for k, v in procedure_map.items()}
+    procedure_info = {k.lower(): v for k, v in procedure_info.items()}
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, pddl_name = next(stream_iter)
@@ -199,21 +199,25 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info):
     for lisp_list in stream_iter:
         name = lisp_list[0] # TODO: refactor at this point
         if name in (':stream', ':wild-stream'):
-            external = parse_stream(lisp_list, stream_map, stream_info)
+            externals = [parse_stream(lisp_list, procedure_map, procedure_info)]
         elif name == ':rule':
-            external = parse_rule(lisp_list, stream_map, stream_info)
+            externals = [parse_rule(lisp_list, procedure_map, procedure_info)]
         elif name == ':function':
-            external = parse_function(lisp_list, stream_map, stream_info)
+            externals = [parse_function(lisp_list, procedure_map, procedure_info)]
         elif name == ':predicate': # Cannot just use args if want a bound
-            external = parse_predicate(lisp_list, stream_map, stream_info)
+            externals = [parse_predicate(lisp_list, procedure_map, procedure_info)]
+        elif name == ':optimizer':
+            from pddlstream.language.optimizer import parse_optimizer
+            externals = parse_optimizer(lisp_list, procedure_map, procedure_info)
         else:
             raise ValueError(name)
-        if any(e.name == external.name for e in streams):
-            raise ValueError('Stream [{}] is not unique'.format(external.name))
-        if name == ':rule':
-            rules.append(external)
-        external.pddl_name = pddl_name # TODO: move within constructors
-        streams.append(external)
+        for external in externals:
+            if any(e.name == external.name for e in streams):
+                raise ValueError('Stream [{}] is not unique'.format(external.name))
+            if name == ':rule':
+                rules.append(external)
+            external.pddl_name = pddl_name # TODO: move within constructors
+            streams.append(external)
     # TODO: apply stream outputs here
     # TODO: option to produce random wild effects as well
     # TODO: can even still require that a tuple of outputs is produced

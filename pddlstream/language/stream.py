@@ -18,6 +18,7 @@ DEFAULT_UNIQUE = False
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
+# TODO: automatically convert to test streams on inputs
 
 def get_empty_fn():
     return lambda *input_values: None
@@ -40,6 +41,7 @@ class PartialInputs(object):
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
         def gen_fn(*input_values):
+            # TODO: generate more elements
             mapping = get_mapping(stream.inputs, input_values)
             values = tuple(mapping[inp] for inp in inputs)
             assert(len(inputs) == len(values))

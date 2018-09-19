@@ -6,7 +6,8 @@ from pddlstream.language.constants import And
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.utils import flatten
 
-RESCHEDULE_PLANNER = 'ff-astar' # TODO: investigate other admissible heuristics (e.g. lmcut)
+#RESCHEDULE_PLANNER = 'ff-astar'
+RESCHEDULE_PLANNER = 'lmcut-astar'
 
 def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
     # TODO: search in space of partially ordered plans
