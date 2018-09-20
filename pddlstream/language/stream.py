@@ -98,7 +98,7 @@ class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None):
         super(StreamResult, self).__init__(instance, opt_index)
         self.output_objects = tuple(output_objects)
-        self.mapping = dict(zip(self.instance.external.outputs, self.output_objects))
+        self.mapping = get_mapping(self.instance.external.outputs, self.output_objects)
         self.mapping.update(instance.mapping)
         self.certified = substitute_expression(self.instance.external.certified, self.get_mapping())
     def get_mapping(self):

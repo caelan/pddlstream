@@ -1,20 +1,20 @@
 import time
-from collections import OrderedDict, defaultdict, deque
-from heapq import heappush, heappop
+from collections import OrderedDict, deque
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
 from pddlstream.algorithms.search import abstrips_solve_from_task
-from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
+from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
-from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.external import External, DEBUG, get_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
-from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.rule import parse_rule
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement, get_length, str_from_plan
+from pddlstream.language.stream import parse_stream, Stream
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
+from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -68,32 +68,6 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs
     task = task_from_domain_problem(domain, problem)
     plan_pddl, cost = abstrips_solve_from_task(task, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
-
-
-def neighbors_from_orders(orders):
-    incoming_edges = defaultdict(set)
-    outgoing_edges = defaultdict(set)
-    for v1, v2 in orders:
-        incoming_edges[v2].add(v1)
-        outgoing_edges[v1].add(v2)
-    return incoming_edges, outgoing_edges
-
-def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
-    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
-    ordering = []
-    queue = []
-    for v in vertices:
-        if not incoming_edges[v]:
-            heappush(queue, HeapElement(priority_fn(v), v))
-    while queue:
-        v1 = heappop(queue).value
-        ordering.append(v1)
-        for v2 in outgoing_edges[v1]:
-            incoming_edges[v2].remove(v1)
-            if not incoming_edges[v2]:
-                heappush(queue, HeapElement(priority_fn(v2), v2))
-    return ordering
 
 ##################################################
 
@@ -207,7 +181,6 @@ def parse_stream_pddl(stream_pddl, procedure_map, procedure_info):
         elif name == ':predicate': # Cannot just use args if want a bound
             externals = [parse_predicate(lisp_list, procedure_map, procedure_info)]
         elif name == ':optimizer':
-            from pddlstream.language.optimizer import parse_optimizer
             externals = parse_optimizer(lisp_list, procedure_map, procedure_info)
         else:
             raise ValueError(name)
@@ -284,4 +257,5 @@ def partition_externals(externals):
     negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
     negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
+    #optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
     return streams, functions, negative

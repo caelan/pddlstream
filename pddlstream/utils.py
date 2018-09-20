@@ -6,6 +6,8 @@ import sys
 import time
 import math
 import pickle
+from collections import defaultdict
+from heapq import heappush, heappop
 
 INF = float('inf')
 
@@ -16,6 +18,12 @@ except NameError:
 
 def int_ceil(f):
     return int(math.ceil(f))
+
+##################################################
+
+def get_python_version():
+    return sys.version_info[0]
+
 
 def read(filename):
     with open(filename, 'r') as f:
@@ -57,6 +65,22 @@ def clear_dir(d):
     safe_rm_dir(d)
     ensure_dir(d)
 
+def get_file_path(file, rel_path):
+    directory = os.path.dirname(os.path.abspath(file))
+    return os.path.join(directory, rel_path)
+
+def open_pdf(filename):
+    import subprocess
+    # import os
+    # import webbrowser
+    subprocess.Popen('open {}'.format(filename), shell=True)
+    # os.system(filename)
+    # webbrowser.open(filename)
+    user_input('Display?')
+    # safe_remove(filename)
+
+##################################################
+
 def elapsed_time(start_time):
     return time.time() - start_time
 
@@ -78,6 +102,50 @@ def invert_test(test):
 def flatten(iterable_of_iterables):
     return (item for iterables in iterable_of_iterables for item in iterables)
 
+def find(test, sequence):
+    for item in sequence:
+        if test(item):
+            return item
+    return None
+
+def find_unique(test, sequence):
+    found, value = False, None
+    for item in sequence:
+        if test(item):
+            if found:
+                raise RuntimeError('Both elements {} and {} satisfy the test'.format(value, item))
+            found, value = True, item
+    if not found:
+        raise RuntimeError('Unable to find an element satisfying the test')
+    return value
+
+def implies(a, b):
+    return not a or b
+
+def irange(start, end=None, step=1):
+    if end is None:
+        end = start
+        start = 0
+    n = start
+    while n < end:
+        yield n
+        n += step
+
+def argmin(function, sequence):
+    values = list(sequence)
+    scores = [function(x) for x in values]
+    return values[scores.index(min(scores))]
+
+def argmax(function, sequence):
+    values = list(sequence)
+    scores = [function(x) for x in values]
+    return values[scores.index(max(scores))]
+
+def invert_dict(d):
+    return dict((v, k) for k, v in d.items())
+
+##################################################
+
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = plan is not None
@@ -91,6 +159,8 @@ def print_solution(solution):
     for i, (name, args) in enumerate(plan):
         print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
     #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
+
+##################################################
 
 class Verbose(object): # TODO: use DisableOutput
     def __init__(self, verbose):
@@ -121,68 +191,13 @@ class TmpCWD(object):
     def __exit__(self, type, value, traceback):
         os.chdir(self.old_cwd)
 
-
-def find(test, sequence):
-    for item in sequence:
-        if test(item):
-            return item
-    return None
-
-def find_unique(test, sequence):
-    found, value = False, None
-    for item in sequence:
-        if test(item):
-            if found:
-                raise RuntimeError('Both elements {} and {} satisfy the test'.format(value, item))
-            found, value = True, item
-    if not found:
-        raise RuntimeError('Unable to find an element satisfying the test')
-    return value
-
-def open_pdf(filename):
-    import subprocess
-    # import os
-    # import webbrowser
-    subprocess.Popen('open {}'.format(filename), shell=True)
-    # os.system(filename)
-    # webbrowser.open(filename)
-    user_input('Display?')
-    # safe_remove(filename)
+##################################################
 
 class MockSet(object):
     def __init__(self, test=lambda item: True):
         self.test = test
     def __contains__(self, item):
         return self.test(item)
-
-def implies(a, b):
-    return not a or b
-
-def irange(start, end=None, step=1):
-    if end is None:
-        end = start
-        start = 0
-    n = start
-    while n < end:
-        yield n
-        n += step
-
-def argmin(function, sequence):
-    values = list(sequence)
-    scores = [function(x) for x in values]
-    return values[scores.index(min(scores))]
-
-def argmax(function, sequence):
-    values = list(sequence)
-    scores = [function(x) for x in values]
-    return values[scores.index(max(scores))]
-
-def invert_dict(d):
-    return dict((v, k) for k, v in d.items())
-
-def get_file_path(file, rel_path):
-    directory = os.path.dirname(os.path.abspath(file))
-    return os.path.join(directory, rel_path)
 
 class HeapElement(object):
     def __init__(self, key, value):
@@ -193,9 +208,7 @@ class HeapElement(object):
     def __iter__(self):
         return iter([self.key, self.value])
 
-
-def get_python_version():
-    return sys.version_info[0]
+##################################################
 
 def str_from_object(obj):  # str_object
     if type(obj) in [list]: #, np.ndarray):
@@ -226,3 +239,31 @@ def str_from_plan(plan):
     if plan is None:
         return str(plan)
     return str_from_object(list(map(str_from_action, plan)))
+
+##################################################
+
+def neighbors_from_orders(orders):
+    incoming_edges = defaultdict(set)
+    outgoing_edges = defaultdict(set)
+    for v1, v2 in orders:
+        incoming_edges[v2].add(v1)
+        outgoing_edges[v1].add(v2)
+    return incoming_edges, outgoing_edges
+
+
+def topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # Can also do a DFS version
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    ordering = []
+    queue = []
+    for v in vertices:
+        if not incoming_edges[v]:
+            heappush(queue, HeapElement(priority_fn(v), v))
+    while queue:
+        v1 = heappop(queue).value
+        ordering.append(v1)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1)
+            if not incoming_edges[v2]:
+                heappush(queue, HeapElement(priority_fn(v2), v2))
+    return ordering

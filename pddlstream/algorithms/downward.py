@@ -172,7 +172,7 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_condition(pddl_list_from_expression(goal_expression),
-                           domain.type_dict, domain.predicate_dict)
+                           domain.type_dict, domain.predicate_dict).simplified()
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
 

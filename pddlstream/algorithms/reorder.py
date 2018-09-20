@@ -1,6 +1,5 @@
 from collections import namedtuple, deque
 
-from pddlstream.algorithms.algorithm import neighbors_from_orders, topological_sort
 from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
     is_applicable, apply_action, get_action_instances
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
@@ -10,7 +9,8 @@ from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, implies
+from pddlstream.utils import INF, Verbose, MockSet, implies, neighbors_from_orders, topological_sort
+
 
 # TODO: should I use the product of all future probabilities?
 

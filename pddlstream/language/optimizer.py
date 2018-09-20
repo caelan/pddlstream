@@ -3,12 +3,12 @@ from itertools import product
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.stream import OptValue, StreamInfo, Stream
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance
 from pddlstream.language.generator import empty_gen
-from pddlstream.utils import get_mapping, INF
+from pddlstream.utils import get_mapping, INF, neighbors_from_orders
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement
-from pddlstream.algorithms.algorithm import neighbors_from_orders
 from pddlstream.algorithms.reorder import get_partial_orders
+from pddlstream.algorithms.downward import fd_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.synthesizer import get_cluster_values
 from collections import deque
@@ -20,9 +20,10 @@ import random
 # TODO: create additional variables in the event that the search
 
 class Optimizer(object):
-    def __init__(self, name, procedure):
+    def __init__(self, name, procedure, info):
         self.name = name
         self.procedure = procedure
+        self.info = info
         self.variables = []
         self.constraints = []
         self.objectives = []
@@ -31,13 +32,72 @@ class Optimizer(object):
     def __repr__(self):
         return '{}'.format(self.name) #, self.streams)
 
-class OptimizerStream(Stream):
-    #_Instance = SynthStreamInstance
-    #_Result = SynthStreamResult
-    def __init__(self, optimizer, name, gen_fn, inputs, domain, outputs, certified, info):
-        super(OptimizerStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
+class VariableStream(Stream):
+    def __init__(self, optimizer, variable, inputs, domain, certified):
         self.optimizer = optimizer
-        # TODO: store list of variables & constraints
+        self.variable = variable
+        outputs = [variable]
+        name = '{}_{}'.format(optimizer.name, get_parameter_name(variable))
+        # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
+        gen_fn = empty_gen()
+        # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
+        info = StreamInfo()
+        super(VariableStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
+
+class ConstraintStream(Stream):
+    def __init__(self, optimizer, constraint, domain):
+        self.optimizer = optimizer
+        self.constraint = constraint
+        inputs = get_args(constraint)
+        outputs = []
+        certified = [constraint]
+        name = '{}_{}'.format(optimizer.name, get_prefix(constraint))
+        # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
+        gen_fn = empty_gen()
+        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name))
+        super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
+
+##################################################
+
+UNSATISFIABLE = 'unsatisfiable'
+
+class OptimizerInstance(StreamInstance):
+    def __init__(self, stream, input_objects, fluent_facts):
+        assert not fluent_facts
+        super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
+    def get_blocked_fact(self):
+        if self.external.is_fluent():
+            assert self.axiom_predicate is not None
+            return (self.axiom_predicate,) + self.input_objects
+        return (self.external.blocked_predicate,) + self.input_objects
+    def disable(self, evaluations, domain):
+        #assert not self.disabled
+        # Prevent further progress via any action, prevent achieved goal
+        super(StreamInstance, self).disable(evaluations, domain)
+        # TODO: re-enable?
+        #index = len(self.external.disabled_instances)
+        #self.external.disabled_instances.append(self)
+        #self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
+        mapping = get_mapping(self.external.outputs, self.external.output_objects)
+        mapping.update(self.get_mapping())
+        constraints = substitute_expression(self.external.certified, mapping)
+        #print(constraints)
+        import pddl
+        parameters = tuple()
+        precondition = pddl.Conjunction(list(map(fd_from_fact, constraints)))
+        domain.axioms.append(pddl.Axiom(name=UNSATISFIABLE, parameters=parameters,
+                                        num_external_parameters=len(parameters),
+                                        condition=precondition))
+
+class OptimizerStream(Stream):
+    _Instance = OptimizerInstance
+    def __init__(self, optimizer, stream_plan):
+        self.optimizer = optimizer
+        self.stream_plan = stream_plan
+        inputs, domain, outputs, certified, functions, _, \
+            self.input_objects, self.output_objects = get_cluster_values(stream_plan)
+        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions)
+        super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs, certified, optimizer.info)
 
 ##################################################
 
@@ -61,47 +121,33 @@ def get_effort_fn(optimizer_name):
 
 ##################################################
 
-def parse_variable(optimizer, lisp_list, stream_info):
+def parse_variable(optimizer, lisp_list):
     value_from_attribute = parse_lisp_list(lisp_list)
-    variable = value_from_attribute[':variable'] # TODO: assume unique?
-    outputs = [variable]
-    inputs = value_from_attribute.get(':inputs', [])
-    domain = list_from_conjunction(value_from_attribute.get(':domain'))
-    certified = list_from_conjunction(value_from_attribute.get(':graph'))
-    stream_name = '{}_{}'.format(optimizer.name, get_parameter_name(variable))
-    gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified) # TODO: shouldn't need this...
-    #gen_fn = empty_gen()
-    #info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
-    info = StreamInfo()
-    return OptimizerStream(optimizer, stream_name, gen_fn, inputs, domain,
-                           outputs, certified, info)
+    return VariableStream(optimizer,
+                          value_from_attribute[':variable'], # TODO: assume unique?
+                          value_from_attribute.get(':inputs', []),
+                          list_from_conjunction(value_from_attribute.get(':domain')),
+                          list_from_conjunction(value_from_attribute.get(':graph')))
 
-def parse_constraint(optimizer, lisp_list, stream_info):
+def parse_constraint(optimizer, lisp_list):
     value_from_attribute = parse_lisp_list(lisp_list)
-    outputs = []
-    constraint = value_from_attribute[':constraint']
-    certified = [constraint]
-    inputs = get_args(constraint)
-    domain = list_from_conjunction(value_from_attribute[':necessary'])
-    stream_name = '{}_{}'.format(optimizer.name, get_prefix(constraint))
-    gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified) # TODO: shouldn't need this...
-    #gen_fn = empty_gen()
-    info = StreamInfo(effort_fn=get_effort_fn(optimizer.name))
-    return OptimizerStream(optimizer, stream_name, gen_fn, inputs, domain,
-                           outputs, certified, info)
+    return ConstraintStream(optimizer,
+                            value_from_attribute[':constraint'],
+                            list_from_conjunction(value_from_attribute[':necessary']))
 
 # TODO: convert optimizer into a set of streams? Already present within test stream
 
 def parse_optimizer(lisp_list, stream_map, stream_info):
     _, optimizer_name = lisp_list[:2]
     procedure = get_procedure_fn(stream_map, optimizer_name)
-    optimizer = Optimizer(optimizer_name, procedure)
+    info = stream_info.get(optimizer_name, StreamInfo())
+    optimizer = Optimizer(optimizer_name, procedure, info)
     for sub_list in lisp_list[2:]:
         form = sub_list[0]
         if form == ':variable':
-            optimizer.variables.append(parse_variable(optimizer, sub_list, stream_info))
+            optimizer.variables.append(parse_variable(optimizer, sub_list))
         elif form == ':constraint':
-            optimizer.constraints.append(parse_constraint(optimizer, sub_list, stream_info))
+            optimizer.constraints.append(parse_constraint(optimizer, sub_list))
         elif form == ':objective':
             optimizer.objectives.append(sub_list[1])
         else:
@@ -112,7 +158,7 @@ def parse_optimizer(lisp_list, stream_map, stream_info):
 
 def get_optimizer(result):
     external = result.instance.external
-    if isinstance(external, OptimizerStream):
+    if isinstance(external, VariableStream) or isinstance(external, ConstraintStream):
         return external.optimizer
     return None
 
@@ -146,17 +192,12 @@ def combine_optimizer_plan(stream_plan, functions):
     function_plan = list(filter(lambda r: get_prefix(r.instance.external.head) in optimizer.objectives, functions))
     external_plan = stream_plan + function_plan
     optimizer_plan = []
-    for cluster in get_connected_components(external_plan, get_partial_orders(external_plan)):
-        print(cluster)
-        inputs, domain, outputs, certified, functions, _, \
-            input_objects, output_objects = get_cluster_values(cluster)
-        if not certified:
+    for cluster_plan in get_connected_components(external_plan, get_partial_orders(external_plan)):
+        if all(isinstance(r, FunctionResult) for r in cluster_plan):
             continue
-        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions)
-        info = StreamInfo()
-        stream = Stream(optimizer.name, gen_fn, inputs, domain, outputs, certified, info)
-        instance = stream.get_instance(input_objects)
-        optimizer_plan.append(stream._Result(instance, output_objects))
+        stream = OptimizerStream(optimizer, cluster_plan)
+        instance = stream.get_instance(stream.input_objects)
+        optimizer_plan.append(stream._Result(instance, stream.output_objects))
     return optimizer_plan
 
 def combine_optimizers(external_plan):
@@ -166,10 +207,7 @@ def combine_optimizers(external_plan):
     # TODO: construct variables in order
     # TODO: graph cut algorithm to minimize the number of constraints that are excluded
     # TODO: reorder to ensure that constraints are done first since they are likely to fail as tests
-
-    print(external_plan)
     #optimizers = {get_optimizer(r) for r in external_plan} # None is like a unique optimizer
-    #print(optimizers)
     incoming_edges, outgoing_edges = neighbors_from_orders(get_partial_orders(external_plan))
     queue = []
     functions = []

@@ -2,10 +2,11 @@ from collections import defaultdict
 
 from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.algorithms.downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
-from pddlstream.language.constants import Head
+from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.utils import INF, find
 
 
@@ -130,6 +131,19 @@ def extract_function_plan(function_evaluations, action_plan, domain):
 
 ##################################################
 
+# TODO: add effort costs additively to actions
+# TODO: can augment state with the set of action constraints that are used (but not axiom)
+
+def augment_goal(domain, goal_expression):
+    # TODO: only do this if optimizers are present
+    #return goal_expression
+    import pddl
+    predicate = pddl.predicates.Predicate(UNSATISFIABLE, tuple())
+    if predicate.name not in domain.predicate_dict:
+        domain.predicates.append(predicate)
+        domain.predicate_dict[predicate.name] = predicate
+    return And(goal_expression, Not((UNSATISFIABLE,)))
+
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,
                              negated, unit_costs=True, **kwargs):
     if negated:
@@ -137,10 +151,10 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
 
     function_evaluations = combine_function_evaluations(evaluations, stream_results)
     stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
-    combined_plan, _ = solve_finite(function_evaluations, goal_expression, stream_domain,
-                                    unit_costs=unit_costs, **kwargs)
+    combined_plan, _ = solve_finite(function_evaluations, augment_goal(stream_domain, goal_expression),
+                                    stream_domain, unit_costs=unit_costs, **kwargs)
     if combined_plan is None:
-        return None, INF # TODO: return plan cost
+        return None, INF
 
     stream_plan, action_plan = [], []
     for name, args in combined_plan:
