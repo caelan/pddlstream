@@ -5,9 +5,9 @@
   ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
   ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
   ;)
-  (:predicate (TrajCollision ?t ?b2 ?p2)
-    (and (Traj ?t) (Pose ?b2 ?p2))
-  )
+  ;(:predicate (TrajCollision ?t ?b2 ?p2)
+  ;  (and (Traj ?t) (Pose ?b2 ?p2))
+  ;)
 
   ; This representation is nice because no need to specify free variables
   (:optimizer gurobi
@@ -16,27 +16,27 @@
     ;(:variable ?p
     ;  :inputs (?b) ; input-domain, variable-domain
     ;  :domain (Block ?b)
-    ;  :graph (Pose ?b ?p)) ; TODO: also specify the initial number
+    ;  :graph (Pose ?b ?p))
     (:variable ?p
       :inputs (?b ?r)
       :domain (Placeable ?b ?r)
       :graph (and (Contained ?b ?p ?r) (Pose ?b ?p)))
-    ;(:variable ?q
-    ;  :graph (Conf ?q)) ; TODO: codomain?
     (:variable ?q
-      :inputs (?b ?p)
-      :domain (Pose ?b ?p)
-      :graph (and (Kin ?b ?q ?p) (Conf ?q)))
+      :graph (Conf ?q)) ; TODO: codomain?
+    ;(:variable ?q
+    ;  :inputs (?b ?p)
+    ;  :domain (Pose ?b ?p)
+    ;  :graph (and (Kin ?b ?q ?p) (Conf ?q)))
 
+    ; TODO: can ensure that no fixed things are optimized by making conditions involve just variable
     ; Constraint forms that can be optimized
-    ; TODO: ensure that no fixed things are optimized by making conditions involve just variable
     ;(:constraint (Contained ?b ?p ?r)
     ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
-    ;(:constraint (Kin ?b ?q ?p)
-    ; :necessary (and (Pose ?b ?p) (Conf ?q)))
+    (:constraint (Kin ?b ?q ?p)
+     :necessary (and (Pose ?b ?p) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
      :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
-    ;(:objective PoseCollision) ; Treating predicate as objective
+    (:objective PoseCollision) ; Treating predicate as objective
     (:objective Distance)
   )
 

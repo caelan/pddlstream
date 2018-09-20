@@ -24,6 +24,10 @@ class Result(object):
         self.instance = instance
         self.opt_index = opt_index
 
+    @property
+    def external(self):
+        return self.instance.external
+
     def get_certified(self):
         raise NotImplementedError()
 
@@ -48,6 +52,7 @@ class Instance(object):
             self.mapping[constant] = Object.from_name(constant)
         self.domain = substitute_expression(self.external.domain, self.get_mapping())
         self.successes = 0
+        self.opt_results = []
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
@@ -132,15 +137,15 @@ class External(Performance):
     _Instance = None
     def __init__(self, name, info, inputs, domain):
         super(External, self).__init__(name, info)
-        for p, c in Counter(inputs).items():
-            if c != 1:
-                raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
-        parameters = {a for i in domain for a in get_args(i) if is_parameter(a)}
-        for p in (parameters - set(inputs)):
-            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
-        self.constants = {a for i in domain for a in get_args(i) if not is_parameter(a)}
+        for p, c in Counter(self.inputs).items():
+            if c != 1:
+                raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
+        parameters = {a for i in self.domain for a in get_args(i) if is_parameter(a)}
+        for p in (parameters - set(self.inputs)):
+            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
+        self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
 
     def get_instance(self, input_objects):

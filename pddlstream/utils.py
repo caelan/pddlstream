@@ -267,3 +267,22 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
             if not incoming_edges[v2]:
                 heappush(queue, HeapElement(priority_fn(v2), v2))
     return ordering
+
+##################################################
+
+def is_hashable(value):
+    #return isinstance(value, Hashable) # TODO: issue with hashable and numpy 2.7.6
+    try:
+        hash(value)
+    except TypeError:
+        return False
+    return True
+
+
+def hash_or_id(value):
+    #return id(value)
+    try:
+        hash(value)
+        return value
+    except TypeError:
+        return id(value)

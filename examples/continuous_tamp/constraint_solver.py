@@ -1,6 +1,7 @@
 import numpy as np
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
+from pddlstream.utils import hash_or_id
 
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
@@ -52,18 +53,12 @@ def value_from_var(vars):
         return np.array(new_vars)
     return new_vars
 
-def hash_or_id(value):
-    #return id(value)
-    try:
-        hash(value)
-        return value
-    except TypeError:
-        return id(value)
+# TODO: partition these
 
 def get_optimize_fn(regions, max_time=5, verbose=False):
     if not has_gurobi():
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
-    from gurobipy import Model, GRB, quicksum, Var
+    from gurobipy import Model, GRB, quicksum
     def fn(outputs, facts):
         #print(outputs, facts)
         m = Model(name='TAMP')
@@ -89,9 +84,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                     var_from_id[hash_or_id(param)] = np_var()
             elif name == 'traj':
                 raise NotImplementedError()
-                param, = args
-                if param not in var_from_id:
-                    var_from_id[id(param)] = [np_var(), np_var()]
+                #param, = args
+                #if param not in var_from_id:
+                #    var_from_id[id(param)] = [np_var(), np_var()]
 
         def get_var(param):
             return var_from_id.get(hash_or_id(param), param)
@@ -128,11 +123,11 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 collision_constraint(fact)
             elif name == 'motion':
                 raise NotImplementedError()
-                q1, t, q2 = map(get_var, args)
-                for i in range(len(q1)):
-                    m.addConstr(t[0][i], GRB.EQUAL, q1[i])
-                for i in range(len(q2)):
-                    m.addConstr(t[1][i], GRB.EQUAL, q2[i])
+                #q1, t, q2 = map(get_var, args)
+                #for i in range(len(q1)):
+                #    m.addConstr(t[0][i], GRB.EQUAL, q1[i])
+                #for i in range(len(q2)):
+                #    m.addConstr(t[1][i], GRB.EQUAL, q2[i])
             elif name == 'minimize':
                 fact = args[0]
                 name, args = fact[0], fact[1:]

@@ -30,13 +30,12 @@ class FunctionResult(Result):
         return [Equal(self.instance.get_head(), self.value)]
 
     def get_tuple(self):
-        name = self.instance.external.name
-        return name, self.instance.input_objects, self.value
+        return self.external.name, self.instance.input_objects, self.value
 
     def remap_inputs(self, bindings):
         # TODO: move this to the instance class?
         input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
-        new_instance = self.instance.external.get_instance(input_objects)
+        new_instance = self.external.get_instance(input_objects)
         new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.value, self.opt_index)
 
@@ -88,7 +87,8 @@ class FunctionInstance(Instance):  # Head(Instance):
         if self.enumerated or self.disabled:
             return []
         opt_value = self.external.opt_fn(*self.get_input_values())
-        return [self.external._Result(self, opt_value, opt_index=self.opt_index)]
+        self.opt_results = [self.external._Result(self, opt_value, opt_index=self.opt_index)]
+        return self.opt_results
 
     def __repr__(self):
         # return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
@@ -134,7 +134,7 @@ class PredicateResult(FunctionResult):
         return [Not(expression)]
 
     def is_successful(self):
-        opt_value = self.instance.external.opt_fn(*self.instance.get_input_values())
+        opt_value = self.external.opt_fn(*self.instance.get_input_values())
         return self.value == opt_value
 
 
