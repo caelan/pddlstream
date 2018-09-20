@@ -62,6 +62,7 @@ def pddlstream_from_tamp(tamp_problem):
         'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
         'gurobi': from_fn(get_optimize_fn(tamp_problem.regions)),
+        'rrt': from_fn(cfree_motion_fn),
         #'reachable': from_test(reachable_test),
         #'Valid': valid_state_fn,
     }

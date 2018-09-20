@@ -21,7 +21,6 @@ def cfree_motion_fn(outputs, certified):
 
 def get_cfree_pose_fn(regions):
     def fn(outputs, certified):
-        print(outputs, certified)
         b, r = None, None
         placed = {}
         for fact in certified:

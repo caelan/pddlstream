@@ -1,11 +1,4 @@
 (define (stream pick-and-place)
-  (:stream s-motion
-    :inputs (?q1 ?q2)
-    :domain (and (Conf ?q1) (Conf ?q2))
-    :outputs (?t)
-    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2))
-  )
-
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
@@ -31,12 +24,22 @@
 
     ; Constraint forms that can be optimized
     ; TODO: ensure that no fixed things are optimized by making conditions involve just variable
-    (:constraint (Contained ?b ?p ?r)
-     :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
-    (:constraint (Kin ?b ?q ?p)
-     :necessary (and (Pose ?b ?p) (Conf ?q)))
+    ;(:constraint (Contained ?b ?p ?r)
+    ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
+    ;(:constraint (Kin ?b ?q ?p)
+    ; :necessary (and (Pose ?b ?p) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
      :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
+    (:objective Distance) ; Treating predicate as objective
+  )
+
+  (:optimizer rrt
+    ;(:variable ?t
+    ;  :graph (Traj ?t))
+    (:variable ?t
+      :inputs (?q1 ?q2)
+      :domain (and (Conf ?q1) (Conf ?q2))
+      :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
   )
 
   ; Alternatively, this defines a set of streams
