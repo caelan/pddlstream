@@ -2,6 +2,12 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
+  ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
+  ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+  ;)
+  (:predicate (TrajCollision ?t ?b2 ?p2)
+    (and (Traj ?t) (Pose ?b2 ?p2))
+  )
 
   ; This representation is nice because no need to specify free variables
   (:optimizer gurobi
@@ -30,7 +36,8 @@
     ; :necessary (and (Pose ?b ?p) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
      :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
-    (:objective Distance) ; Treating predicate as objective
+    ;(:objective PoseCollision) ; Treating predicate as objective
+    (:objective Distance)
   )
 
   (:optimizer rrt
@@ -40,6 +47,7 @@
       :inputs (?q1 ?q2)
       :domain (and (Conf ?q1) (Conf ?q2))
       :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
+    (:objective TrajCollision) ; Treating predicate as objective
   )
 
   ; Alternatively, this defines a set of streams

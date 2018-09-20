@@ -147,6 +147,7 @@ def combine_optimizer_plan(stream_plan, functions):
     external_plan = stream_plan + function_plan
     optimizer_plan = []
     for cluster in get_connected_components(external_plan, get_partial_orders(external_plan)):
+        print(cluster)
         inputs, domain, outputs, certified, functions, _, \
             input_objects, output_objects = get_cluster_values(cluster)
         if not certified:
@@ -159,6 +160,8 @@ def combine_optimizer_plan(stream_plan, functions):
     return optimizer_plan
 
 def combine_optimizers(external_plan):
+    if external_plan is None:
+        return external_plan
     # Really the key thing is that a variable must be grounded before it can used in a non-stream thing
     # TODO: construct variables in order
     # TODO: graph cut algorithm to minimize the number of constraints that are excluded

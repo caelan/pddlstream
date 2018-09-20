@@ -114,7 +114,7 @@ BLOCK_PREFIX = 'b'
 REGION_NAME = 'red'
 INITIAL_CONF = np.array([-7.5, 5])
 
-def get_tight_problem(n_blocks=1, n_goals=1):
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
         GROUND_NAME: (-15, 15),
         REGION_NAME: (5, 10)
