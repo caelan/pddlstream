@@ -3,7 +3,7 @@ from itertools import product
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, DEFAULT_UNIQUE
 from pddlstream.language.generator import empty_gen
 from pddlstream.utils import get_mapping, INF, neighbors_from_orders
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement
@@ -12,12 +12,10 @@ from pddlstream.algorithms.downward import fd_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.synthesizer import get_cluster_values
 from collections import deque
-import random
 
 
 # TODO: augment state with the set of constraints required on the path
-# TODO: axiom to disallow movement in states that use existing subset
-# TODO: create additional variables in the event that the search
+# TODO: create additional variables in the event that the search fails
 
 class Optimizer(object):
     def __init__(self, name, procedure, info):
@@ -37,11 +35,11 @@ class VariableStream(Stream):
         self.optimizer = optimizer
         self.variable = variable
         outputs = [variable]
-        name = '{}_{}'.format(optimizer.name, get_parameter_name(variable))
+        name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
         # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         gen_fn = empty_gen()
         # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
-        info = StreamInfo()
+        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=2))
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
 
 class ConstraintStream(Stream):
@@ -51,7 +49,7 @@ class ConstraintStream(Stream):
         inputs = get_args(constraint)
         outputs = []
         certified = [constraint]
-        name = '{}_{}'.format(optimizer.name, get_prefix(constraint))
+        name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
         # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         gen_fn = empty_gen()
         info = StreamInfo(effort_fn=get_effort_fn(optimizer.name))
@@ -203,7 +201,7 @@ def combine_optimizer_plan(stream_plan, functions):
 def combine_optimizers(external_plan):
     if external_plan is None:
         return external_plan
-    # Really the key thing is that a variable must be grounded before it can used in a non-stream thing
+    # The key thing is that a variable must be grounded before it can used in a non-stream thing
     # TODO: construct variables in order
     # TODO: graph cut algorithm to minimize the number of constraints that are excluded
     # TODO: reorder to ensure that constraints are done first since they are likely to fail as tests
@@ -226,7 +224,6 @@ def combine_optimizers(external_plan):
             ordering.extend(combine_optimizer_plan(current, functions))
             current = [queue[0]]
         v1 = current[-1]
-        #v1 = random.choice(queue)
         queue.remove(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)

@@ -178,6 +178,7 @@ class StreamInstance(Instance):
                 self.external.name))
         return output
     def next_results(self, accelerate=1, verbose=False):
+        # TODO: prune repeated values
         all_new_values = []
         all_new_facts = []
         all_results = []
@@ -213,6 +214,7 @@ class StreamInstance(Instance):
         # TODO: how do I distinguish between real and not real verifications of things?
         # TODO: resue these?
         self.opt_results = []
+        output_set = set()
         for output_list in self.external.opt_gen_fn(*self.get_input_values()):
             self._check_output_values(output_list)
             for i, output_values in enumerate(output_list):
@@ -222,7 +224,11 @@ class StreamInstance(Instance):
                     unique = UniqueOptValue(self, len(self.opt_results), output_index) # object()
                     param = unique if self.use_unique() else value
                     output_objects.append(OptimisticObject.from_opt(value, param))
-                self.opt_results.append(self.external._Result(self, output_objects, opt_index=self.opt_index))
+                output_objects = tuple(output_objects)
+                if output_objects not in output_set:
+                    output_set.add(output_objects) # No point returning the exact thing here...
+                    self.opt_results.append(self.external._Result(self, output_objects, opt_index=self.opt_index,
+                                                                  call_index=len(self.opt_results), list_index=0))
         return self.opt_results
     def get_blocked_fact(self):
         if self.external.is_fluent():
