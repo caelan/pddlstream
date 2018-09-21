@@ -113,8 +113,10 @@ TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goa
 BLOCK_PREFIX = 'b'
 REGION_NAME = 'red'
 INITIAL_CONF = np.array([-7.5, 5])
+GOAL_CONF = None
+#GOAL_CONF = INITIAL_CONF
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def get_tight_problem(n_blocks=2, n_goals=1):
     regions = {
         GROUND_NAME: (-15, 15),
         REGION_NAME: (5, 10)
@@ -128,7 +130,7 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
     goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
-    return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
 
 def get_blocked_problem(n_blocks=2, deterministic=True):
@@ -150,7 +152,7 @@ def get_blocked_problem(n_blocks=2, deterministic=True):
     initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
-    return TAMPProblem(initial, regions, INITIAL_CONF, goal_regions)
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
 ##################################################
 

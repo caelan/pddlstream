@@ -21,19 +21,19 @@
       :inputs (?b ?r)
       :domain (Placeable ?b ?r)
       :graph (and (Contained ?b ?p ?r) (Pose ?b ?p)))
-    (:variable ?q
-      :graph (Conf ?q)) ; TODO: codomain?
     ;(:variable ?q
-    ;  :inputs (?b ?p)
-    ;  :domain (Pose ?b ?p)
-    ;  :graph (and (Kin ?b ?q ?p) (Conf ?q)))
+    ;  :graph (Conf ?q)) ; TODO: codomain?
+    (:variable ?q
+      :inputs (?b ?p)
+      :domain (Pose ?b ?p)
+      :graph (and (Kin ?b ?q ?p) (Conf ?q)))
 
     ; TODO: can ensure that no fixed things are optimized by making conditions involve just variable
     ; Constraint forms that can be optimized
     ;(:constraint (Contained ?b ?p ?r)
     ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
-    (:constraint (Kin ?b ?q ?p)
-     :necessary (and (Pose ?b ?p) (Conf ?q)))
+    ;(:constraint (Kin ?b ?q ?p)
+    ; :necessary (and (Pose ?b ?p) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
      :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
     (:objective PoseCollision) ; Treating predicate as objective
@@ -41,12 +41,14 @@
   )
 
   (:optimizer rrt
-    ;(:variable ?t
-    ;  :graph (Traj ?t))
     (:variable ?t
-      :inputs (?q1 ?q2)
-      :domain (and (Conf ?q1) (Conf ?q2))
-      :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
+      :graph (Traj ?t))
+    ;(:variable ?t
+    ;  :inputs (?q1 ?q2)
+    ;  :domain (and (Conf ?q1) (Conf ?q2))
+    ;  :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
+    (:constraint (Motion ?q1 ?t ?q2)
+     :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)))
     (:objective TrajCollision) ; Treating predicate as objective
   )
 

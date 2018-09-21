@@ -2,7 +2,7 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.algorithms.downward import OBJECT, fd_from_fact
+from pddlstream.algorithms.downward import OBJECT, make_preconditions
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
 from pddlstream.language.conversion import list_from_conjunction, remap_objects, \
     substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
@@ -249,14 +249,15 @@ class StreamInstance(Instance):
         self.external.disabled_instances.append(self)
         self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
         evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
+        # TODO: specify that this axiom type should not be negated
 
         import pddl
         parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
-        static_atom = fd_from_fact((self.axiom_predicate,) + self.external.inputs)
-        precondition = pddl.Conjunction([static_atom] + list(map(fd_from_fact, self.fluent_facts)))
+        static_fact = (self.axiom_predicate,) + self.external.inputs
+        preconditions = [static_fact] + list(self.fluent_facts)
         domain.axioms.append(pddl.Axiom(name=self.external.blocked_predicate, parameters=parameters,
                                         num_external_parameters=len(self.external.inputs),
-                                        condition=precondition))
+                                        condition=make_preconditions(preconditions)))
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
@@ -290,7 +291,7 @@ class Stream(External):
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
         self.fluents = fluents
-        self.blocked_predicate = '~{}'.format(self.name) # Args are self.inputs
+        self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
         self.disabled_instances = []
         self.is_wild = is_wild
 

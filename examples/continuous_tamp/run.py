@@ -166,9 +166,12 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
     pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
+                                 planner='ff-wastar1',
+                                 max_planner_time=10,
                                  synthesizers=synthesizers,
-                                 max_time=60, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
+                                 max_time=300, max_cost=INF, debug=True, hierarchy=hierarchy,
+                                 effort_weight=1,
+                                 unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,

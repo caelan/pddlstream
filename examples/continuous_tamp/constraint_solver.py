@@ -8,15 +8,21 @@ MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 ##################################################
 
 def cfree_motion_fn(outputs, certified):
+    if not outputs:
+        return None
     assert(len(outputs) == 1)
     q0, q1 = None, None
     placed = {}
     for fact in certified:
         if fact[0] == 'motion':
+            if q0 is not None:
+                return None
             q0, _, q1 = fact[1:]
         if fact[0] == 'not':
             _, b, p =  fact[1][1:]
             placed[b] = p
+    if q0 is None:
+        return None
     return plan_motion(q0, q1)
 
 

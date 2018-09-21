@@ -1,13 +1,14 @@
 from collections import defaultdict
 
 from pddlstream.algorithms.algorithm import solve_finite
-from pddlstream.algorithms.downward import TOTAL_COST, OBJECT, Domain, fd_from_fact
+from pddlstream.algorithms.downward import OBJECT, Domain, \
+    make_preconditions, make_effects, make_cost
 from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult
 from pddlstream.language.optimizer import UNSATISFIABLE
-from pddlstream.utils import INF, find_unique, str_from_object
+from pddlstream.language.stream import StreamResult
+from pddlstream.utils import INF, find_unique
 
 
 def get_results_from_head(evaluations):
@@ -29,20 +30,6 @@ def combine_function_evaluations(evaluations, stream_results):
 
 CALLED_PREFIX = '_called_{}'
 CALL_PREFIX = '_call_{}'
-
-def make_preconditions(preconditions):
-    import pddl
-    return pddl.Conjunction(list(map(fd_from_fact, preconditions)))
-
-def make_effects(effects):
-    import pddl
-    return [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact)) for fact in effects]
-
-def make_cost(cost):
-    import pddl
-    fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-    expression = pddl.NumericConstant(cost)
-    return pddl.Increase(fluent=fluent, expression=expression)
 
 def get_stream_actions(results, unit=True, effort_scale=1):
     #from pddl_parser.parsing_functions import parse_action
@@ -165,6 +152,10 @@ def augment_goal(domain, goal_expression):
     if predicate.name not in domain.predicate_dict:
         domain.predicates.append(predicate)
         domain.predicate_dict[predicate.name] = predicate
+    negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
+    for action in domain.actions:
+        if negated_atom not in action.precondition.parts:
+            action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
     return And(goal_expression, Not((UNSATISFIABLE,)))
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,

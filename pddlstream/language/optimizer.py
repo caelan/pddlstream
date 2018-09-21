@@ -16,6 +16,10 @@ from collections import deque
 
 # TODO: augment state with the set of constraints required on the path
 # TODO: create additional variables in the event that the search fails
+# TODO: make more samples corresponding to the most number used in a failed cluster
+# TODO: could also just block a skeleton itself by adding it as a state variable
+
+DEFAULT_NUM = 2
 
 class Optimizer(object):
     def __init__(self, name, procedure, info):
@@ -36,10 +40,10 @@ class VariableStream(Stream):
         self.variable = variable
         outputs = [variable]
         name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
-        # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
-        gen_fn = empty_gen()
+        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
+        #gen_fn = empty_gen()
         # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
-        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=2))
+        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
 
 class ConstraintStream(Stream):
@@ -50,14 +54,14 @@ class ConstraintStream(Stream):
         outputs = []
         certified = [constraint]
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
-        # gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
-        gen_fn = empty_gen()
+        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
+        #gen_fn = empty_gen()
         info = StreamInfo(effort_fn=get_effort_fn(optimizer.name))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
 
 ##################################################
 
-UNSATISFIABLE = 'unsatisfiable'
+UNSATISFIABLE = 'unsatisfiable-negative'
 
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
@@ -73,6 +77,9 @@ class OptimizerInstance(StreamInstance):
         # Prevent further progress via any action, prevent achieved goal
         super(StreamInstance, self).disable(evaluations, domain)
         # TODO: re-enable?
+        # TODO: block stream-specific predicates relating to these
+        # TODO: block equivalent combinations of things
+        # TODO: don't block variables? Might have a variable that is a function of another though...
         #index = len(self.external.disabled_instances)
         #self.external.disabled_instances.append(self)
         #self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
@@ -193,10 +200,15 @@ def combine_optimizer_plan(stream_plan, functions):
     for cluster_plan in get_connected_components(external_plan, get_partial_orders(external_plan)):
         if all(isinstance(r, FunctionResult) for r in cluster_plan):
             continue
-        stream = OptimizerStream(optimizer, cluster_plan)
-        instance = stream.get_instance(stream.input_objects)
-        optimizer_plan.append(stream._Result(instance, stream.output_objects))
+        if len(cluster_plan) == 1:
+            optimizer_plan.append(cluster_plan[0])
+        else:
+            stream = OptimizerStream(optimizer, cluster_plan)
+            instance = stream.get_instance(stream.input_objects)
+            optimizer_plan.append(stream._Result(instance, stream.output_objects))
     return optimizer_plan
+
+# TODO: this process needs to be improved still
 
 def combine_optimizers(external_plan):
     if external_plan is None:
@@ -231,45 +243,3 @@ def combine_optimizers(external_plan):
                 (functions if isinstance(v2, FunctionResult) else queue).append(v2)
     ordering.extend(combine_optimizer_plan(current, functions))
     return ordering + functions
-
-##################################################
-
-# TODO: opt gen function
-# TODO: custom optimistic objects
-
-def parse_constraint2(optimizer_name, procedure, lisp_list, stream_info):
-    value_from_attribute = parse_lisp_list(lisp_list)
-    fixed = value_from_attribute.get(':fixed', [])
-    mutex = value_from_attribute.get(':mutex', []) # Associating a variable to a constraint
-    #free = value_from_attribute.get(':free', [])
-    [constraint] = list_from_conjunction(value_from_attribute[':constraint'])
-    constraint_name = get_prefix(constraint)
-    necessary = list_from_conjunction(value_from_attribute[':necessary'])
-    streams = []
-    #for i, combo in enumerate(product([False, True], repeat=len(free))):
-    #    outputs = [p for p, include in zip(free, combo) if include]
-    # if not outputs:
-    #    continue
-    outputs_list = [tuple()] + [(p,) for p in mutex]
-    for outputs in outputs_list:
-        inputs = [p for p in get_args(constraint) if p not in outputs]
-        certified = [constraint] + [f for f in necessary if any(p in outputs for p in get_args(f))]
-        domain = [f for f in necessary if f not in certified]
-        # TODO: don't include constraints without free params
-        combo = [p in outputs for p in get_args(constraint)]
-        stream_name = '{}_{}_{}'.format(optimizer_name, constraint_name, ''.join(map(str, map(int, combo))))
-        info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
-        #info = StreamInfo()
-        gen_fn = get_gen_fn(procedure, inputs, outputs, certified)
-        streams.append(Stream(stream_name, gen_fn, inputs, domain, outputs, certified, info))
-        # TODO: prune implied facts
-        # TODO: finite cost when inputs are from the same constraint
-    return streams
-
-def parse_optimizer2(lisp_list, stream_map, stream_info):
-    _, name = lisp_list[:2]
-    procedure = get_procedure_fn(stream_map, name)
-    streams = []
-    for constraint in lisp_list[2:]:
-        streams.extend(parse_constraint2(name, procedure, constraint, stream_info))
-    return streams

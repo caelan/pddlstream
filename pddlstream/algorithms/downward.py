@@ -18,7 +18,8 @@ TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
-TRANSLATE_FLAGS = [] # '--negative-axioms'
+#TRANSLATE_FLAGS = []
+TRANSLATE_FLAGS = ['--negative-axioms']
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
 
@@ -411,3 +412,20 @@ def plan_preimage(combined_plan, goal):
         else:
             raise ValueError(operator)
     return preimage
+
+
+def make_preconditions(preconditions):
+    import pddl
+    return pddl.Conjunction(list(map(fd_from_fact, preconditions)))
+
+
+def make_effects(effects):
+    import pddl
+    return [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact)) for fact in effects]
+
+
+def make_cost(cost):
+    import pddl
+    fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
+    expression = pddl.NumericConstant(cost)
+    return pddl.Increase(fluent=fluent, expression=expression)
