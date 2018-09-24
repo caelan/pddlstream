@@ -22,7 +22,8 @@ def cfree_motion_fn(outputs, certified):
             _, b, p =  fact[1][1:]
             placed[b] = p
     if q0 is None:
-        return None
+        t = []
+        return (t,)
     return plan_motion(q0, q1)
 
 

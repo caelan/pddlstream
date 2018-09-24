@@ -34,19 +34,22 @@ def get_identity_fn(indices):
 OptValue = namedtuple('OptValue', ['stream', 'inputs', 'values', 'output'])
 
 class PartialInputs(object):
-    def __init__(self, inputs='', unique=False, num=1):
+    def __init__(self, inputs='', unique=False): #, num=1):
         self.inputs = tuple(inputs.split())
         self.unique = unique
-        self.num = num
+        #self.num = num
     def get_opt_gen_fn(self, stream):
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
         def gen_fn(*input_values):
             # TODO: generate more elements
+            input_objects = tuple(map(Object.from_value, input_values))
+            instance = stream.get_instance(input_objects)
             mapping = get_mapping(stream.inputs, input_values)
             values = tuple(mapping[inp] for inp in inputs)
             assert(len(inputs) == len(values))
-            for i in irange(self.num):
+            #for _ in irange(self.num):
+            for _ in irange(instance.num_optimistic):
                 yield [tuple(OptValue(stream.name, inputs, values, out)
                              for out in stream.outputs)]
         return gen_fn
@@ -132,6 +135,7 @@ class StreamInstance(Instance):
         self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
         self.axiom_predicate = None
+        self.num_optimistic = 1
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
             raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))

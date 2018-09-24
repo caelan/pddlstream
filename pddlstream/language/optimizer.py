@@ -1,7 +1,7 @@
-from itertools import product
+from collections import Counter, deque
 
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name
-from pddlstream.language.conversion import substitute_expression, list_from_conjunction
+from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, DEFAULT_UNIQUE
 from pddlstream.language.generator import empty_gen
@@ -11,15 +11,13 @@ from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.downward import fd_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.synthesizer import get_cluster_values
-from collections import deque
 
 
 # TODO: augment state with the set of constraints required on the path
 # TODO: create additional variables in the event that the search fails
 # TODO: make more samples corresponding to the most number used in a failed cluster
 # TODO: could also just block a skeleton itself by adding it as a state variable
-
-DEFAULT_NUM = 2
+# TODO: fluents for what is not active in the state and add those to consider subsets
 
 class Optimizer(object):
     def __init__(self, name, procedure, info):
@@ -43,7 +41,8 @@ class VariableStream(Stream):
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
         # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
-        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
+        #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
+        info = StreamInfo()
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
 
 class ConstraintStream(Stream):
@@ -80,13 +79,18 @@ class OptimizerInstance(StreamInstance):
         # TODO: block stream-specific predicates relating to these
         # TODO: block equivalent combinations of things
         # TODO: don't block variables? Might have a variable that is a function of another though...
+        # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         #index = len(self.external.disabled_instances)
         #self.external.disabled_instances.append(self)
         #self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
         mapping = get_mapping(self.external.outputs, self.external.output_objects)
         mapping.update(self.get_mapping())
         constraints = substitute_expression(self.external.certified, mapping)
-        #print(constraints)
+        instance_counts = Counter(r.instance for r in self.external.stream_plan
+                                  if isinstance(r.external, VariableStream))
+        for instance, num in instance_counts.items():
+            instance.num_optimistic = max(instance.num_optimistic, num + 1)
+        # TODO: don't do this until the full plan has failed
         import pddl
         parameters = tuple()
         precondition = pddl.Conjunction(list(map(fd_from_fact, constraints)))
@@ -194,7 +198,8 @@ def combine_optimizer_plan(stream_plan, functions):
     optimizer = get_optimizer(stream_plan[-1])
     if optimizer is None:
         return stream_plan
-    function_plan = list(filter(lambda r: get_prefix(r.instance.external.head) in optimizer.objectives, functions))
+    function_plan = list(filter(lambda r: get_prefix(r.instance.external.head)
+                                          in optimizer.objectives, functions))
     external_plan = stream_plan + function_plan
     optimizer_plan = []
     for cluster_plan in get_connected_components(external_plan, get_partial_orders(external_plan)):
@@ -202,22 +207,21 @@ def combine_optimizer_plan(stream_plan, functions):
             continue
         if len(cluster_plan) == 1:
             optimizer_plan.append(cluster_plan[0])
-        else:
-            stream = OptimizerStream(optimizer, cluster_plan)
-            instance = stream.get_instance(stream.input_objects)
-            optimizer_plan.append(stream._Result(instance, stream.output_objects))
+            continue
+        stream = OptimizerStream(optimizer, cluster_plan)
+        instance = stream.get_instance(stream.input_objects)
+        optimizer_plan.append(stream._Result(instance, stream.output_objects))
     return optimizer_plan
 
 # TODO: this process needs to be improved still
 
-def combine_optimizers(external_plan):
+def combine_optimizers_greedy(evaluations, external_plan):
     if external_plan is None:
         return external_plan
     # The key thing is that a variable must be grounded before it can used in a non-stream thing
     # TODO: construct variables in order
     # TODO: graph cut algorithm to minimize the number of constraints that are excluded
     # TODO: reorder to ensure that constraints are done first since they are likely to fail as tests
-    #optimizers = {get_optimizer(r) for r in external_plan} # None is like a unique optimizer
     incoming_edges, outgoing_edges = neighbors_from_orders(get_partial_orders(external_plan))
     queue = []
     functions = []
@@ -243,3 +247,37 @@ def combine_optimizers(external_plan):
                 (functions if isinstance(v2, FunctionResult) else queue).append(v2)
     ordering.extend(combine_optimizer_plan(current, functions))
     return ordering + functions
+
+##################################################
+
+def combine_optimizers(evaluations, external_plan):
+    if external_plan is None:
+        return external_plan
+    optimizers = {get_optimizer(r) for r in external_plan} # None is like a unique optimizer
+    if not optimizers:
+        return external_plan
+    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
+    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+
+    combined_results = []
+    for optimizer in optimizers:
+        relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
+        combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
+    combined_results.extend(function_plan)
+
+    combined_plan = []
+    current_facts = set()
+    for result in combined_results:
+        current_facts.update(filter(lambda f: evaluation_from_fact(f) in evaluations, result.get_domain()))
+
+    while combined_results:
+        for result in combined_results:
+            print(result)
+            if set(result.get_domain()) <= current_facts:
+                combined_plan.append(result)
+                current_facts.update(result.get_certified())
+                combined_results.remove(result)
+                break
+        else: # TODO: can also just try one cluster and return
+            return None
+    return combined_plan

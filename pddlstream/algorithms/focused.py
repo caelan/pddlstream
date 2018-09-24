@@ -22,6 +22,7 @@ from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
+from pddlstream.language.optimizer import combine_optimizers
 
 # TODO: make stream_info just a dict
 # TODO: implement the holdout of evaluations strategy
@@ -56,6 +57,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     #solve_stream_plan_fn = sequential_stream_plan # simultaneous_stream_plan | sequential_stream_plan
     #solve_stream_plan_fn = incremental_stream_plan # incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
+    # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = 0
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
@@ -95,9 +97,10 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan
-        stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
-                                                [s for s in synthesizers if not s.post_only])
+        stream_plan = combine_optimizers(evaluations, stream_plan)
+        #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
+        #                                        [s for s in synthesizers if not s.post_only])
+        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan?
         dump_plans(stream_plan, action_plan, cost)
         search_time += elapsed_time(start_time)
 

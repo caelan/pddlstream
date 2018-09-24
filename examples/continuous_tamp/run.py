@@ -169,7 +169,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
                                  planner='ff-wastar1',
                                  max_planner_time=10,
                                  synthesizers=synthesizers,
-                                 max_time=300, max_cost=INF, debug=True, hierarchy=hierarchy,
+                                 max_time=300, max_cost=INF, debug=False, hierarchy=hierarchy,
                                  effort_weight=1,
                                  unit_costs=unit_costs, postprocess=False,
                                  visualize=False)

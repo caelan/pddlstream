@@ -28,6 +28,9 @@ class Result(object):
     def external(self):
         return self.instance.external
 
+    def get_domain(self):
+        return self.instance.get_domain()
+
     def get_certified(self):
         raise NotImplementedError()
 

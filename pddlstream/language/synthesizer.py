@@ -1,9 +1,9 @@
 from collections import deque, Counter
 
-from pddlstream.algorithms.algorithm import neighbors_from_orders
+from pddlstream.utils import neighbors_from_orders
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.conversion import substitute_expression
 from pddlstream.language.constants import Minimize
+from pddlstream.language.conversion import substitute_expression
 from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.statistics import Performance
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
@@ -39,6 +39,7 @@ class SynthStreamInstance(StreamInstance):
     #    return self.streams
 
 class SynthStream(Stream):
+    # TODO: wild stream optimizer
     _Instance = SynthStreamInstance
     _Result = SynthStreamResult
     def __init__(self, synthesizer, inputs, domain, outputs, certified, functions,
@@ -69,24 +70,45 @@ class SynthStream(Stream):
 ##################################################
 
 def add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects):
-    stream = result.instance.external
-    for inp, input_object in zip(stream.inputs, result.instance.input_objects):
+    for param, obj in zip(result.instance.external.inputs, result.instance.input_objects):
         # TODO: only do optimistic parameters?
-        # if isinstance()
-        if input_object not in param_from_obj:
-            param_from_obj[input_object] = '?i{}'.format(len(inputs))
-            inputs.append(param_from_obj[input_object])
-            input_objects.append(input_object)
-        local_mapping[inp] = param_from_obj[input_object]
+        if obj not in param_from_obj:
+            param_from_obj[obj] = '?i{}'.format(len(inputs)) # '?_i{}'
+            inputs.append(param_from_obj[obj])
+            input_objects.append(obj)
+        local_mapping[param] = param_from_obj[obj]
 
 def add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects):
-    stream = result.instance.external
-    for out, output_object in zip(stream.outputs, result.output_objects):
-        if output_object not in param_from_obj:
-            param_from_obj[output_object] = '?o{}'.format(len(outputs))
-            outputs.append(param_from_obj[output_object])
-            output_objects.append(output_object)
-        local_mapping[out] = param_from_obj[output_object]
+    for param, obj in zip(result.instance.external.outputs, result.output_objects):
+        if obj not in param_from_obj:
+            param_from_obj[obj] = '?o{}'.format(len(outputs))
+            outputs.append(param_from_obj[obj])
+            output_objects.append(obj)
+        local_mapping[param] = param_from_obj[obj]
+
+def get_cluster_values(stream_plan):
+    param_from_obj = {}
+    macro_from_micro = []
+    inputs, domain, outputs, certified, functions = [], set(), [], set(), set()
+    input_objects, output_objects = [], []
+    for result in stream_plan:
+        local_mapping = {}  # global_from_local
+        stream = result.instance.external
+        add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects)
+        domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
+        if isinstance(result, PredicateResult):
+            # functions.append(Equal(stream.head, result.value))
+            # TODO: do I need the new mapping here?
+            mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
+            functions.update(substitute_expression(result.get_certified(), mapping))
+        elif isinstance(result, FunctionResult):
+            functions.add(substitute_expression(Minimize(stream.head), local_mapping))
+        else:
+            add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
+            certified.update(substitute_expression(stream.certified, local_mapping))
+            macro_from_micro.append(local_mapping)
+    return inputs, domain, outputs, certified, functions, \
+           macro_from_micro, input_objects, output_objects
 
 class StreamSynthesizer(Performance): # JointStream | Stream Combiner
     def __init__(self, name, streams, gen_fn, post_only=False):
@@ -102,33 +124,14 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
         key = frozenset(stream_plan)
         if key in self.macro_results:
             return self.macro_results[key]
-        param_from_obj = {}
-        macro_from_micro = []
-        inputs, domain, outputs, certified, functions = [], set(), [], set(), set()
-        input_objects, output_objects = [], []
-        streams = []
-        for result in stream_plan:
-            local_mapping = {}
-            stream = result.instance.external
-            add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects)
-            domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
-            if isinstance(result, PredicateResult):
-                # functions.append(Equal(stream.head, result.value))
-                mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
-                functions.update(substitute_expression(result.get_certified(), mapping))
-            elif isinstance(result, FunctionResult):
-                functions.add(substitute_expression(Minimize(stream.head), local_mapping))
-            else:
-                add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
-                certified.update(substitute_expression(stream.certified, local_mapping))
-                streams.append(stream)
-                macro_from_micro.append(local_mapping)
+        streams = list(filter(lambda r: isinstance(r, StreamResult), stream_plan))
         if len(streams) < 1: # No point if only one...
             return None
-
-        mega_stream = SynthStream(self, inputs=inputs, domain=domain,
-                                  outputs=outputs, certified=certified, functions=functions,
-                                  streams=streams, macro_from_micro=macro_from_micro)
+        inputs, domain, outputs, certified, functions, macro_from_micro, \
+            input_objects, output_objects = get_cluster_values(stream_plan)
+        mega_stream = SynthStream(self, inputs, domain,
+                                  outputs, certified, functions,
+                                  streams, macro_from_micro)
         mega_instance = mega_stream.get_instance(input_objects)
         self.macro_results[key] = SynthStreamResult(mega_instance, output_objects)
         return self.macro_results[key]
@@ -206,3 +209,31 @@ def get_synthetic_stream_plan(stream_plan, synthesizers):
         else:
             new_stream_plan.append(result)
     return new_stream_plan
+
+##################################################
+
+"""
+def get_synthetic_stream_plan2(stream_plan, synthesizers):
+    # TODO: pass subgoals along the plan in directly
+    # TODO: could just do this on the objects themselves to start
+    free_parameters = set()
+    for result in stream_plan:
+        if isinstance(result, StreamResult):
+            free_parameters.update(result.output_objects)
+    print(free_parameters)
+
+    # TODO: greedy method first
+    new_plan = []
+    facts = set()
+    while True:
+        candidates = []
+        for result in stream_plan:
+            if result.instance.get_domain() <= facts:
+                candidates.append(result)
+        selection = candidates[-1]
+        new_plan.append(selection)
+    print(new_plan)
+    print(stream_plan)
+    print(synthesizers)
+    raise NotImplementedError()
+"""
