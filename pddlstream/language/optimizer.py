@@ -265,14 +265,13 @@ def combine_optimizers(evaluations, external_plan):
         combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
     combined_results.extend(function_plan)
 
-    combined_plan = []
     current_facts = set()
     for result in combined_results:
         current_facts.update(filter(lambda f: evaluation_from_fact(f) in evaluations, result.get_domain()))
 
+    combined_plan = []
     while combined_results:
         for result in combined_results:
-            print(result)
             if set(result.get_domain()) <= current_facts:
                 combined_plan.append(result)
                 current_facts.update(result.get_certified())

@@ -23,6 +23,7 @@ from pddlstream.language.constants import And, Equal, PDDLProblem
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
+from pddlstream.language.function import FunctionInfo
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 
 def pddlstream_from_tamp(tamp_problem):
@@ -146,6 +147,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
+        #'distance': FunctionInfo(opt_fn=lambda *args: 1),
     }
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),

@@ -42,7 +42,7 @@ def collision_test(b1, p1, b2, p2):
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
-    return scale_cost(np.linalg.norm(q2 - q1, ord=ord))
+    return scale_cost(1 + np.linalg.norm(q2 - q1, ord=ord))
 
 
 def inverse_kin_fn(b, p):
