@@ -14,6 +14,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, dis
     get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
+from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test, from_gen_fn
 from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort, neighbors_from_orders
@@ -179,8 +181,13 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     pddlstream_problem = pddlstream_fn(robot, obstacles, node_points, element_bodies,
                                        ground_nodes, trajectories=trajectories)
     #solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=300, debug=True)
-    solution = solve_incremental(pddlstream_problem, planner='add-random-lazy', max_time=600,
-                                 max_planner_time=300, debug=True)
+    #solution = solve_incremental(pddlstream_problem, planner='add-random-lazy', max_time=600,
+    #                             max_planner_time=300, debug=True)
+    stream_info = {
+        #'sample-print': StreamInfo(PartialInputs(unique=True)),
+    }
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=600, effort_weight=1,
+                             planner='add-random-lazy', max_planner_time=15, debug=True)
     # solve_exhaustive | solve_incremental
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or collision
@@ -295,7 +302,7 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
     # TODO: print on full sphere and just check for collisions with the printed element
     # TODO: can slide a component of the element down
 
-    def gen_fn(node1, element):
+    def gen_fn(node1, element, fluents=[]):
         # TODO: sample collisions while making the trajectory
         reverse = (node1 != element[0])
         element_body = element_bodies[element]
@@ -342,9 +349,13 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
 
 def get_wild_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
     gen_fn = get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)
-    def wild_gen_fn(node1, element):
-        for t, in gen_fn(node1, element):
-            yield [(t,)], [('Collision', t, e) for e in t.colliding]
+    def wild_gen_fn(node1, element, fluents=[]):
+        for t, in gen_fn(node1, element, fluents=fluents):
+            outputs = [(t,)]
+            facts = [('Collision', t, e2) for e2 in t.colliding]
+            #outputs = []
+            #facts.append(('PrintAction', node1, element, t))
+            yield outputs, facts
     return wild_gen_fn
 
 ##################################################
@@ -376,6 +387,9 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
 def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajectories):
     # TODO: can just plan to initial and then shortcut
     # TODO: backoff motion
+    # TODO: reoptimize for the sequence that have the smallest movements given this
+    # TODO: sample trajectories
+    # TODO: more appropriate distance based on displacement/volume
     if trajectories is None:
         return None
     movable_joints = get_movable_joints(robot)
@@ -398,6 +412,7 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
         current_conf = print_traj.path[-1]
         printed_elements.append(print_traj.element)
         all_trajectories.append(print_traj)
+    # TODO: return to initial?
     return all_trajectories
 
 def display_trajectories(ground_nodes, trajectories, time_step=0.05):
@@ -468,15 +483,14 @@ def main(viewer=False):
     floor, robot = load_world()
     obstacles = [floor]
     initial_conf = get_joint_positions(robot, get_movable_joints(robot))
-    print(initial_conf)
     #dump_body(robot)
     #if has_gui():
     #    draw_model(elements, node_points, ground_nodes)
     #    wait_for_interrupt('Continue?')
 
-    elements = elements[:10]
+    #elements = elements[:10]
     #elements = elements[:25]
-    #elements = elements[:50]
+    elements = elements[:50]
     #elements = elements[:75]
     #elements = elements[:100]
     #elements = elements[:150]
