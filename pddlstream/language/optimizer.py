@@ -275,16 +275,17 @@ def sequence_results(evaluations, combined_results):
             return None
     return combined_plan
 
-def combine_optimizers(evaluations, external_plan, optimizers):
+def combine_optimizers(evaluations, external_plan):
     if external_plan is None:
-        return external_plan
-    if not optimizers:
         return external_plan
     function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
     stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
+    if not optimizers:
+        return external_plan
 
     combined_results = []
-    for optimizer in {get_optimizer(r) for r in stream_plan}: # None is like a unique optimizer
+    for optimizer in optimizers:
         relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
         combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
     return sequence_results(evaluations, combined_results + function_plan)

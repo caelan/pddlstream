@@ -1,5 +1,5 @@
 import time
-from collections import OrderedDict, deque
+from collections import OrderedDict, deque, namedtuple
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp
@@ -71,6 +71,8 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs
 
 ##################################################
 
+Solution = namedtuple('Solution', ['plan', 'cost'])
+
 class SolutionStore(object):
     def __init__(self, max_time, max_cost, verbose):
         # TODO: store evaluations here as well as map from head to value?
@@ -82,8 +84,10 @@ class SolutionStore(object):
         self.best_plan = None
         self.best_cost = INF
         #self.best_cost = self.cost_fn(self.best_plan)
+        self.solutions = []
     def add_plan(self, plan, cost):
-        # TODO: list of plans
+        # TODO: double-check that this is a solution
+        self.solutions.append(Solution(plan, cost))
         if cost < self.best_cost:
             self.best_plan = plan
             self.best_cost = cost

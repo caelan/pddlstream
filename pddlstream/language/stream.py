@@ -253,7 +253,7 @@ class StreamInstance(Instance):
         self.external.disabled_instances.append(self)
         self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
         evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
-        # TODO: specify that this axiom type should not be negated
+        # TODO: allow reporting back which components lead to failure
 
         import pddl
         parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
@@ -285,6 +285,7 @@ class Stream(External):
         for p in (certified_parameters - set(self.inputs + self.outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
 
+        # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):

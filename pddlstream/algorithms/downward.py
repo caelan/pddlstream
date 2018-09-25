@@ -6,10 +6,10 @@ import sys
 from collections import namedtuple
 from time import time
 
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 # TODO: possible bug when path has a space or period
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
@@ -73,7 +73,7 @@ SEARCH_OPTIONS = {
                        '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
 }
 
-for w in [1, 3, 5]:
+for w in [1, 2, 3, 4, 5]:
     SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
                   'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
@@ -230,6 +230,7 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     task = task_from_domain_problem(domain, problem)
     with Verbose(verbose):
         write_task(translate_task(task), temp_dir)
+    return task
 
 ##################################################
 
@@ -281,22 +282,6 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     if problem_pddl is not None:
         write(problem_path, problem_pddl)
     return domain_path, problem_path
-
-##################################################
-
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
-    # TODO: combine
-    # TODO: can solve using another planner and then still translate using FastDownward
-    start_time = time()
-    with Verbose(debug):
-        write_pddl(domain_pddl, problem_pddl, temp_dir)
-        #run_translate(temp_dir, verbose)
-        translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-        solution = run_search(temp_dir, debug=debug, **kwargs)
-        if clean:
-            safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
-    return parse_solution(solution)
 
 ##################################################
 
@@ -413,6 +398,7 @@ def plan_preimage(combined_plan, goal):
             raise ValueError(operator)
     return preimage
 
+##################################################
 
 def make_preconditions(preconditions):
     import pddl

@@ -3,7 +3,8 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import write_task, parse_solution, run_search, TEMP_DIR, translate_task
+from pddlstream.algorithms.downward import write_task, parse_solution, run_search, TEMP_DIR, translate_task, write_pddl, \
+    translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
 # TODO: manual_patterns
@@ -14,11 +15,31 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 # TODO: recursive application of these
 
 def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+    # TODO: can solve using another planner and then still translate using FastDownward
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        write_task(translate_task(task), temp_dir)
+        sas_task = translate_task(task)
+        write_task(sas_task, temp_dir)
         solution = run_search(temp_dir, debug=True, **kwargs)
+        if clean:
+            safe_rm_dir(temp_dir)
+        print('Total runtime:', time() - start_time)
+    #for axiom in sas_task.axioms:
+    #    # TODO: return the set of axioms as well
+    #    var, value = axiom.effect
+    #    #names = sas_task.variables.value_names[var]
+    #    #axiom.dump()
+    return parse_solution(solution)
+
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+    # TODO: combine with solve_from_task
+    start_time = time()
+    with Verbose(debug):
+        write_pddl(domain_pddl, problem_pddl, temp_dir)
+        #run_translate(temp_dir, verbose)
+        translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
+        solution = run_search(temp_dir, debug=debug, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
@@ -36,9 +57,17 @@ def apply_sas_operator(init, op):
 def name_from_action(action, args):
     return '({})'.format(' '.join((action,) + args))
 
+def parse_sas_plan(sas_task, plan):
+    op_from_name = {op.name: op for op in sas_task.operators} # No need to keep repeats
+    sas_plan = []
+    for action, args in plan:
+        name = name_from_action(action, args)
+        sas_plan.append(op_from_name[name])
+    return sas_plan
+
+##################################################
 
 def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
-    op_from_name = {op.name: op for op in sas_task.operators}  # No need to keep repeats
     full_plan = []
     full_cost = 0
     for subgoal in subgoal_plan:
@@ -49,8 +78,8 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
             return None, INF
         full_plan.extend(plan)
         full_cost += cost
-        for action, args in plan:
-            apply_sas_operator(sas_task.init, op_from_name[name_from_action(action, args)])
+        for sas_action in parse_sas_plan(sas_task, plan):
+            apply_sas_operator(sas_task.init, sas_action)
     return full_plan, full_cost
 
 
@@ -169,7 +198,7 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
 # Each operator in the hierarchy is a legal "operator" that may need to be refined
 
 def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, debug=False,
-                             hierarchy=[], subgoal_horizon=1, **kwargs):
+                                        hierarchy=[], subgoal_horizon=1, **kwargs):
     # TODO: version that plans for each goal individually
     # TODO: can reduce to goal serialization if binary flag for each subgoal
     if not hierarchy:

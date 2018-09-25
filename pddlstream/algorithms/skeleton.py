@@ -9,7 +9,6 @@ from pddlstream.language.stream import StreamResult, StreamInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
 
-# TODO: can either entirely replace arguments on plan or just pass bindings
 # TODO: handle this in a partially ordered way
 # TODO: alternatively store just preimage and reachieve
 
@@ -24,11 +23,13 @@ def process_stream_plan(skeleton, queue, accelerate=1):
     # TODO: hash combinations to prevent repeats
     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
     new_values = False
+    is_wild = False
     if not stream_plan:
         action_plan = queue.skeleton_plans[plan_index].action_plan
         bound_plan = [(name, tuple(bindings.get(o, o) for o in args)) for name, args in action_plan]
         queue.store.add_plan(bound_plan, cost)
         return new_values
+
     if (queue.store.best_cost < INF) and (queue.store.best_cost <= cost):
         # TODO: what should I do if the cost=inf (from incremental/exhaustive)
         #for result in stream_plan:
@@ -47,6 +48,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
                 results.extend(result.instance.results_history[j])
             index = i
             break
+
     if index is None:
         index = 0
         instance = stream_plan[index].instance
@@ -56,8 +58,9 @@ def process_stream_plan(skeleton, queue, accelerate=1):
         if new_results and isinstance(instance, StreamInstance):
             queue.evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
         results.extend(new_results)
-        new_values |= (len(results) != 0)
-        add_facts(queue.evaluations, new_facts, result=None) # TODO: use instance
+        new_values |= bool(results)
+        is_wild |= bool(add_facts(queue.evaluations, new_facts, result=None)) # TODO: use instance
+        #new_values |= is_wild
 
     opt_result = stream_plan[index] # TODO: could do several at once but no real point
     for result in results:
@@ -90,6 +93,7 @@ def process_stream_plan(skeleton, queue, accelerate=1):
 ##################################################
 
 # TODO: want to minimize number of new sequences as they induce overhead
+# TODO: estimate how many times a stream needs to be queried (acceleration)
 
 def compute_effort(plan_attempts):
     attempts = sum(plan_attempts)
@@ -138,7 +142,6 @@ SkeletonPlan = namedtuple('SkeletonPlan', ['stream_plan', 'action_plan', 'cost']
 
 class SkeletonQueue(Sized):
     # TODO: hash existing plan skeletons to prevent the same
-    # TODO: iteratively recompute plan skeletons
     def __init__(self, store, evaluations, domain):
         self.store = store
         self.evaluations = evaluations
@@ -157,6 +160,10 @@ class SkeletonQueue(Sized):
         heappush(self.queue, HeapElement(key, skeleton))
 
     def new_skeleton(self, stream_plan, action_plan, cost):
+        # TODO: iteratively recompute full plan skeletons
+        if not stream_plan:
+            self.store.add_plan(action_plan, cost)
+            return
         plan_index = len(self.skeleton_plans)
         self.skeleton_plans.append(SkeletonPlan(stream_plan, action_plan, cost))
         plan_attempts = [0]*len(stream_plan)
