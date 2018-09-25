@@ -24,7 +24,7 @@ EXTRUSION_FILENAMES = {
 KUKA_PATH = 'framefab_kr6_r900_support/urdf/kr6_r900.urdf'
 #KUKA_PATH = 'framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
 TOOL_NAME = 'eef_tcp_frame'
-disabled_collisions = [
+DISABLED_COLLISIONS = [
     # ('robot_link_1', 'workspace_objects'),
     # ('robot_link_2', 'workspace_objects'),
     # ('robot_link_3', 'workspace_objects'),

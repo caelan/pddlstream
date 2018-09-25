@@ -1,10 +1,11 @@
 (define (stream construction)
-  (:stream test-cfree
-    :inputs (?t ?e)
-    :domain (and (Traj ?t) (Element ?e))
-    :certified (CFree ?t ?e)
-  )
-  (:stream sample-print
+  ;(:stream test-cfree
+  ;  :inputs (?t ?e)
+  ;  :domain (and (Traj ?t) (Element ?e))
+  ;  :certified (CFree ?t ?e)
+  ;)
+  ; (:stream sample-print
+  (:wild-stream sample-print
     :inputs (?n ?e)
     :domain (StartNode ?n ?e)
     :outputs (?t)

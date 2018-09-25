@@ -3,26 +3,36 @@ from __future__ import print_function
 import cProfile
 import pstats
 import numpy as np
+from itertools import product
 
 from examples.pybullet.construction.debug import get_test_cfree, test_grasps, test_print
 from examples.pybullet.construction.utils import parse_elements, parse_node_points, parse_ground_nodes, create_elements, \
-    load_extrusion, TOOL_NAME, disabled_collisions, check_trajectory_collision, get_grasp_pose, load_world, \
+    load_extrusion, TOOL_NAME, DISABLED_COLLISIONS, check_trajectory_collision, get_grasp_pose, load_world, \
     prune_dominated, get_element_neighbors, get_node_neighbors, sample_direction, draw_element
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
-    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, \
+    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test, from_gen_fn
-from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort
+from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort, neighbors_from_orders
 
-SUPPORT_THETA = np.math.radians(30)  # Support polygon
+SUPPORT_THETA = np.math.radians(10)  # Support polygon
+
+class MotionTrajectory(object):
+    def __init__(self, robot, joints, path):
+        self.robot = robot
+        self.joints = joints
+        self.path = path
+    def __repr__(self):
+        return 'm({},{})'.format(len(self.joints), len(self.path))
 
 class PrintTrajectory(object):
-    def __init__(self, robot, trajectory, element, reverse, colliding=set()):
+    def __init__(self, robot, joints, path, element, reverse, colliding=set()):
         self.robot = robot
-        self.trajectory = trajectory
+        self.joints = joints
+        self.path = path
         self.n1, self.n2 = reversed(element) if reverse else element
         self.element = element
         self.colliding = colliding
@@ -32,6 +42,50 @@ class PrintTrajectory(object):
 def get_other_node(node1, element):
     assert node1 in element
     return element[node1 == element[0]]
+
+def is_ground(element, ground_nodes):
+    return any(n in ground_nodes for n in element)
+
+def draw_model(elements, node_points, ground_nodes):
+    handles = []
+    for element in elements:
+        color = (0, 0, 1) if is_ground(element, ground_nodes) else (1, 0, 0)
+        handles.append(draw_element(node_points, element, color=color))
+    return handles
+
+def get_supported_orders(elements, node_points):
+    node_neighbors = get_node_neighbors(elements)
+    orders = set()
+    for node in node_neighbors:
+        supporters = {e for e in node_neighbors[node] if element_supports(e, node, node_points)}
+        printers = {e for e in node_neighbors[node] if is_start_node(node, e, node_points) and not doubly_printable(e, node_points)}
+        orders.update((e1, e2) for e1 in supporters for e2 in printers)
+    return orders
+
+def element_supports(e, n1, node_points): # A property of nodes
+    # TODO: support polygon (ZMP heuristic)
+    # TODO: recursively apply as well
+    # TODO: end-effector force
+    # TODO: allow just a subset to support
+    # TODO: construct using only upwards
+    n2 = get_other_node(n1, e)
+    delta = node_points[n2] - node_points[n1]
+    theta = angle_between(delta, [0, 0, -1])
+    return theta < (np.pi / 2 - SUPPORT_THETA)
+
+def is_start_node(n1, e, node_points):
+    return not element_supports(e, n1, node_points)
+
+def doubly_printable(e, node_points):
+    return all(is_start_node(n, e, node_points) for n in e)
+
+def retrace_supporters(element, incoming_edges, supporters):
+    for element2 in incoming_edges[element]:
+        if element2 not in supporters:
+            retrace_supporters(element2, incoming_edges, supporters=supporters)
+            supporters.append(element2)
+
+##################################################
 
 def get_pddlstream(trajectories, element_bodies, ground_nodes):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -61,16 +115,7 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def element_supports(e, n1, node_points): # A property of nodes
-    # TODO: support polygon (ZMP heuristic)
-    # TODO: recursively apply as well
-    # TODO: end-effector force
-    # TODO: allow just a subset to support
-    # TODO: construct using only upwards
-    n2 = get_other_node(n1, e)
-    delta = node_points[n2] - node_points[n1]
-    theta = angle_between(delta, [0, 0, -1])
-    return theta < (np.pi / 2 - SUPPORT_THETA)
+
 
 def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=[]):
     domain_pddl = read(get_file_path(__file__, 'regression.pddl')) # progression | regression
@@ -79,7 +124,8 @@ def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes,
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
         'test-cfree': from_test(get_test_cfree(element_bodies)),
-        'sample-print': from_gen_fn(get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)),
+        #'sample-print': from_gen_fn(get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)),
+        'sample-print': get_wild_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes),
     }
 
     # TODO: assert that all elements have some support
@@ -87,11 +133,11 @@ def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes,
     for n in ground_nodes:
         init.append(('Grounded', n))
     for e in element_bodies:
-        for n2 in e:
-            if element_supports(e, n2, node_points):
-                init.append(('Supports', e, n2))
-            else:
-                init.append(('StartNode', n2, e))
+        for n in e:
+            if element_supports(e, n, node_points):
+                init.append(('Supports', e, n))
+            if is_start_node(n, e, node_points):
+                init.append(('StartNode', n, e))
     for e in element_bodies:
         n1, n2 = e
         init.extend([
@@ -134,7 +180,7 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
                                        ground_nodes, trajectories=trajectories)
     #solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=300, debug=True)
     solution = solve_incremental(pddlstream_problem, planner='add-random-lazy', max_time=600,
-                                 max_planner_time=300, debug=False)
+                                 max_planner_time=300, debug=True)
     # solve_exhaustive | solve_incremental
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or collision
@@ -153,6 +199,7 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     else:
         raise ValueError(pddlstream_fn)
 
+##################################################
 
 def optimize_angle(robot, link, element_pose, translation, direction, reverse, initial_angles,
                    collision_fn, max_error=1e-2):
@@ -232,30 +279,40 @@ def sample_print_path(robot, length, reverse, element_body, collision_fn):
             return trajectory
     return None
 
+##################################################
+
 def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
     max_attempts = 150
     max_trajectories = 10
     check_collisions = True
     # 50 doesn't seem to be enough
 
-    disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
-    collision_fn = get_collision_fn(robot, get_movable_joints(robot), obstacles, [],
-                                    self_collisions=True, disabled_collisions=disabled, use_limits=False)
+    movable_joints = get_movable_joints(robot)
+    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair) for pair in DISABLED_COLLISIONS}
     #element_neighbors = get_element_neighbors(element_bodies)
     node_neighbors = get_node_neighbors(element_bodies)
-    elements_order = list(element_bodies.keys())
-    bodies_order = [element_bodies[e] for e in elements_order]
+    incoming_supporters, _ = neighbors_from_orders(get_supported_orders(element_bodies, node_points))
     # TODO: print on full sphere and just check for collisions with the printed element
     # TODO: can slide a component of the element down
 
     def gen_fn(node1, element):
+        # TODO: sample collisions while making the trajectory
         reverse = (node1 != element[0])
         element_body = element_bodies[element]
         n1, n2 = reversed(element) if reverse else element
-        p1, p2 = node_points[n1], node_points[n2]
-        # if (p2 - p1)[2] < 0:
+        delta = node_points[n2] - node_points[n1]
+        # if delta[2] < 0:
         #    continue
-        length = np.linalg.norm(p2 - p1)  # 5cm
+        length = np.linalg.norm(delta)  # 5cm
+
+        #supporters = {e for e in node_neighbors[n1] if element_supports(e, n1, node_points)}
+        supporters = []
+        retrace_supporters(element, incoming_supporters, supporters)
+        elements_order = [e for e in element_bodies if (e != element) and (e not in supporters)]
+        bodies_order = [element_bodies[e] for e in elements_order]
+        collision_fn = get_collision_fn(robot, movable_joints, obstacles + [element_bodies[e] for e in supporters],
+                                        attachments=[], self_collisions=True,
+                                        disabled_collisions=disabled_collisions, use_limits=True)
         trajectories = []
         for num in irange(max_trajectories):
             for attempt in range(max_attempts):
@@ -269,19 +326,28 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
                     colliding = set()
                 if (node_neighbors[n1] <= colliding) and not any(n in ground_nodes for n in element):
                     continue
-                print_traj = PrintTrajectory(robot, path, element, reverse, colliding)
+                print_traj = PrintTrajectory(robot, movable_joints, path, element, reverse, colliding)
                 trajectories.append(print_traj)
                 if print_traj not in trajectories:
                     continue
-                print('{}) {}->{} | {} | {} | {}'.format(num, n1, n2, attempt, len(trajectories),
-                                                sorted(len(t.colliding) for t in trajectories)))
+                print('{}) {}->{} ({}) | {} | {} | {}'.format(num, n1, n2, len(supporters), attempt, len(trajectories),
+                                                              sorted(len(t.colliding) for t in trajectories)))
                 yield print_traj,
                 if not colliding:
                     return
             else:
-                print('{}) {}->{} | {} | Failure!'.format(num, n1, n2, max_attempts))
+                print('{}) {}->{} ({}) | {} | Failure!'.format(num, len(supporters), n1, n2, max_attempts))
                 break
     return gen_fn
+
+def get_wild_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
+    gen_fn = get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)
+    def wild_gen_fn(node1, element):
+        for t, in gen_fn(node1, element):
+            yield [(t,)], [('Collision', t, e) for e in t.colliding]
+    return wild_gen_fn
+
+##################################################
 
 def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_nodes):
     gen_fn = get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)
@@ -307,7 +373,36 @@ def sample_trajectories(robot, obstacles, node_points, element_bodies, ground_no
             return None
     return all_trajectories
 
-def display(ground_nodes, trajectories, time_step=0.05):
+def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajectories):
+    # TODO: can just plan to initial and then shortcut
+    # TODO: backoff motion
+    if trajectories is None:
+        return None
+    movable_joints = get_movable_joints(robot)
+    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair) for pair in DISABLED_COLLISIONS}
+    printed_elements = []
+    current_conf = initial_conf
+    all_trajectories = []
+    for i, print_traj in enumerate(trajectories):
+        set_joint_positions(robot, movable_joints, current_conf)
+        goal_conf = print_traj.path[0]
+        obstacles = fixed_obstacles + [element_bodies[e] for e in printed_elements]
+        path = plan_joint_motion(robot, movable_joints, goal_conf, obstacles=obstacles,
+                                 self_collisions=True, disabled_collisions=disabled_collisions,
+                                 restarts=2, iterations=25, smooth=100)
+        if path is None:
+            return None
+        motion_traj = MotionTrajectory(robot, movable_joints, path)
+        print('{}) {}'.format(i, motion_traj))
+        all_trajectories.append(motion_traj)
+        current_conf = print_traj.path[-1]
+        printed_elements.append(print_traj.element)
+        all_trajectories.append(print_traj)
+    return all_trajectories
+
+def display_trajectories(ground_nodes, trajectories, time_step=0.05):
+    if trajectories is None:
+        return
     connect(use_gui=True)
     floor, robot = load_world()
     wait_for_interrupt()
@@ -317,35 +412,29 @@ def display(ground_nodes, trajectories, time_step=0.05):
     #    set_color(body, (1, 0, 0, 0))
     connected = set(ground_nodes)
     for trajectory in trajectories:
-        print(trajectory, trajectory.n1 in connected, trajectory.n2 in connected,
-              is_ground(trajectory.element, ground_nodes), len(trajectory.trajectory))
+        if isinstance(trajectory, PrintTrajectory):
+            print(trajectory, trajectory.n1 in connected, trajectory.n2 in connected,
+                  is_ground(trajectory.element, ground_nodes), len(trajectory.path))
+            connected.add(trajectory.n2)
         #wait_for_interrupt()
         #set_color(element_bodies[element], (1, 0, 0, 1))
         last_point = None
         handles = []
-        for conf in trajectory.trajectory:
+        for conf in trajectory.path:
             set_joint_positions(robot, movable_joints, conf)
-            current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
-            if last_point is not None:
-                color = (0, 0, 1) if is_ground(trajectory.element, ground_nodes) else (1, 0, 0)
-                handles.append(add_line(last_point, current_point, color=color))
-            last_point = current_point
+            if isinstance(trajectory, PrintTrajectory):
+                current_point = point_from_pose(get_link_pose(robot, link_from_name(robot, TOOL_NAME)))
+                if last_point is not None:
+                    color = (0, 0, 1) if is_ground(trajectory.element, ground_nodes) else (1, 0, 0)
+                    handles.append(add_line(last_point, current_point, color=color))
+                last_point = current_point
             wait_for_duration(time_step)
-        connected.add(trajectory.n2)
         #wait_for_interrupt()
     #user_input('Finish?')
     wait_for_interrupt()
     disconnect()
 
-def is_ground(element, ground_nodes):
-    return any(n in ground_nodes for n in element)
-
-def draw_model(elements, node_points, ground_nodes):
-    handles = []
-    for element in elements:
-        color = (0, 0, 1) if is_ground(element, ground_nodes) else (1, 0, 0)
-        handles.append(draw_element(node_points, element, color=color))
-    return handles
+##################################################
 
 def main(viewer=False):
     # TODO: setCollisionFilterGroupMask
@@ -360,7 +449,7 @@ def main(viewer=False):
     #return
 
     # djmm_test_block | mars_bubble | sig_artopt-bunny | topopt-100 | topopt-205 | topopt-310 | voronoi
-    elements, node_points, ground_nodes = load_extrusion('topopt-100')
+    elements, node_points, ground_nodes = load_extrusion('mars_bubble')
 
     node_order = list(range(len(node_points)))
     #np.random.shuffle(node_order)
@@ -378,24 +467,33 @@ def main(viewer=False):
     connect(use_gui=viewer)
     floor, robot = load_world()
     obstacles = [floor]
+    initial_conf = get_joint_positions(robot, get_movable_joints(robot))
+    print(initial_conf)
     #dump_body(robot)
     #if has_gui():
     #    draw_model(elements, node_points, ground_nodes)
     #    wait_for_interrupt('Continue?')
 
-    #elements = elements[:10]
+    elements = elements[:10]
     #elements = elements[:25]
     #elements = elements[:50]
+    #elements = elements[:75]
     #elements = elements[:100]
     #elements = elements[:150]
     #elements = elements[150:]
 
     # TODO: prune if it collides with any of its supports
     # TODO: prioritize choices that don't collide with too many edges
+    # TODO: accumulate edges along trajectory
 
     #test_grasps(robot, node_points, elements)
     #test_print(robot, node_points, elements)
     #return
+
+    #for element in elements:
+    #    color = (0, 0, 1) if doubly_printable(element, node_points) else (1, 0, 0)
+    #    draw_element(node_points, element, color=color)
+    #wait_for_interrupt('Continue?')
 
     # TODO: topological sort
     #node = node_order[40]
@@ -403,6 +501,14 @@ def main(viewer=False):
     #for element in node_neighbors[node]:
     #    color = (0, 1, 0) if element_supports(element, node, node_points) else (1, 0, 0)
     #    draw_element(node_points, element, color)
+
+    #element = elements[-1]
+    #draw_element(node_points, element, (0, 1, 0))
+    #incoming_edges, _ = neighbors_from_orders(get_supported_orders(elements, node_points))
+    #supporters = []
+    #retrace_supporters(element, incoming_edges, supporters)
+    #for e in supporters:
+    #    draw_element(node_points, e, (1, 0, 0))
     #wait_for_interrupt('Continue?')
 
     #for name, args in plan:
@@ -423,12 +529,13 @@ def main(viewer=False):
         user_input('Continue?')
     else:
         trajectories = []
-    plan = plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=trajectories)
-    disconnect()
 
-    #display(trajectories)
-    if plan is not None:
-        display(ground_nodes, plan)
+    motions = False
+    plan = plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=trajectories)
+    if motions:
+        plan = compute_motions(robot, obstacles, element_bodies, initial_conf, plan)
+    disconnect()
+    display_trajectories(ground_nodes, plan)
 
     # Collisions at the end points?
 
