@@ -155,21 +155,11 @@ def apply_rules_to_streams(rules, streams):
                     if new_facts and (stream in rules):
                             processed_rules.append(stream)
 
-def parse_stream_pddl(stream_pddl, procedure_map, procedure_info):
-    streams = []
-    if stream_pddl is None:
-        return streams
-    if all(isinstance(e, External) for e in stream_pddl):
-        return stream_pddl
-    if procedure_map != DEBUG:
-        procedure_map = {k.lower(): v for k, v in procedure_map.items()}
-    procedure_info = {k.lower(): v for k, v in procedure_info.items()}
+def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, pddl_name = next(stream_iter)
     assert('stream' == pddl_type)
-
-    rules = []
     for lisp_list in stream_iter:
         name = lisp_list[0] # TODO: refactor at this point
         if name in (':stream', ':wild-stream'):
@@ -191,9 +181,21 @@ def parse_stream_pddl(stream_pddl, procedure_map, procedure_info):
                 rules.append(external)
             external.pddl_name = pddl_name # TODO: move within constructors
             streams.append(external)
-    # TODO: apply stream outputs here
-    # TODO: option to produce random wild effects as well
-    # TODO: can even still require that a tuple of outputs is produced
+
+def parse_stream_pddl(pddl_list, procedures, infos):
+    streams = []
+    if pddl_list is None:
+        return streams
+    if isinstance(pddl_list, str):
+        pddl_list = [pddl_list]
+    #if all(isinstance(e, External) for e in stream_pddl):
+    #    return stream_pddl
+    if procedures != DEBUG:
+        procedures = {k.lower(): v for k, v in procedures.items()}
+    infos = {k.lower(): v for k, v in infos.items()}
+    rules = []
+    for pddl in pddl_list:
+        parse_streams(streams, rules, pddl, procedures, infos)
     apply_rules_to_streams(rules, streams)
     return streams
 
@@ -257,5 +259,5 @@ def partition_externals(externals):
     negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
     negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
-    #optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
-    return streams, functions, negative
+    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    return streams, functions, negative #, optimizers

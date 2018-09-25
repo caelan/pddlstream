@@ -29,9 +29,31 @@ def combine_function_evaluations(evaluations, stream_results):
 ##################################################
 
 CALLED_PREFIX = '_called_{}'
-CALL_PREFIX = '_call_{}'
+CALL_PREFIX = '_{}' # '_call_{}'
 
-def get_stream_actions(results, unit=True, effort_scale=1):
+def enforce_output_order(result, preconditions, effects):
+    instance_name = '{}_{}'.format(result.external.name,  # No spaces & parens
+                                   ','.join(map(pddl_from_object, result.instance.input_objects)))
+    predicate_name = CALLED_PREFIX.format(instance_name)
+    if 1 <= result.call_index:
+        preconditions.extend([
+            (predicate_name, CALL_PREFIX.format(result.call_index - 1)),
+            # Not((predicate_name, CALL_PREFIX.format(result.call_index))), # Not needed
+        ])
+    if 1 < len(result.instance.opt_results):
+        effects.extend([
+            (predicate_name, CALL_PREFIX.format(result.call_index)),
+            Not((predicate_name, CALL_PREFIX.format(result.call_index - 1))),
+        ])
+
+BOUND_PREDICATE = '_bound'
+
+def enforce_single_binding(result, preconditions, effects):
+    binding_facts = [(BOUND_PREDICATE, pddl_from_object(out)) for out in result.output_objects]
+    preconditions.extend(Not(fact) for fact in binding_facts)
+    effects.extend(fact for fact in binding_facts)
+
+def get_stream_actions(results, unique_binding=False, unit=True, effort_scale=1):
     #from pddl_parser.parsing_functions import parse_action
     import pddl
     stream_result_from_name = {}
@@ -52,21 +74,11 @@ def get_stream_actions(results, unit=True, effort_scale=1):
         assert result_name not in stream_result_from_name
         stream_result_from_name[result_name] = result
 
-        instance_name = '{}_{}'.format(result.external.name, # No spaces & parens
-            ','.join(map(pddl_from_object, result.instance.input_objects)))
-        predicate_name = CALLED_PREFIX.format(instance_name)
         preconditions = list(result.instance.get_domain())
-        if 1 <= result.call_index:
-            preconditions.extend([
-                (predicate_name, CALL_PREFIX.format(result.call_index-1)),
-                #Not((predicate_name, CALL_PREFIX.format(result.call_index))), # Not needed
-            ])
         effects = list(result.get_certified())
-        if 1 < len(result.instance.opt_results):
-            effects.extend([
-                (predicate_name, CALL_PREFIX.format(result.call_index)),
-                Not((predicate_name, CALL_PREFIX.format(result.call_index-1))),
-            ])
+        enforce_output_order(result, preconditions, effects)
+        if unique_binding:
+            enforce_single_binding(result, preconditions, effects)
         parameters = []  # Usually all parameters are external
         stream_actions.append(pddl.Action(name=result_name, parameters=parameters,
                                           num_external_parameters=len(parameters),

@@ -22,7 +22,7 @@ from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
-from pddlstream.language.optimizer import combine_optimizers
+from pddlstream.language.optimizer import combine_optimizers, replan_with_optimizers
 
 # TODO: make stream_info just a dict
 # TODO: implement the holdout of evaluations strategy
@@ -97,7 +97,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        stream_plan = combine_optimizers(evaluations, stream_plan)
+        stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals)
+        #stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                        [s for s in synthesizers if not s.post_only])
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan?

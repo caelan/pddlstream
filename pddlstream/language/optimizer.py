@@ -12,6 +12,8 @@ from pddlstream.algorithms.downward import fd_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.synthesizer import get_cluster_values
 
+import copy
+
 
 # TODO: augment state with the set of constraints required on the path
 # TODO: create additional variables in the event that the search fails
@@ -32,8 +34,16 @@ class Optimizer(object):
     def __repr__(self):
         return '{}'.format(self.name) #, self.streams)
 
+##################################################
+
+class OptimizerInfo(StreamInfo):
+    def __init__(self, planable=False, p_success=None, overhead=None):
+        super(OptimizerInfo, self).__init__(p_success=p_success, overhead=overhead)
+        self.planable = planable
+        # TODO: post-processing
+
 class VariableStream(Stream):
-    def __init__(self, optimizer, variable, inputs, domain, certified):
+    def __init__(self, optimizer, variable, inputs, domain, certified, info):
         self.optimizer = optimizer
         self.variable = variable
         outputs = [variable]
@@ -42,7 +52,6 @@ class VariableStream(Stream):
         #gen_fn = empty_gen()
         # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
-        info = StreamInfo()
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain, outputs, certified, info)
 
 class ConstraintStream(Stream):
@@ -130,13 +139,13 @@ def get_effort_fn(optimizer_name):
 
 ##################################################
 
-def parse_variable(optimizer, lisp_list):
+def parse_variable(optimizer, lisp_list, info):
     value_from_attribute = parse_lisp_list(lisp_list)
     return VariableStream(optimizer,
                           value_from_attribute[':variable'], # TODO: assume unique?
                           value_from_attribute.get(':inputs', []),
                           list_from_conjunction(value_from_attribute.get(':domain')),
-                          list_from_conjunction(value_from_attribute.get(':graph')))
+                          list_from_conjunction(value_from_attribute.get(':graph')), info)
 
 def parse_constraint(optimizer, lisp_list):
     value_from_attribute = parse_lisp_list(lisp_list)
@@ -146,15 +155,15 @@ def parse_constraint(optimizer, lisp_list):
 
 # TODO: convert optimizer into a set of streams? Already present within test stream
 
-def parse_optimizer(lisp_list, stream_map, stream_info):
+def parse_optimizer(lisp_list, procedures, infos):
     _, optimizer_name = lisp_list[:2]
-    procedure = get_procedure_fn(stream_map, optimizer_name)
-    info = stream_info.get(optimizer_name, StreamInfo())
+    procedure = get_procedure_fn(procedures, optimizer_name)
+    info = infos.get(optimizer_name, OptimizerInfo())
     optimizer = Optimizer(optimizer_name, procedure, info)
     for sub_list in lisp_list[2:]:
         form = sub_list[0]
         if form == ':variable':
-            optimizer.variables.append(parse_variable(optimizer, sub_list))
+            optimizer.variables.append(parse_variable(optimizer, sub_list, info))
         elif form == ':constraint':
             optimizer.constraints.append(parse_constraint(optimizer, sub_list))
         elif form == ':objective':
@@ -213,7 +222,7 @@ def combine_optimizer_plan(stream_plan, functions):
         optimizer_plan.append(stream._Result(instance, stream.output_objects))
     return optimizer_plan
 
-# TODO: this process needs to be improved still
+##################################################
 
 def combine_optimizers_greedy(evaluations, external_plan):
     if external_plan is None:
@@ -250,25 +259,10 @@ def combine_optimizers_greedy(evaluations, external_plan):
 
 ##################################################
 
-def combine_optimizers(evaluations, external_plan):
-    if external_plan is None:
-        return external_plan
-    optimizers = {get_optimizer(r) for r in external_plan} # None is like a unique optimizer
-    if not optimizers:
-        return external_plan
-    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
-    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
-
-    combined_results = []
-    for optimizer in optimizers:
-        relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
-        combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
-    combined_results.extend(function_plan)
-
+def sequence_results(evaluations, combined_results):
     current_facts = set()
     for result in combined_results:
         current_facts.update(filter(lambda f: evaluation_from_fact(f) in evaluations, result.get_domain()))
-
     combined_plan = []
     while combined_results:
         for result in combined_results:
@@ -280,3 +274,77 @@ def combine_optimizers(evaluations, external_plan):
         else: # TODO: can also just try one cluster and return
             return None
     return combined_plan
+
+def combine_optimizers(evaluations, external_plan, optimizers):
+    if external_plan is None:
+        return external_plan
+    if not optimizers:
+        return external_plan
+    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
+    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+
+    combined_results = []
+    for optimizer in {get_optimizer(r) for r in stream_plan}: # None is like a unique optimizer
+        relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
+        combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
+    return sequence_results(evaluations, combined_results + function_plan)
+
+##################################################
+
+def retrace_instantiation(fact, streams, evaluations, visited_facts, planned_results):
+    if (evaluation_from_fact(fact) in evaluations) or (fact in visited_facts):
+        return
+    visited_facts.add(fact)
+    for stream in streams:
+        for cert in stream.certified:
+            if get_prefix(fact) == get_prefix(cert):
+                mapping = get_mapping(get_args(cert), get_args(fact))  # Should be same anyways
+                if not all(p in mapping for p in (stream.inputs + stream.outputs)):
+                    # TODO: assumes another effect is sufficient for binding
+                    continue
+                input_objects = tuple(mapping[p] for p in stream.inputs)
+                instance = stream.get_instance(input_objects)
+                for new_fact in instance.get_domain():
+                    retrace_instantiation(new_fact, streams, evaluations, visited_facts, planned_results)
+                output_objects = tuple(mapping[p] for p in stream.outputs)
+                planned_results.append(stream._Result(instance, output_objects))
+
+def replan_with_optimizers(evaluations, external_plan, domain, externals):
+    # TODO: return multiple plans?
+    # TODO: can instead have multiple goal binding combinations
+    # TODO: can replan using samplers as well
+    if external_plan is None:
+        return external_plan
+    optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    if not optimizer_streams:
+        return external_plan
+    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
+    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    #variable_streams = filter(lambda s: isinstance(s, VariableStream), optimizers)
+    #constraint_streams = filter(lambda s: isinstance(s, ConstraintStream), optimizers)
+    goal_facts = set()
+    for result in stream_plan:
+        goal_facts.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, result.get_certified()))
+
+    visited_facts = set()
+    new_results = []
+    for fact in goal_facts:
+        retrace_instantiation(fact, optimizer_streams, evaluations, visited_facts, new_results)
+
+    #from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
+    #node_from_atom = get_achieving_streams(evaluations, stream_results) # TODO: make these lower effort
+    #extract_stream_plan(node_from_atom, target_facts, stream_plan)
+
+    optimizer_results = []
+    for optimizer in {get_optimizer(r) for r in new_results}: # None is like a unique optimizer:
+        relevant_results = [r for r in new_results if get_optimizer(r) == optimizer]
+        optimizer_results.extend(combine_optimizer_plan(relevant_results, function_plan))
+
+    # TODO: can do the flexibly sized optimizers search
+    from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
+    combined_plan = reschedule_stream_plan(evaluations, goal_facts, copy.copy(domain),
+                                           (stream_plan + optimizer_results),
+                                           unique_binding=True, unit_costs=True)
+    if combined_plan is None:
+        return external_plan
+    return combined_plan + function_plan

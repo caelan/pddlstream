@@ -8,17 +8,19 @@ from pddlstream.utils import flatten
 
 #RESCHEDULE_PLANNER = 'ff-astar'
 RESCHEDULE_PLANNER = 'lmcut-astar'
+#RESCHEDULE_PLANNER = 'ff-lazy'
 
-def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results):
+def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results, unique_binding=False, unit_costs=True):
     # TODO: search in space of partially ordered plans
     # TODO: constrain selection order to be alphabetical?
-    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=True)
+    reschedule_problem = get_problem(evaluations, And(*preimage_facts), domain, unit_costs=unit_costs)
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
-    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results)
+    reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results, unique_binding=unique_binding)
     #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the even that axioms are needed?
-    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_time=10, debug=True)
+    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_planner_time=10, debug=False)
     return [stream_result_from_name[name] for name, _ in new_plan]
 
+##################################################
 
 def shorten_stream_plan(evaluations, stream_plan, target_facts):
     all_subgoals = set(target_facts) | set(flatten(r.instance.get_domain() for r in stream_plan))
