@@ -58,7 +58,7 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=[]):
-    domain_pddl = read(get_file_path(__file__, 'domain2.pddl'))
+    domain_pddl = read(get_file_path(__file__, 'regression.pddl')) # progression | regression
     constant_map = {}
 
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -253,6 +253,7 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
                 if not colliding:
                     return
             else:
+                print('{}) {}->{} | {} | Failure!'.format(num, n1, n2, max_attempts))
                 break
     return gen_fn
 
