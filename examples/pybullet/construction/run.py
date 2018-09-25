@@ -10,13 +10,14 @@ from examples.pybullet.construction.utils import parse_elements, parse_node_poin
     prune_dominated, get_element_neighbors, get_node_neighbors, sample_direction, draw_element
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
-    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, \
+    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test, from_gen_fn
-from pddlstream.utils import read, get_file_path, print_solution, user_input, irange
+from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort
 
+SUPPORT_THETA = np.math.radians(30)  # Support polygon
 
 class PrintTrajectory(object):
     def __init__(self, robot, trajectory, element, reverse, colliding=set()):
@@ -28,6 +29,9 @@ class PrintTrajectory(object):
     def __repr__(self):
         return '{}->{}'.format(self.n1, self.n2)
 
+def get_other_node(node1, element):
+    assert node1 in element
+    return element[node1 == element[0]]
 
 def get_pddlstream(trajectories, element_bodies, ground_nodes):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -57,6 +61,17 @@ def get_pddlstream(trajectories, element_bodies, ground_nodes):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
+def element_supports(e, n1, node_points): # A property of nodes
+    # TODO: support polygon (ZMP heuristic)
+    # TODO: recursively apply as well
+    # TODO: end-effector force
+    # TODO: allow just a subset to support
+    # TODO: construct using only upwards
+    n2 = get_other_node(n1, e)
+    delta = node_points[n2] - node_points[n1]
+    theta = angle_between(delta, [0, 0, -1])
+    return theta < (np.pi / 2 - SUPPORT_THETA)
+
 def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=[]):
     domain_pddl = read(get_file_path(__file__, 'regression.pddl')) # progression | regression
     constant_map = {}
@@ -67,18 +82,27 @@ def get_pddlstream2(robot, obstacles, node_points, element_bodies, ground_nodes,
         'sample-print': from_gen_fn(get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)),
     }
 
+    # TODO: assert that all elements have some support
     init = []
     for n in ground_nodes:
         init.append(('Grounded', n))
     for e in element_bodies:
+        for n2 in e:
+            if element_supports(e, n2, node_points):
+                init.append(('Supports', e, n2))
+            else:
+                init.append(('StartNode', n2, e))
+    for e in element_bodies:
         n1, n2 = e
         init.extend([
+            ('Node', n1),
+            ('Node', n2),
             ('Element', e),
             ('Printed', e),
             ('Edge', n1, e, n2),
             ('Edge', n2, e, n1),
-            ('StartNode', n1, e),
-            ('StartNode', n2, e),
+            #('StartNode', n1, e),
+            #('StartNode', n2, e),
         ])
         #if is_ground(e, ground_nodes):
         #    init.append(('Grounded', e))
@@ -109,7 +133,7 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     pddlstream_problem = pddlstream_fn(robot, obstacles, node_points, element_bodies,
                                        ground_nodes, trajectories=trajectories)
     #solution = solve_exhaustive(pddlstream_problem, planner='goal-lazy', max_time=300, debug=True)
-    solution = solve_incremental(pddlstream_problem, planner='add-random-lazy', max_time=300,
+    solution = solve_incremental(pddlstream_problem, planner='add-random-lazy', max_time=600,
                                  max_planner_time=300, debug=False)
     # solve_exhaustive | solve_incremental
     # Reachability heuristics good for detecting dead-ends
@@ -209,9 +233,9 @@ def sample_print_path(robot, length, reverse, element_body, collision_fn):
     return None
 
 def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
-    max_attempts = 50
+    max_attempts = 150
     max_trajectories = 10
-    check_collisions = False
+    check_collisions = True
     # 50 doesn't seem to be enough
 
     disabled = {tuple(link_from_name(robot, link) for link in pair) for pair in disabled_collisions}
@@ -221,6 +245,8 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
     node_neighbors = get_node_neighbors(element_bodies)
     elements_order = list(element_bodies.keys())
     bodies_order = [element_bodies[e] for e in elements_order]
+    # TODO: print on full sphere and just check for collisions with the printed element
+    # TODO: can slide a component of the element down
 
     def gen_fn(node1, element):
         reverse = (node1 != element[0])
@@ -344,12 +370,6 @@ def main(viewer=False):
     #node_order = node_order[:100]
     ground_nodes = [n for n in ground_nodes if n in node_order]
     elements = [element for element in elements if all(n in node_order for n in element)]
-    elements = elements[:10]
-    #elements = elements[:25]
-    #elements = elements[:50]
-    #elements = elements[:100]
-    #elements = elements[:150]
-    #elements = elements[150:]
 
     print('Nodes: {} | Ground: {} | Elements: {}'.format(
         len(node_points), len(ground_nodes), len(elements)))
@@ -359,14 +379,32 @@ def main(viewer=False):
     floor, robot = load_world()
     obstacles = [floor]
     #dump_body(robot)
+    #if has_gui():
+    #    draw_model(elements, node_points, ground_nodes)
+    #    wait_for_interrupt('Continue?')
+
+    #elements = elements[:10]
+    #elements = elements[:25]
+    #elements = elements[:50]
+    #elements = elements[:100]
+    #elements = elements[:150]
+    #elements = elements[150:]
+
+    # TODO: prune if it collides with any of its supports
+    # TODO: prioritize choices that don't collide with too many edges
 
     #test_grasps(robot, node_points, elements)
     #test_print(robot, node_points, elements)
     #return
 
-    if has_gui():
-        draw_model(elements, node_points, ground_nodes)
-        wait_for_interrupt('Continue?')
+    # TODO: topological sort
+    #node = node_order[40]
+    #node_neighbors = get_node_neighbors(elements)
+    #for element in node_neighbors[node]:
+    #    color = (0, 1, 0) if element_supports(element, node, node_points) else (1, 0, 0)
+    #    draw_element(node_points, element, color)
+    #wait_for_interrupt('Continue?')
+
     #for name, args in plan:
     #    n1, e, n2 = args
     #    draw_element(node_points, e)
