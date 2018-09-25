@@ -40,7 +40,8 @@
 
   (:derived (Connected ?n2)
     (or (Grounded ?n2)
-        (exists (?n1 ?e) (and (Edge ?n1 ?e ?n2) (Printed ?e) (Connected ?n1)))) ; Can also just do on StartNode
+        (exists (?n1 ?e) (and (Edge ?n1 ?e ?n2)
+                              (Printed ?e) (Connected ?n1)))) ; Can also just do on StartNode
   )
   ; Either there exist another path or the connected node will not be printable
 

@@ -160,9 +160,11 @@ def load_world():
 
 
 def prune_dominated(trajectories):
+    start_len = len(trajectories)
     for traj1 in list(trajectories):
         if any((traj1 != traj2) and (traj2.colliding <= traj1.colliding) for traj2 in trajectories):
             trajectories.remove(traj1)
+    return len(trajectories) == start_len
 
 
 def get_node_neighbors(elements):
