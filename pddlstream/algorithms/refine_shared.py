@@ -159,7 +159,7 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
         # I don't think the double bound thing really makes entire sense here
         double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
         stream_results.extend(optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                     streams, double_bindings=double_bindings))
+                                                         streams, double_bindings=double_bindings))
     stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
                                                  functions)
     return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,

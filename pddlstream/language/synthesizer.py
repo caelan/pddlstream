@@ -91,6 +91,7 @@ def get_cluster_values(stream_plan):
     macro_from_micro = []
     inputs, domain, outputs, certified, functions = [], set(), [], set(), set()
     input_objects, output_objects = [], []
+    fluent_facts = []
     for result in stream_plan:
         local_mapping = {}  # global_from_local
         stream = result.instance.external
@@ -104,9 +105,11 @@ def get_cluster_values(stream_plan):
         elif isinstance(result, FunctionResult):
             functions.add(substitute_expression(Minimize(stream.head), local_mapping))
         else:
+            fluent_facts.extend(result.instance.fluent_facts)
             add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
             certified.update(substitute_expression(stream.certified, local_mapping))
             macro_from_micro.append(local_mapping)
+    assert not fluent_facts
     return inputs, domain, outputs, certified, functions, \
            macro_from_micro, input_objects, output_objects
 

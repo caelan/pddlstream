@@ -2,7 +2,7 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.algorithms.downward import OBJECT, make_preconditions
+from pddlstream.algorithms.downward import make_preconditions, make_parameters
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
 from pddlstream.language.conversion import list_from_conjunction, remap_objects, \
     substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
@@ -15,6 +15,7 @@ from pddlstream.utils import str_from_object, get_mapping, irange
 VERBOSE_FAILURES = True
 INTERNAL = False
 DEFAULT_UNIQUE = False
+NEGATIVE_BLOCKED = True
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
@@ -152,6 +153,10 @@ class StreamInstance(Instance):
             raise ValueError('Output wild facts for wild stream [{}] is not a sequence: {}'.format(
                 self.external.name, new_facts))
 
+    def get_result(self, object_objects, opt_index=None, list_index=None):
+        return self.external._Result(self, tuple(object_objects), opt_index=opt_index,
+                                     call_index=self.num_calls, list_index=list_index)
+
     def use_unique(self):
         return self.opt_index == 0
 
@@ -194,8 +199,7 @@ class StreamInstance(Instance):
             new_values, new_facts = self._next_outputs()
             self._check_output_values(new_values)
             self._check_wild_facts(new_facts)
-            new_results = [self.external._Result(self, tuple(map(Object.from_value, output_values)),
-                                                 call_index=self.num_calls, list_index=list_index)
+            new_results = [self.get_result(map(Object.from_value, output_values), list_index=list_index)
                            for list_index, output_values in enumerate(new_values)]
             all_new_values.extend(new_values)
             all_new_facts.extend(new_facts)
@@ -256,10 +260,10 @@ class StreamInstance(Instance):
         # TODO: allow reporting back which components lead to failure
 
         import pddl
-        parameters = tuple(pddl.TypedObject(p, OBJECT) for p in self.external.inputs)
         static_fact = (self.axiom_predicate,) + self.external.inputs
         preconditions = [static_fact] + list(self.fluent_facts)
-        domain.axioms.append(pddl.Axiom(name=self.external.blocked_predicate, parameters=parameters,
+        domain.axioms.append(pddl.Axiom(name=self.external.blocked_predicate,
+                                        parameters=make_parameters(self.external.inputs),
                                         num_external_parameters=len(self.external.inputs),
                                         condition=make_preconditions(preconditions)))
 
@@ -270,7 +274,6 @@ class Stream(External):
     _Instance = StreamInstance
     _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
-        # Each stream could certify a stream-specific fact as well
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
@@ -296,7 +299,10 @@ class Stream(External):
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
         self.fluents = fluents
-        self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
+        if NEGATIVE_BLOCKED:
+            self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
+        else:
+            self.blocked_predicate = '~{}'.format(self.name)
         self.disabled_instances = []
         self.is_wild = is_wild
 

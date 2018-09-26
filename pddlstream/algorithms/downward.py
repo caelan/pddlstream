@@ -400,18 +400,19 @@ def plan_preimage(combined_plan, goal):
 
 ##################################################
 
+def make_parameters(parameters):
+    return tuple(pddl.TypedObject(p, OBJECT) for p in parameters)
+
+
 def make_preconditions(preconditions):
-    import pddl
     return pddl.Conjunction(list(map(fd_from_fact, preconditions)))
 
 
 def make_effects(effects):
-    import pddl
     return [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact)) for fact in effects]
 
 
 def make_cost(cost):
-    import pddl
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
     expression = pddl.NumericConstant(cost)
     return pddl.Increase(fluent=fluent, expression=expression)

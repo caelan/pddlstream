@@ -4,9 +4,9 @@ from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.algorithms.downward import OBJECT, Domain, \
     make_preconditions, make_effects, make_cost
 from pddlstream.language.constants import Head, And, Not
-from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact
+from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import UNSATISFIABLE
+from pddlstream.language.optimizer import UNSATISFIABLE, VariableStream, ConstraintStream
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, find_unique
 
@@ -28,13 +28,15 @@ def combine_function_evaluations(evaluations, stream_results):
 
 ##################################################
 
-CALLED_PREFIX = '_called_{}'
+ORDER_OUTPUT = False
+CALLED_PREDICATE = '_called_{}'
 CALL_PREFIX = '_{}' # '_call_{}'
+BOUND_PREDICATE = '_bound'
 
 def enforce_output_order(result, preconditions, effects):
     instance_name = '{}_{}'.format(result.external.name,  # No spaces & parens
                                    ','.join(map(pddl_from_object, result.instance.input_objects)))
-    predicate_name = CALLED_PREFIX.format(instance_name)
+    predicate_name = CALLED_PREDICATE.format(instance_name)
     if 1 <= result.call_index:
         preconditions.extend([
             (predicate_name, CALL_PREFIX.format(result.call_index - 1)),
@@ -45,8 +47,6 @@ def enforce_output_order(result, preconditions, effects):
             (predicate_name, CALL_PREFIX.format(result.call_index)),
             Not((predicate_name, CALL_PREFIX.format(result.call_index - 1))),
         ])
-
-BOUND_PREDICATE = '_bound'
 
 def enforce_single_binding(result, preconditions, effects):
     binding_facts = [(BOUND_PREDICATE, pddl_from_object(out)) for out in result.output_objects]
@@ -76,9 +76,12 @@ def get_stream_actions(results, unique_binding=False, unit=True, effort_scale=1)
 
         preconditions = list(result.instance.get_domain())
         effects = list(result.get_certified())
-        enforce_output_order(result, preconditions, effects)
+        if ORDER_OUTPUT:
+            enforce_output_order(result, preconditions, effects)
         if unique_binding:
             enforce_single_binding(result, preconditions, effects)
+        if type(result.external) in [VariableStream, ConstraintStream]:
+            effects.append(substitute_expression(result.external.stream_fact, result.get_mapping()))
         parameters = []  # Usually all parameters are external
         stream_actions.append(pddl.Action(name=result_name, parameters=parameters,
                                           num_external_parameters=len(parameters),
@@ -98,8 +101,7 @@ def add_stream_actions(domain, stream_results):
     new_constants = list({pddl.TypedObject(obj, OBJECT) for obj in output_objects} | set(domain.constants))
     # to_untyped_strips
     # free_variables
-    new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict,
-                        new_constants,
+    new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict, new_constants,
                         domain.predicates, domain.predicate_dict, domain.functions,
                         domain.actions[:] + stream_actions, domain.axioms)
     return new_domain, stream_result_from_name

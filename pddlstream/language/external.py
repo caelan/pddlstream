@@ -43,6 +43,7 @@ class Result(object):
 ##################################################
 
 class Instance(object):
+    _Result = None
     def __init__(self, external, input_objects):
         self.external = external
         self.input_objects = tuple(input_objects)
@@ -63,6 +64,9 @@ class Instance(object):
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
         self.successes += successes
+
+    #def get_result(self):
+    #    raise NotImplementedError()
 
     @property
     def num_calls(self):

@@ -109,7 +109,8 @@ def convert_fluent_streams(stream_plan, real_states, steps_from_stream):
         [state_index] = steps_from_stream[result]
         fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
         new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
-        new_stream_plan.append(external._Result(new_instance, result.output_objects, opt_index=result.opt_index))
+        result = new_instance.get_result(result.output_objects, opt_index=result.opt_index)
+        new_stream_plan.append(result)
     return new_stream_plan
 
 def extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name):
