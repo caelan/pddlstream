@@ -53,7 +53,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     """
     # TODO: return to just using the highest level samplers at the start
     # TODO: select whether to search or sample based on expected success rates
-    solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+    solve_stream_plan_fn = relaxed_stream_plan
+    #solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
     #solve_stream_plan_fn = sequential_stream_plan # simultaneous_stream_plan | sequential_stream_plan
     #solve_stream_plan_fn = incremental_stream_plan # incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
@@ -90,15 +91,16 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
                                                             max_cost=store.best_cost,
                                                             #max_cost=min(store.best_cost, max_cost),
-                                                            unit_costs=unit_costs, **search_kwargs)
+                                                            unit_costs=unit_costs, effort_weight=effort_weight,
+                                                            **search_kwargs)
         #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals)
-        #stream_plan = combine_optimizers(evaluations, stream_plan)
+        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals)
+        stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                        [s for s in synthesizers if not s.post_only])
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan?

@@ -14,12 +14,11 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 # TODO: allow switch to higher-level in heuristic
 # TODO: recursive application of these
 
-def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: can solve using another planner and then still translate using FastDownward
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = sas_from_pddl(task)
         write_sas_task(sas_task, temp_dir)
         solution = run_search(temp_dir, debug=True, **kwargs)
         if clean:
@@ -83,13 +82,12 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     return full_plan, full_cost
 
 
-def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def serialized_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: specify goal grouping / group by predicate & objects
     # TODO: version that solves for all subgoals at once
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = sas_from_pddl(task)
         subgoal_plan = [sas_task.goal.pairs[:i+1] for i in range(len(sas_task.goal.pairs))]
         plan, cost = plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs)
         if clean:
@@ -164,17 +162,16 @@ def add_subgoals(sas_task, subgoal_plan):
     return subgoal_var
 
 
-def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
     if not hierarchy:
-        return solve_from_task(task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = sas_from_pddl(task)
         last_plan = []
         for level in range(len(hierarchy)+1):
             local_sas_task = deepcopy(sas_task)
@@ -197,16 +194,15 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
 # TODO: reconcile shared objects on each level
 # Each operator in the hierarchy is a legal "operator" that may need to be refined
 
-def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, debug=False,
+def abstrips_solve_from_task_sequential(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False,
                                         hierarchy=[], subgoal_horizon=1, **kwargs):
     # TODO: version that plans for each goal individually
     # TODO: can reduce to goal serialization if binary flag for each subgoal
     if not hierarchy:
-        return solve_from_task(task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
-        sas_task = sas_from_pddl(task)
         last_plan = None
         for level in range(len(hierarchy) + 1):
             local_sas_task = deepcopy(sas_task)

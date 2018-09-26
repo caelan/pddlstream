@@ -73,7 +73,7 @@ SEARCH_OPTIONS = {
                        '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
 }
 
-for w in [1, 2, 3, 4, 5]:
+for w in range(1, 1+5):
     SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
                   'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
@@ -218,19 +218,19 @@ def write_sas_task(sas_task, temp_dir):
         sas_task.output(output_file)
     return translate_path
 
-def sas_from_pddl(task):
-    normalize.normalize(task)
+def sas_from_pddl(task, debug=False):
+    #normalize.normalize(task)
     #sas_task = translate.pddl_to_sas(task)
-    sas_task = pddl_to_sas(task)
-    translate.dump_statistics(sas_task)
+    with Verbose(debug):
+        sas_task = sas_from_instantiated(instantiate_task(task))
     return sas_task
 
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     domain = parse_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
-    with Verbose(verbose):
-        write_sas_task(sas_from_pddl(task), temp_dir)
+    sas_task = sas_from_pddl(task)
+    write_sas_task(sas_task, temp_dir)
     return task
 
 ##################################################
@@ -252,7 +252,6 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     if not os.path.exists(temp_dir + SEARCH_OUTPUT):
         return None
     return read(temp_dir + SEARCH_OUTPUT)
-
 
 ##################################################
 
@@ -346,7 +345,6 @@ def get_action_instances(task, action_plan):
 
 
 def get_goal_instance(goal):
-    import pddl
     #name = '@goal-reachable'
     name = '@goal'
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
@@ -420,22 +418,14 @@ def make_cost(cost):
 
 ##################################################
 
-def pddl_to_sas(task):
-    import timers
-    import fact_groups
-    import options
-    import simplify
-    import variable_order
-    from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
-        build_implied_facts, build_mutex_key, solvable_sas_task, \
-        simplified_effect_condition_counter, added_implied_precondition_counter
+InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
+                                                   'reachable_action_params', 'goal_list'])
 
-    with timers.timing("Instantiating", block=True):
-        (relaxed_reachable, atoms, actions, axioms,
-         reachable_action_params) = instantiate.explore(task)
-
+def instantiate_task(task):
+    normalize.normalize(task)
+    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     if not relaxed_reachable:
-        return unsolvable_sas_task("No relaxed solution")
+        return None
 
     # HACK! Goals should be treated differently.
     if isinstance(task.goal, pddl.Conjunction):
@@ -444,6 +434,23 @@ def pddl_to_sas(task):
         goal_list = [task.goal]
     for item in goal_list:
         assert isinstance(item, pddl.Literal)
+
+    return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
+
+##################################################
+
+def sas_from_instantiated(instantiated_task):
+    import timers
+    import fact_groups
+    import options
+    import simplify
+    import variable_order
+    from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
+        build_implied_facts, build_mutex_key, solvable_sas_task
+
+    if not instantiated_task:
+        return unsolvable_sas_task("No relaxed solution")
+    task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
 
     with timers.timing("Computing fact groups", block=True):
         groups, mutex_groups, translation_key = fact_groups.compute_groups(
@@ -474,11 +481,6 @@ def pddl_to_sas(task):
             task.init, goal_list, actions, axioms, task.use_min_cost_metric,
             implied_facts)
 
-    print("%d effect conditions simplified" %
-          simplified_effect_condition_counter)
-    print("%d implied preconditions added" %
-          added_implied_precondition_counter)
-
     if options.filter_unreachable_facts:
         with timers.timing("Detecting unreachable propositions", block=True):
             try:
@@ -494,4 +496,5 @@ def pddl_to_sas(task):
                 sas_task, options.reorder_variables,
                 options.filter_unimportant_vars)
 
+    translate.dump_statistics(sas_task)
     return sas_task

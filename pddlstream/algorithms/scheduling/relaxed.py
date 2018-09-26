@@ -1,20 +1,23 @@
 from collections import defaultdict
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    conditions_hold, get_goal_instance, plan_preimage, get_literals
+    conditions_hold, get_goal_instance, plan_preimage, get_literals, sas_from_pddl, instantiate_task, \
+    sas_from_instantiated, scale_cost, fd_from_fact
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
     get_derived_predicates, get_necessary_axioms, instantiate_necessary_axioms
-from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
+from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan, COMBINE_OP
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
     get_results_from_head
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_parameter
-from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl
+from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, evaluation_from_fact, \
+    substitute_expression
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet
+from pddlstream.language.optimizer import VariableStream, ConstraintStream
+from pddlstream.utils import Verbose, MockSet, INF
 
 DO_RESCHEDULE = False
 
@@ -233,18 +236,55 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
 ##################################################
 
-# TODO: modify action costs to include stream costs
+def add_stream_costs(node_from_atom, instantiated, effort_weight):
+    for instance in instantiated.actions:
+        # Ignores conditional effect costs
+        facts = []
+        for precondition in get_literals(instance.action.precondition):
+            if precondition.negated:
+                continue
+            args = [instance.var_mapping.get(arg, arg) for arg in precondition.args]
+            literal = precondition.__class__(precondition.predicate, args)
+            fact = fact_from_fd(literal)
+            if fact in node_from_atom:
+                facts.append(fact)
+        #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
+        stream_plan = []
+        extract_stream_plan(node_from_atom, facts, stream_plan)
+        effort = sum([0] + [r.instance.get_effort() for r in stream_plan])
+        instance.cost += scale_cost(effort_weight*effort)
+        for result in stream_plan:
+            # TODO: need to make multiple versions if several ways of achieving the action
+            if type(result.external) in [VariableStream, ConstraintStream]:
+                fact = substitute_expression(result.external.stream_fact, result.get_mapping())
+                atom = fd_from_fact(fact)
+                instantiated.atoms.add(atom)
+                effect = (tuple(), atom)
+                instance.add_effects.append(effect)
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, effort_weight,
+                        debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
-    opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
+    #opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
+    node_from_atom = get_achieving_streams(evaluations, stream_results)
+    opt_evaluations = {evaluation_from_fact(f) for f, n in node_from_atom.items() if n.effort < INF}
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    #action_plan, action_cost = serialized_solve_from_task(task, **kwargs)
-    action_plan, action_cost = abstrips_solve_from_task(task, **kwargs)
-    #action_plan, action_cost = abstrips_solve_from_task_sequential(task, **kwargs)
+
+    with Verbose(debug):
+        instantiated = instantiate_task(task)
+    if effort_weight is not None:
+        add_stream_costs(node_from_atom, instantiated, effort_weight)
+    if instantiated is None:
+        return None, INF
+    with Verbose(debug):
+        sas_task = sas_from_instantiated(instantiated)
+    #sas_task = sas_from_pddl(task)
+    #action_plan, action_cost = serialized_solve_from_task(sas_task, debug=debug, **kwargs)
+    action_plan, action_cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
+    #action_plan, action_cost = abstrips_solve_from_task_sequential(sas_task, debug=debug, **kwargs)
     if action_plan is None:
-        return None, action_cost
+        return None, INF
     # TODO: just use solve finite?
 
     stream_plan = recover_stream_plan(evaluations, goal_expression, domain,

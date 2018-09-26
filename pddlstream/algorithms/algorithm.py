@@ -2,7 +2,7 @@ import time
 from collections import OrderedDict, deque, namedtuple
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    parse_lisp
+    parse_lisp, sas_from_pddl
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
@@ -61,12 +61,13 @@ def has_costs(domain):
             return True
     return False
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs):
+def solve_finite(evaluations, goal_expression, domain, unit_costs=None, debug=False, **kwargs):
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    plan_pddl, cost = abstrips_solve_from_task(task, **kwargs)
+    sas_task = sas_from_pddl(task, debug=debug)
+    plan_pddl, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
 ##################################################

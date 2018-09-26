@@ -7,8 +7,9 @@ from pddlstream.utils import HeapElement, INF
 Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: include level
 
 NULL_COND = (None,)
+COMBINE_OP = sum # max | sum
 
-def get_achieving_streams(evaluations, stream_results, op=sum, unit_effort=False): #, max_effort=INF):
+def get_achieving_streams(evaluations, stream_results, unit_effort=False): #, max_effort=INF):
     # TODO: could do this with bound_stream_instances instead
     unprocessed_from_atom = defaultdict(list)
     node_from_atom = {NULL_COND: Node(0, None)}
@@ -33,7 +34,7 @@ def get_achieving_streams(evaluations, stream_results, op=sum, unit_effort=False
             if remaining_from_stream[result]:
                 continue
             effort = 1 if unit_effort else result.instance.get_effort()
-            total_effort = effort + op(node_from_atom[cond].effort for cond in conditions_from_stream[result])
+            total_effort = effort + COMBINE_OP(node_from_atom[cond].effort for cond in conditions_from_stream[result])
             #if max_effort <= total_effort:
             #    continue
             for new_atom in result.get_certified():

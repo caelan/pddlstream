@@ -7,7 +7,7 @@ from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, VariableStream, ConstraintStream
-from pddlstream.language.stream import StreamResult
+from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.utils import INF, find_unique
 
 
@@ -91,9 +91,9 @@ def get_stream_actions(results, unique_binding=False, unit=True, effort_scale=1)
     return stream_actions, stream_result_from_name
 
 
-def add_stream_actions(domain, stream_results):
+def add_stream_actions(domain, stream_results, **kwargs):
     import pddl
-    stream_actions, stream_result_from_name = get_stream_actions(stream_results)
+    stream_actions, stream_result_from_name = get_stream_actions(stream_results, **kwargs)
     output_objects = []
     for stream_result in stream_result_from_name.values():
         if isinstance(stream_result, StreamResult):
@@ -176,6 +176,9 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
                              negated, unit_costs=True, **kwargs):
     if negated:
         raise NotImplementedError(negated)
+    for result in stream_results:
+        if isinstance(result.external, Stream) and result.external.is_fluent():
+            raise NotImplementedError('Fluents are not supported')
 
     function_evaluations = combine_function_evaluations(evaluations, stream_results)
     stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
