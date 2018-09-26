@@ -109,9 +109,9 @@ def get_cluster_values(stream_plan):
             add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
             certified.update(substitute_expression(stream.certified, local_mapping))
             macro_from_micro.append(local_mapping)
-    assert not fluent_facts
+    #assert not fluent_facts
     return inputs, domain, outputs, certified, functions, \
-           macro_from_micro, input_objects, output_objects
+           macro_from_micro, input_objects, output_objects, fluent_facts
 
 class StreamSynthesizer(Performance): # JointStream | Stream Combiner
     def __init__(self, name, streams, gen_fn, post_only=False):
@@ -131,7 +131,9 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
         if len(streams) < 1: # No point if only one...
             return None
         inputs, domain, outputs, certified, functions, macro_from_micro, \
-            input_objects, output_objects = get_cluster_values(stream_plan)
+            input_objects, output_objects, fluent_facts = get_cluster_values(stream_plan)
+        if fluent_facts:
+            raise NotImplementedError()
         mega_stream = SynthStream(self, inputs, domain,
                                   outputs, certified, functions,
                                   streams, macro_from_micro)

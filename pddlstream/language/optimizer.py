@@ -37,6 +37,26 @@ class Optimizer(object):
 
 ##################################################
 
+def get_gen_fn(procedure, inputs, outputs, certified):
+    def gen_fn(*input_values):
+        mapping = get_mapping(inputs, input_values)
+        targets = substitute_expression(certified, mapping)
+        return procedure(outputs, targets)
+    return gen_fn
+
+def get_effort_fn(optimizer_name):
+    # TODO: higher effort is the variable cannot be free for the testing process
+    # This might happen if the variable is certified to have a property after construction
+    def effort_fn(*input_values):
+        free_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
+                        and value.stream.startswith(optimizer_name)]
+        if not free_indices:
+            return INF
+        return 1
+    return effort_fn
+
+##################################################
+
 class OptimizerInfo(StreamInfo):
     def __init__(self, planable=False, p_success=None, overhead=None):
         super(OptimizerInfo, self).__init__(p_success=p_success, overhead=overhead)
@@ -68,7 +88,7 @@ class ConstraintStream(Stream):
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
-        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name))
+        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name), simultaneous=True) # TODO: check automatically
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info, fluents=fluents)
@@ -79,7 +99,6 @@ UNSATISFIABLE = 'unsatisfiable-negative'
 
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
-        assert not fluent_facts
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
     def get_blocked_fact(self):
         if self.external.is_fluent():
@@ -90,8 +109,6 @@ class OptimizerInstance(StreamInstance):
         #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain)
         # TODO: re-enable?
-        # TODO: block stream-specific predicates relating to these
-        # TODO: don't block variables? Might have a variable that is a function of another though...
         # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         #index = len(self.external.disabled_instances)
         #self.external.disabled_instances.append(self)
@@ -107,6 +124,7 @@ class OptimizerInstance(StreamInstance):
         #constraints = substitute_expression(self.external.certified, output_mapping)
         constraints = [substitute_expression(result.external.stream_fact, result.get_mapping())
                        for result in self.external.stream_plan]
+        # TODO: I think I should be able to just disable the fluent fact from being used in that context
 
         objects = set()
         for fact in constraints:
@@ -127,29 +145,10 @@ class OptimizerStream(Stream):
         self.optimizer = optimizer
         self.stream_plan = stream_plan
         inputs, domain, outputs, certified, functions, _, \
-            self.input_objects, self.output_objects = get_cluster_values(stream_plan)
+            self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(stream_plan)
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions)
-        super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs, certified, optimizer.info)
-
-##################################################
-
-def get_gen_fn(procedure, inputs, outputs, certified):
-    def gen_fn(*input_values):
-        mapping = get_mapping(inputs, input_values)
-        targets = substitute_expression(certified, mapping)
-        return procedure(outputs, targets)
-    return gen_fn
-
-def get_effort_fn(optimizer_name):
-    # TODO: higher effort is the variable cannot be free for the testing process
-    # This might happen if the variable is certified to have a property after construction
-    def effort_fn(*input_values):
-        free_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
-                        and value.stream.startswith(optimizer_name)]
-        if not free_indices:
-            return INF
-        return 1
-    return effort_fn
+        super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
+                                              certified, optimizer.info)
 
 ##################################################
 
@@ -235,7 +234,7 @@ def combine_optimizer_plan(stream_plan, functions):
             optimizer_plan.append(cluster_plan[0])
             continue
         stream = OptimizerStream(optimizer, cluster_plan)
-        instance = stream.get_instance(stream.input_objects)
+        instance = stream.get_instance(stream.input_objects, fluent_facts=stream.fluent_facts)
         result = instance.get_result(stream.output_objects)
         optimizer_plan.append(result)
     return optimizer_plan
@@ -293,11 +292,15 @@ def sequence_results(evaluations, combined_results):
             return None
     return combined_plan
 
+def partition_external_plan(external_plan):
+    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
+    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    return stream_plan, function_plan
+
 def combine_optimizers(evaluations, external_plan):
     if external_plan is None:
         return external_plan
-    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
-    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    stream_plan, function_plan = partition_external_plan(external_plan)
     optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
     if not optimizers:
         return external_plan
@@ -339,8 +342,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
     if not optimizer_streams:
         return external_plan
-    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
-    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    stream_plan, function_plan = partition_external_plan(external_plan)
     goal_facts = set()
     for result in stream_plan:
         goal_facts.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, result.get_certified()))
@@ -370,3 +372,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     if combined_plan is None:
         return external_plan
     return combined_plan + function_plan
+
+
+def is_optimizer_result(result):
+    return type(result.external) in [VariableStream, ConstraintStream]

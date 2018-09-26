@@ -6,8 +6,8 @@ from pddlstream.algorithms.downward import task_from_domain_problem, get_problem
 from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
 from pddlstream.algorithms.algorithm import dump_plans
 from pddlstream.utils import topological_sort
-from pddlstream.algorithms.scheduling.simultaneous import combine_function_evaluations, get_plan_cost
-from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.simultaneous import get_plan_cost
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan, apply_streams
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
@@ -89,8 +89,9 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     stream_plan = get_synthetic_stream_plan(reorder_stream_plan(stream_plan), dynamic_streams)
 
 
-    function_evaluations = combine_function_evaluations(evaluations, stream_plan)
-    opt_cost = get_plan_cost(function_evaluations, opt_action_plan, domain)
+    # TODO: need to make this just streams
+    opt_evaluations = apply_streams(evaluations, stream_plan)
+    opt_cost = get_plan_cost(opt_evaluations, opt_action_plan, domain, unit_costs=False)
     dump_plans(stream_plan, opt_action_plan, opt_cost)
     if visualize:
         log_plans(stream_plan, action_plan, None)

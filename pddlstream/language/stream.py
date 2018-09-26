@@ -93,11 +93,12 @@ class DebugValue(object): # TODO: could just do an object
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), eager=False,
-                 p_success=None, overhead=None, negate=False, effort_fn=None):
+                 p_success=None, overhead=None, negate=False, effort_fn=None, simultaneous=False):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead, effort_fn)
         self.opt_gen_fn = opt_gen_fn
         self.negate = negate
+        self.simultaneous = simultaneous
         #self.order = 0
 
 class StreamResult(Result):
