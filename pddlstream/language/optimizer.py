@@ -155,6 +155,7 @@ def get_effort_fn(optimizer_name):
 
 def parse_variable(optimizer, lisp_list, info):
     value_from_attribute = parse_lisp_list(lisp_list)
+    assert set(value_from_attribute) <= {':variable', ':inputs', ':domain', ':graph'}
     return VariableStream(optimizer,
                           value_from_attribute[':variable'], # TODO: assume unique?
                           value_from_attribute.get(':inputs', []),
@@ -163,6 +164,7 @@ def parse_variable(optimizer, lisp_list, info):
 
 def parse_constraint(optimizer, lisp_list):
     value_from_attribute = parse_lisp_list(lisp_list)
+    assert set(value_from_attribute) <= {':constraint', ':necessary', ':fluents'}
     return ConstraintStream(optimizer,
                             value_from_attribute[':constraint'],
                             list_from_conjunction(value_from_attribute[':necessary']),

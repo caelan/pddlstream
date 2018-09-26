@@ -18,11 +18,6 @@ from pddlstream.utils import Verbose, MockSet
 
 DO_RESCHEDULE = False
 
-# TODO: reuse the ground problem when solving for sequential subgoals
-
-#def get_predicate_result():
-#    pass # TODO: refactor
-
 def instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan):
     action_instances = []
     for name, args in action_plan: # TODO: negative atoms in actions
@@ -95,8 +90,17 @@ def convert_negative(negative_preimage, negative_from_name, step_from_atom, real
             raise ValueError(negative)
     return negative_plan
 
-def convert_fluent_streams(stream_plan, real_states, steps_from_stream):
+def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_atom):
     import pddl
+    steps_from_stream = {}
+    for result in reversed(stream_plan):
+        steps_from_stream[result] = set()
+        for fact in result.get_certified():
+            if (fact in step_from_fact) and (node_from_atom[fact].stream_result == result):
+                steps_from_stream[result].update(step_from_fact[fact])
+        for fact in result.instance.get_domain():
+            step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
+
     new_stream_plan = []
     for result in stream_plan:
         external = result.instance.external
@@ -217,16 +221,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     extract_stream_plan(node_from_atom, target_facts, stream_plan)
     stream_plan = prune_stream_plan(evaluations, stream_plan, target_facts)
-
-    steps_from_stream = {}
-    for result in reversed(stream_plan):
-        steps_from_stream[result] = set()
-        for fact in result.get_certified():
-            if (fact in step_from_fact) and (node_from_atom[fact].stream_result == result):
-                steps_from_stream[result].update(step_from_fact[fact])
-        for fact in result.instance.get_domain():
-            step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
-    stream_plan = convert_fluent_streams(stream_plan, real_states, steps_from_stream)
+    stream_plan = convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_atom)
     # visualize_constraints(map(fact_from_fd, stream_preimage))
 
     if DO_RESCHEDULE: # TODO: detect this based on unique or not
@@ -245,7 +240,6 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     problem = get_problem(opt_evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    #action_plan, action_cost = solve_from_task(task, **kwargs)
     #action_plan, action_cost = serialized_solve_from_task(task, **kwargs)
     action_plan, action_cost = abstrips_solve_from_task(task, **kwargs)
     #action_plan, action_cost = abstrips_solve_from_task_sequential(task, **kwargs)

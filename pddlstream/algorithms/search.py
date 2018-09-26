@@ -3,7 +3,7 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import write_task, parse_solution, run_search, TEMP_DIR, translate_task, write_pddl, \
+from pddlstream.algorithms.downward import write_sas_task, parse_solution, run_search, TEMP_DIR, sas_from_pddl, write_pddl, \
     translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
@@ -19,8 +19,8 @@ def solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = translate_task(task)
-        write_task(sas_task, temp_dir)
+        sas_task = sas_from_pddl(task)
+        write_sas_task(sas_task, temp_dir)
         solution = run_search(temp_dir, debug=True, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
@@ -72,7 +72,7 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     full_cost = 0
     for subgoal in subgoal_plan:
         sas_task.goal.pairs = subgoal
-        write_task(sas_task, temp_dir)
+        write_sas_task(sas_task, temp_dir)
         plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
         if plan is None:
             return None, INF
@@ -89,7 +89,7 @@ def serialized_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = translate_task(task)
+        sas_task = sas_from_pddl(task)
         subgoal_plan = [sas_task.goal.pairs[:i+1] for i in range(len(sas_task.goal.pairs))]
         plan, cost = plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs)
         if clean:
@@ -174,13 +174,13 @@ def abstrips_solve_from_task(task, temp_dir=TEMP_DIR, clean=False, debug=False, 
     plan, cost = None, INF
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
-        sas_task = translate_task(task)
+        sas_task = sas_from_pddl(task)
         last_plan = []
         for level in range(len(hierarchy)+1):
             local_sas_task = deepcopy(sas_task)
             prune_hierarchy_pre_eff(local_sas_task, hierarchy[level:]) # TODO: break if no pruned
             add_subgoals(local_sas_task, last_plan)
-            write_task(local_sas_task, temp_dir)
+            write_sas_task(local_sas_task, temp_dir)
             plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
             if (level == len(hierarchy)) or (plan is None):
                 # TODO: fall back on standard search
@@ -206,7 +206,7 @@ def abstrips_solve_from_task_sequential(task, temp_dir=TEMP_DIR, clean=False, de
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
-        sas_task = translate_task(task)
+        sas_task = sas_from_pddl(task)
         last_plan = None
         for level in range(len(hierarchy) + 1):
             local_sas_task = deepcopy(sas_task)

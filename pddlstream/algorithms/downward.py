@@ -211,16 +211,17 @@ def get_literals(condition):
 
 ##################################################
 
-def write_task(sas_task, temp_dir):
+def write_sas_task(sas_task, temp_dir):
     clear_dir(temp_dir)
     translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return translate_path
 
-def translate_task(task):
+def sas_from_pddl(task):
     normalize.normalize(task)
-    sas_task = translate.pddl_to_sas(task)
+    #sas_task = translate.pddl_to_sas(task)
+    sas_task = pddl_to_sas(task)
     translate.dump_statistics(sas_task)
     return sas_task
 
@@ -229,7 +230,7 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
     with Verbose(verbose):
-        write_task(translate_task(task), temp_dir)
+        write_sas_task(sas_from_pddl(task), temp_dir)
     return task
 
 ##################################################
@@ -416,3 +417,81 @@ def make_cost(cost):
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
     expression = pddl.NumericConstant(cost)
     return pddl.Increase(fluent=fluent, expression=expression)
+
+##################################################
+
+def pddl_to_sas(task):
+    import timers
+    import fact_groups
+    import options
+    import simplify
+    import variable_order
+    from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
+        build_implied_facts, build_mutex_key, solvable_sas_task, \
+        simplified_effect_condition_counter, added_implied_precondition_counter
+
+    with timers.timing("Instantiating", block=True):
+        (relaxed_reachable, atoms, actions, axioms,
+         reachable_action_params) = instantiate.explore(task)
+
+    if not relaxed_reachable:
+        return unsolvable_sas_task("No relaxed solution")
+
+    # HACK! Goals should be treated differently.
+    if isinstance(task.goal, pddl.Conjunction):
+        goal_list = task.goal.parts
+    else:
+        goal_list = [task.goal]
+    for item in goal_list:
+        assert isinstance(item, pddl.Literal)
+
+    with timers.timing("Computing fact groups", block=True):
+        groups, mutex_groups, translation_key = fact_groups.compute_groups(
+            task, atoms, reachable_action_params)
+
+    with timers.timing("Building STRIPS to SAS dictionary"):
+        ranges, strips_to_sas = strips_to_sas_dictionary(
+            groups, assert_partial=options.use_partial_encoding)
+
+    with timers.timing("Building dictionary for full mutex groups"):
+        mutex_ranges, mutex_dict = strips_to_sas_dictionary(
+            mutex_groups, assert_partial=False)
+
+    if options.add_implied_preconditions:
+        with timers.timing("Building implied facts dictionary..."):
+            implied_facts = build_implied_facts(strips_to_sas, groups,
+                                                mutex_groups)
+    else:
+        implied_facts = {}
+
+    with timers.timing("Building mutex information", block=True):
+        mutex_key = build_mutex_key(strips_to_sas, mutex_groups)
+
+    with timers.timing("Translating task", block=True):
+        sas_task = translate_task(
+            strips_to_sas, ranges, translation_key,
+            mutex_dict, mutex_ranges, mutex_key,
+            task.init, goal_list, actions, axioms, task.use_min_cost_metric,
+            implied_facts)
+
+    print("%d effect conditions simplified" %
+          simplified_effect_condition_counter)
+    print("%d implied preconditions added" %
+          added_implied_precondition_counter)
+
+    if options.filter_unreachable_facts:
+        with timers.timing("Detecting unreachable propositions", block=True):
+            try:
+                simplify.filter_unreachable_propositions(sas_task)
+            except simplify.Impossible:
+                return unsolvable_sas_task("Simplified to trivially false goal")
+            except simplify.TriviallySolvable:
+                return solvable_sas_task("Simplified to empty goal")
+
+    if options.reorder_variables or options.filter_unimportant_vars:
+        with timers.timing("Reordering and filtering variables", block=True):
+            variable_order.find_and_apply_variable_order(
+                sas_task, options.reorder_variables,
+                options.filter_unimportant_vars)
+
+    return sas_task
