@@ -19,6 +19,7 @@ TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
 TRANSLATE_FLAGS = [] # '--negative-axioms'
+original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
 
@@ -30,6 +31,7 @@ import normalize
 import pddl_parser
 from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, \
     parse_condition, check_for_duplicates
+sys.argv = original_argv
 
 TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
@@ -344,7 +346,6 @@ def get_action_instances(task, action_plan):
 
 
 def get_goal_instance(goal):
-    import pddl
     #name = '@goal-reachable'
     name = '@goal'
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
