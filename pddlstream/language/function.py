@@ -75,8 +75,8 @@ class FunctionInstance(Instance):  # Head(Instance):
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if verbose:
-            print('{}{}={}'.format(get_prefix(self.external.head),
-                                   str_from_object(self.get_input_values()), self.value))
+            print('0) {}{}={}'.format(get_prefix(self.external.head),
+                                      str_from_object(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
         #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
         #    self.update_statistics(start_time, [])

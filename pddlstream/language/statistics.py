@@ -37,7 +37,7 @@ def load_stream_statistics(externals):
             external.total_successes += statistics['successes']
 
 
-def dump_statistics(externals):
+def dump_local_statistics(externals):
     print('\nLocal External Statistics')
     overall_calls = 0
     overall_overhead = 0
@@ -45,8 +45,9 @@ def dump_statistics(externals):
         external.dump_local()
         overall_calls += external.online_calls
         overall_overhead += external.online_overhead
-    print('Overall calls: {} | Overall overhead: {}'.format(overall_calls, overall_overhead))
+    print('Overall calls: {} | Overall overhead: {:.3f}'.format(overall_calls, overall_overhead))
 
+def dump_total_statistics(externals):
     print('\nTotal External Statistics')
     for external in externals:
         external.dump_total()
@@ -60,7 +61,8 @@ def write_stream_statistics(externals, verbose):
     if not externals:
         return
     if verbose:
-        dump_statistics(externals)
+        #dump_local_statistics(externals)
+        dump_total_statistics(externals)
     pddl_name = externals[0].pddl_name # TODO: ensure the same
     previous_data = load_data(pddl_name)
     data = {}
@@ -88,11 +90,10 @@ def write_stream_statistics(externals, verbose):
                         last_success = i
         combined_distribution = previous_statistics.get('distribution', []) + distribution
         #print(external, distribution)
-        print(external, Counter(combined_distribution))
+        #print(external, Counter(combined_distribution))
         # TODO: count num failures as well
         # Alternatively, keep metrics on the lower bound and use somehow
         # Could assume that it is some other distribution beyond that point
-
         data[external.name] = {
             'calls': external.total_calls,
             'overhead': external.total_overhead,

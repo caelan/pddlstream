@@ -5,8 +5,8 @@ from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZ
 from pddlstream.language.conversion import evaluation_from_fact, str_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.language.synthesizer import SynthStreamResult
-from pddlstream.utils import clear_dir, ensure_dir
+from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
+from pddlstream.utils import clear_dir, ensure_dir, str_from_plan
 
 # https://www.graphviz.org/doc/info/
 
@@ -20,8 +20,10 @@ FUNCTION_COLOR = 'LightCoral'
 VISUALIZATIONS_DIR = 'visualizations/'
 CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
 STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
-ITERATION_TEMPLATE = 'iteration_{}.pdf'
-SYNTHESIZER_TEMPLATE = '{}_{}.pdf'
+PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
+ITERATION_TEMPLATE = 'iteration_{}.png'
+SYNTHESIZER_TEMPLATE = '{}_{}.png'
+POST_PROCESS = 'post'
 
 ##################################################
 
@@ -32,8 +34,10 @@ def has_pygraphviz():
         return False
     return True
 
-def clear_visualizations():
+def reset_visualizations():
     clear_dir(VISUALIZATIONS_DIR)
+    ensure_dir(CONSTRAINT_NETWORK_DIR)
+    ensure_dir(STREAM_PLAN_DIR)
 
 def get_optimistic_constraints(evaluations, stream_plan):
     # TODO: approximates needed facts using produced ones
@@ -42,27 +46,40 @@ def get_optimistic_constraints(evaluations, stream_plan):
         constraints.update(stream.get_certified())
     return set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
 
-def create_synthesizer_visualizations(result, num_iterations):
+def log_plans(stream_plan, action_plan, iteration):
+    # TODO: do this within the focused algorithm itself?
+    decomposed_plan = decompose_stream_plan(stream_plan)
+    with open(PLAN_LOG_FILE, 'a+') as f:
+        f.write('Iteration: {}\n'
+                'Stream plan: {}\n'
+                'Synthesizer plan: {}\n'
+                'Action plan: {}\n\n'.format(
+                iteration, decomposed_plan,
+                stream_plan, str_from_plan(action_plan)))
+
+def create_synthesizer_visualizations(result, iteration):
     stream_plan = result.decompose()
-    filename = SYNTHESIZER_TEMPLATE.format(result.instance.external.name, num_iterations)
+    filename = SYNTHESIZER_TEMPLATE.format(result.instance.external.name,
+                                           POST_PROCESS if iteration is None else iteration)
     #constraints = get_optimistic_constraints(evaluations, stream_plan)
     visualize_constraints(result.get_certified() + result.get_functions(),
                           os.path.join(CONSTRAINT_NETWORK_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan,
                                     os.path.join(STREAM_PLAN_DIR, filename))
 
-def create_visualizations(evaluations, stream_plan, num_iterations):
+def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
-    ensure_dir(CONSTRAINT_NETWORK_DIR)
-    ensure_dir(STREAM_PLAN_DIR)
+    # TODO: decompose any joint streams
     for result in stream_plan:
         if isinstance(result, SynthStreamResult):
-            create_synthesizer_visualizations(result, num_iterations)
-    filename = ITERATION_TEMPLATE.format(num_iterations)
+            create_synthesizer_visualizations(result, iteration)
+    filename = ITERATION_TEMPLATE.format(POST_PROCESS if iteration is None else iteration)
     # visualize_stream_plan(stream_plan, path)
+    decomposed_plan = decompose_stream_plan(stream_plan)
     constraints = get_optimistic_constraints(evaluations, stream_plan)
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
+    visualize_stream_plan_bipartite(decomposed_plan, os.path.join(STREAM_PLAN_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################
 
@@ -86,6 +103,7 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     #graph.graph_attr['pad'] = 0
     # splines="false";
     graph.graph_attr['outputMode'] = 'nodesfirst'
+    graph.graph_attr['dpi'] = 300
 
     functions = set()
     negated = set()
@@ -138,6 +156,7 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     graph.node_attr['height'] = 0.02 # Minimum height is 0.02
     graph.node_attr['margin'] = 0
     graph.graph_attr['outputMode'] = 'nodesfirst'
+    graph.graph_attr['dpi'] = 300
 
     for stream in stream_plan:
         graph.add_node(str(stream))
@@ -165,6 +184,7 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
     graph.graph_attr['nodesep'] = 0.1
     graph.graph_attr['ranksep'] = 0.25
     graph.graph_attr['outputMode'] = 'nodesfirst'
+    graph.graph_attr['dpi'] = 300
 
     def add_fact(fact):
         head, color = (fact[1], COST_COLOR) if get_prefix(fact) == EQ else (fact, CONSTRAINT_COLOR)

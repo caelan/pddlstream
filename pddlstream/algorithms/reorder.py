@@ -76,6 +76,7 @@ def get_stream_stats(result):
     return result.instance.get_p_success(), result.instance.get_overhead()
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
+    # TODO: prioritize cost functions as they can prune when we have a better plan
     if stream_plan is None:
         return INF
     expected_cost = 0

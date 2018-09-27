@@ -1,4 +1,6 @@
 from collections import Hashable, namedtuple
+from pddlstream.utils import str_from_object
+# TODO: issue with hashable and numpy 2.7.6
 
 USE_HASH = True
 USE_STRING = False
@@ -61,7 +63,7 @@ class Object(object):
     #def __str__(self):
         if USE_OBJ_STR:
             #return repr(self.value)
-            return str(self.value)
+            return str_from_object(self.value) # str
         return self.pddl
 
 # TODO: just one object class or have Optimistic extend Object

@@ -4,16 +4,15 @@ from collections import deque
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, fact_from_fd, get_action_instances, \
     get_goal_instance, plan_preimage
 from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
-from pddlstream.algorithms.algorithm import topological_sort
+from pddlstream.algorithms.algorithm import topological_sort, dump_plans
 from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, \
     combine_function_evaluations, get_plan_cost
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
-from pddlstream.algorithms.visualization import create_visualizations
+from pddlstream.algorithms.visualization import create_visualizations, log_plans
 from pddlstream.language.conversion import evaluation_from_fact, pddl_from_object
 from pddlstream.language.synthesizer import SynthStreamResult, get_synthetic_stream_plan
-from pddlstream.utils import get_length
 
 
 # TODO: convert back into plan for any sampled value
@@ -76,7 +75,8 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     action_plan = store.best_plan
     if action_plan is None:
         return None
-    print('\nPostprocessing') # TODO: postprocess current skeleton as well
+    print('\nPostprocessing | Cost: {} | Total Time: {:.3f}'.format(store.best_cost, store.elapsed_time()))
+    # TODO: postprocess current skeletons as well
 
     task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=False))
     opt_stream_plan, opt_from_obj = recover_opt_stream_plan(evaluations, action_plan, task)
@@ -90,11 +90,10 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
 
     function_evaluations = combine_function_evaluations(evaluations, stream_plan)
     opt_cost = get_plan_cost(function_evaluations, opt_action_plan, domain)
-    print('Stream plan ({}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan), stream_plan,
-                                                                  get_length(action_plan), opt_cost, action_plan))
-
+    dump_plans(stream_plan, opt_action_plan, opt_cost)
     if visualize:
-        create_visualizations(evaluations, stream_plan, -1)
+        log_plans(stream_plan, action_plan, None)
+        create_visualizations(evaluations, stream_plan, None)
 
     store.start_time = time.time()
     store.max_cost = store.best_cost

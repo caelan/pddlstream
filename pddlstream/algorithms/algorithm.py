@@ -9,12 +9,12 @@ from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
 from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.external import External, DEBUG
+from pddlstream.language.external import External, DEBUG, get_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.rule import parse_rule
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement, get_length, str_from_plan
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -265,3 +265,19 @@ def compile_fluent_streams(domain, externals):
     for axiom in domain.axioms:
         axiom.condition = replace_literals(fn, axiom.condition).simplified()
     return state_streams
+
+
+def dump_plans(stream_plan, action_plan, cost):
+    print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan),
+                                                                          get_plan_effort(stream_plan), stream_plan,
+                                                                          get_length(action_plan), cost,
+                                                                          str_from_plan(action_plan)))
+
+
+def partition_externals(externals):
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
+    negative = predicates + negated_streams
+    streams = list(filter(lambda s: s not in (functions + negative), externals))
+    return streams, functions, negative

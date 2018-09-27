@@ -15,9 +15,7 @@ from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_opti
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, \
     get_blocked_problem, draw_state, get_random_seed, \
-    TAMPState, get_tight_problem
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
-from examples.discrete_tamp.viewer import COLORS
+    TAMPState, get_tight_problem, GROUND_NAME, SUCTION_HEIGHT
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
@@ -94,7 +92,36 @@ def apply_action(state, action):
 
 ##################################################
 
-def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True, display=False):
+def display_plan(tamp_problem, plan, display=True):
+    from examples.continuous_tamp.viewer import ContinuousTMPViewer
+    from examples.discrete_tamp.viewer import COLORS
+
+    example_name = os.path.basename(os.path.dirname(__file__))
+    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
+    ensure_dir(directory)
+
+    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
+    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
+    state = tamp_problem.initial
+    print()
+    print(state)
+    draw_state(viewer, state, colors)
+    if display:
+        user_input('Continue?')
+    if plan is not None:
+        for i, action in enumerate(plan):
+            print(i, *action)
+            for j, state in enumerate(apply_action(state, action)):
+                print(i, j, state)
+                draw_state(viewer, state, colors)
+                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
+                if display:
+                    user_input('Continue?')
+    if display:
+        user_input('Finish?')
+
+
+def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -102,10 +129,10 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     print('Seed:', get_random_seed())
     if use_synthesizers and not has_gurobi():
         use_synthesizers = False
-        print('Warning, use_synthesizers=True requires gurobipy. Setting use_synthesizers=False')
+        print('Warning! use_synthesizers=True requires gurobipy. Setting use_synthesizers=False.')
     print('Focused: {} | Costs: {} | Synthesizers: {}'.format(focused, not unit_costs, use_synthesizers))
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -139,7 +166,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  synthesizers=synthesizers,
                                  max_time=30, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=None, unit_costs=unit_costs, postprocess=True,
+                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=True)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
@@ -148,31 +175,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=T
     plan, cost, evaluations = solution
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-
-    example_name = os.path.basename(os.path.dirname(__file__))
-    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
-    ensure_dir(directory)
-
-    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
-    viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
-    state = tamp_problem.initial
-    print()
-    print(state)
-    draw_state(viewer, state, colors)
-    if display:
-        user_input('Continue?')
-    if plan is not None:
-        for i, action in enumerate(plan):
-            print(i, *action)
-            for j, state in enumerate(apply_action(state, action)):
-                print(i, j, state)
-                draw_state(viewer, state, colors)
-                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
-                if display:
-                    user_input('Continue?')
-    if display:
-        user_input('Finish?')
-
+    display_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()
