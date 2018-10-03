@@ -137,7 +137,9 @@ class StreamInstance(Instance):
         self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
         self.axiom_predicate = None
+        self.disabled_axiom = None
         self.num_optimistic = 1
+
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
             raise ValueError('An output list for stream [{}] is not a sequence: {}'.format(self.external.name, new_values))
@@ -187,6 +189,7 @@ class StreamInstance(Instance):
             raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(
                 self.external.name))
         return output
+
     def next_results(self, accelerate=1, verbose=False):
         # TODO: prune repeated values
         all_new_values = []
@@ -215,6 +218,7 @@ class StreamInstance(Instance):
             print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
                                             str_from_object(self.get_input_values()), all_new_facts))
         return all_results, list(map(obj_from_value_expression, all_new_facts))
+
     def next_optimistic(self):
         # TODO: compute this just once and store
         if self.enumerated or self.disabled:
@@ -239,6 +243,7 @@ class StreamInstance(Instance):
                     self.opt_results.append(self.external._Result(self, output_objects, opt_index=self.opt_index,
                                                                   call_index=len(self.opt_results), list_index=0))
         return self.opt_results
+
     def get_blocked_fact(self):
         if self.external.is_fluent():
             assert self.axiom_predicate is not None
@@ -249,11 +254,12 @@ class StreamInstance(Instance):
         #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain)
         if not self.external.is_fluent(): # self.fluent_facts:
-            if self.external.is_negated():
+            if self.external.is_negated() and not self.successes:
                 evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
             return
+
         if self.axiom_predicate is not None:
-            return # TODO: re-enable?
+            return
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
         self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
@@ -263,10 +269,16 @@ class StreamInstance(Instance):
         import pddl
         static_fact = (self.axiom_predicate,) + self.external.inputs
         preconditions = [static_fact] + list(self.fluent_facts)
-        domain.axioms.append(pddl.Axiom(name=self.external.blocked_predicate,
-                                        parameters=make_parameters(self.external.inputs),
-                                        num_external_parameters=len(self.external.inputs),
-                                        condition=make_preconditions(preconditions)))
+        self.disabled_axiom = pddl.Axiom(name=self.external.blocked_predicate,
+                                         parameters=make_parameters(self.external.inputs),
+                                         num_external_parameters=len(self.external.inputs),
+                                         condition=make_preconditions(preconditions))
+        domain.axioms.append(self.disabled_axiom)
+
+    def enable(self, evaluations, domain):
+        super(StreamInstance, self).enable(evaluations, domain)
+        if self.axiom_predicate is not None: # TODO: re-enable?
+            raise NotImplementedError(self)
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)

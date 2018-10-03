@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import os
 
-from pddlstream.algorithms.downward import solve_from_pddl
+from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental

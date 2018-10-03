@@ -100,14 +100,10 @@ UNSATISFIABLE = 'unsatisfiable-negative'
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
-    def get_blocked_fact(self):
-        if self.external.is_fluent():
-            assert self.axiom_predicate is not None
-            return (self.axiom_predicate,) + self.input_objects
-        return (self.external.blocked_predicate,) + self.input_objects
+        self.disabled_axiom = None
     def disable(self, evaluations, domain):
         #assert not self.disabled
-        super(StreamInstance, self).disable(evaluations, domain)
+        super(StreamInstance, self).disable(evaluations, domain) # StreamInstance instead of OptimizerInstance
         # TODO: re-enable?
         # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         #index = len(self.external.disabled_instances)
@@ -134,10 +130,15 @@ class OptimizerInstance(StreamInstance):
         import pddl
         parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
         preconditions = substitute_expression(constraints, get_mapping(free_objects, parameters))
-        domain.axioms.append(pddl.Axiom(name=UNSATISFIABLE,
-                                        parameters=make_parameters(parameters),
-                                        num_external_parameters=0, # i.e. derived parameters
-                                        condition=make_preconditions(preconditions)))
+        self.disabled_axiom = pddl.Axiom(name=UNSATISFIABLE,
+                                         parameters=make_parameters(parameters),
+                                         num_external_parameters=0, # i.e. derived parameters
+                                         condition=make_preconditions(preconditions))
+        domain.axioms.append(self.disabled_axiom)
+
+    def enable(self, evaluations, domain):
+        super(OptimizerInstance, self).enable(evaluations, domain)
+        raise NotImplementedError()
 
 class OptimizerStream(Stream):
     _Instance = OptimizerInstance

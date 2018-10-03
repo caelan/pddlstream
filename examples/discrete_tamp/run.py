@@ -100,7 +100,7 @@ BLOCK_TEMPLATE = 'b{}'
 INITIAL_CONF = np.array([0, -1])
 
 def get_shift_one_problem(n_blocks=2, n_poses=9):
-    assert(2 <= n_blocks <= n_poses)
+    assert(1 <= n_blocks <= n_poses)
     blocks = [BLOCK_TEMPLATE.format(i) for i in range(n_blocks)]
     poses = [np.array([x, 0]) for x in range(n_poses)]
 

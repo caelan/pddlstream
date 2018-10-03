@@ -11,7 +11,7 @@ from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
-from pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.algorithms.skeleton import SkeletonQueue, process_stream_plan, process_instance
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
@@ -27,9 +27,51 @@ from pddlstream.language.optimizer import combine_optimizers, replan_with_optimi
 # TODO: make stream_info just a dict
 # TODO: implement the holdout of evaluations strategy
 
+def process_skeleton_queue(store, queue, stream_plan, action_plan, cost, max_sample_time):
+    start_time = time.time()
+    if stream_plan is None:
+        if not queue:
+            return False
+        queue.process_until_success()
+    elif not stream_plan:
+        store.add_plan(action_plan, cost)
+    else:
+        queue.new_skeleton(stream_plan, action_plan, cost)
+    queue.timed_process(max_sample_time - elapsed_time(start_time))
+    return True
+
+def process_disabled(store, evaluations, domain, disabled, stream_plan, action_plan, cost,
+                     max_sample_time, reenable):
+    if stream_plan is None:
+        if not disabled:
+            return False
+        if reenable:
+            for instance in disabled:
+                instance.enable(evaluations, domain)
+            disabled.clear()
+        else:
+            success = False
+            while not success and disabled:
+                for instance in list(disabled):
+                    #if success:
+                    #    break
+                    if instance.enumerated:
+                        disabled.remove(instance)
+                    else:
+                        success |= process_instance(evaluations, instance, verbose=store.verbose)
+    elif not stream_plan:
+        store.add_plan(action_plan, cost)
+    else:
+        process_stream_plan(evaluations, domain, stream_plan, disabled, verbose=store.verbose)
+        # TODO: report back whether to try w/o stream values
+    # TODO: can process the queue for some amount of time
+    return True
+
+##################################################
+
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
-                  effort_weight=None, eager_layers=1, search_sampling_ratio=1,
+                  effort_weight=None, eager_layers=1, search_sampling_ratio=1, use_skeleton=True,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
@@ -77,16 +119,15 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     if verbose:
         print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
     queue = SkeletonQueue(store, evaluations, goal_expression, domain)
-    # TODO: decide max_sampling_time based on total search_time or likelihood estimates
-    # TODO: switch to searching if believe chance of search better than sampling
+    disabled = set()
     while not store.is_terminated():
+        start_time = time.time()
         num_iterations += 1
         print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} '
               '| Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue), len(evaluations), store.best_cost,
             search_time, sample_time, store.elapsed_time()))
 
-        start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
                                                             max_cost=store.best_cost,
@@ -105,29 +146,26 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
         #                                        [s for s in synthesizers if not s.post_only])
         stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan?
         dump_plans(stream_plan, action_plan, cost)
+        if (stream_plan is not None) and visualize:
+            log_plans(stream_plan, action_plan, num_iterations)
+            create_visualizations(evaluations, stream_plan, num_iterations)
         search_time += elapsed_time(start_time)
 
         # TODO: more generally just add the original plan skeleton to the plan
-        # TOOD: cutoff search exploration time at a certain point
-
+        # TODO: cutoff search exploration time at a certain point
         start_time = time.time()
-        if stream_plan is None:
-            if not queue:
-                break
-            queue.process_until_success()
+        allocated_sample_time = search_sampling_ratio*search_time - sample_time
+        if use_skeleton:
+            terminate = not process_skeleton_queue(store, queue, stream_plan, action_plan, cost, allocated_sample_time)
         else:
-            if visualize:
-                log_plans(stream_plan, action_plan, num_iterations)
-                create_visualizations(evaluations, stream_plan, num_iterations)
-            queue.new_skeleton(stream_plan, action_plan, cost)
-            queue.greedily_process()
+            terminate = not process_disabled(store, evaluations, domain, disabled, stream_plan, action_plan, cost,
+                                             allocated_sample_time, effort_weight is not None)
         sample_time += elapsed_time(start_time)
-
-        start_time = time.time()
-        queue.timed_process(search_sampling_ratio*search_time - sample_time)
-        sample_time += elapsed_time(start_time)
+        if terminate:
+            break
 
     if postprocess and (not unit_costs): # and synthesizers
-        locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers, visualize)
+        locally_optimize(evaluations, store, goal_expression, domain,
+                         functions, negative, synthesizers, visualize)
     write_stream_statistics(externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

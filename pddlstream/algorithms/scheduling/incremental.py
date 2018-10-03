@@ -17,8 +17,9 @@ def evaluate_functions(evaluations, stream_results):
     stream_plan = []
     for opt_result in stream_results:
         instance = opt_result.instance
-        domain_evals = set(map(evaluation_from_fact, instance.get_domain()))
-        if isinstance(instance.external, Function) and (domain_evals <= evaluations):
+        # TODO: this seems like a bug (it also previously was ... <= evaluations)
+        if isinstance(instance.external, Function) and \
+                all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
             new_results, new_facts = instance.next_results()
             assert not new_facts
             for result in new_results:
@@ -28,7 +29,7 @@ def evaluate_functions(evaluations, stream_results):
     return stream_plan
 
 def incremental_stream_plan(evaluations, goal_expression, domain, stream_results,
-                             negated, **kwargs):
+                            negated, **kwargs):
     stream_plan = evaluate_functions(evaluations, stream_results)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **kwargs)
     if plan is not None:

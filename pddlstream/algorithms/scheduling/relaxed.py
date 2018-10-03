@@ -54,6 +54,12 @@ def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_
                 # TODO: handle more general case where can choose to achieve particular conditional effects
                 raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
 
+def get_negative_predicates(negative):
+    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
+    negative_from_name.update({external.blocked_predicate: external for external in negative
+                               if isinstance(external, Stream) and external.is_negated()})
+    return negative_from_name
+
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()
     for literal in negative_preimage:
@@ -117,12 +123,6 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
     return new_stream_plan
 
 ##################################################
-
-def get_negative_predicates(negative):
-    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
-    negative_from_name.update({external.blocked_predicate: external for external in negative
-                               if isinstance(external, Stream) and external.is_negated()})
-    return negative_from_name
 
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
     import pddl
