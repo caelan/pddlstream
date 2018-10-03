@@ -1,18 +1,14 @@
-from collections import defaultdict
-
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     conditions_hold, get_goal_instance, plan_preimage, get_literals, instantiate_task, \
     sas_from_instantiated, scale_cost, fd_from_fact
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
-from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
-    get_derived_predicates, get_necessary_axioms, instantiate_necessary_axioms
+from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
     add_stream_actions, partition_plan, get_plan_cost, augment_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams
 from pddlstream.algorithms.search import abstrips_solve_from_task
-from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, substitute_expression
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result
@@ -120,46 +116,13 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
         new_stream_plan.append(result)
     return new_stream_plan
 
-def extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name):
-    import pddl_to_prolog
-    import build_model
-    import axiom_rules
-    import instantiate
-    import pddl
+##################################################
 
-    original_axioms = opt_task.axioms
-    axiom_from_action = get_necessary_axioms(action_instance, original_axioms, negative_from_name)
-    if not axiom_from_action:
-        return []
-    conditions_from_predicate = defaultdict(set)
-    for axiom, var_mapping in axiom_from_action.values():
-        for literal in get_literals(axiom.condition):
-            conditions_from_predicate[literal.predicate].add(
-                literal.rename_variables(var_mapping))
-
-    # TODO: store map from predicate to atom
-    opt_task.init = {atom for atom in opt_state if isinstance(atom, pddl.Atom) and
-                     any(all(is_parameter(a2) or (a1 == a2) for a1, a2 in zip(atom.args, atom2.args))
-                         for atom2 in conditions_from_predicate[atom.predicate])}
-    opt_task.axioms = []
-    opt_task.actions = axiom_from_action.keys()
-    # TODO: maybe it would just be better to drop the negative throughout this process until this end
-    with Verbose(False):
-        model = build_model.compute_model(pddl_to_prolog.translate(opt_task))  # Changes based on init
-    opt_task.axioms = original_axioms
-
-    delta_state = (opt_task.init - real_state)  # Optimistic facts
-    opt_facts = instantiate.get_fluent_facts(opt_task, model) | delta_state
-    mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
-    instantiated_axioms = instantiate_necessary_axioms(model, real_state, mock_fluent, axiom_from_action)
-    with Verbose(False):
-        helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([action_instance], instantiated_axioms, [])
-    axiom_from_atom = get_achieving_axioms(opt_task.init, helpful_axioms, axiom_init, negative_from_name)
-    axiom_plan = []  # Could always add all conditions
-    extract_axioms(axiom_from_atom, action_instance.precondition, axiom_plan)
-    # TODO: test if no derived solution
-    # TODO: add axiom init to reset state?
-    return axiom_plan
+def get_negative_predicates(negative):
+    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
+    negative_from_name.update({external.blocked_predicate: external for external in negative
+                               if isinstance(external, Stream) and external.is_negated()})
+    return negative_from_name
 
 def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
     import pddl
@@ -178,29 +141,26 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
     results_from_head = get_results_from_head(opt_evaluations)
     action_instances = instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
-    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
-    negative_from_name.update({external.blocked_predicate: external for external in negative
-                               if isinstance(external, Stream) and external.is_negated()})
-
+    negative_from_name = get_negative_predicates(negative)
     axioms_from_name = get_derived_predicates(opt_task.axioms)
-    opt_task.actions = []
-    opt_state = set(opt_task.init)
-    real_state = set(real_task.init)
-    real_states = [real_state.copy()] # TODO: had old way of doing this (~July 2018)
+
+    opt_task.init = set(opt_task.init)
+    real_states = [set(real_task.init)] # TODO: had old way of doing this (~July 2018)
     preimage_plan = []
     function_plan = set()
     for layer in action_instances:
         for pair, action_instance in layer:
             nonderived_preconditions = [l for l in action_instance.precondition
                                         if l.predicate not in axioms_from_name]
-            if not conditions_hold(opt_state, nonderived_preconditions):
+            if not conditions_hold(opt_task.init, nonderived_preconditions):
                 continue
-            axiom_plan = extract_axiom_plan(opt_task, real_state, opt_state, action_instance, negative_from_name)
-            simplify_conditional_effects(real_state, opt_state, action_instance, axioms_from_name)
+            axiom_plan = extract_axiom_plan(opt_task, action_instance, negative_from_name,
+                                            static_state=real_states[-1])
+            simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
             preimage_plan.extend(axiom_plan + [action_instance])
-            apply_action(opt_state, action_instance)
-            apply_action(real_state, action_instance)
-            real_states.append(real_state.copy())
+            apply_action(opt_task.init, action_instance)
+            real_states.append(set(real_states[-1]))
+            apply_action(real_states[-1], action_instance)
             if not unit_costs and (pair is not None):
                 function_result = extract_function_results(results_from_head, *pair)
                 if function_result is not None:
@@ -211,7 +171,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
     # TODO: could instead just accumulate difference between real and opt
     full_preimage = plan_preimage(preimage_plan, [])
-    stream_preimage = set(full_preimage) - set(real_task.init)
+    stream_preimage = set(full_preimage) - real_states[0]
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
     positive_preimage = stream_preimage - negative_preimage
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))

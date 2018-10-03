@@ -76,7 +76,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     streams, functions, negative = partition_externals(externals)
     if verbose:
         print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
-    queue = SkeletonQueue(store, evaluations, domain)
+    queue = SkeletonQueue(store, evaluations, goal_expression, domain)
     # TODO: decide max_sampling_time based on total search_time or likelihood estimates
     # TODO: switch to searching if believe chance of search better than sampling
     while not store.is_terminated():

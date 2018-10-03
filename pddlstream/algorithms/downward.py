@@ -308,6 +308,14 @@ def apply_axiom(state, axiom):
     assert(isinstance(state, pddl.PropositionalAxiom))
     state.add(axiom.effect)
 
+def is_valid_plan(initial_state, plan): #, goal):
+    state = set(initial_state)
+    for action in plan:
+        if not is_applicable(state, action):
+            return False
+        apply_action(state, action)
+    return True
+
 #def apply_lifted_action(state, action):
 #    assert(isinstance(state, pddl.Action))
 #    assert(not action.parameters)
@@ -319,6 +327,12 @@ def plan_cost(plan):
     for action in plan:
         cost += action.cost
     return cost
+
+def substitute_derived(axiom_plan, action_instance):
+    # TODO: what the propositional axiom has conditional derived
+    axiom_pre = {p for ax in axiom_plan for p in ax.condition}
+    axiom_eff = {ax.effect for ax in axiom_plan}
+    action_instance.precondition = list((set(action_instance.precondition) | axiom_pre) - axiom_eff)
 
 ##################################################
 

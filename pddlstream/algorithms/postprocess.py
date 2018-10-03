@@ -99,7 +99,7 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
 
     store.start_time = time.time()
     store.max_cost = store.best_cost
-    queue = SkeletonQueue(store, evaluations, domain)
+    queue = SkeletonQueue(store, evaluations, goal_expression, domain)
     queue.new_skeleton(stream_plan, opt_action_plan, opt_cost)
     queue.greedily_process()
     queue.timed_process(sampling_time)
