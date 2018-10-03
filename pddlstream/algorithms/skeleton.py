@@ -22,11 +22,12 @@ def is_solution(domain, evaluations, action_plan, goal_expression):
     #original_init = task.init
     task.init = set(task.init)
     for instance in action_instances:
-        print(instance)
-        axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}, static_state=set())
-        substitute_derived(axiom_plan, instance)
-        if not is_applicable(task.init, instance):
+        axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}, static_state=task.init)
+        if axiom_plan is None:
             return False
+        #substitute_derived(axiom_plan, instance)
+        #if not is_applicable(task.init, instance):
+        #    return False
         apply_action(task.init, instance)
     return True
     #replace_derived(task, set(), plan_instances)
@@ -39,6 +40,8 @@ def instantiate_plan(bindings, stream_plan, evaluations, domain):
     new_stream_plan = [result.remap_inputs(bindings) for result in stream_plan]
     new_stream_plan[0].instance.disable(evaluations, domain)
     return new_stream_plan
+
+##################################################
 
 def process_stream_plan(skeleton, queue, accelerate=1):
     # TODO: hash combinations to prevent repeats

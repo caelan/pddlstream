@@ -150,12 +150,10 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     function_plan = set()
     for layer in action_instances:
         for pair, action_instance in layer:
-            nonderived_preconditions = [l for l in action_instance.precondition
-                                        if l.predicate not in axioms_from_name]
-            if not conditions_hold(opt_task.init, nonderived_preconditions):
-                continue
             axiom_plan = extract_axiom_plan(opt_task, action_instance, negative_from_name,
                                             static_state=real_states[-1])
+            if axiom_plan is None:
+                continue
             simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
             preimage_plan.extend(axiom_plan + [action_instance])
             apply_action(opt_task.init, action_instance)

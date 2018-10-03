@@ -212,7 +212,7 @@ def replace_derived(task, negative_init, action_instances):
         goal_list = [] # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        axiom_from_atom = get_achieving_axioms(task.init | negative_init, helpful_axioms, axiom_init)
+        axiom_from_atom = get_achieving_axioms(task.init | negative_init | set(axiom_init), helpful_axioms)
         # negated_from_name=negated_from_name)
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
