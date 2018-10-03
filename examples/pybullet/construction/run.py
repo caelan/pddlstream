@@ -12,7 +12,8 @@ from examples.pybullet.construction.utils import parse_elements, parse_node_poin
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
-    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
+    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, \
+    get_collision_fn, compute_joint_weights
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.algorithms.focused import solve_focused
@@ -21,6 +22,9 @@ from pddlstream.language.generator import from_test, from_gen_fn
 from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
+
+JOINT_WEIGHTS = [0.3078557810844393, 0.443600199302506, 0.23544367607317915,
+                 0.03637161028426032, 0.04644626184081511, 0.015054267683041092]
 
 class MotionTrajectory(object):
     def __init__(self, robot, joints, path):
@@ -392,6 +396,8 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
     # TODO: more appropriate distance based on displacement/volume
     if trajectories is None:
         return None
+    weights = np.array(JOINT_WEIGHTS)
+    resolutions = np.divide(0.005*np.ones(weights.shape), weights)
     movable_joints = get_movable_joints(robot)
     disabled_collisions = {tuple(link_from_name(robot, link) for link in pair) for pair in DISABLED_COLLISIONS}
     printed_elements = []
@@ -403,8 +409,10 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
         obstacles = fixed_obstacles + [element_bodies[e] for e in printed_elements]
         path = plan_joint_motion(robot, movable_joints, goal_conf, obstacles=obstacles,
                                  self_collisions=True, disabled_collisions=disabled_collisions,
-                                 restarts=2, iterations=25, smooth=100)
+                                 weights=weights, resolutions=resolutions,
+                                 restarts=5, iterations=50, smooth=100)
         if path is None:
+            print('Failed to find a path!')
             return None
         motion_traj = MotionTrajectory(robot, movable_joints, path)
         print('{}) {}'.format(i, motion_traj))
@@ -464,7 +472,7 @@ def main(viewer=False):
     #return
 
     # djmm_test_block | mars_bubble | sig_artopt-bunny | topopt-100 | topopt-205 | topopt-310 | voronoi
-    elements, node_points, ground_nodes = load_extrusion('mars_bubble')
+    elements, node_points, ground_nodes = load_extrusion('topopt-100')
 
     node_order = list(range(len(node_points)))
     #np.random.shuffle(node_order)
@@ -488,6 +496,9 @@ def main(viewer=False):
     #    draw_model(elements, node_points, ground_nodes)
     #    wait_for_interrupt('Continue?')
 
+    #joint_weights = compute_joint_weights(robot, num=1000)
+
+    #elements = elements[:5]
     #elements = elements[:10]
     #elements = elements[:25]
     elements = elements[:50]

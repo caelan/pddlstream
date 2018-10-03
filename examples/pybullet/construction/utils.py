@@ -154,7 +154,7 @@ def load_world():
     root_directory = os.path.dirname(os.path.abspath(__file__))
     with HideOutput():
         floor = load_model('models/short_floor.urdf')
-        robot = load_pybullet(os.path.join(root_directory, KUKA_PATH))
+        robot = load_pybullet(os.path.join(root_directory, KUKA_PATH), fixed_base=True)
     set_point(floor, Point(z=-0.01))
     return floor, robot
 
