@@ -4,6 +4,7 @@ import numpy as np
 import pydrake
 import os
 import sys
+import time
 
 from collections import namedtuple
 
@@ -510,7 +511,7 @@ def get_refine_fn(joints, num_steps=0):
 
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
-        resolutions = 0.01*np.pi*np.ones(len(joints))
+        resolutions = 0.005*np.pi*np.ones(len(joints))
     assert len(joints) == len(resolutions)
     difference_fn = get_difference_fn(joints)
     def fn(q1, q2):
@@ -793,7 +794,6 @@ def main():
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
     diagram.Publish(diagram_context)
 
-
     problem = pddlstream_stuff(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
     solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
@@ -801,11 +801,14 @@ def main():
     if plan is None:
         return
 
-    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper))
-    closed_conf = Config(gripper_joints, get_close_wsg50_positions(mbp, gripper))
-    open_conf = Config(gripper_joints, get_open_wsg50_positions(mbp, gripper))
+    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper)) 
+    gripper_extend_fn = get_extend_fn(gripper_joints)
+    open_traj = Trajectory(Config(gripper_joints, q) for q in gripper_extend_fn(
+        get_close_wsg50_positions(mbp, gripper), get_open_wsg50_positions(mbp, gripper)))
+    close_traj = Trajectory(reversed(open_traj.path))
+    # TODO: ceiling & orientation constraints
+    # TODO: sampler chooses configurations that are far apart
 
-    # TODO: hold trajectories
     diagram.Publish(diagram_context)
     user_input('Start?')
     for name, args in plan:
@@ -815,14 +818,14 @@ def main():
             o, p, g, q, t = args
             trajectories = [
                 Trajectory(reversed(t.path)),
-                Trajectory([open_conf, closed_conf]),
+                close_traj,
                 Trajectory(t.path, attachments=[g]),
             ]
         elif name == 'place':
             o, p, g, q, t = args
             trajectories = [
                 Trajectory(reversed(t.path), attachments=[g]),
-                Trajectory([closed_conf, open_conf]),
+                open_traj,
                 Trajectory(t.path),
             ]
         else:
@@ -830,8 +833,8 @@ def main():
         for traj in trajectories:
             for _ in traj.iterate(context):
                 diagram.Publish(diagram_context)
-                user_input('Continue?')
-
+                #user_input('Continue?')
+                time.sleep(0.01)
 
 # https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
 
