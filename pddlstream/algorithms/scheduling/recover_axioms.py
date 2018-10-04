@@ -135,6 +135,7 @@ def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}
 ##################################################
 
 def is_useful_atom(atom, conditions_from_predicate):
+    # TODO: this is currently a bottleneck. Instantiate for all actions along the plan first? (apply before checking)
     import pddl
     if not isinstance(atom, pddl.Atom):
         return False

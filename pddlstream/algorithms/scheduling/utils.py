@@ -28,7 +28,7 @@ def evaluations_from_stream_plan(evaluations, stream_plan):
     return result_from_evaluation
 """
 
-def partition_results(evaluations, results, test):
+def partition_results(evaluations, results, apply_now):
     applied_results = []
     deferred_results = []
     opt_evaluations = set(evaluations)
@@ -36,7 +36,7 @@ def partition_results(evaluations, results, test):
         assert(not result.instance.disabled)
         assert(not result.instance.enumerated)
         domain = set(map(evaluation_from_fact, result.instance.get_domain()))
-        if isinstance(result, FunctionResult) or (test(result) and (domain <= opt_evaluations)):
+        if isinstance(result, FunctionResult) or (apply_now(result) and (domain <= opt_evaluations)):
             applied_results.append(result)
             opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
         else:

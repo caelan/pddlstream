@@ -166,7 +166,7 @@ class External(Performance):
 
 ##################################################
 
-def get_plan_effort(stream_plan):
+def get_plan_effort(stream_plan): # TODO: unit efforts
     if stream_plan is None:
         return INF
     if not stream_plan:

@@ -3,7 +3,8 @@ from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
     sas_from_instantiated, scale_cost, fd_from_fact
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
-from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
+from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan, \
+    get_instance_effort
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
     add_stream_actions, partition_plan, get_plan_cost, augment_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
@@ -192,7 +193,7 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
 ##################################################
 
-def add_stream_costs(node_from_atom, instantiated, effort_weight):
+def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
     for instance in instantiated.actions:
         # Ignores conditional effect costs
         facts = []
@@ -207,9 +208,12 @@ def add_stream_costs(node_from_atom, instantiated, effort_weight):
         #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
         stream_plan = []
         extract_stream_plan(node_from_atom, facts, stream_plan)
-        effort = sum([0] + [r.instance.get_effort() for r in stream_plan])
+        if unit_efforts:
+            effort = len(stream_plan)
+        else:
+            effort = scale_cost(sum([0] + [r.instance.get_effort() for r in stream_plan]))
         if effort_weight is not None:
-            instance.cost += scale_cost(effort_weight*effort)
+            instance.cost += effort_weight*effort
         for result in stream_plan:
             # TODO: need to make multiple versions if several ways of achieving the action
             if is_optimizer_result(result):
@@ -219,25 +223,28 @@ def add_stream_costs(node_from_atom, instantiated, effort_weight):
                 effect = (tuple(), atom)
                 instance.add_effects.append(effect)
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs, effort_weight,
-                        debug=False, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
+                        unit_efforts, effort_weight, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
-    applied_results, deferred_results = partition_results(evaluations, stream_results, lambda r: r.external.info.simultaneous)
+    # TODO: only consider axioms that have stream conditions?
+    applied_results, deferred_results = partition_results(evaluations, stream_results,
+                                                          apply_now=lambda r: not r.external.info.simultaneous)
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
     node_from_atom = get_achieving_streams(evaluations, applied_results)
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
     if any(map(is_optimizer_result, stream_results)):
         goal_expression = augment_goal(stream_domain, goal_expression)
-    problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs)
+    problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric
 
     with Verbose(debug):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return None, INF
     if (effort_weight is not None) or any(map(is_optimizer_result, applied_results)):
-        add_stream_costs(node_from_atom, instantiated, effort_weight)
+        add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
+        sas_task.metric = True
     #sas_task = sas_from_pddl(task)
     #action_plan, _ = serialized_solve_from_task(sas_task, debug=debug, **kwargs)
     action_plan, _ = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)

@@ -71,7 +71,8 @@ def process_disabled(store, evaluations, domain, disabled, stream_plan, action_p
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
-                  effort_weight=None, eager_layers=1, search_sampling_ratio=1, use_skeleton=True,
+                  unit_efforts=False, effort_weight=None, eager_layers=1,
+                  search_sampling_ratio=1, use_skeleton=True,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
@@ -130,9 +131,9 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
-                                                            max_cost=store.best_cost,
-                                                            #max_cost=min(store.best_cost, max_cost),
-                                                            unit_costs=unit_costs, effort_weight=effort_weight,
+                                                            max_cost=store.best_cost, #max_cost=min(store.best_cost, max_cost),
+                                                            unit_costs=unit_costs,
+                                                            unit_efforts=unit_efforts, effort_weight=effort_weight,
                                                             **search_kwargs)
         #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
