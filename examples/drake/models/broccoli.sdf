@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<sdf version='1.6'>
+<model name="broccoli">
+  <link name="base_link">
+    <visual name='broccoli_visual'>
+      <pose frame=''>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder> 
+          <radius>0.025</radius>
+          <length>0.1</length>
+        </cylinder>
+      </geometry>
+      <material>
+        <diffuse>0 1 0 1</diffuse>
+      </material>
+    </visual>
+
+    <collision name='broccoli_collision'>
+      <pose frame=''>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder> 
+          <radius>0.025</radius>
+          <length>0.1</length>
+        </cylinder>
+      </geometry>
+      <material>
+        <diffuse>0 1 0 1</diffuse>
+      </material>
+    </collision>
+
+   </link>
+</model>
+</sdf>
