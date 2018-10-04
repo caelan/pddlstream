@@ -83,7 +83,6 @@ BASE_LINK = "iiwa_link_0"
 
 ##################################################
 
-
 def get_aabb_top_grasps(aabb, under=False, max_width=np.inf, grasp_length=0.0):
     # TODO: combine with get_top_grasps
     center, extent = aabb
@@ -335,7 +334,12 @@ def context_stuff(diagram, mbp):
 
 
 def solve_inverse_kinematics(mbp, target_frame, target_pose, 
-        max_position_error=0.001, theta_bound=0.01*np.pi):
+        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
+    if initial_guess is None:
+        initial_guess = np.zeros(mbp.num_positions())
+        for joint in prune_fixed_joints(get_joints(mbp)):
+            initial_guess[joint.position_start()] = random.uniform(*get_joint_limits(joint))
+
     ik_scene = inverse_kinematics.InverseKinematics(mbp)
     world_frame = mbp.world_frame()
 
@@ -351,7 +355,7 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
         frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
 
     prog = ik_scene.prog()
-    prog.SetInitialGuess(ik_scene.q(), np.zeros(mbp.num_positions()))
+    prog.SetInitialGuess(ik_scene.q(), initial_guess)
     result = prog.Solve()
     if result != SolutionResult.kSolutionFound:
         return None
@@ -448,13 +452,72 @@ def is_fixed_joints(joint):
 def prune_fixed_joints(joints):
     return list(filter(lambda j: not is_fixed_joints(j), joints))
 
+WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
+WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
+
+def get_close_wsg50_positions(mbp, model_index):
+    left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
+    right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
+    return [left_joint.upper_limits()[0], right_joint.lower_limits()[0]]
+
+def get_open_wsg50_positions(mbp, model_index):
+    left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
+    right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
+    return [left_joint.lower_limits()[0], right_joint.upper_limits()[0]]
+
 def close_wsg50_gripper(mbp, context, model_index): # 0.05
-    set_max_joint_positions(mbp, context, [mbp.GetJointByName('left_finger_sliding_joint', model_index)])
-    set_min_joint_positions(mbp, context, [mbp.GetJointByName('right_finger_sliding_joint', model_index)])
+    set_max_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
+    set_min_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
 
 def open_wsg50_gripper(mbp, context, model_index):
-    set_min_joint_positions(mbp, context, [mbp.GetJointByName('left_finger_sliding_joint', model_index)])
-    set_max_joint_positions(mbp, context, [mbp.GetJointByName('right_finger_sliding_joint', model_index)])
+    set_min_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
+    set_max_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+
+##################################################
+
+def get_rest_positions(joints):
+    return np.zeros(len(joints))
+
+def get_random_positions(joints):
+    return np.array([np.random.uniform(*get_joint_limits(joint)) for joint in joints])
+
+def get_sample_fn(joints):
+    return lambda: get_random_positions(joints)
+
+def get_difference_fn(joints):
+    def fn(q2, q1):
+        assert len(joints) == len(q2)
+        assert len(joints) == len(q1)
+        # TODO: circular joints
+        difference = []
+        for joint, value2, value1 in zip(joints, q2, q1):
+            #difference.append((value2 - value1) if is_circular(body, joint)
+            #                  else circular_difference(value2, value1))
+            difference.append(value2 - value1)
+        return np.array(difference)
+    return fn
+
+def get_refine_fn(joints, num_steps=0):
+    difference_fn = get_difference_fn(joints)
+    num_steps = num_steps + 1
+    def fn(q1, q2):
+        q = q1
+        for i in range(num_steps):
+            q = (1. / (num_steps - i)) * np.array(difference_fn(q2, q)) + q
+            yield q
+            # TODO: wrap these values
+    return fn
+
+def get_extend_fn(joints, resolutions=None):
+    if resolutions is None:
+        resolutions = 0.01*np.pi*np.ones(len(joints))
+    assert len(joints) == len(resolutions)
+    difference_fn = get_difference_fn(joints)
+    def fn(q1, q2):
+        steps = np.abs(np.divide(difference_fn(q2, q1), resolutions))
+        refine_fn = get_refine_fn(joints, num_steps=int(np.max(steps)))
+        return refine_fn(q1, q2)
+    return fn
 
 ##################################################
 
@@ -492,7 +555,7 @@ class Config(object):
     def __init__(self, joints, positions):
         assert len(joints) == len(positions)
         self.joints = joints
-        self.positions = positions
+        self.positions = tuple(positions)
     def assign(self, context):
         for joint, position in zip(self.joints, self.positions):
             set_joint_position(joint, context, position) 
@@ -501,7 +564,7 @@ class Config(object):
 
 class Trajectory(object):
     def __init__(self, path, attachments=[]):
-        self.path = path
+        self.path = tuple(path)
         self.attachments = attachments
     def iterate(self, context):
         for conf in self.path[1:]:
@@ -539,38 +602,46 @@ def get_grasp_gen(mbp, gripper):
             yield grasp,
     return gen
 
-def get_ik_fn(mbp, robot, gripper):
-    approach_pose = Pose(translation=[0, -0.1, 0.0])
+def get_ik_fn(mbp, robot, gripper, distance=0.1, step_size=0.01):
+    direction = np.array([0, -1, 0])
     gripper_frame = get_base_body(mbp, gripper).body_frame()
-    robot_joints = prune_fixed_joints(get_model_joints(mbp, robot))
+    joints = prune_fixed_joints(get_model_joints(mbp, robot))
     def fn(obj_name, pose, grasp):
-        #obj = mbp.GetModelInstanceByName(obj_name)
-        # TODO: randomize initial conf
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
-        solution = solve_inverse_kinematics(mbp, gripper_frame, grasp_pose)
-        if solution is None:
-            return None
-        grasp_conf = Config(robot_joints, [solution[j.position_start()] for j in robot_joints])
-
-        pregrasp_pose = grasp_pose.multiply(approach_pose)
-        solution = solve_inverse_kinematics(mbp, gripper_frame, pregrasp_pose)
-        if solution is None:
-            return None
-        pregrasp_conf = Config(robot_joints, [solution[j.position_start()] for j in robot_joints])
-
-        traj = Trajectory([pregrasp_conf, grasp_conf, pregrasp_conf])
-        return pregrasp_conf, traj
+        solution = None
+        path = []
+        for t in list(np.arange(0, distance, step_size)) + [distance]:
+            current_vector = t * direction / np.linalg.norm(direction)
+            current_pose = grasp_pose.multiply(Pose(translation=current_vector))
+            solution = solve_inverse_kinematics(mbp, gripper_frame, current_pose, initial_guess=solution)
+            if solution is None:
+                return None
+            path.append(Config(joints, [solution[j.position_start()] for j in joints]))
+        traj = Trajectory(path)
+        return path[-1], traj
     return fn
 
-def get_free_motion_fn(mbp):
+def get_free_motion_fn(mbp, robot):
+    joints = prune_fixed_joints(get_model_joints(mbp, robot))
+    extend_fn = get_extend_fn(joints)
     def fn(q1, q2):
-        traj = Trajectory([q1, q2])
+        path = list(extend_fn(q1.positions, q2.positions))
+        if path is None:
+            return None
+        traj = Trajectory([Config(joints, q) for q in path])
+        #traj = Trajectory([q1, q2])
         return traj,
     return fn
 
-def get_holding_motion_fn(mbp):
+def get_holding_motion_fn(mbp, robot):
+    joints = prune_fixed_joints(get_model_joints(mbp, robot))
+    extend_fn = get_extend_fn(joints)
     def fn(q1, q2, o, g):
-        traj = Trajectory([q1, q2], attachments=[g])
+        path = list(extend_fn(q1.positions, q2.positions))
+        if path is None:
+            return None
+        traj = Trajectory([Config(joints, q) for q in path], attachments=[g])
+        #traj = Trajectory([q1, q2], attachments=[g])
         return traj,
     return fn
 
@@ -628,8 +699,8 @@ def pddlstream_stuff(mbp, context, robot, gripper, movable, surfaces):
         'sample-pose': from_gen_fn(get_stable_gen(mbp, context)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
         'inverse-kinematics': from_fn(get_ik_fn(mbp, robot, gripper)),
-        'plan-free-motion': from_fn(get_free_motion_fn(mbp)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp)),
+        'plan-free-motion': from_fn(get_free_motion_fn(mbp, robot)),
+        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, robot)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -724,21 +795,42 @@ def main():
 
 
     problem = pddlstream_stuff(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
-    solution = solve_focused(problem, max_cost=INF)
+    solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
         return
 
+    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper))
+    closed_conf = Config(gripper_joints, get_close_wsg50_positions(mbp, gripper))
+    open_conf = Config(gripper_joints, get_open_wsg50_positions(mbp, gripper))
+
+    # TODO: hold trajectories
     diagram.Publish(diagram_context)
     user_input('Start?')
     for name, args in plan:
         if name in ['clean', 'cook']:
             continue
-        traj = args[-1]
-        for _ in traj.iterate(context):
-            diagram.Publish(diagram_context)
-            user_input('Continue?')
+        if name == 'pick':
+            o, p, g, q, t = args
+            trajectories = [
+                Trajectory(reversed(t.path)),
+                Trajectory([open_conf, closed_conf]),
+                Trajectory(t.path, attachments=[g]),
+            ]
+        elif name == 'place':
+            o, p, g, q, t = args
+            trajectories = [
+                Trajectory(reversed(t.path), attachments=[g]),
+                Trajectory([closed_conf, open_conf]),
+                Trajectory(t.path),
+            ]
+        else:
+            trajectories = [args[-1]]
+        for traj in trajectories:
+            for _ in traj.iterate(context):
+                diagram.Publish(diagram_context)
+                user_input('Continue?')
 
 
 # https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
