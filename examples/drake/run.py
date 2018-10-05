@@ -24,14 +24,14 @@ from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_
     get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
     get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
-    set_joint_angles, create_context, \
-    get_random_positions
+    set_joint_angles, create_context, get_random_positions, get_aabb_z_placement
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
 # docker rmi $(docker images -q mit6881/drake-course)
 
+# https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
 # http://127.0.0.1:7000/static/
 
@@ -59,10 +59,11 @@ stove_path = os.path.join(models_dir, "stove.sdf")
 broccoli_path = os.path.join(models_dir, "broccoli.sdf")
 
 AABBs = {
-    'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057])),
+    'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
+    'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
     'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])),
-    'sink': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05]) / 2),
-    'stove': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05]) / 2),
+    'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
+    'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
 }
 
 # TODO: could compute bounding boxes using a rigid body tree
@@ -96,17 +97,18 @@ def add_meshcat_visualizer(scene_graph, builder):
     viz.load()
     return viz
 
-def add_visualizer(scene_graph, lcm, builder):
+def add_drake_visualizer(scene_graph, lcm, builder):
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph, lcm=lcm)
     DispatchLoadMessage(scene_graph, lcm)
 
-def add_logger(mbp, builder):
-    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
-    state_log._DeclarePeriodicPublish(0.02)
-    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
-    return state_log
+#def add_logger(mbp, builder):
+#    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
+#    state_log._DeclarePeriodicPublish(0.02)
+#    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
+#    return state_log
 
 def connect_collisions(mbp, scene_graph, builder):
+    # Connect scene_graph to MBP for collision detection.
     builder.Connect(
         mbp.get_geometry_poses_output_port(),
         scene_graph.get_source_pose_port(mbp.get_source_id()))
@@ -116,24 +118,14 @@ def connect_collisions(mbp, scene_graph, builder):
 
 def build_diagram(mbp, scene_graph, lcm):
     mbp.Finalize(scene_graph)
-    # Drake diagram
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
     builder.AddSystem(mbp)
-    # Connect scene_graph to MBP for collision detection.
     connect_collisions(mbp, scene_graph, builder)
-
-    # Add meshcat visualizer if not in test mode
     #add_meshcat_visualizer(scene_graph, builder)
-    add_visualizer(scene_graph, lcm, builder)
-
-    # Add logger
+    add_drake_visualizer(scene_graph, lcm, builder)
     #add_logger(mbp, builder)
-
-    # Build diagram.
-    diagram = builder.Build()
-
-    return diagram
+    return builder.Build()
 
 ##################################################
 
@@ -458,7 +450,7 @@ def main():
     broccoli = AddModelFromSdfFile(file_name=broccoli_path, model_name='broccoli',
                                 scene_graph=scene_graph, plant=mbp)
 
-    table_top_z = 0.736 + 0.057 / 2
+    table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
     weld_gripper(mbp, robot, gripper)
     weld_to_world(mbp, robot, Pose(translation=[0, 0, table_top_z]))
     weld_to_world(mbp, table, Pose())
@@ -525,10 +517,8 @@ def main():
         for traj in trajectories:
             for _ in traj.iterate(context):
                 diagram.Publish(diagram_context)
-                #user_input('Continue?')
                 time.sleep(0.01)
-
-# https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
+        user_input('Continue?')
 
 if __name__ == '__main__':
     main()
