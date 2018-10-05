@@ -78,8 +78,16 @@ for w in range(1, 1+5):
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
                   'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
     SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=5,' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+
+# TODO: enforced hill climbing
+SEARCH_OPTIONS['ff-eager-wastar{}'.format(1000)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+              '--search "eager(single(sum([g(),weight(h,{})])),preferred=[h],reopen_closed=false,' \
+              'cost_type=NORMAL,max_time=%s,bound=%s)"'.format(1000)
+SEARCH_OPTIONS['ff-ehc'] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+              '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,' \
+              'cost_type=NORMAL,max_time=%s,bound=%s)"'
 
 DEFAULT_MAX_TIME = 30 # INF
 DEFAULT_PLANNER = 'ff-astar'
@@ -179,6 +187,7 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs):
 
 
 def task_from_domain_problem(domain, problem):
+    # TODO: prune eval
     domain_name, domain_requirements, types, type_dict, constants, \
         predicates, predicate_dict, functions, actions, axioms = domain
     task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
