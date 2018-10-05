@@ -52,14 +52,71 @@ def Pose(translation=None, rotation=None):
         pose.set_rotation(matrix_from_euler(rotation))
     return pose
 
+##################################################
 
-def weld_to_world(mbp, model_index, world_pose):
-    mbp.AddJoint(
-        WeldJoint(name="weld_to_world",
-        parent_frame_P=mbp.world_body().body_frame(),
-        child_frame_C=get_base_body(mbp, model_index).body_frame(),
-        X_PC=world_pose))
+def get_model_name(mbp, model_index):
+    return mbp.tree().GetModelInstanceName(model_index)
 
+
+def get_model_indices(mbp):
+    return [ModelInstanceIndex(i) for i in range(mbp.num_model_instances())]
+
+
+def get_model_names(mbp):
+    return [get_model_name(mbp, index) for index in get_model_indices(mbp)]
+
+
+def get_bodies(mbp):
+    return [mbp.tree().get_body(BodyIndex(i)) for i in range(mbp.num_bodies())]
+
+
+def get_joints(mbp):
+    return [mbp.tree().get_joint(JointIndex(i)) for i in range(mbp.num_joints())]
+
+
+def get_frames(mbp):
+    return [mbp.tree().get_frame(FrameIndex(i)) for i in range(mbp.tree().num_frames())]
+
+
+def get_model_bodies(mbp, model_index):
+    body_names = []
+    for body in get_bodies(mbp):
+        if body.name() not in body_names:
+            body_names.append(body.name())
+    return [mbp.GetBodyByName(name, model_index)
+            for name in body_names if mbp.HasBodyNamed(name, model_index)]
+
+
+def get_base_body(mbp, model_index):
+    # TODO: make this less of a hack
+    return get_model_bodies(mbp, model_index)[0]
+
+
+def get_model_joints(mbp, model_index):
+    joint_names = []
+    for joint in get_joints(mbp):
+        if joint.name() not in joint_names:
+            joint_names.append(joint.name())
+    return [mbp.GetJointByName(name, model_index)
+            for name in joint_names if mbp.HasJointNamed(name, model_index)]
+
+def is_fixed_joints(joint):
+    return joint.num_positions() == 0
+
+
+def prune_fixed_joints(joints):
+    return list(filter(lambda j: not is_fixed_joints(j), joints))
+
+##################################################
+
+#def get_joint_indices(mbp, model_index=None):
+#    if model_index is None:
+#        joint_range = range(mbp.num_joints())
+#    else:
+#        num_joints_models = [mbp.num_joints(index) for index in get_model_indices(mbp)]
+#        int(model_index)
+#        print()
+#    return [JointIndex(i) for i in joint_range]
 
 def joints_from_names(mbp, joint_names):
     return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
@@ -148,105 +205,14 @@ def set_world_pose(mbp, context, model_index, world_pose):
     mbp.tree().SetFreeBodyPoseOrThrow(body, world_pose, context)
 
 
-def context_stuff(diagram, mbp):
-    # Fix multibodyplant actuation input port to 0.
-    diagram_context = diagram.CreateDefaultContext()
-    mbp_context = diagram.GetMutableSubsystemContext(
-        mbp, diagram_context)
-
-    for i in range(mbp.get_num_input_ports()):
-        model_index = mbp.get_input_port(i)
-        mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
-
-    # set initial pose for the apple.
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation(apple_initial_position_in_world_frame)
-    #mbt = mbp.tree()
-    #mbt.SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("base_link_apple", apple_model), X_WApple, mbp_context)
-
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation([0, 0, table_top_z])
-    #mbp.tree().SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("iiwa_link_0"), X_WApple, mbp_context)
-    return diagram_context
+def get_rest_positions(joints):
+    return np.zeros(len(joints))
 
 
-def solve_inverse_kinematics(mbp, target_frame, target_pose,
-        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
-    if initial_guess is None:
-        initial_guess = np.zeros(mbp.num_positions())
-        for joint in prune_fixed_joints(get_joints(mbp)):
-            initial_guess[joint.position_start()] = random.uniform(*get_joint_limits(joint))
+def get_random_positions(joints):
+    return np.array([np.random.uniform(*get_joint_limits(joint)) for joint in joints])
 
-    ik_scene = inverse_kinematics.InverseKinematics(mbp)
-    world_frame = mbp.world_frame()
-
-    ik_scene.AddOrientationConstraint(
-        frameAbar=target_frame, R_AbarA=RotationMatrix.Identity(),
-        frameBbar=world_frame, R_BbarB=RotationMatrix(target_pose.rotation()),
-        theta_bound=theta_bound)
-
-    lower = target_pose.translation() - max_position_error
-    upper = target_pose.translation() + max_position_error
-    ik_scene.AddPositionConstraint(
-        frameB=target_frame, p_BQ=np.zeros(3),
-        frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
-
-    prog = ik_scene.prog()
-    prog.SetInitialGuess(ik_scene.q(), initial_guess)
-    result = prog.Solve()
-    if result != SolutionResult.kSolutionFound:
-        return None
-    return prog.GetSolution(ik_scene.q())
-
-
-def get_model_name(mbp, model_index):
-    return mbp.tree().GetModelInstanceName(model_index)
-
-
-def get_model_indices(mbp):
-    return [ModelInstanceIndex(i) for i in range(mbp.num_model_instances())]
-
-
-def get_model_names(mbp):
-    return [get_model_name(mbp, index) for index in get_model_indices(mbp)]
-
-
-def get_bodies(mbp):
-    return [mbp.tree().get_body(BodyIndex(i)) for i in range(mbp.num_bodies())]
-
-
-def get_joints(mbp):
-    return [mbp.tree().get_joint(JointIndex(i)) for i in range(mbp.num_joints())]
-
-
-def get_frames(mbp):
-    return [mbp.tree().get_frame(FrameIndex(i)) for i in range(mbp.tree().num_frames())]
-
-
-def get_model_bodies(mbp, model_index):
-    body_names = []
-    for body in get_bodies(mbp):
-        if body.name() not in body_names:
-            body_names.append(body.name())
-    return [mbp.GetBodyByName(name, model_index)
-            for name in body_names if mbp.HasBodyNamed(name, model_index)]
-
-
-def get_base_body(mbp, model_index):
-    # TODO: make this less of a hack
-    return get_model_bodies(mbp, model_index)[0]
-
-
-def get_model_joints(mbp, model_index):
-    joint_names = []
-    for joint in get_joints(mbp):
-        if joint.name() not in joint_names:
-            joint_names.append(joint.name())
-    return [mbp.GetJointByName(name, model_index)
-            for name in joint_names if mbp.HasJointNamed(name, model_index)]
-
+##################################################
 
 def dump_plant(mbp):
     print('\nModels:')
@@ -287,9 +253,64 @@ def dump_models(mbp):
         dump_model(mbp, model_index)
 
 
-def is_fixed_joints(joint):
-    return joint.num_positions() == 0
+##################################################
 
+def weld_to_world(mbp, model_index, world_pose):
+    mbp.AddJoint(
+        WeldJoint(name="weld_to_world",
+        parent_frame_P=mbp.world_body().body_frame(),
+        child_frame_C=get_base_body(mbp, model_index).body_frame(),
+        X_PC=world_pose))
 
-def prune_fixed_joints(joints):
-    return list(filter(lambda j: not is_fixed_joints(j), joints))
+def create_context(diagram, mbp):
+    # Fix multibodyplant actuation input port to 0.
+    diagram_context = diagram.CreateDefaultContext()
+    mbp_context = diagram.GetMutableSubsystemContext(
+        mbp, diagram_context)
+
+    for i in range(mbp.get_num_input_ports()):
+        model_index = mbp.get_input_port(i)
+        mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
+
+    # set initial pose for the apple.
+    #X_WApple = Isometry3.Identity()
+    #X_WApple.set_translation(apple_initial_position_in_world_frame)
+    #mbt = mbp.tree()
+    #mbt.SetFreeBodyPoseOrThrow(
+    #    mbp.GetBodyByName("base_link_apple", apple_model), X_WApple, mbp_context)
+
+    #X_WApple = Isometry3.Identity()
+    #X_WApple.set_translation([0, 0, table_top_z])
+    #mbp.tree().SetFreeBodyPoseOrThrow(
+    #    mbp.GetBodyByName("iiwa_link_0"), X_WApple, mbp_context)
+    return diagram_context
+
+##################################################
+
+def solve_inverse_kinematics(mbp, target_frame, target_pose,
+        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
+    if initial_guess is None:
+        initial_guess = np.zeros(mbp.num_positions())
+        for joint in prune_fixed_joints(get_joints(mbp)):
+            initial_guess[joint.position_start()] = random.uniform(*get_joint_limits(joint))
+
+    ik_scene = inverse_kinematics.InverseKinematics(mbp)
+    world_frame = mbp.world_frame()
+
+    ik_scene.AddOrientationConstraint(
+        frameAbar=target_frame, R_AbarA=RotationMatrix.Identity(),
+        frameBbar=world_frame, R_BbarB=RotationMatrix(target_pose.rotation()),
+        theta_bound=theta_bound)
+
+    lower = target_pose.translation() - max_position_error
+    upper = target_pose.translation() + max_position_error
+    ik_scene.AddPositionConstraint(
+        frameB=target_frame, p_BQ=np.zeros(3),
+        frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
+
+    prog = ik_scene.prog()
+    prog.SetInitialGuess(ik_scene.q(), initial_guess)
+    result = prog.Solve()
+    if result != SolutionResult.kSolutionFound:
+        return None
+    return prog.GetSolution(ik_scene.q())

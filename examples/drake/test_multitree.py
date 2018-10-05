@@ -1,54 +1,39 @@
 from __future__ import print_function
 
+user_input = raw_input
+
 import os
 import time
 import pydrake
 import numpy as np
+import random
 
-from collections import namedtuple
-
-from pydrake.common import AddResourceSearchPath, FindResourceOrThrow
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
-from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement, 
-    WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, FrameIndex)
+from pydrake.multibody.multibody_tree import (WeldJoint, PrismaticJoint, JointIndex, FrameIndex)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 from pydrake.systems.framework import DiagramBuilder
-from pydrake.systems.analysis import Simulator
-from pydrake.util.eigen_geometry import Isometry3
-from pydrake.math import RollPitchYaw
-from pydrake.multibody import inverse_kinematics
-from pydrake.solvers.mathematicalprogram import SolutionResult
-from pydrake.trajectories import (
-    PiecewisePolynomial
-)
-from pydrake.util.eigen_geometry import Isometry3
-from pydrake.math import RollPitchYaw, RotationMatrix
 from pydrake.systems.primitives import SignalLogger
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
-from pddlstream.language.synthesizer import StreamSynthesizer
-from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique, Verbose
+from pddlstream.language.generator import from_gen_fn, from_fn
+from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
 
 from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_joints, \
     get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
-    get_world_pose, set_world_pose, get_joint_position, set_joint_position, sample_aabb_placement, \
-    get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, dump_model, dump_models, \
-    dump_plant, get_configuration, get_model_name, set_configuration, set_joint_angles, context_stuff
+    get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, \
+    get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
+    set_joint_angles, create_context, \
+    get_random_positions
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
 # docker rmi $(docker images -q mit6881/drake-course)
 
-
-# ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 ~/Programs/LIS/git/ss-drake/
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
 # http://127.0.0.1:7000/static/
-
-# http://drake.mit.edu/from_binary.html#binary-installation
 
 iiwa_sdf_path = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
@@ -63,16 +48,15 @@ table_sdf_path = os.path.join(pydrake.getDrakePath(),
     "examples", "kuka_iiwa_arm", "models", "table",
     "extra_heavy_duty_table_surface_only_collision.sdf")
 
-apple_sdf_path = os.path.join(pydrake.getDrakePath(),
-    "examples", "kuka_iiwa_arm", "models", "objects",
-    "apple.sdf")
+#apple_sdf_path = os.path.join(pydrake.getDrakePath(),
+#    "examples", "kuka_iiwa_arm", "models", "objects",
+#    "apple.sdf")
 
-models_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-
-bleach_path = os.path.join(models_path, "bleach_bottle.sdf")
-sink_path = os.path.join(models_path, "sink.sdf")
-stove_path = os.path.join(models_path, "stove.sdf")
-broccoli_path = os.path.join(models_path, "broccoli.sdf")
+models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+bleach_path = os.path.join(models_dir, "bleach_bottle.sdf")
+sink_path = os.path.join(models_dir, "sink.sdf")
+stove_path = os.path.join(models_dir, "stove.sdf")
+broccoli_path = os.path.join(models_dir, "broccoli.sdf")
 
 AABBs = {
     'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057])),
@@ -83,16 +67,7 @@ AABBs = {
 
 # TODO: could compute bounding boxes using a rigid body tree
 
-IIWA_JOINT_NAMES = ["iiwa_joint_%d"%(i+1) for i in range(7)]
-IIWA_JOINT_LIMITS = zip(len(IIWA_JOINT_NAMES)*[-2], len(IIWA_JOINT_NAMES)*[2])
-
-user_input = raw_input
-
-BASE_LINK = "iiwa_link_0"
-
-
 ##################################################
-
 
 def weld_gripper(mbp, robot_index, gripper_index):
     X_EeGripper = Pose([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
@@ -105,6 +80,12 @@ def weld_gripper(mbp, robot_index, gripper_index):
 
 
 ##################################################
+
+def load_meshcat():
+    import meshcat
+    vis = meshcat.Visualizer()
+    #print(dir(vis)) # set_object
+    return vis
 
 def add_meshcat_visualizer(scene_graph, builder):
     from underactuated.meshcat_visualizer import MeshcatVisualizer
@@ -154,30 +135,7 @@ def build_diagram(mbp, scene_graph, lcm):
 
     return diagram
 
-import random
-
-table_top_z = 0.736 + 0.057 / 2
-
 ##################################################
-
-def randomize_positions(mbp, context):
-    print(get_joint_angles(mbp, context, IIWA_JOINT_NAMES))
-    for joint_name, joint_range in zip(IIWA_JOINT_NAMES, IIWA_JOINT_LIMITS):
-        iiwa_joint = mbp.GetJointByName(joint_name)
-        joint_angle = random.uniform(*joint_range)
-        print(get_joint_limits(iiwa_joint))
-        iiwa_joint.set_angle(context=context, angle=joint_angle)
-
-##################################################
-
-#def get_joint_indices(mbp, model_index=None):
-#    if model_index is None:
-#        joint_range = range(mbp.num_joints())
-#    else:
-#        num_joints_models = [mbp.num_joints(index) for index in get_model_indices(mbp)]
-#        int(model_index)
-#        print()
-#    return [JointIndex(i) for i in joint_range]
 
 WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
 WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
@@ -201,12 +159,6 @@ def open_wsg50_gripper(mbp, context, model_index):
     set_max_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
 
 ##################################################
-
-def get_rest_positions(joints):
-    return np.zeros(len(joints))
-
-def get_random_positions(joints):
-    return np.array([np.random.uniform(*get_joint_limits(joint)) for joint in joints])
 
 def get_sample_fn(joints):
     return lambda: get_random_positions(joints)
@@ -374,7 +326,7 @@ def get_holding_motion_fn(mbp, robot):
 
 ##################################################
 
-def pddlstream_stuff(mbp, context, robot, gripper, movable, surfaces):
+def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
@@ -434,7 +386,10 @@ def pddlstream_stuff(mbp, context, robot, gripper, movable, surfaces):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def test_stuff(mbp, diagram, diagram_context, context, robot, gripper, broccoli):
+def test_inverse_kinematics(mbp, diagram, diagram_context, context, robot, gripper, broccoli):
+    IIWA_JOINT_NAMES = ["iiwa_joint_%d" % (i + 1) for i in range(7)]
+    IIWA_JOINT_LIMITS = zip(len(IIWA_JOINT_NAMES) * [-2], len(IIWA_JOINT_NAMES) * [2])
+
     gripper_frame = mbp.GetFrameByName("body", gripper)
     print(gripper_frame.name())
     gripper_frame = get_base_body(mbp, gripper).body_frame()
@@ -467,17 +422,17 @@ def test_stuff(mbp, diagram, diagram_context, context, robot, gripper, broccoli)
     user_input('Next?')
 
     for i in range(10):
-        randomize_positions(mbp, context)
+        print(get_joint_angles(mbp, context, IIWA_JOINT_NAMES))
+        for joint_name, joint_range in zip(IIWA_JOINT_NAMES, IIWA_JOINT_LIMITS):
+            iiwa_joint = mbp.GetJointByName(joint_name)
+            joint_angle = random.uniform(*joint_range)
+            print(get_joint_limits(iiwa_joint))
+            iiwa_joint.set_angle(context=context, angle=joint_angle)
         diagram.Publish(diagram_context)
         user_input('Continue?')
     user_input('Finish?')
 
-def load_meshcat():
-    import meshcat
-    vis = meshcat.Visualizer()
-    #print(dir(vis)) # set_object
-    return vis
-
+##################################################
 
 def main():
     mbp = MultibodyPlant(time_step=0)
@@ -503,17 +458,21 @@ def main():
     broccoli = AddModelFromSdfFile(file_name=broccoli_path, model_name='broccoli',
                                 scene_graph=scene_graph, plant=mbp)
 
+    table_top_z = 0.736 + 0.057 / 2
     weld_gripper(mbp, robot, gripper)
     weld_to_world(mbp, robot, Pose(translation=[0, 0, table_top_z]))
     weld_to_world(mbp, table, Pose())
     weld_to_world(mbp, table2, Pose(translation=[0.75, 0, 0]))
     diagram = build_diagram(mbp, scene_graph, lcm)
+
+    ##################################################
     
     #dump_plant(mbp)
-    dump_models(mbp)
+    #dump_models(mbp)
 
-    diagram_context = context_stuff(diagram, mbp)
+    diagram_context = create_context(diagram, mbp)
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+
     table2_x = 0.75
     set_world_pose(mbp, context, sink, Pose(translation=[table2_x, 0.25, table_top_z]))
     set_world_pose(mbp, context, stove, Pose(translation=[table2_x, -0.25, table_top_z]))
@@ -523,7 +482,9 @@ def main():
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
     diagram.Publish(diagram_context)
 
-    problem = pddlstream_stuff(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
+    ##################################################
+
+    problem = get_pddlstream_problem(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
     solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
@@ -537,6 +498,8 @@ def main():
     close_traj = Trajectory(reversed(open_traj.path))
     # TODO: ceiling & orientation constraints
     # TODO: sampler chooses configurations that are far apart
+
+    ##################################################
 
     diagram.Publish(diagram_context)
     user_input('Start?')
