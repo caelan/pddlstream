@@ -9,6 +9,7 @@
     (Grasp ?o ?g)
     (Kin ?a ?o ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
+    (ArmMotion ?a ?q1 ?t ?q2)
     (Supported ?o ?p ?r)
 
     (TrajPoseCollision ?t ?o ?p)
@@ -44,10 +45,10 @@
   )
   (:action move_arm
     :parameters (?q1 ?q2 ?t)
-    :precondition (and (ArmMotion ?q1 ?t ?q2)
-                       (AtAConf ?q1))
-    :effect (and (AtAConf ?q2)
-                 (not (AtAConf ?q1)))
+    :precondition (and (ArmMotion ?a ?q1 ?t ?q2)
+                       (AtAConf ?a ?q1))
+    :effect (and (AtAConf ?a ?q2)
+                 (not (AtAConf ?a ?q1)))
   )
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)

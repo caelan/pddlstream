@@ -24,6 +24,7 @@ from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
+from pddlstream.language.optimizer import OptimizerInfo
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
 
 def pddlstream_from_tamp(tamp_problem):
@@ -31,7 +32,10 @@ def pddlstream_from_tamp(tamp_problem):
     assert(initial.holding is None)
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    stream_pddl = read(get_file_path(__file__, 'optimizer.pddl')) # optimizer | stream
+    external_pddl = [
+        #read(get_file_path(__file__, 'stream.pddl')),
+        read(get_file_path(__file__, 'optimizer.pddl')),
+    ]
     constant_map = {}
 
     init = [
@@ -69,7 +73,7 @@ def pddlstream_from_tamp(tamp_problem):
     }
     #stream_map = 'debug'
 
-    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -148,6 +152,8 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
         #'distance': FunctionInfo(opt_fn=lambda *args: 1),
+        #'gurobi': OptimizerInfo(p_success=0),
+        #'rrt': OptimizerInfo(p_success=0),
     }
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),

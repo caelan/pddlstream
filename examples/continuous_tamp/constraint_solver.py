@@ -66,7 +66,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
     if not has_gurobi():
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
     from gurobipy import Model, GRB, quicksum
-    def fn(outputs, facts):
+    def fn(outputs, facts, fluents={}):
+        # TODO: fluents is map from constraint to fluent inputs
         #print(outputs, facts)
         m = Model(name='TAMP')
         m.setParam(GRB.Param.OutputFlag, verbose)
