@@ -36,16 +36,28 @@ http://www.fast-downward.org/ObtainingAndRunningFastDownward
 ### Pure Python
 
 These are simple examples that can be run without additional depedencies:
-* Blocksworld: `$ python -m examples.blocksworld.blocksworld`
-* Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.blocksworld_derived`
+* Blocksworld: `$ python -m examples.blocksworld.run`
+* Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.run_derived`
 * Discrete TAMP: `$ python -m examples.discrete_tamp.run`
+* Discrete TAMP with pushing: `$ python -m examples.discrete_tamp.run`
 * 1D Continuous TAMP: `$ python -m examples.continuous_tamp.run`
 * 2D Motion Planning: `$ python -m examples.motion.run`
 * Discrete Belief Space: `$ python -m examples.discrete_belief.run`
-* Rovers: `$ python -m examples.rovers.run`
-* Satellites: `$ python -m examples.satellites.run`
+* Kitchen (debug streams): `python -m examples.kitchen.run`
+<!--* Discrete Belief: `python -m examples.table_obs.run`-->
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
+
+### Advanced Funtionality
+
+* Action Description Language (ADL): `$ python -m examples.adl.run`
+* Exogenous streams (observations): `$ python -m examples.exogenous.run`
+* Fluent stream inputs: `$ python -m examples.fluent.run`
+
+### International Planning Competition (IPC)
+
+* Rovers: `$ python -m examples.ipc.rovers.run`
+* Satellites: `$ python -m examples.ipc.satellites.run`
 
 ### PyBullet
 
