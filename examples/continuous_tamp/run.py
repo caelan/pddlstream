@@ -33,8 +33,8 @@ def pddlstream_from_tamp(tamp_problem):
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     external_pddl = [
-        #read(get_file_path(__file__, 'stream.pddl')),
-        read(get_file_path(__file__, 'optimizer.pddl')),
+        read(get_file_path(__file__, 'stream.pddl')),
+        #read(get_file_path(__file__, 'optimizer.pddl')),
     ]
     constant_map = {}
 

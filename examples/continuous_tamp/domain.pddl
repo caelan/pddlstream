@@ -44,7 +44,7 @@
   (:action place
     :parameters (?b ?p ?q)
     :precondition (and (Kin ?b ?q ?p)
-                       (AtConf ?q) (Holding ?b)) ; (SafePose ?b ?p)) ; (not (UnsafePose ?b ?p)))
+                       (AtConf ?q) (Holding ?b) (not (UnsafePose ?b ?p))) ; (SafePose ?b ?p))
     :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
                  (not (Holding ?b))
                  (increase (total-cost) 1))
