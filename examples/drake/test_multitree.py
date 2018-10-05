@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import numpy as np
-import pydrake
 import os
-import sys
 import time
+import pydrake
+import numpy as np
 
 from collections import namedtuple
 
@@ -32,6 +31,18 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique, Verbose
+
+from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_joints, \
+    get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
+    get_world_pose, set_world_pose, get_joint_position, set_joint_position, sample_aabb_placement, \
+    get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, dump_model, dump_models, \
+    dump_plant, get_configuration, get_model_name, set_configuration, set_joint_angles, context_stuff
+
+# https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
+# wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
+# https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
+# docker rmi $(docker images -q mit6881/drake-course)
+
 
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 ~/Programs/LIS/git/ss-drake/
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
@@ -63,8 +74,6 @@ sink_path = os.path.join(models_path, "sink.sdf")
 stove_path = os.path.join(models_path, "stove.sdf")
 broccoli_path = os.path.join(models_path, "broccoli.sdf")
 
-BoundingBox = namedtuple('BoundingBox', ['center', 'extent'])
-
 AABBs = {
     'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057])),
     'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])),
@@ -84,58 +93,9 @@ BASE_LINK = "iiwa_link_0"
 
 ##################################################
 
-def get_aabb_top_grasps(aabb, under=False, max_width=np.inf, grasp_length=0.0):
-    # TODO: combine with get_top_grasps
-    center, extent = aabb
-    w, l, h = 2*np.array(extent)
-    reflect_z = Pose(euler=Euler(pitch=np.pi))
-    translate = Pose(point=Point(z=(h / 2 - grasp_length)) + center)
-    grasps = []
-    if w <= max_width:
-        for i in range(1 + under):
-            rotate_z = Pose(euler=Euler(yaw=(np.pi / 2 + i * np.pi)))
-            grasps += [multiply_poses(translate, rotate_z, reflect_z)]
-    if l <= max_width:
-        for i in range(1 + under):
-            rotate_z = Pose(euler=Euler(yaw=(i*np.pi)))
-            grasps += [multiply_poses(translate, rotate_z, reflect_z)]
-    return grasps
-
-def get_aabb_lower(aabb):
-    return np.array(aabb.center) - np.array(aabb.extent)
-
-def get_aabb_upper(aabb):
-    return np.array(aabb.center) + np.array(aabb.extent)
-
-def get_aabb_z_placement(object_aabb, surface_aabb, z_epsilon=1e-3):
-    z = (get_aabb_upper(surface_aabb) + object_aabb.extent - object_aabb.center)[2]
-    return z + z_epsilon
-
-def sample_aabb_placement(object_aabb, surface_aabb, **kwargs):
-    z = get_aabb_z_placement(object_aabb, surface_aabb, **kwargs)
-    while True:
-        yaw = np.random.uniform(-np.pi, np.pi)
-        lower = get_aabb_lower(surface_aabb)[:2]
-        upper = get_aabb_upper(surface_aabb)[:2]
-        [x, y] = np.random.uniform(lower, upper) - object_aabb.center[:2]
-        yield Pose(np.array([x, y, z]), np.array([0, 0, yaw]))
-
-def matrix_from_euler(euler):
-    roll, pitch, yaw = euler
-    return RollPitchYaw(roll, pitch, yaw).ToRotationMatrix().matrix()
-
-def Pose(translation=None, rotation=None):
-    pose = Isometry3.Identity()
-    if translation is not None:
-        pose.set_translation(translation)
-    if rotation is not None:
-        pose.set_rotation(matrix_from_euler(rotation))
-    return pose
-
-##################################################
 
 def weld_gripper(mbp, robot_index, gripper_index):
-    X_EeGripper = Pose([0, 0, 0.081], [np.pi/2, 0, np.pi/2])
+    X_EeGripper = Pose([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
     robot_body = get_model_bodies(mbp, robot_index)[-1]
     gripper_body = get_model_bodies(mbp, gripper_index)[0]
     mbp.AddJoint(WeldJoint(name="weld_gripper_to_robot_ee",
@@ -143,12 +103,6 @@ def weld_gripper(mbp, robot_index, gripper_index):
                            child_frame_C=gripper_body.body_frame(),
                            X_PC=X_EeGripper))
 
-def weld_to_world(mbp, model_index, world_pose):
-    mbp.AddJoint(
-        WeldJoint(name="weld_to_world",
-        parent_frame_P=mbp.world_body().body_frame(),
-        child_frame_C=get_base_body(mbp, model_index).body_frame(),
-        X_PC=world_pose))
 
 ##################################################
 
@@ -206,23 +160,6 @@ table_top_z = 0.736 + 0.057 / 2
 
 ##################################################
 
-def joints_from_names(mbp, joint_names):
-    return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
-
-def get_joint_angles(mbp, context, joint_names):
-    return [joint.get_angle(context) for joint in joints_from_names(mbp, joint_names)]
-
-def set_joint_angles(mbp, context, joint_names, joint_angles):
-    assert len(joint_names) == len(joint_angles)
-    return [joint.set_angle(context, angle)
-            for joint, angle in zip(joints_from_names(mbp, joint_names), joint_angles)]
-
-def get_joint_limits(joint):
-    assert joint.num_positions() == 1
-    [lower] = joint.lower_limits()
-    [upper] = joint.upper_limits()
-    return lower, upper
-
 def randomize_positions(mbp, context):
     print(get_joint_angles(mbp, context, IIWA_JOINT_NAMES))
     for joint_name, joint_range in zip(IIWA_JOINT_NAMES, IIWA_JOINT_LIMITS):
@@ -233,175 +170,6 @@ def randomize_positions(mbp, context):
 
 ##################################################
 
-def get_joint_position(joint, context):
-    if isinstance(joint, PrismaticJoint):
-        return joint.get_translation(context)
-    elif isinstance(joint, RevoluteJoint):
-        return joint.get_angle(context)
-    elif isinstance(joint, WeldJoint):
-        raise RuntimeError(joint)
-    else:
-        raise NotImplementedError(joint)
-
-def set_joint_position(joint, context, position):
-    if isinstance(joint, PrismaticJoint):
-        joint.set_translation(context, position)
-    elif isinstance(joint, RevoluteJoint):
-        joint.set_angle(context, position)
-    elif isinstance(joint, WeldJoint):
-        raise RuntimeError(joint)
-    else:
-        raise NotImplementedError(joint)
-
-def get_configuration(mbp, context, model_index):
-    joints = prune_fixed_joints(get_model_joints(mbp, model_index))
-    return [get_joint_position(joint, context) for joint in joints]
-
-def set_configuration(mbp, context, model_index, config):
-    joints = prune_fixed_joints(get_model_joints(mbp, model_index))
-    assert len(joints) == len(config)
-    return [set_joint_position(joint, context, position) for joint, position in zip(joints, config)]
-
-def set_min_joint_positions(mbp, context, joints):
-    for joint in prune_fixed_joints(joints):
-        [position] = joint.lower_limits()
-        set_joint_position(joint, context, position)
-
-def set_max_joint_positions(mbp, context, joints):
-    for joint in prune_fixed_joints(joints):
-        [position] = joint.upper_limits()
-        set_joint_position(joint, context, position)
-
-def get_relative_transform(mbp, context, frame2, frame1=None): # frame1 -> frame2
-    if frame1 is None:
-        frame1 = mbp.world_frame()
-    return mbp.tree().CalcRelativeTransform(context, frame1, frame2)
-
-def get_body_pose(mbp, context, body):
-    return mbp.tree().EvalBodyPoseInWorld(context, body)
-
-def get_world_pose(mbp, context, model_index):
-    # CalcAllBodyPosesInWorld
-    body = get_base_body(mbp, model_index)
-    return mbp.tree().EvalBodyPoseInWorld(context, body)
-
-def set_world_pose(mbp, context, model_index, world_pose):
-    body = get_base_body(mbp, model_index)
-    mbp.tree().SetFreeBodyPoseOrThrow(body, world_pose, context)
-
-def context_stuff(diagram, mbp):
-    # Fix multibodyplant actuation input port to 0.
-    diagram_context = diagram.CreateDefaultContext()
-    mbp_context = diagram.GetMutableSubsystemContext(
-        mbp, diagram_context)
-
-    for i in range(mbp.get_num_input_ports()):
-        model_index = mbp.get_input_port(i)
-        mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
-
-    # set initial pose for the apple.
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation(apple_initial_position_in_world_frame)
-    #mbt = mbp.tree()
-    #mbt.SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("base_link_apple", apple_model), X_WApple, mbp_context)
-
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation([0, 0, table_top_z])
-    #mbp.tree().SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("iiwa_link_0"), X_WApple, mbp_context)
-    return diagram_context
-
-##################################################
-
-# https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
-# wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
-# https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
-# docker rmi $(docker images -q mit6881/drake-course)
-
-#def get_joint_limits(joint):
-#    joint = mbp.GetJointByName(joint_name)
-#    joint.lower_limits()
-#    joint.upper_limits()
-
-#def GetEndEffectorWorldAlignedFrame():
-#    X_EEa = Isometry3.Identity()
-#    X_EEa.set_rotation(np.array([[0., 1., 0,],
-#                                 [0, 0, 1],
-#                                 [1, 0, 0]]))
-#    return X_EEa
-
-# https://github.com/RobotLocomotion/drake/blob/b30e4982bfa04e5de69e8641e7c6580b4c1eb42c/bindings/pydrake/solvers/mathematicalprogram_py.cc#L494
-
-
-def solve_inverse_kinematics(mbp, target_frame, target_pose, 
-        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
-    if initial_guess is None:
-        initial_guess = np.zeros(mbp.num_positions())
-        for joint in prune_fixed_joints(get_joints(mbp)):
-            initial_guess[joint.position_start()] = random.uniform(*get_joint_limits(joint))
-
-    ik_scene = inverse_kinematics.InverseKinematics(mbp)
-    world_frame = mbp.world_frame()
-
-    ik_scene.AddOrientationConstraint(
-        frameAbar=target_frame, R_AbarA=RotationMatrix.Identity(),
-        frameBbar=world_frame, R_BbarB=RotationMatrix(target_pose.rotation()),
-        theta_bound=theta_bound)
-
-    lower = target_pose.translation() - max_position_error
-    upper = target_pose.translation() + max_position_error
-    ik_scene.AddPositionConstraint(
-        frameB=target_frame, p_BQ=np.zeros(3),
-        frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
-
-    prog = ik_scene.prog()
-    prog.SetInitialGuess(ik_scene.q(), initial_guess)
-    result = prog.Solve()
-    if result != SolutionResult.kSolutionFound:
-        return None
-    return prog.GetSolution(ik_scene.q())
-
-##################################################
-
-def get_model_name(mbp, model_index):
-    return mbp.tree().GetModelInstanceName(model_index)
-
-def get_model_indices(mbp):
-    return [ModelInstanceIndex(i) for i in range(mbp.num_model_instances())]
-
-def get_model_names(mbp):
-    return [get_model_name(mbp, index) for index in get_model_indices(mbp)]
-
-def get_bodies(mbp):
-    return [mbp.tree().get_body(BodyIndex(i)) for i in range(mbp.num_bodies())]
-
-def get_joints(mbp):
-    return [mbp.tree().get_joint(JointIndex(i)) for i in range(mbp.num_joints())]
-
-def get_frames(mbp):
-    return [mbp.tree().get_frame(FrameIndex(i)) for i in range(mbp.tree().num_frames())]
-
-def get_model_bodies(mbp, model_index):
-    body_names = []
-    for body in get_bodies(mbp):
-        if body.name() not in body_names:
-            body_names.append(body.name())
-    return [mbp.GetBodyByName(name, model_index) 
-            for name in body_names if mbp.HasBodyNamed(name, model_index)]
-
-def get_base_body(mbp, model_index):
-    # TODO: make this less of a hack
-    return get_model_bodies(mbp, model_index)[0]
-
-def get_model_joints(mbp, model_index):
-    joint_names = []
-    for joint in get_joints(mbp):
-        if joint.name() not in joint_names:
-            joint_names.append(joint.name())
-    return [mbp.GetJointByName(name, model_index) 
-            for name in joint_names if mbp.HasJointNamed(name, model_index)]
-
 #def get_joint_indices(mbp, model_index=None):
 #    if model_index is None:
 #        joint_range = range(mbp.num_joints())
@@ -410,48 +178,6 @@ def get_model_joints(mbp, model_index):
 #        int(model_index)
 #        print()
 #    return [JointIndex(i) for i in joint_range]
-
-def dump_plant(mbp):
-    print('\nModels:')
-    for i, name in enumerate(get_model_names(mbp)):
-        print("{}) {}".format(i, name))
-    print('\nBodies:')
-    for i, body in enumerate(get_bodies(mbp)):
-        print("{}) {} {}: {}".format(i, body.__class__.__name__, body.name(), body.body_frame().name()))
-    print('\nJoints:')
-    for i, joint in enumerate(get_joints(mbp)):
-        print("{}) {} {}: {}, {}".format(i, body.__class__.__name__, joint.name(), 
-            joint.lower_limits(), joint.upper_limits()))
-    print('\nFrames:')
-    for i, frame in enumerate(get_frames(mbp)):
-        print("{}) {}: {}".format(i, frame.name(), frame.body().name()))
-
-def dump_model(mbp, model_index):
-    print('\nModel {}: {}'.format(int(model_index), mbp.tree().GetModelInstanceName(model_index)))
-    bodies = get_model_bodies(mbp, model_index)
-    if bodies:
-        print('Bodies:')
-        for i, body in enumerate(bodies):
-            print("{}) {} {}: {}".format(i, body.__class__.__name__, body.name(), body.body_frame().name()))
-    joints = get_model_joints(mbp, model_index)
-    if joints:
-        print('Joints:')
-        for i, joint in enumerate(joints):
-            print("{}) {} {}: {}, {}".format(i, joint.__class__.__name__, joint.name(), 
-                joint.lower_limits(), joint.upper_limits()))
-    #print('\nFrames:')
-    #for i, frame in enumerate(get_frames(mbp)):
-    #    print("{}) {}: {}".format(i, frame.name(), frame.body().name()))
-
-def dump_models(mbp):
-    for model_index in get_model_indices(mbp):
-        dump_model(mbp, model_index)
-
-def is_fixed_joints(joint):
-    return joint.num_positions() == 0
-
-def prune_fixed_joints(joints):
-    return list(filter(lambda j: not is_fixed_joints(j), joints))
 
 WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
 WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
@@ -526,7 +252,7 @@ def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out 
     tool = Pose(translation=[0, 0, -0.1])
     center, extent = aabb
     w, l, h = 2*extent
-    reflect_z = Pose(rotation=[np.pi/2, 0, 0])
+    reflect_z = Pose(rotation=[np.pi / 2, 0, 0])
     translate_z = Pose(translation=[0, 0, -h / 2 + grasp_length])
     aabb_from_body = Pose(translation=center).inverse()
     diameter = (w + l) / 2 # TODO: check that these are close
@@ -708,7 +434,7 @@ def pddlstream_stuff(mbp, context, robot, gripper, movable, surfaces):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def test_stuff(mbp, robot, gripper):
+def test_stuff(mbp, diagram, diagram_context, context, robot, gripper, broccoli):
     gripper_frame = mbp.GetFrameByName("body", gripper)
     print(gripper_frame.name())
     gripper_frame = get_base_body(mbp, gripper).body_frame()
@@ -732,7 +458,7 @@ def test_stuff(mbp, robot, gripper):
     conf = solve_inverse_kinematics(mbp, gripper_frame, target_pose)
     if conf is None:
         return
-    iiwa_conf = mbp.tree().get_positions_from_array(iiwa, conf)
+    iiwa_conf = mbp.tree().get_positions_from_array(robot, conf)
     set_joint_angles(mbp, context, IIWA_JOINT_NAMES, conf)
     print(get_world_pose(mbp, context, gripper))
     print(get_relative_transform(mbp, context, gripper_frame))
@@ -746,11 +472,14 @@ def test_stuff(mbp, robot, gripper):
         user_input('Continue?')
     user_input('Finish?')
 
-def main():
-    #import meshcat
-    #vis = meshcat.Visualizer()
+def load_meshcat():
+    import meshcat
+    vis = meshcat.Visualizer()
     #print(dir(vis)) # set_object
+    return vis
 
+
+def main():
     mbp = MultibodyPlant(time_step=0)
     scene_graph = SceneGraph() # Geometry
     lcm = DrakeLcm()
