@@ -23,11 +23,7 @@ original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
 
-COST_SCALE = 1000 # TODO: make unit costs be equivalent to cost scale = 0
 import pddl.f_expression
-pddl.f_expression.COST_SCALE = COST_SCALE
-# TODO: method for setting this globally
-
 import translate
 import pddl
 import instantiate
@@ -95,8 +91,25 @@ DEFAULT_PLANNER = 'ff-astar'
 
 ##################################################
 
+# WARNING: overflow on h^add! Costs clamped to 100000000
+MAX_FD_COST = 1e8
+
+def round_cost(cost):
+    cost_scale = get_cost_scale()
+    return int(cost_scale * cost) / cost_scale
+
+def get_cost_scale():
+    return pddl.f_expression.COST_SCALE
+
+def set_cost_scale(cost_scale):
+    pddl.f_expression.COST_SCALE = cost_scale
+
 def scale_cost(cost):
-    return int_ceil(COST_SCALE * float(cost))
+    return int_ceil(get_cost_scale() * float(cost))
+
+set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
+
+##################################################
 
 def parse_lisp(lisp):
     return pddl_parser.lisp_parser.parse_nested_list(lisp.splitlines())
@@ -273,7 +286,7 @@ def parse_solution(solution):
     cost_regex = r'cost\s*=\s*(\d+)'
     matches = re.findall(cost_regex, solution)
     if matches:
-        cost = float(matches[0]) / COST_SCALE
+        cost = float(matches[0]) / get_cost_scale()
     # TODO: recover the actual cost of the plan from the evaluations
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = []
