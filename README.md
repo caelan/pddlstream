@@ -39,8 +39,8 @@ These are simple examples that can be run without additional depedencies:
 * Blocksworld: `$ python -m examples.blocksworld.blocksworld`
 * Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.blocksworld_derived`
 * Discrete Belief Space: `$ python -m examples.discrete_belief.run`
-* Rovers: `$ python -m examples.ipc.rovers.run`
-* Satellites: `$ python -m examples.ipc.satellites.run`
+* Kitchen (debug streams): `python -m examples.kitchen.run`
+<!--* Discrete Belief: `python -m examples.table_obs.run`-->
 
 ### Python TKinter
 
@@ -52,10 +52,22 @@ $ sudo apt-get install python-tk
 
 Examples:
 * Discrete TAMP: `$ python -m examples.discrete_tamp.run`
+* Discrete TAMP with pushing: `$ python -m examples.discrete_tamp.run`
 * 1D Continuous TAMP: `$ python -m examples.continuous_tamp.run`
 * 2D Motion Planning: `$ python -m examples.motion.run`
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
+
+### Advanced Functionality
+
+* Action Description Language (ADL): `$ python -m examples.adl.run`
+* Exogenous streams (observations): `$ python -m examples.exogenous.run`
+* Fluent stream inputs: `$ python -m examples.fluent.run`
+
+### International Planning Competition (IPC)
+
+* Rovers: `$ python -m examples.ipc.rovers.run`
+* Satellites: `$ python -m examples.ipc.satellites.run`
 
 ### PyBullet
 
@@ -74,6 +86,15 @@ Examples:
 &emsp;<img src="images/pybullet_belief.png" height="150">
 
 See https://github.com/caelan/ss-pybullet for more information.
+
+### Drake
+
+Install Drake on OS X or Ubuntu by following the following instructions: http://drake.mit.edu/installation.html
+
+Examples:
+* Kuka IIWA task and motion planning - ```python -m examples.drake.run```
+<!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
+<img src="images/drake_kuka.png" height="150">
 
 ## Publications
 

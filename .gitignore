@@ -2,6 +2,5 @@
 **/*.pyc
 temp
 visualizations
-data2
-data3
+statistics
 gurobi.log

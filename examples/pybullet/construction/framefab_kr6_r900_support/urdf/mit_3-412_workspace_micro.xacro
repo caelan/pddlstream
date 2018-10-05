@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+
+<!-- Exports macro: "xacro:mit_workspace" with 1 arg: prefix -->
+<!-- Root link: ${prefix}workspace_base_link -->
+<!-- Origin is at the robot (kuka_kr6r900) mounting location -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+
+<xacro:macro name="mit_workspace" params="prefix">
+
+<link name="${prefix}base_link"/>
+
+<link name="${prefix}objects">
+<visual>
+	<geometry>
+		<mesh filename="package://framefab_kr6_r900_support/meshes/visual/MIT_3-412_workspace_full.stl"/>
+	</geometry>
+	<material name="grey">
+    	<color rgba="0.5 0.5 0.5 1.0"/>
+	</material>
+</visual>
+<collision>
+	<geometry>
+		<mesh filename="package://framefab_kr6_r900_support/meshes/collision/MIT_3-412_workspace_simplified.stl"/>
+	</geometry>
+</collision>
+</link>
+
+<joint name="${prefix}baselink_to_objects" type="fixed">
+	<parent link="${prefix}base_link"/>
+	<child link="${prefix}objects"/>
+	<origin xyz="0 0 0" rpy="0 0 0"/>
+</joint>
+
+</xacro:macro>
+</robot>

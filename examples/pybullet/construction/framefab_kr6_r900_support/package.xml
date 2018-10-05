@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>framefab_kr6_r900_support</name>
+  <version>0.1.0</version>
+  <description>
+    Support package for a framefab_mpp system using KUKA kr6_r900sixx.
+  </description>
+
+  <maintainer email="yijiangh@mit.edu">Yijiang Huang</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>

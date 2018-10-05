@@ -11,9 +11,10 @@ import cProfile
 import pstats
 
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
 from pddlstream.utils import print_solution, read, get_file_path
-from pddlstream.language.conversion import Equal, Problem, And
+from pddlstream.language.constants import PDDLProblem, And, Equal
 from pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
@@ -27,7 +28,7 @@ from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, con
     draw_base_limits
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, Trajectory, get_base_limits
-from examples.discrete_belief.run import scale_cost, revisit_mdp_cost, SCALE_COST, MAX_COST
+from examples.discrete_belief.run import revisit_mdp_cost, MAX_COST, clip_cost
 
 
 def pddlstream_from_state(state, teleport=False):
@@ -50,11 +51,11 @@ def pddlstream_from_state(state, teleport=False):
     init = [
         ('BConf', base_conf),
         ('AtBConf', base_conf),
-        Equal(('MoveCost',), scale_cost(1)),
-        Equal(('PickCost',), scale_cost(1)),
-        Equal(('PlaceCost',), scale_cost(1)),
-        Equal(('ScanCost',), scale_cost(scan_cost)),
-        Equal(('RegisterCost',), scale_cost(1)),
+        Equal(('MoveCost',), 1),
+        Equal(('PickCost',), 1),
+        Equal(('PlaceCost',), 1),
+        Equal(('ScanCost',), scan_cost),
+        Equal(('RegisterCost',), 1),
     ]
     holding_arms = set()
     holding_bodies = set()
@@ -91,7 +92,7 @@ def pddlstream_from_state(state, teleport=False):
             p_obs = state.b_on[body].prob(surface)
             cost = revisit_mdp_cost(0, scan_cost, p_obs)  # TODO: imperfect observation model
             init += [('Stackable', body, surface),
-                     Equal(('LocalizeCost', surface, body), scale_cost(cost))]
+                     Equal(('LocalizeCost', surface, body), clip_cost(cost))]
             #if is_placement(body, surface):
             if is_center_stable(body, surface):
                 if body in holding_bodies:
@@ -126,7 +127,7 @@ def pddlstream_from_state(state, teleport=False):
         'inverse-visibility': from_fn(get_inverse_visibility_fn(task)),
     }
 
-    return Problem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 
 #######################################################
@@ -207,7 +208,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
 
 def plan_commands(state, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
-    # TODO: populate the bodies here from state
+    # TODO: populate the bodies here from state and not the real world
     task = state.task
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)
@@ -233,10 +234,13 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
         'test-vis-base': StreamInfo(eager=True, p_success=0),
         'test-reg-base': StreamInfo(eager=True, p_success=0),
     }
+    hierarchy = [
+        ABSTRIPSLayer(pos_pre=['AtBConf']),
+    ]
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
                              max_cost=MAX_COST, verbose=verbose)
     pr.disable()
     plan, cost, evaluations = solution
@@ -244,7 +248,6 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
         plan = None
     print_solution(solution)
     print('Finite cost:', cost < MAX_COST)
-    print('Real cost:', float(cost)/SCALE_COST)
     if profile:
         pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     saved_world.restore()

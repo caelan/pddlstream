@@ -1,4 +1,8 @@
-from Tkinter import Tk, Toplevel, Canvas, LAST
+try:
+    from Tkinter import Tk, Canvas, Toplevel, LAST
+except ModuleNotFoundError:
+    from tkinter import Tk, Canvas, Toplevel, LAST
+
 import numpy as np
 
 
@@ -51,18 +55,20 @@ class PRMViewer(object):
 
 #################################################################
 
-def get_distance(q1, q2):
-    return np.linalg.norm(q1 - q2)
+def get_delta(q1, q2):
+    return np.array(q2) - np.array(q1)
 
+def get_distance(q1, q2):
+    return np.linalg.norm(get_delta(q1, q2))
 
 def contains(q, box):
     (lower, upper) = box
-    return np.all(q >= lower) and np.all(upper >= q)
-
+    return np.greater_equal(q, lower).all() and np.greater_equal(upper, q).all()
+    #return np.all(q >= lower) and np.all(upper >= q)
 
 def sample_line(segment, step_size=.02):
     (q1, q2) = segment
-    diff = q2 - q1
+    diff = get_delta(q1, q2)
     dist = np.linalg.norm(diff)
     for l in np.arange(0., dist, step_size):
         yield tuple(np.array(q1) + l * diff / dist)

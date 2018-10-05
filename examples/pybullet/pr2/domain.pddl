@@ -28,27 +28,35 @@
     (Holding ?a ?o)
     (UnsafeBTraj ?t)
   )
+  (:functions
+    (MoveCost ?t)
+    (PickCost)
+    (PlaceCost)
+  )
 
   (:action move_base
     :parameters (?q1 ?q2 ?t)
     :precondition (and (BaseMotion ?q1 ?t ?q2)
                        (AtBConf ?q1) (CanMove) (not (UnsafeBTraj ?t)))
     :effect (and (AtBConf ?q2)
-                 (not (AtBConf ?q1)) (not (CanMove)))
+                 (not (AtBConf ?q1)) (not (CanMove))
+                 (increase (total-cost) (MoveCost ?t)))
   )
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
                        (AtPose ?o ?p) (HandEmpty ?a) (AtBConf ?q))
     :effect (and (AtGrasp ?a ?o ?g) (CanMove)
-                 (not (AtPose ?o ?p)) (not (HandEmpty ?a)))
+                 (not (AtPose ?o ?p)) (not (HandEmpty ?a))
+                 (increase (total-cost) (PickCost)))
   )
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
                        (AtGrasp ?a ?o ?g) (AtBConf ?q))
     :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
-                 (not (AtGrasp ?a ?o ?g)))
+                 (not (AtGrasp ?a ?o ?g))
+                 (increase (total-cost) (PlaceCost)))
   )
 
   (:action clean

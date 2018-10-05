@@ -4,6 +4,7 @@ from itertools import count
 
 from pddlstream.utils import INF, elapsed_time
 
+# TODO: indicate wild stream output just from the output form
 
 class BoundedGenerator(Iterator):
     """
@@ -13,20 +14,23 @@ class BoundedGenerator(Iterator):
     def __init__(self, generator, max_calls=INF):
         self.generator = generator
         self.max_calls = max_calls
-        self.calls = 0
+        self.history = []
+    @property
+    def calls(self):
+        return len(self.history)
     @property
     def enumerated(self):
         return self.max_calls <= self.calls
     def next(self):
         if self.enumerated:
             raise StopIteration()
-        self.calls += 1
-        return next(self.generator)
+        self.history.append(next(self.generator))
+        return self.history[-1]
     __next__ = next
 
 
-def get_next(generator):
-    new_values = []
+def get_next(generator, default=[]):
+    new_values = default
     enumerated = False
     try:
         new_values = next(generator)
@@ -46,7 +50,8 @@ def from_list_gen_fn(list_gen_fn):
 
 
 def from_gen_fn(gen_fn):
-    return from_list_gen_fn(lambda *args: ([] if ov is None else [ov] for ov in gen_fn(*args)))
+    return from_list_gen_fn(lambda *args, **kwargs: ([] if ov is None else [ov]
+                                                     for ov in gen_fn(*args, **kwargs)))
 
 
 def from_sampler(sampler, max_attempts=INF):
@@ -61,19 +66,22 @@ def from_sampler(sampler, max_attempts=INF):
 # Methods that convert some procedure -> function to a BoundedGenerator
 
 def from_list_fn(list_fn):
-    #return lambda *args: iter([list_fn(*args)])
-    return lambda *args: BoundedGenerator(iter([list_fn(*args)]), max_calls=1)
+    #return lambda *args, **kwargs: iter([list_fn(*args, **kwargs)])
+    return lambda *args, **kwargs: BoundedGenerator(iter([list_fn(*args, **kwargs)]), max_calls=1)
 
 
 def from_fn(fn):
-    def list_fn(*args):
-        outputs = fn(*args)
+    def list_fn(*args, **kwargs):
+        outputs = fn(*args, **kwargs)
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
+def outputs_from_boolean(boolean):
+    return tuple() if boolean else None
+
 
 def from_test(test):
-    return from_fn(lambda *args: tuple() if test(*args) else None)
+    return from_fn(lambda *args, **kwargs: outputs_from_boolean(test(*args, **kwargs)))
 
 
 def from_constant(constant):
@@ -81,14 +89,14 @@ def from_constant(constant):
 
 
 def empty_gen():
-    return lambda *args: iter([])
+    return lambda *args, **kwargs: iter([])
 
 ##################################################
 
 # Methods that convert some procedure -> function
 
 def fn_from_constant(constant):
-    return lambda *args: constant
+    return lambda *args, **kwargs: constant
 
 ##################################################
 
@@ -139,3 +147,18 @@ def compose_gen_fns(*gen_fns):
             if not terminated:
                 queue.append(composed)
     return gen_fn
+
+
+def wild_gen_fn_from_gen_fn(gen_fn):
+    def wild_gen_fn(*args, **kwargs):
+        for output_list in gen_fn(*args, **kwargs):
+            fact_list = []
+            yield output_list, fact_list
+    return wild_gen_fn
+
+
+def gen_fn_from_wild_gen_fn(wild_gen_fn):
+    def gen_fn(*args, **kwargs):
+        for output_list, _ in wild_gen_fn(*args, **kwargs):
+            yield output_list
+    return wild_gen_fn

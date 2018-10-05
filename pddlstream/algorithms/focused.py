@@ -1,173 +1,172 @@
 from __future__ import print_function
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs
+import time
+
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, has_costs, compile_fluent_streams, dump_plans, \
+    partition_externals
 from pddlstream.algorithms.incremental import layered_process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.postprocess import locally_optimize
+from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
-from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan, evaluations_from_stream_plan
-from pddlstream.algorithms.skeleton import optimistic_process_streams, optimistic_process_stream_plan, \
-    SkeletonQueue, get_stream_plan_index
-from pddlstream.algorithms.visualization import clear_visualizations, create_visualizations
+from pddlstream.algorithms.scheduling.simultaneous import simultaneous_stream_plan
+from pddlstream.algorithms.skeleton import SkeletonQueue, process_stream_plan, process_instance
+# from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
+# from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
+from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
+    has_pygraphviz, log_plans
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
-from pddlstream.language.exogenous import compile_to_exogenous
-from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.synthesizer import get_synthetic_stream_plan
 from pddlstream.utils import INF, elapsed_time
+from pddlstream.language.optimizer import combine_optimizers, replan_with_optimizers
 
-import time
+# TODO: make stream_info just a dict
+# TODO: implement the holdout of evaluations strategy
 
-# TODO: compute total stream plan p_success and overhead
-# TODO: ensure search and sampling have equal time
-# TODO: select whether to search or sample based on expected success rates
-# TODO: estimate the success rate for a stream_plan given past outcomes
-# TODO: make a subroutine that does commit
-
-def partition_externals(externals):
-    functions = list(filter(lambda s: type(s) is Function, externals))
-    negative = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    streams = list(filter(lambda s: s not in (functions + negative), externals))
-    return streams, functions, negative
-
-##################################################
-
-# TODO: can instantiate all but subtract stream_results
-# TODO: can even pass a subset of the fluent state
-# TODO: can just compute the stream plan preimage
-# TODO: replan constraining the initial state and plan skeleton
-# TODO: reuse subproblems
-# TODO: always start from the initial state (i.e. don't update)
-
-# def stream_plan_preimage(stream_plan):
-#     preimage = set()
-#     for stream_result in reversed(stream_plan):
-#         preimage -= set(stream_result.get_certified())
-#         preimage |= set(stream_result.instance.get_domain())
-#     return preimage
-
-# TODO: check empty plan first?
-def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
-    combined_plan, cost = solve_stream_plan(stream_results)
-    stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
-    #print('Depth: {}\n'
-    #      'Stream plan: {}\n'
-    #      'Action plan: {}'.format(depth, stream_plan, action_plan))
+def process_skeleton_queue(store, queue, stream_plan, action_plan, cost, max_sample_time):
+    start_time = time.time()
     if stream_plan is None:
-        return stream_plan, cost, depth
-    plan_index = get_stream_plan_index(stream_plan)
-    if plan_index == 0:
-        return combined_plan, cost, depth
-    stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
-    double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 streams, double_bindings=double_bindings)
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 functions)
-    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
+        if not queue:
+            return False
+        queue.process_until_success()
+    elif not stream_plan:
+        store.add_plan(action_plan, cost)
+    else:
+        queue.new_skeleton(stream_plan, action_plan, cost)
+    queue.timed_process(max_sample_time - elapsed_time(start_time))
+    return True
 
-def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):
-    # TODO: option to toggle commit using max_depth?
-    # TODO: constrain to use previous plan to some degree
-    num_iterations = 0
-    while True:
-        num_iterations += 1
-        stream_results = optimistic_process_streams(evaluations, streams + functions)
-        combined_plan, cost, depth = recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, 0)
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(num_iterations, len(stream_results),
-                                                                           depth, combined_plan is not None))
-        if (combined_plan is not None) or (depth == 0):
-            return combined_plan, cost
+def process_disabled(store, evaluations, domain, disabled, stream_plan, action_plan, cost,
+                     max_sample_time, reenable):
+    if stream_plan is None:
+        if not disabled:
+            return False
+        if reenable:
+            for instance in disabled:
+                instance.enable(evaluations, domain)
+            disabled.clear()
+        else:
+            success = False
+            while not success and disabled:
+                for instance in list(disabled):
+                    #if success:
+                    #    break
+                    if instance.enumerated:
+                        disabled.remove(instance)
+                    else:
+                        success |= process_instance(evaluations, instance, verbose=store.verbose)
+    elif not stream_plan:
+        store.add_plan(action_plan, cost)
+    else:
+        process_stream_plan(evaluations, domain, stream_plan, disabled, verbose=store.verbose)
+        # TODO: report back whether to try w/o stream values
+    # TODO: can process the queue for some amount of time
+    return True
 
 ##################################################
 
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_cost=INF, unit_costs=None,
-                  effort_weight=None, eager_layers=1,
+                  max_time=INF, max_cost=INF, unit_costs=False,
+                  unit_efforts=False, effort_weight=None, eager_layers=1,
+                  search_sampling_ratio=1, use_skeleton=True,
                   visualize=False, verbose=True, postprocess=False, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
     :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
+    :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_cost: a strict upper bound on plan cost
+    :param unit_costs: use unit costs rather than numeric costs
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param eager_layers: the number of eager stream application layers per iteration
+    :param search_sampling_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
+    :param postprocess: postprocess the stream plan to find a better solution
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
     # TODO: return to just using the highest level samplers at the start
-    search_sampling_ratio = 1
-    solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+    # TODO: select whether to search or sample based on expected success rates
+    solve_stream_plan_fn = relaxed_stream_plan
+    #solve_stream_plan_fn = relaxed_stream_plan if effort_weight is None else simultaneous_stream_plan
+    #solve_stream_plan_fn = sequential_stream_plan # simultaneous_stream_plan | sequential_stream_plan
+    #solve_stream_plan_fn = incremental_stream_plan # incremental_stream_plan | exhaustive_stream_plan
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
+    # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = 0
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, stream_name, externals = parse_problem(problem, stream_info)
-    compile_to_exogenous(evaluations, domain, externals)
-    if unit_costs is None:
-        unit_costs = not has_costs(domain)
+    evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
+    compile_fluent_streams(domain, externals)
+    unit_costs |= not has_costs(domain)
     full_action_info = get_action_info(action_info)
-    load_stream_statistics(stream_name, externals + synthesizers)
+    load_stream_statistics(externals + synthesizers)
+    if visualize and not has_pygraphviz():
+        visualize = False
+        print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
     if visualize:
-        clear_visualizations()
-    # TODO: somehow Functions became no longer eager?
-    eager_externals = list(filter(lambda e: e.info.eager or type(e) == Function, externals))
+        reset_visualizations()
+    eager_externals = list(filter(lambda e: e.info.eager, externals))
     streams, functions, negative = partition_externals(externals)
-    queue = SkeletonQueue(store, evaluations)
-    # TODO: decide max_sampling_time based on total search_time or likelihood estimates
-    # TODO: switch to searching if believe chance of search better than sampling
+    if verbose:
+        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
+    queue = SkeletonQueue(store, evaluations, goal_expression, domain)
+    disabled = set()
     while not store.is_terminated():
+        start_time = time.time()
         num_iterations += 1
         print('\nIteration: {} | Queue: {} | Evaluations: {} | Cost: {} '
               '| Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue), len(evaluations), store.best_cost,
             search_time, sample_time, store.elapsed_time()))
 
-        start_time = time.time()
         layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations, store, eager_layers)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
-                                                            max_cost=store.best_cost,
-                                                            #max_cost=min(store.best_cost, max_cost),
-                                                            unit_costs=unit_costs, **search_kwargs)
-        #combined_plan, cost = solve_stream_plan(populate_results(evaluations, streams + functions))
+                                                            max_cost=store.best_cost, #max_cost=min(store.best_cost, max_cost),
+                                                            unit_costs=unit_costs,
+                                                            unit_efforts=unit_efforts, effort_weight=effort_weight,
+                                                            **search_kwargs)
+        #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this strictly redundant?
-        stream_plan = get_synthetic_stream_plan(stream_plan, synthesizers)
-        print('Stream plan: {}\n'
-              'Action plan: {}'.format(stream_plan, action_plan))
+        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals)
+        stream_plan = combine_optimizers(evaluations, stream_plan)
+        #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
+        #                                        [s for s in synthesizers if not s.post_only])
+        stream_plan = reorder_stream_plan(stream_plan) # TODO: is this redundant when combined_plan?
+        dump_plans(stream_plan, action_plan, cost)
+        if (stream_plan is not None) and visualize:
+            log_plans(stream_plan, action_plan, num_iterations)
+            create_visualizations(evaluations, stream_plan, num_iterations)
         search_time += elapsed_time(start_time)
 
+        # TODO: more generally just add the original plan skeleton to the plan
+        # TODO: cutoff search exploration time at a certain point
         start_time = time.time()
-        if stream_plan is None:
-            if not queue:
-                break
-            queue.process_until_success()
-            #queue.fairly_process()
+        allocated_sample_time = search_sampling_ratio*search_time - sample_time
+        if use_skeleton:
+            terminate = not process_skeleton_queue(store, queue, stream_plan, action_plan, cost, allocated_sample_time)
         else:
-            if visualize:
-                create_visualizations(evaluations, stream_plan, num_iterations)
-            queue.new_skeleton(stream_plan, action_plan, cost)
-            queue.greedily_process()
+            terminate = not process_disabled(store, evaluations, domain, disabled, stream_plan, action_plan, cost,
+                                             allocated_sample_time, effort_weight is not None)
         sample_time += elapsed_time(start_time)
+        if terminate:
+            break
 
-        start_time = time.time()
-        queue.timed_process(search_sampling_ratio*search_time - sample_time)
-        sample_time += elapsed_time(start_time)
-
-    if postprocess and (not unit_costs):
-        locally_optimize(evaluations, store, goal_expression, domain, functions, negative, synthesizers)
-    write_stream_statistics(stream_name, externals + synthesizers, verbose)
+    if postprocess and (not unit_costs): # and synthesizers
+        locally_optimize(evaluations, store, goal_expression, domain,
+                         functions, negative, synthesizers, visualize)
+    write_stream_statistics(externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

@@ -11,7 +11,7 @@ from pddlstream.algorithms.focused import solve_focused
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
     get_tight_problem, draw_state, \
     get_random_seed, TAMPState
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND
+from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
@@ -99,7 +99,7 @@ def pddlstream_from_tamp(tamp_problem):
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('Region', r) for r in tamp_problem.regions.keys()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Placeable', b, GROUND) for b in initial.block_poses.keys()] + \
+           [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
     goal = ('AtGoal',)
 

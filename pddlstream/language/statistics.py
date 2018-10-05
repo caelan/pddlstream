@@ -5,18 +5,16 @@ import os
 from collections import Counter
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
+
+DATA_DIR = 'statistics/py{:d}/'
+
+# TODO: write to a "local" folder containing temp, data2, data3, visualizations
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
-DATA_DIR = 'data{:d}/'
-# TODO: write to a "local" folder containing temp, data2, data3, visualizations
-
-
-def get_data_directory():
-    return DATA_DIR.format(get_python_version())
-
-
 def get_data_path(stream_name):
-    return os.path.join(get_data_directory(), '{}.pp'.format(stream_name))
+    data_dir = DATA_DIR.format(get_python_version())
+    file_name = '{}.pkl'.format(stream_name)
+    return os.path.join(data_dir, file_name)
 
 
 def load_data(stream_name):
@@ -25,9 +23,12 @@ def load_data(stream_name):
         return {}
     return read_pickle(filename)
 
-def load_stream_statistics(stream_name, externals):
+def load_stream_statistics(externals):
+    if not externals:
+        return
+    pddl_name = externals[0].pddl_name # TODO: ensure the same
     # TODO: fresh restart flag
-    data = load_data(stream_name)
+    data = load_data(pddl_name)
     for external in externals:
         if external.name in data:
             statistics = data[external.name]
@@ -36,7 +37,7 @@ def load_stream_statistics(stream_name, externals):
             external.total_successes += statistics['successes']
 
 
-def dump_statistics(externals):
+def dump_local_statistics(externals):
     print('\nLocal External Statistics')
     overall_calls = 0
     overall_overhead = 0
@@ -44,14 +45,15 @@ def dump_statistics(externals):
         external.dump_local()
         overall_calls += external.online_calls
         overall_overhead += external.online_overhead
-    print('Overall calls: {} | Overall overhead: {}'.format(overall_calls, overall_overhead))
+    print('Overall calls: {} | Overall overhead: {:.3f}'.format(overall_calls, overall_overhead))
 
+def dump_total_statistics(externals):
     print('\nTotal External Statistics')
     for external in externals:
         external.dump_total()
         # , external.get_effort()) #, data[external.name])
 
-def write_stream_statistics(stream_name, externals, verbose):
+def write_stream_statistics(externals, verbose):
     # TODO: estimate conditional to affecting history on skeleton
     # TODO: estimate conditional to first & attempt and success
     # TODO: relate to success for the full future plan
@@ -59,8 +61,10 @@ def write_stream_statistics(stream_name, externals, verbose):
     if not externals:
         return
     if verbose:
-        dump_statistics(externals)
-    previous_data = load_data(stream_name)
+        #dump_local_statistics(externals)
+        dump_total_statistics(externals)
+    pddl_name = externals[0].pddl_name # TODO: ensure the same
+    previous_data = load_data(pddl_name)
     data = {}
     for external in externals:
         #total_calls = 0 # TODO: compute these values
@@ -69,14 +73,15 @@ def write_stream_statistics(stream_name, externals, verbose):
         # TODO: can estimate probability of success given feasible
         # TODO: single tail hypothesis testing (probability that came from this distribution)
 
+        if not hasattr(external, 'instances'):
+            continue # TODO: SynthesizerStreams
         distribution = []
         for instance in external.instances.values():
             if instance.results_history:
-                attempts = len(instance.results_history)
-                successes = sum(map(bool, instance.results_history))
+                #attempts = len(instance.results_history)
+                #successes = sum(map(bool, instance.results_history))
                 #print(instance, successes, attempts)
                 # TODO: also first attempt, first success
-
                 last_success = -1
                 for i, results in enumerate(instance.results_history):
                     if results:
@@ -85,11 +90,10 @@ def write_stream_statistics(stream_name, externals, verbose):
                         last_success = i
         combined_distribution = previous_statistics.get('distribution', []) + distribution
         #print(external, distribution)
-        print(external, Counter(combined_distribution))
+        #print(external, Counter(combined_distribution))
         # TODO: count num failures as well
         # Alternatively, keep metrics on the lower bound and use somehow
         # Could assume that it is some other distribution beyond that point
-
         data[external.name] = {
             'calls': external.total_calls,
             'overhead': external.total_overhead,
@@ -97,8 +101,7 @@ def write_stream_statistics(stream_name, externals, verbose):
             'distribution': combined_distribution,
         }
 
-
-    filename = get_data_path(stream_name)
+    filename = get_data_path(pddl_name)
     ensure_dir(filename)
     write_pickle(filename, data)
     if verbose:
@@ -108,10 +111,10 @@ def write_stream_statistics(stream_name, externals, verbose):
 
 # TODO: online learning vs offline learning
 
-def compute_ratio(numerator, denomenator, undefined=None):
-    if denomenator == 0:
+def compute_ratio(numerator, denominator, undefined=None):
+    if denominator == 0:
         return undefined
-    return float(numerator) / denomenator
+    return float(numerator) / denominator
 
 def geometric_cost(cost, p):
     return compute_ratio(cost, p, undefined=INF)
@@ -173,8 +176,8 @@ class Performance(object):
             return self._estimate_overhead()
         return self.info.overhead
 
-    def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
+    #def get_effort(self):
+    #    return geometric_cost(self.get_overhead(), self.get_p_success())
 
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(

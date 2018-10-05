@@ -1,6 +1,6 @@
 try:
     from Tkinter import Tk, Canvas, Toplevel
-except ModuleNotFoundError:
+except ImportError:
     from tkinter import Tk, Canvas, Toplevel
 
 
@@ -13,7 +13,7 @@ MAX_COLS = 9
 COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'violet']
 
 class DiscreteTAMPViewer(object):
-    def __init__(self, rows, cols, width=500, height=500, side=25,
+    def __init__(self, rows, cols, width=500, height=250, side=25,
                  block_buffer=10, title='Grid', background='tan', draw_fingers=False):
         assert (rows <= MAX_ROWS)
         assert (cols <= MAX_COLS)
@@ -117,12 +117,15 @@ class DiscreteTAMPViewer(object):
             ]
 
 
-    def draw_block(self, r, c, color='red'):
+    def draw_block(self, r, c, name='', color='red'):
         x = self.transform_c(c)
         y = self.transform_r(r)
-        self.cells[(x, y)] = self.canvas.create_rectangle(x - self.side / 2., y - self.side / 2.,
-                                                          x + self.side / 2., y + self.side / 2.,
-                                                          fill=color, outline='black', width=2)
+        self.cells[(x, y)] = [
+            self.canvas.create_rectangle(x - self.side / 2., y - self.side / 2.,
+                                         x + self.side / 2., y + self.side / 2.,
+                                         fill=color, outline='black', width=2),
+            self.canvas.create_text(x, y, text=name),
+        ]
 
     # def delete(self, (x, y)):
     #  if (x, y) in self.cells:

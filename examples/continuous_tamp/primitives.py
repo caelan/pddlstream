@@ -3,11 +3,14 @@ from collections import namedtuple
 
 import numpy as np
 
-from examples.continuous_tamp.viewer import SUCTION_HEIGHT, GROUND
-
+GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
+
+SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
+CARRY_Y = 5
+
 SCALE_COST = 1.
 
 
@@ -33,36 +36,13 @@ def get_block_interval(b, p):
 
 ##################################################
 
-# def get_pose_generator(regions):
-#     class PoseGenerator(Generator):
-#         def __init__(self, *inputs):
-#             super(PoseGenerator, self).__init__()
-#             self.b, self.r = inputs
-#         def generate(self, outputs=None, streams=tuple()):
-#             # TODO: designate which streams can be handled
-#             placed = {}
-#             for stream in streams:
-#                 name, args = stream[0], stream[1:]
-#                 if name in ['collision-free', 'cfree']:
-#                     for i in range(0, len(args), 2):
-#                         b, p = args[i:i+2]
-#                         if self.b != b:
-#                             placed[b] = p
-#             #p = sample_region(self.b, regions[self.r])
-#             p = rejection_sample_region(self.b, regions[self.r], placed=placed)
-#             if p is None:
-#                 return []
-#             return [(p,)]
-#     return PoseGenerator
-
-
 def collision_test(b1, p1, b2, p2):
     return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
 
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
-    return scale_cost(np.linalg.norm(q2 - q1, ord=ord))
+    return scale_cost(1 + np.linalg.norm(q2 - q1, ord=ord))
 
 
 def inverse_kin_fn(b, p):
@@ -120,8 +100,9 @@ def get_pose_gen(regions):
 
 
 def plan_motion(q1, q2):
-    t = [q1, q2]
-    #t = np.vstack([q1, q2])
+    x1, y1 = q1
+    x2, y2 = q2
+    t = [q1, np.array([x1, CARRY_Y]), np.array([x2, CARRY_Y]), q2]
     return (t,)
 
 ##################################################
@@ -129,46 +110,49 @@ def plan_motion(q1, q2):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-def get_tight_problem(n_blocks=1, n_goals=1):
+BLOCK_PREFIX = 'b'
+REGION_NAME = 'red'
+INITIAL_CONF = np.array([-7.5, 5])
+GOAL_CONF = None
+#GOAL_CONF = INITIAL_CONF
+
+def get_tight_problem(n_blocks=2, n_goals=2):
     regions = {
-        GROUND: (-15, 15),
-        'red': (5, 10)
+        GROUND_NAME: (-15, 15),
+        REGION_NAME: (5, 10)
     }
 
-    conf = np.array([0, 5])
-    blocks = ['block{}'.format(i) for i in range(n_blocks)]
+    blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
-    #poses = [sample_pose(regions[GROUND]) for _ in range(n_blocks)]
+    #poses = [sample_region(b, regions[GROUND]) for b in blocks]
 
-    initial = TAMPState(conf, None, dict(zip(blocks, poses)))
-    goal_regions = {block: 'red' for block in blocks[:n_goals]}
+    initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
+    goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
-    return TAMPProblem(initial, regions, conf, goal_regions)
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
 
-def get_blocked_problem():
-    goal = 'red'
+def get_blocked_problem(n_blocks=2, deterministic=True):
     regions = {
-        GROUND: (-15, 15),
-        goal: (5, 10)
+        GROUND_NAME: (-15, 15),
+        REGION_NAME: (5, 10)
     }
 
-    conf = np.array([0, 5])
-    blocks = ['block{}'.format(i) for i in range(2)]
-    poses = [np.zeros(2), np.array([7.5, 0])]
-    block_poses = dict(zip(blocks, poses))
+    blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
 
-    block_regions = {
-        blocks[0]: GROUND,
-        blocks[1]: goal,
-    }
-    #block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+    if deterministic:
+        poses = [np.zeros(2), np.array([7.5, 0])]
+        block_poses = dict(zip(blocks, poses))
+    else:
+        block_regions = {blocks[0]: GROUND_NAME}
+        block_regions.update({b: REGION_NAME for b in blocks[1:]})
+        block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
 
-    initial = TAMPState(conf, None, block_poses)
+    initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
-    return TAMPProblem(initial, regions, conf, goal_regions)
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
 ##################################################
 
@@ -177,10 +161,14 @@ def draw_state(viewer, state, colors):
     viewer.draw_environment()
     viewer.draw_robot(*state.conf)
     for block, pose in state.block_poses.items():
-        viewer.draw_block(pose[0], BLOCK_WIDTH, BLOCK_HEIGHT, color=colors[block])
+        x, y = pose
+        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
+                          name=block, color=colors[block])
     if state.holding is not None:
-        viewer.draw_block(state.conf[0], BLOCK_WIDTH, BLOCK_HEIGHT, color=colors[state.holding])
+        x, y = state.conf + GRASP
+        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
+                          name=state.holding, color=colors[state.holding])
+    viewer.tk.update()
 
 def get_random_seed():
-    import numpy
-    return numpy.random.get_state()[1][0]
+    return np.random.get_state()[1][0]

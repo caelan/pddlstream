@@ -1,26 +1,62 @@
 from collections import namedtuple, deque
-from heapq import heappush, heappop
 
-from pddlstream.algorithms.algorithm import neighbors_from_orders
-from pddlstream.algorithms.downward import get_init, task_from_domain_problem, get_problem, fd_from_fact, is_applicable, \
-    apply_action
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
-from pddlstream.algorithms.scheduling.relaxed import instantiate_axioms, get_achieving_axioms, extract_axioms
-from pddlstream.language.conversion import evaluation_from_fact, get_prefix, EQ, pddl_from_object
+from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
+    is_applicable, apply_action, get_action_instances, substitute_derived
+from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
+    extract_axiom_plan, instantiate_axioms
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
+from pddlstream.language.constants import EQ, And, get_prefix
+from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, find_unique, implies, HeapElement
+from pddlstream.utils import INF, Verbose, MockSet, implies, neighbors_from_orders, topological_sort
 
 
-def get_partial_orders(stream_plan):
-    # TODO: only show the first atom achieved?
+# TODO: should I use the product of all future probabilities?
+
+def get_partial_orders(stream_plan, init_facts=set()):
+    achieved_facts = set(init_facts) # TODO: achieved objects
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
+        new_facts = set(stream1.get_certified()) - achieved_facts
+        achieved_facts.update(new_facts)
         for stream2 in stream_plan[i+1:]: # Prevents circular
-            if set(stream1.get_certified()) & set(stream2.instance.get_domain()):
+            if new_facts & set(stream2.instance.get_domain()):
+                partial_orders.add((stream1, stream2))
+            if isinstance(stream1, StreamResult) and \
+                    (set(stream1.output_objects) & set(stream2.instance.input_objects)):
                 partial_orders.add((stream1, stream2))
     return partial_orders
+
+# Extract streams required to do one action
+# Compute streams that strongly depend on these. Evaluate these.
+# Execute the full prefix of the plan
+# Make the first action cheaper if uses something that doesn't need to rexpand
+# How to do this with shared objects?
+# Just do the same thing but make the cost 1 if a shared object
+
+def get_future_p_successes(stream_plan):
+    # TODO: should I use this instead of p_success in some places?
+    # TODO: learn this instead. Can estimate conditional probabilities of certain sequences
+    orders = get_partial_orders(stream_plan)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    descendants_map = {}
+    for s1 in reversed(stream_plan):
+        descendants_map[s1] = s1.instance.get_p_success()
+        for s2 in outgoing_edges[s1]:
+            descendants_map[s1] *= descendants_map[s2]
+    return descendants_map
+
+# def get_all_descendants(stream_plan):
+#     orders = get_partial_orders(stream_plan)
+#     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+#     descendants_map = {}
+#     for s1 in reversed(stream_plan):
+#         descendants_map[s1] = set(outgoing_edges[s1])
+#         for s2 in outgoing_edges[s1]:
+#             descendants_map[s1].update(descendants_map[s2])
+#     return descendants_map
 
 # def get_ancestors(stream_result, stream_plan):
 #     orders = get_partial_orders(stream_plan)
@@ -37,29 +73,12 @@ def get_partial_orders(stream_plan):
 
 ##################################################
 
-def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
-    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
-    ordering = []
-    queue = []
-    for v in vertices:
-        if not incoming_edges[v]:
-            heappush(queue, HeapElement(priority_fn(v), v))
-    while queue:
-        v1 = heappop(queue).value
-        ordering.append(v1)
-        for v2 in outgoing_edges[v1]:
-            incoming_edges[v2].remove(v1)
-            if not incoming_edges[v2]:
-                heappush(queue, HeapElement(priority_fn(v2), v2))
-    return ordering
-
-##################################################
-
 def get_stream_stats(result):
-    return result.instance.get_p_success(), result.instance.get_overhead()
+    #return result.instance.get_p_success(), result.instance.get_overhead()
+    return result.instance.external.get_p_success(), result.instance.external.get_overhead()
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
+    # TODO: prioritize cost functions as they can prune when we have a better plan
     if stream_plan is None:
         return INF
     expected_cost = 0
@@ -138,6 +157,8 @@ def reorder_stream_plan(stream_plan, **kwargs):
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
     return dynamic_programming(stream_plan, valid_combine, get_stream_stats, **kwargs)
 
+##################################################
+
 def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwargs):
     if combined_plan is None:
         return None
@@ -167,66 +188,40 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
-
-def get_action_instances(task, action_plan):
-    import pddl
-    import instantiate
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    function_assignments = {f.fluent: f.expression for f in task.init
-                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
-    fluent_facts = MockSet()
-    init_facts = set()
-    action_instances = []
-    for name, objects in action_plan:
-        # TODO: what if more than one action of the same name due to normalization?
-        # Normalized actions have same effects, so I just have to pick one
-        action = find_unique(lambda a: a.name == name, task.actions)
-        args = map(pddl_from_object, objects)
-        assert (len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                                      fluent_facts, type_to_objects,
-                                      task.use_min_cost_metric, function_assignments)
-        assert (instance is not None)
-        action_instances.append(instance)
-    return action_instances
-
 def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog
     import build_model
     import axiom_rules
     import pddl
 
-    actions = task.actions
+    original_actions = task.actions
+    original_init = task.init
     task.actions = []
     function_assignments = {f.fluent: f.expression for f in task.init
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
     task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
-    fluent_facts = MockSet()
     for instance in action_instances:
+        #axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}) # TODO: refactor this
+
         # TODO: just instantiate task?
         with Verbose(False):
             model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
         # fluent_facts = instantiate.get_fluent_facts(task, model)
+        fluent_facts = MockSet()
         instantiated_axioms = instantiate_axioms(model, task.init, fluent_facts)
-
-        goal_list = []  # TODO: include the goal?
+        goal_list = [] # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        axiom_from_atom = get_achieving_axioms(task.init | negative_init,
-                                               helpful_axioms, axiom_init)
+        axiom_from_atom = get_achieving_axioms(task.init | negative_init | set(axiom_init), helpful_axioms)
         # negated_from_name=negated_from_name)
-
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
-        # TODO: what the propositional axiom has conditional derived
-        axiom_pre = {p for ax in axiom_plan for p in ax.condition}
-        axiom_eff = {ax.effect for ax in axiom_plan}
-        instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
 
-        assert (is_applicable(task.init, instance))
+        substitute_derived(axiom_plan, instance)
+        assert(is_applicable(task.init, instance))
         apply_action(task.init, instance)
-    task.actions = actions
+    task.actions = original_actions
+    task.init = original_init
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if action_plan is None:
@@ -236,11 +231,11 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
 
     stream_instances = get_stream_instances(stream_plan)
     negative_results = filter(lambda r: isinstance(r, PredicateResult) and (r.value == False), stream_plan)
-    negative_init = set(get_init((evaluation_from_fact(f) for r in negative_results
-                                  for f in r.get_certified()), negated=True))
+    negative_init = set(fd_from_evaluation(evaluation_from_fact(f))
+                        for r in negative_results for f in r.get_certified())
     #negated_from_name = {r.instance.external.name for r in negative_results}
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_plan)
-    goal_expression = ('and',)
+    goal_expression = And()
     task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs=True))
 
     action_instances = get_action_instances(task, action_plan)

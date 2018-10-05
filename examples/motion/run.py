@@ -16,13 +16,17 @@ from pddlstream.utils import read, print_solution, user_input
 def scale_distance(distance):
     return int(np.ceil(1000 * distance))
 
+array = np.array # No hashing
+#array = list # No hashing
+#array = tuple # Hashing
+
 def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     directory = os.path.dirname(os.path.abspath(__file__))
     domain_pddl = read(os.path.join(directory, 'domain.pddl'))
     stream_pddl = read(os.path.join(directory, 'stream.pddl'))
     constant_map = {}
 
-    q0 = np.array([0, 0])
+    q0 = array([0, 0])
     init = [
         ('Conf', q0),
         ('AtConf', q0),
@@ -38,7 +42,7 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     samples = []
     def region_gen(region):
         while True:
-            q = sample_box(regions[region])
+            q = array(sample_box(regions[region]))
             samples.append(q)
             yield (q,)
 
@@ -90,7 +94,7 @@ def main(max_time=20):
         #'goal': create_box((.8, .8), (.4, .4)),
     }
 
-    goal = np.array([1, 1])
+    goal = array([1, 1])
     #goal = 'goal'
 
     max_distance = 0.25 # 0.2 | 0.25 | 0.5 | 1.0

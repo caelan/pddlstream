@@ -1,74 +1,12 @@
 from __future__ import print_function
 
 import collections
-from collections import namedtuple
+from itertools import product
 
+from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, Head, Evaluation, \
+    get_prefix, get_args, is_parameter
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import str_from_tuple
-
-EQ = '=' # xnor
-AND = 'and'
-OR = 'or'
-NOT = 'not'
-EXISTS = 'exists'
-FORALL = 'forall'
-WHEN = 'when'
-IMPLY = 'imply'
-MINIMIZE = 'minimize'
-MAXIMIZE = 'maximize'
-
-PARAMETER = '?'
-TYPE = '-'
-
-CONNECTIVES = (AND, OR, NOT, IMPLY)
-QUANTIFIERS = (FORALL, EXISTS)
-OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
-
-Problem = namedtuple('Problem', ['domain_pddl', 'constant_map', 'stream_pddl', 'stream_map', 'init', 'goal'])
-Head = namedtuple('Head', ['function', 'args'])
-Evaluation = namedtuple('Evaluation', ['head', 'value'])
-Atom = lambda head: Evaluation(head, True)
-NegatedAtom = lambda head: Evaluation(head, False)
-
-##################################################
-
-def And(*expressions):
-    return (AND,) + tuple(expressions)
-
-def Or(*expressions):
-    return (OR,) + tuple(expressions)
-
-def Not(expression):
-    return (NOT, expression)
-
-def Equal(expression1, expression2):
-    return (EQ, expression1, expression2)
-
-def Minimize(expression):
-    return (MINIMIZE, expression)
-
-def Type(param, ty):
-    return (param, TYPE, ty)
-
-def Exists(args, expression):
-    return (EXISTS, args, expression)
-
-def ForAll(args, expression):
-    return (FORALL, args, expression)
-
-##################################################
-
-def get_prefix(expression):
-    return expression[0]
-
-def get_args(head):
-    return head[1:]
-
-def is_parameter(expression):
-    return isinstance(expression, str) and expression.startswith(PARAMETER)
-
-def is_head(expression):
-    return get_prefix(expression) not in OPERATORS
+from pddlstream.utils import str_from_object
 
 def replace_expression(parent, fn):
     prefix = get_prefix(parent)
@@ -98,20 +36,44 @@ def value_from_obj_expression(parent):
 
 ##################################################
 
-def list_from_conjunction(parent):
-    if not parent:
+def get_formula_operators(formula):
+    if formula is None:
+        return set()
+    prefix = get_prefix(formula)
+    if prefix not in OPERATORS:
+        return set()
+    operators = {prefix}
+    for subformula in formula[1:]:
+        operators.update(get_formula_operators(subformula))
+    return operators
+
+def dnf_from_positive_formula(parent):
+    if parent is None:
         return []
     prefix = get_prefix(parent)
-    assert(prefix not in (QUANTIFIERS + (NOT, OR, EQ)))
+    assert(prefix not in (QUANTIFIERS + (NOT, EQ)))
+    children = []
     if prefix == AND:
-        children = []
+        for combo in product(*(dnf_from_positive_formula(child) for child in parent[1:])):
+            children.append([fact for clause in combo for fact in clause])
+    elif prefix == OR:
         for child in parent[1:]:
-            children += list_from_conjunction(child)
-        return children
-    return [tuple(parent)]
+            children.extend(dnf_from_positive_formula(child))
+    else:
+        children.append([tuple(parent)])
+    return children
+
+def list_from_conjunction(parent):
+    if parent is None:
+        return []
+    clauses = dnf_from_positive_formula(parent)
+    assert len(clauses) <= 1
+    if not clauses:
+        return clauses
+    return clauses[0]
 
 def substitute_expression(parent, mapping):
-    if isinstance(parent, str) or isinstance(parent, Object) or isinstance(parent, OptimisticObject):
+    if any(isinstance(parent, Class) for Class in [str, Object, OptimisticObject]):
         return mapping.get(parent, parent)
     return tuple(substitute_expression(child, mapping) for child in parent)
 
@@ -161,13 +123,6 @@ def evaluation_from_fact(fact):
         value = True
     return Evaluation(head_from_fact(head), value)
 
-def evaluations_from_init(init):
-    return [evaluation_from_fact(obj_from_value_expression(fact)) for fact in init]
-
-##################################################
-
-# TODO: generic method for replacing args?
-
 def fact_from_evaluation(evaluation):
     head = (evaluation.head.function,) + evaluation.head.args
     if is_atom(evaluation):
@@ -176,26 +131,15 @@ def fact_from_evaluation(evaluation):
         return (NOT, head)
     return (EQ, head, evaluation.value)
 
-def init_from_evaluation(evaluation):
-    head = (evaluation.head.function,) + values_from_objects(evaluation.head.args)
-    if is_atom(evaluation):
-        return head
-    elif is_negated_atom(evaluation):
-        return (NOT, head)
-    return (EQ, head, evaluation.value)
-
-def init_from_evaluations(evaluations):
-    return list(map(init_from_evaluation, evaluations))
-
-def state_from_evaluations(evaluations):
-    # TODO: default value?
-    # TODO: could also implement within predicates
-    state = {}
-    for evaluation in evaluations:
-        if evaluation.head in state:
-            assert(evaluation.value == state[evaluation.head])
-        state[evaluation.head] = evaluation.value
-    return state
+# def state_from_evaluations(evaluations):
+#     # TODO: default value?
+#     # TODO: could also implement within predicates
+#     state = {}
+#     for evaluation in evaluations:
+#         if evaluation.head in state:
+#             assert(evaluation.value == state[evaluation.head])
+#         state[evaluation.head] = evaluation.value
+#     return state
 
 ##################################################
 
@@ -254,7 +198,8 @@ def value_from_obj_plan(obj_plan):
 #    pass
 
 def revert_solution(plan, cost, evaluations):
-    return value_from_obj_plan(plan), cost, init_from_evaluations(evaluations)
+    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
+    return value_from_obj_plan(plan), cost, init
 
 
 #def opt_obj_from_value(value):
@@ -264,6 +209,16 @@ def revert_solution(plan, cost, evaluations):
 #    # TODO: better way of doing this?
 #    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
 
+def remap_objects(objects, bindings):
+    return tuple(bindings.get(i, i) for i in objects)
+
 
 def str_from_head(head):
-    return '{}{}'.format(get_prefix(head), str_from_tuple(get_args(head)))
+    return '{}{}'.format(get_prefix(head), str_from_object(get_args(head)))
+
+
+def str_from_fact(fact):
+    prefix = get_prefix(fact)
+    if prefix == NOT:
+        return '~{}'.format(str_from_fact(fact[1]))
+    return str_from_head(fact)

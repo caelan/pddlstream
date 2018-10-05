@@ -1,18 +1,27 @@
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, deque, namedtuple
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    solve_from_task, parse_lisp
-from pddlstream.language.conversion import evaluations_from_init, obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact
-from pddlstream.language.external import External, DEBUG
-from pddlstream.language.function import parse_function, parse_predicate
+    parse_lisp, sas_from_pddl
+from pddlstream.algorithms.search import abstrips_solve_from_task
+from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
+    evaluation_from_fact, substitute_expression
+from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
+from pddlstream.language.external import External, DEBUG, get_plan_effort
+from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
-from pddlstream.language.stream import parse_stream
-from pddlstream.utils import elapsed_time, INF
+from pddlstream.language.rule import parse_rule
+from pddlstream.language.stream import parse_stream, Stream
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
+from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 
+# TODO: way of programmatically specifying streams/actions
+
+INITIAL_EVALUATION = None
 
 def parse_constants(domain, constant_map):
+    obj_from_constant = {}
     for constant in domain.constants:
         if constant.name.startswith(Object._prefix):
             # TODO: remap names
@@ -20,7 +29,7 @@ def parse_constants(domain, constant_map):
         if constant.name not in constant_map:
             raise ValueError('Undefined constant {}'.format(constant.name))
         value = constant_map.get(constant.name, constant.name)
-        obj = Object(value, name=constant.name)
+        obj_from_constant[constant] = Object(value, name=constant.name)
         # TODO: add object predicate
     for name in constant_map:
         for constant in domain.constants:
@@ -29,18 +38,20 @@ def parse_constants(domain, constant_map):
         else:
             raise ValueError('Constant map {} not mentioned in domain'.format(name))
     del domain.constants[:] # So not set twice
+    return obj_from_constant
 
 def parse_problem(problem, stream_info={}):
+    # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     parse_constants(domain, constant_map)
-    stream_name, streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    #evaluations = set(evaluations_from_init(init))
-    evaluations = OrderedDict((e, None) for e in evaluations_from_init(init))
+    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
+    evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
     goal_expression = obj_from_value_expression(goal)
-    return evaluations, goal_expression, domain, stream_name, streams
+    compile_to_exogenous(evaluations, domain, streams)
+    return evaluations, goal_expression, domain, streams
 
 ##################################################
 
@@ -50,24 +61,18 @@ def has_costs(domain):
             return True
     return False
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs):
+def solve_finite(evaluations, goal_expression, domain, unit_costs=None, debug=False, **kwargs):
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    plan_pddl, cost = solve_from_task(task, **kwargs)
+    sas_task = sas_from_pddl(task, debug=debug)
+    plan_pddl, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
-
-def neighbors_from_orders(orders):
-    incoming_edges = defaultdict(set)
-    outgoing_edges = defaultdict(set)
-    for v1, v2 in orders:
-        incoming_edges[v2].add(v1)
-        outgoing_edges[v1].add(v2)
-    return incoming_edges, outgoing_edges
-
 ##################################################
+
+Solution = namedtuple('Solution', ['plan', 'cost'])
 
 class SolutionStore(object):
     def __init__(self, max_time, max_cost, verbose):
@@ -80,8 +85,10 @@ class SolutionStore(object):
         self.best_plan = None
         self.best_cost = INF
         #self.best_cost = self.cost_fn(self.best_plan)
+        self.solutions = []
     def add_plan(self, plan, cost):
-        # TODO: list of plans
+        # TODO: double-check that this is a solution
+        self.solutions.append(Solution(plan, cost))
         if cost < self.best_cost:
             self.best_plan = plan
             self.best_cost = cost
@@ -94,48 +101,168 @@ class SolutionStore(object):
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
 
-
-def add_certified(evaluations, result):
+def add_facts(evaluations, fact, result=None):
     new_evaluations = []
-    for fact in result.get_certified():
+    for fact in fact:
         evaluation = evaluation_from_fact(fact)
         if evaluation not in evaluations:
             evaluations[evaluation] = result
             new_evaluations.append(evaluation)
     return new_evaluations
 
+def add_certified(evaluations, result):
+    return add_facts(evaluations, result.get_certified(), result=result)
 
-def parse_stream_pddl(stream_pddl, stream_map, stream_info):
-    streams = []
-    if stream_pddl is None:
-        return None, streams
-    if all(isinstance(e, External) for e in stream_pddl):
-        return None, stream_pddl
-    if stream_map != DEBUG:
-        stream_map = {k.lower(): v for k, v in stream_map.items()}
-    stream_info = {k.lower(): v for k, v in stream_info.items()}
+##################################################
+
+def get_domain_predicates(external):
+    return set(map(get_prefix, external.domain))
+
+def get_certified_predicates(external):
+    if isinstance(external, Stream):
+        return set(map(get_prefix, external.certified))
+    if isinstance(external, Function):
+        return {get_prefix(external.head)}
+    raise ValueError(external)
+
+def get_non_producers(externals):
+    # TODO: handle case where no domain conditions
+    pairs = set()
+    for external1 in externals:
+        for external2 in externals:
+            if get_certified_predicates(external1) & get_domain_predicates(external2):
+                pairs.add((external1, external2))
+    producers = {e1 for e1, _ in pairs}
+    non_producers = set(externals) - producers
+    # TODO: these are streams that be evaluated at the end as tests
+    return non_producers
+
+##################################################
+
+def apply_rules_to_streams(rules, streams):
+    # TODO: can actually this with multiple condition if stream certified contains all
+    # TODO: do also when no domain conditions
+    processed_rules = deque(rules)
+    while processed_rules:
+        rule = processed_rules.popleft()
+        if len(rule.domain) != 1:
+            continue
+        [rule_fact] = rule.domain
+        rule.info.p_success = 0 # Need not be applied
+        for stream in streams:
+            if not isinstance(stream, Stream):
+                continue
+            for stream_fact in stream.certified:
+                if get_prefix(rule_fact) == get_prefix(stream_fact):
+                    mapping = get_mapping(get_args(rule_fact), get_args(stream_fact))
+                    new_facts = set(substitute_expression(rule.certified, mapping)) - set(stream.certified)
+                    stream.certified = stream.certified + tuple(new_facts)
+                    if new_facts and (stream in rules):
+                            processed_rules.append(stream)
+
+def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
-    pddl_type, stream_name = next(stream_iter)
+    pddl_type, pddl_name = next(stream_iter)
     assert('stream' == pddl_type)
-
     for lisp_list in stream_iter:
-        name = lisp_list[0]
-        if name == ':stream':
-            external = parse_stream(lisp_list, stream_map, stream_info)
-        elif name == ':wild':
-            raise NotImplementedError(name)
+        name = lisp_list[0] # TODO: refactor at this point
+        if name in (':stream', ':wild-stream'):
+            externals = [parse_stream(lisp_list, procedure_map, procedure_info)]
         elif name == ':rule':
-            continue
-            # TODO: implement rules
-            # TODO: add eager stream if multiple conditions otherwise apply and add to stream effects
+            externals = [parse_rule(lisp_list, procedure_map, procedure_info)]
         elif name == ':function':
-            external = parse_function(lisp_list, stream_map, stream_info)
+            externals = [parse_function(lisp_list, procedure_map, procedure_info)]
         elif name == ':predicate': # Cannot just use args if want a bound
-            external = parse_predicate(lisp_list, stream_map, stream_info)
+            externals = [parse_predicate(lisp_list, procedure_map, procedure_info)]
+        elif name == ':optimizer':
+            externals = parse_optimizer(lisp_list, procedure_map, procedure_info)
         else:
             raise ValueError(name)
-        if any(e.name == external.name for e in streams):
-            raise ValueError('Stream [{}] is not unique'.format(external.name))
-        streams.append(external)
-    return stream_name, streams
+        for external in externals:
+            if any(e.name == external.name for e in streams):
+                raise ValueError('Stream [{}] is not unique'.format(external.name))
+            if name == ':rule':
+                rules.append(external)
+            external.pddl_name = pddl_name # TODO: move within constructors
+            streams.append(external)
+
+def parse_stream_pddl(pddl_list, procedures, infos):
+    streams = []
+    if pddl_list is None:
+        return streams
+    if isinstance(pddl_list, str):
+        pddl_list = [pddl_list]
+    #if all(isinstance(e, External) for e in stream_pddl):
+    #    return stream_pddl
+    if procedures != DEBUG:
+        procedures = {k.lower(): v for k, v in procedures.items()}
+    infos = {k.lower(): v for k, v in infos.items()}
+    rules = []
+    for pddl in pddl_list:
+        parse_streams(streams, rules, pddl, procedures, infos)
+    apply_rules_to_streams(rules, streams)
+    return streams
+
+##################################################
+
+def compile_fluent_streams(domain, externals):
+    state_streams = list(filter(lambda e: isinstance(e, Stream) and
+                                          (e.is_negated() or e.is_fluent()), externals))
+    predicate_map = {}
+    for stream in state_streams:
+        for fact in stream.certified:
+            predicate = get_prefix(fact)
+            assert predicate not in predicate_map # TODO: could make a conjunction condition instead
+            predicate_map[predicate] = stream
+    if not predicate_map:
+        return state_streams
+
+    # TODO: could make free parameters free
+    # TODO: allow functions on top the produced values?
+    # TODO: check that generated values are not used in the effects of any actions
+    # TODO: could treat like a normal stream that generates values (but with no inputs required/needed)
+    def fn(literal):
+        if literal.predicate not in predicate_map:
+            return literal
+        # TODO: other checks on only inputs
+        stream = predicate_map[literal.predicate]
+        certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
+        mapping = get_mapping(get_args(certified), literal.args)
+        blocked_args = tuple(mapping[arg] for arg in stream.inputs)
+        blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
+        if stream.is_negated():
+            # TODO: add stream conditions here
+            return blocked_literal
+        else:
+            return pddl.Conjunction([literal, blocked_literal])
+
+    import pddl
+    for action in domain.actions:
+        action.precondition = replace_literals(fn, action.precondition).simplified()
+        # TODO: throw an error if the effect would be altered
+        for effect in action.effects:
+            if not isinstance(effect.condition, pddl.Truth):
+                raise NotImplementedError(effect.condition)
+            #assert(isinstance(effect, pddl.Effect))
+            #effect.condition = replace_literals(fn, effect.condition)
+    for axiom in domain.axioms:
+        axiom.condition = replace_literals(fn, axiom.condition).simplified()
+    return state_streams
+
+
+def dump_plans(stream_plan, action_plan, cost):
+    print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan),
+                                                                          get_plan_effort(stream_plan), stream_plan,
+                                                                          get_length(action_plan), cost,
+                                                                          str_from_plan(action_plan)))
+
+
+def partition_externals(externals):
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
+    negative = predicates + negated_streams
+    streams = list(filter(lambda s: s not in (functions + negative), externals))
+    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    return streams, functions, negative #, optimizers
