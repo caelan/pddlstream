@@ -65,6 +65,15 @@ Examples:
 
 See https://github.com/caelan/ss-pybullet for more information.
 
+### Drake
+
+Install Drake on OS X or Ubuntu by following the following instructions: http://drake.mit.edu/installation.html
+
+Examples:
+* Kuka IIWA task and motion planning - ```python -m examples.drake.run```
+<!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
+<img src="images/drake_kuka.png" height="150">
+
 ## Publications
 
 STRIPStream: Integrating Symbolic Planners and Blackbox Samplers
