@@ -6,8 +6,9 @@ import cProfile
 import pstats
 
 from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
-from examples.discrete_belief.run import scale_cost, revisit_mdp_cost
+from examples.discrete_belief.run import revisit_mdp_cost
 from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And, Equal
 from pddlstream.utils import print_solution, read, get_file_path, INF
 
@@ -29,9 +30,9 @@ def pddlstream_from_belief(initial_belief):
 
     init = [
         #('CanMove',),
-        Equal(('RegisterCost',), scale_cost(1)),
-        Equal(('PickCost',), scale_cost(1)), # TODO: imperfect transition model
-        Equal(('PlaceCost',), scale_cost(1)),
+        Equal(('RegisterCost',), 1),
+        Equal(('PickCost',), 1), # TODO: imperfect transition model
+        Equal(('PlaceCost',), 1),
     ]
 
     for item, dist in initial_belief.items():
@@ -47,7 +48,7 @@ def pddlstream_from_belief(initial_belief):
                     continue
                 if i2 in initial_belief:
                     init += [('FiniteScanCost', i2, item),
-                             Equal(('ScanCost', i2, item), scale_cost(cost))]
+                             Equal(('ScanCost', i2, item), cost)]
 
     graspable_classes = [SOUP, GREEN]
     for item in initial_belief:
@@ -129,7 +130,9 @@ def main():
     print(goal)
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    planner = 'max-astar'
+    #solution = solve_incremental(pddlstream_problem, planner=planner, unit_costs=False)
+    solution = solve_focused(pddlstream_problem, planner=planner, unit_costs=False)
     print_solution(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

@@ -190,8 +190,13 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     stream_info = {
         #'sample-print': StreamInfo(PartialInputs(unique=True)),
     }
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=600, effort_weight=1,
-                             planner='add-random-lazy', max_planner_time=15, debug=True)
+    planner = 'ff-ehc'
+    #planner = 'ff-wastar1000' # Branching factor becomes large. Rely on preferred. Preferred should also be cheaper
+    #planner = 'ff-eager-wastar1000'
+    #planner = 'ff-wastar5'
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=600,
+                             effort_weight=1, unit_efforts=True, use_skeleton=False, #unit_costs=True,
+                             planner=planner, max_planner_time=15, debug=True)
     # solve_exhaustive | solve_incremental
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or collision
@@ -472,7 +477,7 @@ def main(viewer=False):
     #return
 
     # djmm_test_block | mars_bubble | sig_artopt-bunny | topopt-100 | topopt-205 | topopt-310 | voronoi
-    elements, node_points, ground_nodes = load_extrusion('topopt-100')
+    elements, node_points, ground_nodes = load_extrusion('voronoi')
 
     node_order = list(range(len(node_points)))
     #np.random.shuffle(node_order)
@@ -501,7 +506,8 @@ def main(viewer=False):
     #elements = elements[:5]
     #elements = elements[:10]
     #elements = elements[:25]
-    elements = elements[:50]
+    #elements = elements[:35]
+    #elements = elements[:50]
     #elements = elements[:75]
     #elements = elements[:100]
     #elements = elements[:150]

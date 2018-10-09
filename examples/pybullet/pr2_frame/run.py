@@ -6,8 +6,7 @@ import cProfile
 import pstats
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, \
-    get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
 from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, Pose, is_placement, \

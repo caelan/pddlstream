@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import cProfile
 import pstats
-
 import numpy as np
 
 from pddlstream.algorithms.focused import solve_focused

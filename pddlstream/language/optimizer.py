@@ -117,9 +117,9 @@ class OptimizerInstance(StreamInstance):
 
         output_mapping = get_mapping(self.external.outputs, self.external.output_objects)
         output_mapping.update(self.get_mapping())
-        #constraints = substitute_expression(self.external.certified, output_mapping)
-        constraints = [substitute_expression(result.external.stream_fact, result.get_mapping())
-                       for result in self.external.stream_plan]
+        constraints = substitute_expression(self.external.certified, output_mapping)
+        #constraints = [substitute_expression(result.external.stream_fact, result.get_mapping())
+        #               for result in self.external.stream_plan]
         # TODO: I think I should be able to just disable the fluent fact from being used in that context
 
         objects = set()
