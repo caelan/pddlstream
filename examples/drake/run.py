@@ -26,6 +26,10 @@ from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
     set_joint_angles, create_context, get_random_positions, get_aabb_z_placement
 
+from kuka_multibody_controllers import (KukaMultibodyController,
+                                        HandController,
+                                        ManipStateMachine)
+
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
@@ -426,6 +430,53 @@ def test_inverse_kinematics(mbp, diagram, diagram_context, context, robot, gripp
 
 ##################################################
 
+def postprocess_plan(mbp, gripper, plan):
+    trajectories = []
+    if plan is None:
+        return trajectories
+
+    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper)) 
+    gripper_extend_fn = get_extend_fn(gripper_joints)
+    open_traj = Trajectory(Config(gripper_joints, q) for q in gripper_extend_fn(
+        get_close_wsg50_positions(mbp, gripper), get_open_wsg50_positions(mbp, gripper)))
+    close_traj = Trajectory(reversed(open_traj.path))
+    # TODO: ceiling & orientation constraints
+    # TODO: sampler chooses configurations that are far apart
+
+    for name, args in plan:
+        if name in ['clean', 'cook']:
+            continue
+        if name == 'pick':
+            o, p, g, q, t = args
+            trajectories.extend([
+                Trajectory(reversed(t.path)),
+                close_traj,
+                Trajectory(t.path, attachments=[g]),
+            ])
+        elif name == 'place':
+            o, p, g, q, t = args
+            trajectories.extend([
+                Trajectory(reversed(t.path), attachments=[g]),
+                open_traj,
+                Trajectory(t.path),
+            ])
+        else:
+            trajectories.append(args[-1])
+
+    return trajectories
+
+def step_trajectories(diagram, diagram_context, context, trajectories):
+    diagram.Publish(diagram_context)
+    user_input('Start?')
+    for traj in trajectories:
+        for _ in traj.iterate(context):
+            diagram.Publish(diagram_context)
+            time.sleep(0.01)
+        #user_input('Continue?')
+    user_input('Finish?')
+
+##################################################
+
 def main():
     mbp = MultibodyPlant(time_step=0)
     scene_graph = SceneGraph() # Geometry
@@ -464,6 +515,7 @@ def main():
 
     diagram_context = create_context(diagram, mbp)
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+    # mbp.CreateDefaultContext()
 
     table2_x = 0.75
     set_world_pose(mbp, context, sink, Pose(translation=[table2_x, 0.25, table_top_z]))
@@ -482,43 +534,9 @@ def main():
     plan, cost, evaluations = solution
     if plan is None:
         return
+    trajectories = postprocess_plan(mbp, gripper, plan)
+    step_trajectories(diagram, diagram_context, context, trajectories)
 
-    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper)) 
-    gripper_extend_fn = get_extend_fn(gripper_joints)
-    open_traj = Trajectory(Config(gripper_joints, q) for q in gripper_extend_fn(
-        get_close_wsg50_positions(mbp, gripper), get_open_wsg50_positions(mbp, gripper)))
-    close_traj = Trajectory(reversed(open_traj.path))
-    # TODO: ceiling & orientation constraints
-    # TODO: sampler chooses configurations that are far apart
-
-    ##################################################
-
-    diagram.Publish(diagram_context)
-    user_input('Start?')
-    for name, args in plan:
-        if name in ['clean', 'cook']:
-            continue
-        if name == 'pick':
-            o, p, g, q, t = args
-            trajectories = [
-                Trajectory(reversed(t.path)),
-                close_traj,
-                Trajectory(t.path, attachments=[g]),
-            ]
-        elif name == 'place':
-            o, p, g, q, t = args
-            trajectories = [
-                Trajectory(reversed(t.path), attachments=[g]),
-                open_traj,
-                Trajectory(t.path),
-            ]
-        else:
-            trajectories = [args[-1]]
-        for traj in trajectories:
-            for _ in traj.iterate(context):
-                diagram.Publish(diagram_context)
-                time.sleep(0.01)
-        user_input('Continue?')
 
 if __name__ == '__main__':
     main()
