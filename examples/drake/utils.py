@@ -268,9 +268,10 @@ def create_context(diagram, mbp):
     mbp_context = diagram.GetMutableSubsystemContext(
         mbp, diagram_context)
 
-    for i in range(mbp.get_num_input_ports()):
-        model_index = mbp.get_input_port(i)
-        mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
+    # Don't need this if I'm just stepping the trajectory
+    #for i in range(mbp.get_num_input_ports()):
+    #    model_index = mbp.get_input_port(i)
+    #    mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
 
     # set initial pose for the apple.
     #X_WApple = Isometry3.Identity()

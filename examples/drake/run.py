@@ -24,11 +24,13 @@ from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_
     get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
     get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
-    set_joint_angles, create_context, get_random_positions, get_aabb_z_placement
+    set_joint_angles, create_context, get_random_positions, get_aabb_z_placement, set_configuration
 
 from kuka_multibody_controllers import (KukaMultibodyController,
                                         HandController,
                                         ManipStateMachine)
+from pydrake.trajectories import PiecewisePolynomial
+from pydrake.systems.analysis import Simulator
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
@@ -105,11 +107,11 @@ def add_drake_visualizer(scene_graph, lcm, builder):
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph, lcm=lcm)
     DispatchLoadMessage(scene_graph, lcm)
 
-#def add_logger(mbp, builder):
-#    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
-#    state_log._DeclarePeriodicPublish(0.02)
-#    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
-#    return state_log
+def add_logger(mbp, builder):
+    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
+    state_log._DeclarePeriodicPublish(0.02)
+    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
+    return state_log
 
 def connect_collisions(mbp, scene_graph, builder):
     # Connect scene_graph to MBP for collision detection.
@@ -120,16 +122,57 @@ def connect_collisions(mbp, scene_graph, builder):
         scene_graph.get_query_output_port(),
         mbp.get_geometry_query_input_port())
 
+def connect_controllers(builder, plant, iiwa_model, gripper_model, q_traj_list, gripper_setpoint_list):
+    assert len(q_traj_list) == len(gripper_setpoint_list)
+
+    # Add iiwa controller
+    print_period = 0.5
+    iiwa_controller = KukaMultibodyController(plant=plant,
+                                              kuka_model_instance=iiwa_model,
+                                              print_period=print_period)
+    builder.AddSystem(iiwa_controller)
+    builder.Connect(iiwa_controller.get_output_port(0),
+                    plant.get_input_port(0))
+    builder.Connect(plant.get_continuous_state_output_port(),
+                    iiwa_controller.robot_state_input_port)
+
+    # Add hand controller
+    hand_controller = HandController(plant=plant,
+                                     model_instance=gripper_model)
+    builder.AddSystem(hand_controller)
+    builder.Connect(hand_controller.get_output_port(0),
+                    plant.get_input_port(1))
+    builder.Connect(plant.get_continuous_state_output_port(),
+                    hand_controller.robot_state_input_port)
+
+    # Add state machine
+    state_machine = ManipStateMachine(plant, q_traj_list, gripper_setpoint_list)
+    builder.AddSystem(state_machine)
+    builder.Connect(plant.get_continuous_state_output_port(),
+                    state_machine.robot_state_input_port)
+    builder.Connect(state_machine.kuka_plan_output_port,
+                    iiwa_controller.plan_input_port)
+    builder.Connect(state_machine.hand_setpoint_output_port,
+                    hand_controller.setpoint_input_port)
+
+    # Add logger
+    state_log = builder.AddSystem(SignalLogger(plant.get_continuous_state_output_port().size()))
+    state_log._DeclarePeriodicPublish(0.02)
+    builder.Connect(plant.get_continuous_state_output_port(), state_log.get_input_port(0))
+
+    # Build diagram.
+    #return builder.Build()
+
 def build_diagram(mbp, scene_graph, lcm):
-    mbp.Finalize(scene_graph)
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
     builder.AddSystem(mbp)
     connect_collisions(mbp, scene_graph, builder)
     #add_meshcat_visualizer(scene_graph, builder)
     add_drake_visualizer(scene_graph, lcm, builder)
-    #add_logger(mbp, builder)
-    return builder.Build()
+    add_logger(mbp, builder)
+    #return builder.Build()
+    return builder
 
 ##################################################
 
@@ -439,7 +482,7 @@ def postprocess_plan(mbp, gripper, plan):
     gripper_extend_fn = get_extend_fn(gripper_joints)
     open_traj = Trajectory(Config(gripper_joints, q) for q in gripper_extend_fn(
         get_close_wsg50_positions(mbp, gripper), get_open_wsg50_positions(mbp, gripper)))
-    close_traj = Trajectory(reversed(open_traj.path))
+    close_traj = Trajectory(reversed(open_traj.path)) # TODO: omits the start point
     # TODO: ceiling & orientation constraints
     # TODO: sampler chooses configurations that are far apart
 
@@ -475,10 +518,64 @@ def step_trajectories(diagram, diagram_context, context, trajectories):
         #user_input('Continue?')
     user_input('Finish?')
 
+def simulate_splines(diagram, diagram_context, sim_duration):
+    real_time_rate = 1.0
+    simulator = Simulator(diagram, diagram_context)
+    simulator.set_publish_every_time_step(False)
+    simulator.set_target_realtime_rate(real_time_rate)
+    simulator.Initialize()
+
+    diagram.Publish(diagram_context)
+    user_input('Start?')
+    simulator.StepTo(sim_duration)
+    user_input('Finish?')
+
+##################################################
+
+def compute_duration(q_traj_list):
+    sim_duration = 0.
+    for q_traj in q_traj_list:
+        sim_duration += q_traj.end_time() + 0.5
+    sim_duration += 5.0
+    return sim_duration
+
+def convert_splines(mbp, robot, gripper, context, trajectories):
+    # TODO: move to trajectory class
+    q_traj_list, gripper_setpoint_list = [], []
+    for traj in trajectories:
+        traj.path[-1].assign(context)
+        joints = traj.path[0].joints
+        if len(joints) == 2:
+            q_knots_kuka = np.zeros((2, 7))
+            q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
+            q_traj_list.append(PiecewisePolynomial.ZeroOrderHold(
+                [0, 1], q_knots_kuka.T))
+        elif len(joints) == 7:
+            # TODO: adjust timing based on distance & velocities
+            # TODO: adjust number of waypoints
+            path = [traj.path[0], traj.path[-1]]
+            q_knots_kuka = np.vstack([q.positions for q in path])
+            n, d = q_knots_kuka.shape
+            t_knots = np.array([0., 1.])
+            q_traj_list.append(PiecewisePolynomial.Cubic(
+                breaks=t_knots, 
+                knots=q_knots_kuka.T,
+                knot_dot_start=np.zeros(d), 
+                knot_dot_end=np.zeros(d)))
+        else:
+            raise ValueError(joints)
+        _, gripper_setpoint = get_configuration(mbp, context, gripper)
+        gripper_setpoint_list.append(gripper_setpoint)
+    return q_traj_list, gripper_setpoint_list
+
 ##################################################
 
 def main():
-    mbp = MultibodyPlant(time_step=0)
+    # TODO: argparse for step vs simulate
+
+    # TODO: this doesn't update unless it's set to zero
+    timestep = 0 #.0002 # 0
+    mbp = MultibodyPlant(time_step=timestep)
     scene_graph = SceneGraph() # Geometry
     lcm = DrakeLcm()
 
@@ -506,25 +603,28 @@ def main():
     weld_to_world(mbp, robot, Pose(translation=[0, 0, table_top_z]))
     weld_to_world(mbp, table, Pose())
     weld_to_world(mbp, table2, Pose(translation=[0.75, 0, 0]))
-    diagram = build_diagram(mbp, scene_graph, lcm)
+    mbp.Finalize(scene_graph)
 
     ##################################################
     
     #dump_plant(mbp)
     #dump_models(mbp)
 
-    diagram_context = create_context(diagram, mbp)
-    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-    # mbp.CreateDefaultContext()
-
+    context = mbp.CreateDefaultContext()
     table2_x = 0.75
+    # TODO: weld sink & stove
     set_world_pose(mbp, context, sink, Pose(translation=[table2_x, 0.25, table_top_z]))
     set_world_pose(mbp, context, stove, Pose(translation=[table2_x, -0.25, table_top_z]))
     set_world_pose(mbp, context, broccoli, Pose(translation=[table2_x, 0, table_top_z]))
     open_wsg50_gripper(mbp, context, gripper)
     #close_wsg50_gripper(mbp, context, gripper)
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
-    diagram.Publish(diagram_context)
+    
+    initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
+    #print(context.get_continuous_state().get_vector())
+    #print(context.get_continuous_state_vector())
+    #print(context.get_discrete_state_vector())
+    #print(context.get_abstract_state())
 
     ##################################################
 
@@ -535,8 +635,21 @@ def main():
     if plan is None:
         return
     trajectories = postprocess_plan(mbp, gripper, plan)
-    step_trajectories(diagram, diagram_context, context, trajectories)
+    q_traj_list, gripper_setpoint_list = convert_splines(mbp, robot, gripper, context, trajectories)
+    sim_duration = compute_duration(q_traj_list)
+    print('Splines: {}\nDuration: {} seconds'.format(len(q_traj_list), sim_duration))
 
+    ##################################################
+
+    builder = build_diagram(mbp, scene_graph, lcm)
+    connect_controllers(builder, mbp, robot, gripper, q_traj_list, gripper_setpoint_list)
+    diagram = builder.Build()
+    diagram_context = create_context(diagram, mbp)
+    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+    context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
+
+    step_trajectories(diagram, diagram_context, context, trajectories)
+    #simulate_splines(diagram, diagram_context, sim_duration)
 
 if __name__ == '__main__':
     main()
