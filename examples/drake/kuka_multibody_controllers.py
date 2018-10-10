@@ -1,17 +1,12 @@
 # -*- coding: utf8 -*-
 
 import numpy as np
-import sys
-import pydrake
 from pydrake.all import (
     BasicVector,
     LeafSystem,
     PortDataType,
     MathematicalProgram,
     AbstractValue,
-)
-from pydrake.trajectories import (
-    PiecewisePolynomial
 )
 
 from pydrake.multibody.multibody_tree import MultibodyForces

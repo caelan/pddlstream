@@ -7,6 +7,7 @@ import time
 import pydrake
 import numpy as np
 import random
+import argparse
 
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -18,9 +19,9 @@ from pydrake.systems.primitives import SignalLogger
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn
-from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
+from pddlstream.utils import print_solution, read, INF, get_file_path
 
-from examples.drake.utils import BoundingBox, Pose, get_model_bodies, get_model_joints, \
+from examples.drake.utils import BoundingBox, create_transform, get_model_bodies, get_model_joints, \
     get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
     get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
@@ -41,28 +42,23 @@ from pydrake.systems.analysis import Simulator
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
 # http://127.0.0.1:7000/static/
 
-iiwa_sdf_path = os.path.join(pydrake.getDrakePath(),
+IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
     #"iiwa14_no_collision_floating.sdf")
     "iiwa14_no_collision.sdf")
 
-wsg50_sdf_path = os.path.join(pydrake.getDrakePath(),
+WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "wsg_50_description", "sdf",
     "schunk_wsg_50.sdf")
 
-table_sdf_path = os.path.join(pydrake.getDrakePath(),
+TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "examples", "kuka_iiwa_arm", "models", "table",
     "extra_heavy_duty_table_surface_only_collision.sdf")
 
-#apple_sdf_path = os.path.join(pydrake.getDrakePath(),
-#    "examples", "kuka_iiwa_arm", "models", "objects",
-#    "apple.sdf")
-
-models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-bleach_path = os.path.join(models_dir, "bleach_bottle.sdf")
-sink_path = os.path.join(models_dir, "sink.sdf")
-stove_path = os.path.join(models_dir, "stove.sdf")
-broccoli_path = os.path.join(models_dir, "broccoli.sdf")
+MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+SINK_PATH = os.path.join(MODELS_DIR, "sink.sdf")
+STOVE_PATH = os.path.join(MODELS_DIR, "stove.sdf")
+BROCCOLI_PATH = os.path.join(MODELS_DIR, "broccoli.sdf")
 
 AABBs = {
     'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
@@ -77,7 +73,7 @@ AABBs = {
 ##################################################
 
 def weld_gripper(mbp, robot_index, gripper_index):
-    X_EeGripper = Pose([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
+    X_EeGripper = create_transform([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
     robot_body = get_model_bodies(mbp, robot_index)[-1]
     gripper_body = get_model_bodies(mbp, gripper_index)[0]
     mbp.AddJoint(WeldJoint(name="weld_gripper_to_robot_ee",
@@ -122,46 +118,34 @@ def connect_collisions(mbp, scene_graph, builder):
         scene_graph.get_query_output_port(),
         mbp.get_geometry_query_input_port())
 
-def connect_controllers(builder, plant, iiwa_model, gripper_model, q_traj_list, gripper_setpoint_list):
-    assert len(q_traj_list) == len(gripper_setpoint_list)
-
-    # Add iiwa controller
-    print_period = 0.5
-    iiwa_controller = KukaMultibodyController(plant=plant,
-                                              kuka_model_instance=iiwa_model,
+def connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints, print_period=1.0):
+    assert len(splines) == len(gripper_setpoints)
+    iiwa_controller = KukaMultibodyController(plant=mbp,
+                                              kuka_model_instance=robot,
                                               print_period=print_period)
     builder.AddSystem(iiwa_controller)
     builder.Connect(iiwa_controller.get_output_port(0),
-                    plant.get_input_port(0))
-    builder.Connect(plant.get_continuous_state_output_port(),
+                    mbp.get_input_port(0))
+    builder.Connect(mbp.get_continuous_state_output_port(),
                     iiwa_controller.robot_state_input_port)
 
-    # Add hand controller
-    hand_controller = HandController(plant=plant,
-                                     model_instance=gripper_model)
+    hand_controller = HandController(plant=mbp,
+                                     model_instance=gripper)
     builder.AddSystem(hand_controller)
     builder.Connect(hand_controller.get_output_port(0),
-                    plant.get_input_port(1))
-    builder.Connect(plant.get_continuous_state_output_port(),
+                    mbp.get_input_port(1))
+    builder.Connect(mbp.get_continuous_state_output_port(),
                     hand_controller.robot_state_input_port)
 
-    # Add state machine
-    state_machine = ManipStateMachine(plant, q_traj_list, gripper_setpoint_list)
+    state_machine = ManipStateMachine(mbp, splines, gripper_setpoints)
     builder.AddSystem(state_machine)
-    builder.Connect(plant.get_continuous_state_output_port(),
+    builder.Connect(mbp.get_continuous_state_output_port(),
                     state_machine.robot_state_input_port)
     builder.Connect(state_machine.kuka_plan_output_port,
                     iiwa_controller.plan_input_port)
     builder.Connect(state_machine.hand_setpoint_output_port,
                     hand_controller.setpoint_input_port)
 
-    # Add logger
-    state_log = builder.AddSystem(SignalLogger(plant.get_continuous_state_output_port().size()))
-    state_log._DeclarePeriodicPublish(0.02)
-    builder.Connect(plant.get_continuous_state_output_port(), state_log.get_input_port(0))
-
-    # Build diagram.
-    #return builder.Build()
 
 def build_diagram(mbp, scene_graph, lcm):
     builder = DiagramBuilder()
@@ -240,18 +224,18 @@ def get_extend_fn(joints, resolutions=None):
 ##################################################
 
 def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out of gripper
-    tool = Pose(translation=[0, 0, -0.1])
+    tool = create_transform(translation=[0, 0, -0.1])
     center, extent = aabb
     w, l, h = 2*extent
-    reflect_z = Pose(rotation=[np.pi / 2, 0, 0])
-    translate_z = Pose(translation=[0, 0, -h / 2 + grasp_length])
-    aabb_from_body = Pose(translation=center).inverse()
+    reflect_z = create_transform(rotation=[np.pi / 2, 0, 0])
+    translate_z = create_transform(translation=[0, 0, -h / 2 + grasp_length])
+    aabb_from_body = create_transform(translation=center).inverse()
     diameter = (w + l) / 2 # TODO: check that these are close
     if max_width < diameter:
         return
     while True:
         theta = random.uniform(0, 2*np.pi)
-        rotate_z = Pose(rotation=[0, 0, theta])
+        rotate_z = create_transform(rotation=[0, 0, theta])
         yield reflect_z.multiply(rotate_z).multiply(translate_z).multiply(tool).multiply(aabb_from_body)
 
 ##################################################
@@ -330,7 +314,7 @@ def get_ik_fn(mbp, robot, gripper, distance=0.1, step_size=0.01):
         path = []
         for t in list(np.arange(0, distance, step_size)) + [distance]:
             current_vector = t * direction / np.linalg.norm(direction)
-            current_pose = grasp_pose.multiply(Pose(translation=current_vector))
+            current_pose = grasp_pose.multiply(create_transform(translation=current_vector))
             solution = solve_inverse_kinematics(mbp, gripper_frame, current_pose, initial_guess=solution)
             if solution is None:
                 return None
@@ -425,52 +409,6 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def test_inverse_kinematics(mbp, diagram, diagram_context, context, robot, gripper, broccoli):
-    IIWA_JOINT_NAMES = ["iiwa_joint_%d" % (i + 1) for i in range(7)]
-    IIWA_JOINT_LIMITS = zip(len(IIWA_JOINT_NAMES) * [-2], len(IIWA_JOINT_NAMES) * [2])
-
-    gripper_frame = mbp.GetFrameByName("body", gripper)
-    print(gripper_frame.name())
-    gripper_frame = get_base_body(mbp, gripper).body_frame()
-    print(gripper_frame.name())
-
-    #gripper_pose = get_body_pose(mbp, context, mbp.GetBodyByName('body', gripper))
-    gripper_pose = get_world_pose(mbp, context, gripper)
-    print(gripper_pose)
-    print(get_relative_transform(mbp, context, gripper_frame))
-
-    aabb = BoundingBox(np.array([0, 0, 0.05]), np.array([0.025, 0.025, 0.05])) # wrt body frame
-    grasp = next(get_top_cylinder_grasps(aabb))
-    #set_world_pose(mbp, context, broccoli, gripper_pose.multiply(grasp))
-
-    diagram.Publish(diagram_context)
-    user_input('Continue?')
-
-    target_pose = get_world_pose(mbp, context, broccoli).multiply(grasp.inverse())
-    print(target_pose)
-
-    conf = solve_inverse_kinematics(mbp, gripper_frame, target_pose)
-    if conf is None:
-        return
-    iiwa_conf = mbp.tree().get_positions_from_array(robot, conf)
-    set_joint_angles(mbp, context, IIWA_JOINT_NAMES, conf)
-    print(get_world_pose(mbp, context, gripper))
-    print(get_relative_transform(mbp, context, gripper_frame))
-
-    diagram.Publish(diagram_context)
-    user_input('Next?')
-
-    for i in range(10):
-        print(get_joint_angles(mbp, context, IIWA_JOINT_NAMES))
-        for joint_name, joint_range in zip(IIWA_JOINT_NAMES, IIWA_JOINT_LIMITS):
-            iiwa_joint = mbp.GetJointByName(joint_name)
-            joint_angle = random.uniform(*joint_range)
-            print(get_joint_limits(iiwa_joint))
-            iiwa_joint.set_angle(context=context, angle=joint_angle)
-        diagram.Publish(diagram_context)
-        user_input('Continue?')
-    user_input('Finish?')
-
 ##################################################
 
 def postprocess_plan(mbp, gripper, plan):
@@ -508,18 +446,19 @@ def postprocess_plan(mbp, gripper, plan):
 
     return trajectories
 
-def step_trajectories(diagram, diagram_context, context, trajectories):
+def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.01):
     diagram.Publish(diagram_context)
     user_input('Start?')
     for traj in trajectories:
         for _ in traj.iterate(context):
             diagram.Publish(diagram_context)
-            time.sleep(0.01)
-        #user_input('Continue?')
+            if time_step is None:
+                user_input('Continue?')
+            else:
+                time.sleep(0.01)
     user_input('Finish?')
 
-def simulate_splines(diagram, diagram_context, sim_duration):
-    real_time_rate = 1.0
+def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0):
     simulator = Simulator(diagram, diagram_context)
     simulator.set_publish_every_time_step(False)
     simulator.set_target_realtime_rate(real_time_rate)
@@ -532,23 +471,23 @@ def simulate_splines(diagram, diagram_context, sim_duration):
 
 ##################################################
 
-def compute_duration(q_traj_list):
+def compute_duration(splines):
     sim_duration = 0.
-    for q_traj in q_traj_list:
-        sim_duration += q_traj.end_time() + 0.5
+    for spline in splines:
+        sim_duration += spline.end_time() + 0.5
     sim_duration += 5.0
     return sim_duration
 
 def convert_splines(mbp, robot, gripper, context, trajectories):
     # TODO: move to trajectory class
-    q_traj_list, gripper_setpoint_list = [], []
+    splines, gripper_setpoints = [], []
     for traj in trajectories:
         traj.path[-1].assign(context)
         joints = traj.path[0].joints
         if len(joints) == 2:
             q_knots_kuka = np.zeros((2, 7))
             q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
-            q_traj_list.append(PiecewisePolynomial.ZeroOrderHold(
+            splines.append(PiecewisePolynomial.ZeroOrderHold(
                 [0, 1], q_knots_kuka.T))
         elif len(joints) == 7:
             # TODO: adjust timing based on distance & velocities
@@ -557,7 +496,7 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             q_knots_kuka = np.vstack([q.positions for q in path])
             n, d = q_knots_kuka.shape
             t_knots = np.array([0., 1.])
-            q_traj_list.append(PiecewisePolynomial.Cubic(
+            splines.append(PiecewisePolynomial.Cubic(
                 breaks=t_knots, 
                 knots=q_knots_kuka.T,
                 knot_dot_start=np.zeros(d), 
@@ -565,44 +504,43 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
         else:
             raise ValueError(joints)
         _, gripper_setpoint = get_configuration(mbp, context, gripper)
-        gripper_setpoint_list.append(gripper_setpoint)
-    return q_traj_list, gripper_setpoint_list
+        gripper_setpoints.append(gripper_setpoint)
+    return splines, gripper_setpoints
 
 ##################################################
 
 def main():
-    # TODO: argparse for step vs simulate
+    parser = argparse.ArgumentParser()  # Automatically includes help
+    #parser.add_argument('-arm', required=True)
+    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
+    args = parser.parse_args()
 
     # TODO: this doesn't update unless it's set to zero
-    timestep = 0 #.0002 # 0
-    mbp = MultibodyPlant(time_step=timestep)
+    time_step = 0 #.0002 # 0
+    mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph() # Geometry
     lcm = DrakeLcm()
 
-    robot = AddModelFromSdfFile(file_name=iiwa_sdf_path, model_name='robot',
-                               scene_graph=scene_graph, plant=mbp)
-    gripper = AddModelFromSdfFile(file_name=wsg50_sdf_path, model_name='gripper',
+    robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='robot',
+                                scene_graph=scene_graph, plant=mbp)
+    gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
                                   scene_graph=scene_graph, plant=mbp)
-    table = AddModelFromSdfFile(file_name=table_sdf_path, model_name='table',
+    table = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table',
                                 scene_graph=scene_graph, plant=mbp)
-    table2 = AddModelFromSdfFile(file_name=table_sdf_path, model_name='table2',
+    table2 = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table2',
                                  scene_graph=scene_graph, plant=mbp)
-    #apple = AddModelFromSdfFile(file_name=apple_sdf_path, model_name='apple',
-    #                                  scene_graph=scene_graph, plant=mbp)
-    #bleach = AddModelFromSdfFile(file_name=bleach_path, model_name='bleach',
-    #                             scene_graph=scene_graph, plant=mbp)
-    sink = AddModelFromSdfFile(file_name=sink_path, model_name='sink',
+    sink = AddModelFromSdfFile(file_name=SINK_PATH, model_name='sink',
+                               scene_graph=scene_graph, plant=mbp)
+    stove = AddModelFromSdfFile(file_name=STOVE_PATH, model_name='stove',
                                 scene_graph=scene_graph, plant=mbp)
-    stove = AddModelFromSdfFile(file_name=stove_path, model_name='stove',
-                                scene_graph=scene_graph, plant=mbp)
-    broccoli = AddModelFromSdfFile(file_name=broccoli_path, model_name='broccoli',
-                                scene_graph=scene_graph, plant=mbp)
+    broccoli = AddModelFromSdfFile(file_name=BROCCOLI_PATH, model_name='broccoli',
+                                   scene_graph=scene_graph, plant=mbp)
 
     table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
     weld_gripper(mbp, robot, gripper)
-    weld_to_world(mbp, robot, Pose(translation=[0, 0, table_top_z]))
-    weld_to_world(mbp, table, Pose())
-    weld_to_world(mbp, table2, Pose(translation=[0.75, 0, 0]))
+    weld_to_world(mbp, robot, create_transform(translation=[0, 0, table_top_z]))
+    weld_to_world(mbp, table, create_transform())
+    weld_to_world(mbp, table2, create_transform(translation=[0.75, 0, 0]))
     mbp.Finalize(scene_graph)
 
     ##################################################
@@ -613,16 +551,15 @@ def main():
     context = mbp.CreateDefaultContext()
     table2_x = 0.75
     # TODO: weld sink & stove
-    set_world_pose(mbp, context, sink, Pose(translation=[table2_x, 0.25, table_top_z]))
-    set_world_pose(mbp, context, stove, Pose(translation=[table2_x, -0.25, table_top_z]))
-    set_world_pose(mbp, context, broccoli, Pose(translation=[table2_x, 0, table_top_z]))
+    set_world_pose(mbp, context, sink, create_transform(translation=[table2_x, 0.25, table_top_z]))
+    set_world_pose(mbp, context, stove, create_transform(translation=[table2_x, -0.25, table_top_z]))
+    set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z]))
     open_wsg50_gripper(mbp, context, gripper)
     #close_wsg50_gripper(mbp, context, gripper)
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
     
     initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
     #print(context.get_continuous_state().get_vector())
-    #print(context.get_continuous_state_vector())
     #print(context.get_discrete_state_vector())
     #print(context.get_abstract_state())
 
@@ -635,21 +572,27 @@ def main():
     if plan is None:
         return
     trajectories = postprocess_plan(mbp, gripper, plan)
-    q_traj_list, gripper_setpoint_list = convert_splines(mbp, robot, gripper, context, trajectories)
-    sim_duration = compute_duration(q_traj_list)
-    print('Splines: {}\nDuration: {} seconds'.format(len(q_traj_list), sim_duration))
+    splines, gripper_setpoints = convert_splines(mbp, robot, gripper, context, trajectories)
+    sim_duration = compute_duration(splines)
+    print('Splines: {}\nDuration: {} seconds'.format(len(splines), sim_duration))
 
     ##################################################
 
     builder = build_diagram(mbp, scene_graph, lcm)
-    connect_controllers(builder, mbp, robot, gripper, q_traj_list, gripper_setpoint_list)
+    if args.simulate:
+        connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints)
     diagram = builder.Build()
-    diagram_context = create_context(diagram, mbp)
+    diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
+    #for i in range(mbp.get_num_input_ports()):
+    #    model_index = mbp.get_input_port(i)
+    #    context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
 
-    step_trajectories(diagram, diagram_context, context, trajectories)
-    #simulate_splines(diagram, diagram_context, sim_duration)
+    if args.simulate:
+        simulate_splines(diagram, diagram_context, sim_duration)
+    else:
+        step_trajectories(diagram, diagram_context, context, trajectories)
 
 if __name__ == '__main__':
     main()

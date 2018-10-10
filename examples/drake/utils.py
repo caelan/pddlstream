@@ -35,7 +35,7 @@ def sample_aabb_placement(object_aabb, surface_aabb, **kwargs):
         lower = get_aabb_lower(surface_aabb)[:2]
         upper = get_aabb_upper(surface_aabb)[:2]
         [x, y] = np.random.uniform(lower, upper) - object_aabb.center[:2]
-        yield Pose(np.array([x, y, z]), np.array([0, 0, yaw]))
+        yield create_transform(np.array([x, y, z]), np.array([0, 0, yaw]))
 
 ##################################################
 
@@ -44,7 +44,7 @@ def matrix_from_euler(euler):
     return RollPitchYaw(roll, pitch, yaw).ToRotationMatrix().matrix()
 
 
-def Pose(translation=None, rotation=None):
+def create_transform(translation=None, rotation=None):
     pose = Isometry3.Identity()
     if translation is not None:
         pose.set_translation(translation)
@@ -107,16 +107,13 @@ def is_fixed_joints(joint):
 def prune_fixed_joints(joints):
     return list(filter(lambda j: not is_fixed_joints(j), joints))
 
+
+def get_movable_joints(mbp, model_index):
+    return prune_fixed_joints(get_model_joints(mbp, model_index))
+
+
 ##################################################
 
-#def get_joint_indices(mbp, model_index=None):
-#    if model_index is None:
-#        joint_range = range(mbp.num_joints())
-#    else:
-#        num_joints_models = [mbp.num_joints(index) for index in get_model_indices(mbp)]
-#        int(model_index)
-#        print()
-#    return [JointIndex(i) for i in joint_range]
 
 def joints_from_names(mbp, joint_names):
     return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
@@ -253,38 +250,13 @@ def dump_models(mbp):
         dump_model(mbp, model_index)
 
 
-##################################################
-
 def weld_to_world(mbp, model_index, world_pose):
     mbp.AddJoint(
         WeldJoint(name="weld_to_world",
-        parent_frame_P=mbp.world_body().body_frame(),
-        child_frame_C=get_base_body(mbp, model_index).body_frame(),
-        X_PC=world_pose))
+                  parent_frame_P=mbp.world_body().body_frame(),
+                  child_frame_C=get_base_body(mbp, model_index).body_frame(),
+                  X_PC=world_pose))
 
-def create_context(diagram, mbp):
-    # Fix multibodyplant actuation input port to 0.
-    diagram_context = diagram.CreateDefaultContext()
-    mbp_context = diagram.GetMutableSubsystemContext(
-        mbp, diagram_context)
-
-    # Don't need this if I'm just stepping the trajectory
-    #for i in range(mbp.get_num_input_ports()):
-    #    model_index = mbp.get_input_port(i)
-    #    mbp_context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
-
-    # set initial pose for the apple.
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation(apple_initial_position_in_world_frame)
-    #mbt = mbp.tree()
-    #mbt.SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("base_link_apple", apple_model), X_WApple, mbp_context)
-
-    #X_WApple = Isometry3.Identity()
-    #X_WApple.set_translation([0, 0, table_top_z])
-    #mbp.tree().SetFreeBodyPoseOrThrow(
-    #    mbp.GetBodyByName("iiwa_link_0"), X_WApple, mbp_context)
-    return diagram_context
 
 ##################################################
 
