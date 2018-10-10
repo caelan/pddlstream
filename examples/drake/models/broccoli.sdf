@@ -44,25 +44,25 @@
     </collision>
 
     <collision name='point_collision1'>
-      <origin xyz="0.025 0 0" rpy="0 0 0"/>
+      <pose frame=''>0.025 0 0 0 0 0</pose>
       <geometry>
         <sphere><radius>1e-7</radius></sphere>
       </geometry>
     </collision>
     <collision name='point_collision2'>
-      <origin xyz="-0.025 0 0" rpy="0 0 0"/>
+      <pose frame=''>-0.025 0 0 0 0 0</pose>
       <geometry>
         <sphere><radius>1e-7</radius></sphere>
       </geometry>
     </collision>
     <collision name='point_collision3'>
-      <origin xyz="0.025 0 0" rpy="0 0 0"/>
+      <pose frame=''>0 0.025 0 0 0 0</pose>
       <geometry>
         <sphere><radius>1e-7</radius></sphere>
       </geometry>
     </collision>
     <collision name='point_collision4'>
-      <origin xyz="0 -0.025 0" rpy="0 0 0"/>
+      <pose frame=''>0 -0.025 0 0 0 0</pose>
       <geometry>
         <sphere><radius>1e-7</radius></sphere>
       </geometry>

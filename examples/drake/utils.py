@@ -256,6 +256,12 @@ def weld_to_world(mbp, model_index, world_pose):
                   parent_frame_P=mbp.world_body().body_frame(),
                   child_frame_C=get_base_body(mbp, model_index).body_frame(),
                   X_PC=world_pose))
+    
+
+def fix_input_ports(mbp, context):
+    for i in range(mbp.get_num_input_ports()):
+        model_index = mbp.get_input_port(i)
+        context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
 
 
 ##################################################
