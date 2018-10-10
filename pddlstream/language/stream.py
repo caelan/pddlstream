@@ -42,11 +42,11 @@ class PartialInputs(object):
     def get_opt_gen_fn(self, stream):
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
+        # TODO: ensure no scoping error with inputs
         def gen_fn(*input_values):
-            # TODO: generate more elements
             input_objects = tuple(map(Object.from_value, input_values))
             instance = stream.get_instance(input_objects)
-            mapping = get_mapping(stream.inputs, input_values)
+            mapping = get_mapping(stream.inputs, input_objects)
             values = tuple(mapping[inp] for inp in inputs)
             assert(len(inputs) == len(values))
             #for _ in irange(self.num):
@@ -305,6 +305,8 @@ class Stream(External):
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):
+            if self.info.opt_gen_fn.unique:
+                self.num_opt_fns = 0
             self.opt_gen_fn = self.info.opt_gen_fn.get_opt_gen_fn(self)
         else:
             self.opt_gen_fn = self.info.opt_gen_fn

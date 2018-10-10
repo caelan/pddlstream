@@ -3,7 +3,7 @@ from collections import Counter, deque
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, DEFAULT_UNIQUE
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs
 from pddlstream.language.generator import empty_gen
 from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import get_mapping, INF, neighbors_from_orders
@@ -15,14 +15,10 @@ from pddlstream.language.synthesizer import get_cluster_values
 
 import copy
 
-
-# TODO: augment state with the set of constraints required on the path
-# TODO: create additional variables in the event that the search fails
-# TODO: make more samples corresponding to the most number used in a failed cluster
 # TODO: could also just block a skeleton itself by adding it as a state variable
-# TODO: fluents for what is not active in the state and add those to consider subsets
 
 DEFAULT_SIMULTANEOUS = True
+DEFAULT_UNIQUE = True
 
 class Optimizer(object):
     def __init__(self, name, procedure, info):
@@ -78,7 +74,7 @@ class VariableStream(Stream):
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         # Each stream could certify a stream-specific fact as well
         # TODO: will I need to adjust simultaneous here as well?
-        info = StreamInfo(simultaneous=DEFAULT_SIMULTANEOUS)
+        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), simultaneous=DEFAULT_SIMULTANEOUS)
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
                                              outputs, certified, info)
@@ -115,10 +111,9 @@ class OptimizerInstance(StreamInstance):
         #self.external.disabled_instances.append(self)
         instance_counts = Counter(r.instance for r in self.external.stream_plan
                                   if isinstance(r.external, VariableStream))
-        for instance, num in instance_counts.items():
+        for instance, num in instance_counts.items(): # TODO: wait until the full plan has failed
             instance.num_optimistic = max(instance.num_optimistic, num + 1)
-        # TODO: don't do this until the full plan has failed
-        self._add_disabled_axiom(domain)
+        #self._add_disabled_axiom(domain)
     def get_constraints(self):
         output_mapping = get_mapping(self.external.outputs, self.external.output_objects)
         output_mapping.update(self.get_mapping())
@@ -129,24 +124,25 @@ class OptimizerInstance(StreamInstance):
             constraints.append(substitute_expression(macro_fact, output_mapping))
         # TODO: I think I should be able to just disable the fluent fact from being used in that context
         return constraints
-    def _add_disabled_axiom(self, domain):
-        constraints = self.get_constraints()
-        objects = set()
-        for fact in constraints:
-            objects.update(get_args(fact))
-        free_objects = list(filter(lambda o: isinstance(o, OptimisticObject), objects))
-        # TODO: be careful about the shared objects as parameters
-
-        import pddl
-        parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
-        preconditions = substitute_expression(constraints, get_mapping(free_objects, parameters))
-        print('Blocked', preconditions)
-        self.disabled_axiom = pddl.Axiom(name=UNSATISFIABLE,
-                                         parameters=make_parameters(parameters),
-                                         num_external_parameters=0, # i.e. derived parameters
-                                         condition=make_preconditions(preconditions))
-        domain.axioms.append(self.disabled_axiom)
-
+    #def get_free_objects(self):
+    #    constraints = self.get_constraints()
+    #    objects = set()
+    #    for fact in constraints:
+    #        objects.update(get_args(fact))
+    #    return list(filter(lambda o: isinstance(o, OptimisticObject), objects))
+    # def _add_disabled_axiom(self, domain):
+    #     # TODO: be careful about the shared objects as parameters
+    #     import pddl
+    #     constraints = self.get_constraints()
+    #     #free_objects = self.get_free_objects()
+    #     free_objects = self.external.output_objects
+    #     parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
+    #     preconditions = substitute_expression(constraints, get_mapping(free_objects, parameters))
+    #     self.disabled_axiom = pddl.Axiom(name=UNSATISFIABLE,
+    #                                      parameters=make_parameters(parameters),
+    #                                      num_external_parameters=0, # i.e. derived parameters
+    #                                      condition=make_preconditions(preconditions))
+    #     domain.axioms.append(self.disabled_axiom)
     def enable(self, evaluations, domain):
         super(OptimizerInstance, self).enable(evaluations, domain)
         raise NotImplementedError()

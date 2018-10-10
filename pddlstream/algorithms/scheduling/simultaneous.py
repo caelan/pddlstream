@@ -1,6 +1,6 @@
 from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.algorithms.downward import OBJECT, Domain, \
-    make_preconditions, make_effects, make_cost
+    make_preconditions, make_effects, make_cost, get_cost_scale
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
 from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
@@ -63,7 +63,7 @@ def get_stream_actions(results, unique_binding=False, unit_efforts=True, effort_
         #    enforce_output_order(result, preconditions, effects)
         if unique_binding:
             enforce_single_binding(result, preconditions, effects)
-        if is_optimizer_result(result):
+        if is_optimizer_result(result): # These effects don't seem to be pruned
             effects.append(substitute_expression(result.external.stream_fact, result.get_mapping()))
         parameters = []  # Usually all parameters are external
         stream_actions.append(pddl.Action(name=result_name, parameters=parameters,
@@ -110,7 +110,7 @@ def get_action_cost(domain, results_from_head, name, args):
     if action.cost is None:
         return 0
     if isinstance(action.cost.expression, pddl.NumericConstant):
-        return action.cost.expression.value
+        return action.cost.expression.value # / get_cost_scale()
     var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
     args = tuple(var_mapping[p] for p in action.cost.expression.args)
     head = Head(action.cost.expression.symbol, args)
