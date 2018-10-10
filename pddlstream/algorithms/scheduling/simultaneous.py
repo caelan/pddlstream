@@ -87,6 +87,19 @@ def add_stream_actions(domain, stream_results, **kwargs):
     new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict, new_constants,
                         domain.predicates, domain.predicate_dict, domain.functions,
                         domain.actions[:] + stream_actions, domain.axioms)
+    """
+    optimizer_results = list(filter(is_optimizer_result, stream_results))
+    optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
+                       for result in optimizer_results}
+    optimizers = {result.external.optimizer for result in optimizer_results}
+    print(optimizers)
+    for optimizer in optimizers:
+        for stream in optimizer.streams:
+            print(stream.instance.get_constraints())
+            print(stream.instance)
+    #print(optimizer_results)
+    #print(optimizer_facts)
+    """
     return new_domain, stream_result_from_name
 
 ##################################################
@@ -144,10 +157,7 @@ def extract_function_plan(function_evaluations, action_plan, domain, unit_costs)
 
 ##################################################
 
-# TODO: add effort costs additively to actions
-# TODO: can augment state with the set of action constraints that are used (but not axiom)
-
-def augment_goal(domain, goal_expression):
+def augment_goal(domain, goal_expression, negate_actions=False):
     # TODO: only do this if optimizers are present
     #return goal_expression
     import pddl
@@ -155,10 +165,11 @@ def augment_goal(domain, goal_expression):
     if predicate.name not in domain.predicate_dict:
         domain.predicates.append(predicate)
         domain.predicate_dict[predicate.name] = predicate
-    negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
-    for action in domain.actions:
-        if negated_atom not in action.precondition.parts:
-            action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
+    if negate_actions:
+        negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
+        for action in domain.actions:
+            if negated_atom not in action.precondition.parts:
+                action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
     return And(goal_expression, Not((UNSATISFIABLE,)))
 
 def partition_plan(combined_plan, stream_result_from_name):

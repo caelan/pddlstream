@@ -152,8 +152,10 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     import pddl
     fluent_predicates = get_fluents(domain)
     domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    if not (domain_predicates & fluent_predicates):
+    exogenous_predicates = domain_predicates & fluent_predicates
+    if not exogenous_predicates:
         return
+    print('Exogenous predicates: {}'.format(exogenous_predicates))
 
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}

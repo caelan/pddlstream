@@ -194,7 +194,10 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 ##################################################
 
 def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
+    # TODO: instantiate axioms with negative on effects for blocking
+    # TODO: fluent streams using conditional effects
     for instance in instantiated.actions:
+        # TODO: prune stream actions here?
         # Ignores conditional effect costs
         facts = []
         for precondition in get_literals(instance.action.precondition):
@@ -214,6 +217,7 @@ def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
             effort = scale_cost(sum([0] + [r.instance.get_effort() for r in stream_plan]))
         if effort_weight is not None:
             instance.cost += effort_weight*effort
+        # TODO: bug! The FD instantiator prunes the result.external.stream_fact
         for result in stream_plan:
             # TODO: need to make multiple versions if several ways of achieving the action
             if is_optimizer_result(result):
@@ -222,6 +226,9 @@ def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
                 instantiated.atoms.add(atom)
                 effect = (tuple(), atom)
                 instance.add_effects.append(effect)
+        #domain = {fact for result in stream_plan if result.external.info.simultaneous
+        #          for fact in result.instance.get_domain()}
+        # TODO: can streams depending on these to be used if the dependent preconditions are added to the action
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
                         unit_efforts, effort_weight, debug=False, **kwargs):

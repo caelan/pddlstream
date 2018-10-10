@@ -50,8 +50,39 @@ def parse_problem(problem, stream_info={}):
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
     goal_expression = obj_from_value_expression(goal)
+    #normalize_domain_goal(domain, goal_expression)
+    # TODO: refactor the following?
     compile_to_exogenous(evaluations, domain, streams)
+    compile_fluent_streams(domain, streams)
+    enforce_simultaneous(domain, streams)
     return evaluations, goal_expression, domain, streams
+
+##################################################
+
+def get_predicates(expression):
+    import pddl.conditions
+    if isinstance(expression, pddl.conditions.ConstantCondition):
+        return set()
+    if isinstance(expression, pddl.conditions.JunctorCondition) or \
+            isinstance(expression, pddl.conditions.QuantifiedCondition):
+        predicates = set()
+        for part in expression.parts:
+            predicates.update(get_predicates(part))
+        return predicates
+    if isinstance(expression, pddl.conditions.Literal):
+        return {expression.predicate}
+    raise ValueError(expression)
+
+def enforce_simultaneous(domain, externals):
+    axiom_predicates = set()
+    for axiom in domain.axioms:
+        axiom_predicates.update(get_predicates(axiom.condition))
+    for external in externals:
+        if (type(external) in [VariableStream, ConstraintStream]) and not external.info.simultaneous:
+            predicates = {get_prefix(fact) for fact in external.certified}
+            if predicates & axiom_predicates:
+                external.info.simultaneous = True
+                #print(external, (predicates & axiom_predicates))
 
 ##################################################
 

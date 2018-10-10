@@ -22,6 +22,8 @@ import copy
 # TODO: could also just block a skeleton itself by adding it as a state variable
 # TODO: fluents for what is not active in the state and add those to consider subsets
 
+DEFAULT_SIMULTANEOUS = True
+
 class Optimizer(object):
     def __init__(self, name, procedure, info):
         self.name = name
@@ -30,6 +32,7 @@ class Optimizer(object):
         self.variables = []
         self.constraints = []
         self.objectives = []
+        self.streams = []
     def get_streams(self):
         return self.variables + self.constraints
     def __repr__(self):
@@ -60,7 +63,7 @@ def get_effort_fn(optimizer_name):
 class OptimizerInfo(StreamInfo):
     def __init__(self, planable=False, p_success=None, overhead=None):
         super(OptimizerInfo, self).__init__(p_success=p_success, overhead=overhead)
-        self.planable = planable
+        self.planable = planable # TODO: this isn't currently used
         # TODO: post-processing
 
 class VariableStream(Stream):
@@ -71,10 +74,12 @@ class VariableStream(Stream):
         name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
-        # info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
+        #info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         # Each stream could certify a stream-specific fact as well
-        self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
+        # TODO: will I need to adjust simultaneous here as well?
+        info = StreamInfo(simultaneous=DEFAULT_SIMULTANEOUS)
+        self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
                                              outputs, certified, info)
 
@@ -88,7 +93,7 @@ class ConstraintStream(Stream):
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
-        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name), simultaneous=True) # TODO: check automatically
+        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name), simultaneous=DEFAULT_SIMULTANEOUS)
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info, fluents=fluents)
@@ -108,28 +113,34 @@ class OptimizerInstance(StreamInstance):
         # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         #index = len(self.external.disabled_instances)
         #self.external.disabled_instances.append(self)
-
         instance_counts = Counter(r.instance for r in self.external.stream_plan
                                   if isinstance(r.external, VariableStream))
         for instance, num in instance_counts.items():
             instance.num_optimistic = max(instance.num_optimistic, num + 1)
         # TODO: don't do this until the full plan has failed
-
+        self._add_disabled_axiom(domain)
+    def get_constraints(self):
         output_mapping = get_mapping(self.external.outputs, self.external.output_objects)
         output_mapping.update(self.get_mapping())
-        constraints = substitute_expression(self.external.certified, output_mapping)
-        #constraints = [substitute_expression(result.external.stream_fact, result.get_mapping())
-        #               for result in self.external.stream_plan]
+        #constraints = substitute_expression(self.external.certified, output_mapping)
+        constraints = []
+        for i, result in enumerate(self.external.stream_plan):
+            macro_fact = substitute_expression(result.external.stream_fact, self.external.macro_from_micro[i])
+            constraints.append(substitute_expression(macro_fact, output_mapping))
         # TODO: I think I should be able to just disable the fluent fact from being used in that context
-
+        return constraints
+    def _add_disabled_axiom(self, domain):
+        constraints = self.get_constraints()
         objects = set()
         for fact in constraints:
             objects.update(get_args(fact))
         free_objects = list(filter(lambda o: isinstance(o, OptimisticObject), objects))
+        # TODO: be careful about the shared objects as parameters
 
         import pddl
         parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
         preconditions = substitute_expression(constraints, get_mapping(free_objects, parameters))
+        print('Blocked', preconditions)
         self.disabled_axiom = pddl.Axiom(name=UNSATISFIABLE,
                                          parameters=make_parameters(parameters),
                                          num_external_parameters=0, # i.e. derived parameters
@@ -142,14 +153,19 @@ class OptimizerInstance(StreamInstance):
 
 class OptimizerStream(Stream):
     _Instance = OptimizerInstance
-    def __init__(self, optimizer, stream_plan):
+    def __init__(self, optimizer, external_plan):
+        optimizer.streams.append(self)
         self.optimizer = optimizer
-        self.stream_plan = stream_plan
-        inputs, domain, outputs, certified, functions, _, \
-            self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(stream_plan)
+        self.stream_plan, self.function_plan = partition_external_plan(external_plan)
+        inputs, domain, outputs, certified, functions, self.macro_from_micro, \
+            self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(external_plan)
         gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions)
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)
+    @property
+    def instance(self):
+        return self.get_instance(self.input_objects, fluent_facts=self.fluent_facts)
+
 
 ##################################################
 
@@ -306,6 +322,7 @@ def combine_optimizers(evaluations, external_plan):
     if not optimizers:
         return external_plan
 
+    print('Original stream plan: {}'.format(external_plan))
     combined_results = []
     for optimizer in optimizers:
         relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]

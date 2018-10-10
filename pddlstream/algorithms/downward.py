@@ -256,6 +256,11 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     write_sas_task(sas_task, temp_dir)
     return task
 
+#def normalize_domain_goal(domain, goal):
+#    task = pddl.Task(None, None, None, None, None,
+#                     None, None, [], goal, domain.actions, domain.axioms, None)
+#    normalize.normalize(task)
+
 ##################################################
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
