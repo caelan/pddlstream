@@ -1,11 +1,11 @@
 from pddlstream.language.stream import Stream, StreamInfo
 from pddlstream.language.external import parse_lisp_list
 from pddlstream.language.generator import from_test
-from pddlstream.language.conversion import list_from_conjunction, substitute_expression
-from pddlstream.language.constants import get_args, is_parameter
+from pddlstream.language.conversion import list_from_conjunction
 
 # TODO: could signal a rule by making its gen_fn just the constant True
 # TODO: could apply the rule in the initial state once but then couldn't support unexpected facts
+# TODO: prune unnecessary preconditions using rules
 
 rules = [] # TODO: no global
 

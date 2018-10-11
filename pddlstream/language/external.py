@@ -9,10 +9,13 @@ from pddlstream.utils import elapsed_time, get_mapping, INF
 DEBUG = 'debug'
 
 class ExternalInfo(object):
-    def __init__(self, eager, p_success, overhead):
+    def __init__(self, eager, p_success, overhead, effort_fn):
+        # TODO: enable eager=True for inexpensive test streams by default
         self.eager = eager
         self.p_success = p_success
         self.overhead = overhead
+        self.effort_fn = effort_fn
+        # TODO: allow specification of p_success & overhead as effort
 
 ##################################################
 
@@ -20,6 +23,13 @@ class Result(object):
     def __init__(self, instance, opt_index):
         self.instance = instance
         self.opt_index = opt_index
+
+    @property
+    def external(self):
+        return self.instance.external
+
+    def get_domain(self):
+        return self.instance.get_domain()
 
     def get_certified(self):
         raise NotImplementedError()
@@ -33,9 +43,9 @@ class Result(object):
 ##################################################
 
 class Instance(object):
+    _Result = None
     def __init__(self, external, input_objects):
         self.external = external
-        assert(len(input_objects) == len(external.inputs))
         self.input_objects = tuple(input_objects)
         self.enumerated = False
         self.disabled = False
@@ -46,6 +56,7 @@ class Instance(object):
             self.mapping[constant] = Object.from_name(constant)
         self.domain = substitute_expression(self.external.domain, self.get_mapping())
         self.successes = 0
+        self.opt_results = []
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
@@ -53,6 +64,9 @@ class Instance(object):
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
         self.successes += successes
+
+    #def get_result(self):
+    #    raise NotImplementedError()
 
     @property
     def num_calls(self):
@@ -92,14 +106,16 @@ class Instance(object):
         # TODO: direct estimation of different buckets in which it will finish
         # TODO: we have samples from the CDF or something
 
-    def get_p_success(self):
-        return self.external.get_p_success()
-
-    def get_overhead(self):
-        return self.external.get_overhead()
+    #def get_p_success(self):
+    #    return self.external.get_p_success()
+    #
+    #def get_overhead(self):
+    #    return self.external.get_overhead()
 
     def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
+        if self.external.info.effort_fn is not None:
+            return self.external.info.effort_fn(*self.get_input_values())
+        return geometric_cost(self.external.get_overhead(), self.external.get_p_success())
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -122,21 +138,24 @@ class Instance(object):
     def disable(self, evaluations, domain):
         self.disabled = True
 
+    def enable(self, evaluations, domain):
+        self.disabled = False
+
 ##################################################
 
 class External(Performance):
     _Instance = None
     def __init__(self, name, info, inputs, domain):
         super(External, self).__init__(name, info)
-        for p, c in Counter(inputs).items():
-            if c != 1:
-                raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
-        parameters = {a for i in domain for a in get_args(i) if is_parameter(a)}
-        for p in (parameters - set(inputs)):
-            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
-        self.constants = {a for i in domain for a in get_args(i) if not is_parameter(a)}
+        for p, c in Counter(self.inputs).items():
+            if c != 1:
+                raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
+        parameters = {a for i in self.domain for a in get_args(i) if is_parameter(a)}
+        for p in (parameters - set(self.inputs)):
+            raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
+        self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
 
     def get_instance(self, input_objects):
@@ -147,7 +166,7 @@ class External(Performance):
 
 ##################################################
 
-def get_plan_effort(stream_plan):
+def get_plan_effort(stream_plan): # TODO: unit efforts
     if stream_plan is None:
         return INF
     if not stream_plan:
@@ -160,7 +179,6 @@ def get_procedure_fn(stream_map, name):
     if name not in stream_map:
         raise ValueError('Undefined external procedure: {}'.format(name))
     return stream_map[name]
-
 
 def parse_lisp_list(lisp_list):
     assert(len(lisp_list) % 2 == 0)

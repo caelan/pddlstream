@@ -6,10 +6,10 @@ import sys
 from collections import namedtuple
 from time import time
 
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
-from pddlstream.utils import read, write, safe_rm_dir, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique
+from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 # TODO: possible bug when path has a space or period
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
@@ -18,11 +18,12 @@ TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
-TRANSLATE_FLAGS = [] # '--negative-axioms'
+TRANSLATE_FLAGS = ['--negative-axioms'] # '--negative-axioms'
 original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
 
+import pddl.f_expression
 import translate
 import pddl
 import instantiate
@@ -39,7 +40,7 @@ SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
-# TODO: use goal_serialization / hierarchy on the inside loop of these algorithms
+# TODO: modify parsing_functions to support multiple costs
 
 OBJECT = 'object'
 TOTAL_COST = 'total-cost' # TotalCost
@@ -69,16 +70,44 @@ SEARCH_OPTIONS = {
                        '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
 }
 
-for w in [1, 3, 5]:
+for w in range(1, 1+5):
     SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
                   'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
     SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w=5,' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+
+# TODO: enforced hill climbing
+SEARCH_OPTIONS['ff-eager-wastar{}'.format(1000)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+              '--search "eager(single(sum([g(),weight(h,{})])),preferred=[h],reopen_closed=false,' \
+              'cost_type=NORMAL,max_time=%s,bound=%s)"'.format(1000)
+SEARCH_OPTIONS['ff-ehc'] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+              '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,' \
+              'cost_type=NORMAL,max_time=%s,bound=%s)"'
 
 DEFAULT_MAX_TIME = 30 # INF
 DEFAULT_PLANNER = 'ff-astar'
+
+##################################################
+
+# WARNING: overflow on h^add! Costs clamped to 100000000
+MAX_FD_COST = 1e8
+
+def round_cost(cost):
+    cost_scale = get_cost_scale()
+    return int(cost_scale * cost) / cost_scale
+
+def get_cost_scale():
+    return pddl.f_expression.COST_SCALE
+
+def set_cost_scale(cost_scale):
+    pddl.f_expression.COST_SCALE = cost_scale
+
+def scale_cost(cost):
+    return int_ceil(get_cost_scale() * float(cost))
+
+set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
@@ -89,7 +118,11 @@ Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'co
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
 def parse_domain(domain_pddl):
-    return Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    #for action in domain.actions:
+    #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
+    #        action.cost.expression.value = scale_cost(action.cost.expression.value)
+    return domain
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements', 'objects', 'init',
                                'goal', 'use_metric'])
@@ -130,7 +163,7 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(not fd.negated)
+    assert(isinstance(fd, pddl.Literal) and not fd.negated)
     return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
 
 def evaluation_from_fd(fd):
@@ -138,8 +171,9 @@ def evaluation_from_fd(fd):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
     if isinstance(fd, pddl.f_expression.Assign):
-        head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
-        return Evaluation(head, fd.expression.value)
+        raise not NotImplementedError()
+        #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
+        #return Evaluation(head, float(fd.expression.value) / COST_SCALE) # Need to be careful
     raise ValueError(fd)
 
 def fd_from_evaluation(evaluation):
@@ -150,7 +184,7 @@ def fd_from_evaluation(evaluation):
     elif is_negated_atom(evaluation):
         return pddl.NegatedAtom(name, args)
     fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=name, args=args)
-    expression = pddl.f_expression.NumericConstant(evaluation.value)  # Integer
+    expression = pddl.f_expression.NumericConstant(evaluation.value)
     return pddl.f_expression.Assign(fluent, expression)
 
 ##################################################
@@ -161,12 +195,13 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_condition(pddl_list_from_expression(goal_expression),
-                           domain.type_dict, domain.predicate_dict)
+                           domain.type_dict, domain.predicate_dict).simplified()
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=typed_objects,
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
 
 
 def task_from_domain_problem(domain, problem):
+    # TODO: prune eval
     domain_name, domain_requirements, types, type_dict, constants, \
         predicates, predicate_dict, functions, actions, axioms = domain
     task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
@@ -178,7 +213,7 @@ def task_from_domain_problem(domain, problem):
     check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
-    init += [pddl.Atom("=", (obj.name, obj.name)) for obj in objects]
+    init.extend(pddl.Atom("=", (obj.name, obj.name)) for obj in objects)
 
     task = pddl.Task(domain_name, task_name, requirements, types, objects,
                      predicates, functions, init, goal, actions, axioms, use_metric)
@@ -199,31 +234,33 @@ def get_literals(condition):
 
 ##################################################
 
-def write_task(sas_task, temp_dir):
+def write_sas_task(sas_task, temp_dir):
     clear_dir(temp_dir)
     translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return translate_path
 
-def translate_task(task):
-    normalize.normalize(task)
-    sas_task = translate.pddl_to_sas(task)
-    translate.dump_statistics(sas_task)
+def sas_from_pddl(task, debug=False):
+    #normalize.normalize(task)
+    #sas_task = translate.pddl_to_sas(task)
+    with Verbose(debug):
+        sas_task = sas_from_instantiated(instantiate_task(task))
     return sas_task
 
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     domain = parse_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
-    with Verbose(verbose):
-        write_task(translate_task(task), temp_dir)
+    sas_task = sas_from_pddl(task)
+    write_sas_task(sas_task, temp_dir)
+    return task
 
 ##################################################
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
     max_time = INFINITY if max_planner_time == INF else int(max_planner_time)
-    max_cost = INFINITY if max_cost == INF else int(max_cost)
+    max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
@@ -239,7 +276,6 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         return None
     return read(temp_dir + SEARCH_OUTPUT)
 
-
 ##################################################
 
 def parse_solution(solution):
@@ -250,7 +286,8 @@ def parse_solution(solution):
     cost_regex = r'cost\s*=\s*(\d+)'
     matches = re.findall(cost_regex, solution)
     if matches:
-        cost = int(matches[0])
+        cost = float(matches[0]) / get_cost_scale()
+    # TODO: recover the actual cost of the plan from the evaluations
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = []
     for line in lines:
@@ -268,21 +305,6 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     if problem_pddl is not None:
         write(problem_path, problem_pddl)
     return domain_path, problem_path
-
-##################################################
-
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
-    # TODO: combine
-    start_time = time()
-    with Verbose(debug):
-        write_pddl(domain_pddl, problem_pddl, temp_dir)
-        #run_translate(temp_dir, verbose)
-        translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-        solution = run_search(temp_dir, debug=debug, **kwargs)
-        if clean:
-            safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
-    return parse_solution(solution)
 
 ##################################################
 
@@ -309,6 +331,14 @@ def apply_axiom(state, axiom):
     assert(isinstance(state, pddl.PropositionalAxiom))
     state.add(axiom.effect)
 
+def is_valid_plan(initial_state, plan): #, goal):
+    state = set(initial_state)
+    for action in plan:
+        if not is_applicable(state, action):
+            return False
+        apply_action(state, action)
+    return True
+
 #def apply_lifted_action(state, action):
 #    assert(isinstance(state, pddl.Action))
 #    assert(not action.parameters)
@@ -320,6 +350,12 @@ def plan_cost(plan):
     for action in plan:
         cost += action.cost
     return cost
+
+def substitute_derived(axiom_plan, action_instance):
+    # TODO: what the propositional axiom has conditional derived
+    axiom_pre = {p for ax in axiom_plan for p in ax.condition}
+    axiom_eff = {ax.effect for ax in axiom_plan}
+    action_instance.precondition = list((set(action_instance.precondition) | axiom_pre) - axiom_eff)
 
 ##################################################
 
@@ -397,3 +433,105 @@ def plan_preimage(combined_plan, goal):
         else:
             raise ValueError(operator)
     return preimage
+
+##################################################
+
+def make_parameters(parameters):
+    return tuple(pddl.TypedObject(p, OBJECT) for p in parameters)
+
+
+def make_preconditions(preconditions):
+    return pddl.Conjunction(list(map(fd_from_fact, preconditions)))
+
+
+def make_effects(effects):
+    return [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact)) for fact in effects]
+
+
+def make_cost(cost):
+    fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
+    expression = pddl.NumericConstant(cost)
+    return pddl.Increase(fluent=fluent, expression=expression)
+
+##################################################
+
+InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
+                                                   'reachable_action_params', 'goal_list'])
+
+def instantiate_task(task):
+    normalize.normalize(task)
+    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
+    if not relaxed_reachable:
+        return None
+
+    # HACK! Goals should be treated differently.
+    if isinstance(task.goal, pddl.Conjunction):
+        goal_list = task.goal.parts
+    else:
+        goal_list = [task.goal]
+    for item in goal_list:
+        assert isinstance(item, pddl.Literal)
+
+    return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
+
+##################################################
+
+def sas_from_instantiated(instantiated_task):
+    import timers
+    import fact_groups
+    import options
+    import simplify
+    import variable_order
+    from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
+        build_implied_facts, build_mutex_key, solvable_sas_task
+
+    if not instantiated_task:
+        return unsolvable_sas_task("No relaxed solution")
+    task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
+
+    with timers.timing("Computing fact groups", block=True):
+        groups, mutex_groups, translation_key = fact_groups.compute_groups(
+            task, atoms, reachable_action_params)
+
+    with timers.timing("Building STRIPS to SAS dictionary"):
+        ranges, strips_to_sas = strips_to_sas_dictionary(
+            groups, assert_partial=options.use_partial_encoding)
+
+    with timers.timing("Building dictionary for full mutex groups"):
+        mutex_ranges, mutex_dict = strips_to_sas_dictionary(
+            mutex_groups, assert_partial=False)
+
+    if options.add_implied_preconditions:
+        with timers.timing("Building implied facts dictionary..."):
+            implied_facts = build_implied_facts(strips_to_sas, groups,
+                                                mutex_groups)
+    else:
+        implied_facts = {}
+
+    with timers.timing("Building mutex information", block=True):
+        mutex_key = build_mutex_key(strips_to_sas, mutex_groups)
+
+    with timers.timing("Translating task", block=True):
+        sas_task = translate_task(
+            strips_to_sas, ranges, translation_key,
+            mutex_dict, mutex_ranges, mutex_key,
+            task.init, goal_list, actions, axioms, task.use_min_cost_metric,
+            implied_facts)
+
+    if options.filter_unreachable_facts:
+        with timers.timing("Detecting unreachable propositions", block=True):
+            try:
+                simplify.filter_unreachable_propositions(sas_task)
+            except simplify.Impossible:
+                return unsolvable_sas_task("Simplified to trivially false goal")
+            except simplify.TriviallySolvable:
+                return solvable_sas_task("Simplified to empty goal")
+
+    if options.reorder_variables or options.filter_unimportant_vars:
+        with timers.timing("Reordering and filtering variables", block=True):
+            variable_order.find_and_apply_variable_order(
+                sas_task, options.reorder_variables,
+                options.filter_unimportant_vars)
+
+    translate.dump_statistics(sas_task)
+    return sas_task

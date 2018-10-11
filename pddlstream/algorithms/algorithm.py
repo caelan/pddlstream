@@ -1,20 +1,20 @@
 import time
-from collections import OrderedDict, defaultdict, deque
-from heapq import heappush, heappop
+from collections import OrderedDict, deque, namedtuple
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    parse_lisp
+    parse_lisp, sas_from_pddl
 from pddlstream.algorithms.search import abstrips_solve_from_task
-from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
+from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
-from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.external import External, DEBUG, get_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
-from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.language.rule import parse_rule
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement, get_length, str_from_plan
+from pddlstream.language.stream import parse_stream, Stream
+from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
+from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -61,41 +61,18 @@ def has_costs(domain):
             return True
     return False
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=None, **kwargs):
+def solve_finite(evaluations, goal_expression, domain, unit_costs=None, debug=False, **kwargs):
     if unit_costs is None:
         unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
-    plan_pddl, cost = abstrips_solve_from_task(task, **kwargs)
+    sas_task = sas_from_pddl(task, debug=debug)
+    plan_pddl, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
     return obj_from_pddl_plan(plan_pddl), cost
 
-
-def neighbors_from_orders(orders):
-    incoming_edges = defaultdict(set)
-    outgoing_edges = defaultdict(set)
-    for v1, v2 in orders:
-        incoming_edges[v2].add(v1)
-        outgoing_edges[v1].add(v2)
-    return incoming_edges, outgoing_edges
-
-def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
-    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
-    ordering = []
-    queue = []
-    for v in vertices:
-        if not incoming_edges[v]:
-            heappush(queue, HeapElement(priority_fn(v), v))
-    while queue:
-        v1 = heappop(queue).value
-        ordering.append(v1)
-        for v2 in outgoing_edges[v1]:
-            incoming_edges[v2].remove(v1)
-            if not incoming_edges[v2]:
-                heappush(queue, HeapElement(priority_fn(v2), v2))
-    return ordering
-
 ##################################################
+
+Solution = namedtuple('Solution', ['plan', 'cost'])
 
 class SolutionStore(object):
     def __init__(self, max_time, max_cost, verbose):
@@ -108,8 +85,10 @@ class SolutionStore(object):
         self.best_plan = None
         self.best_cost = INF
         #self.best_cost = self.cost_fn(self.best_plan)
+        self.solutions = []
     def add_plan(self, plan, cost):
-        # TODO: list of plans
+        # TODO: double-check that this is a solution
+        self.solutions.append(Solution(plan, cost))
         if cost < self.best_cost:
             self.best_plan = plan
             self.best_cost = cost
@@ -181,42 +160,47 @@ def apply_rules_to_streams(rules, streams):
                     if new_facts and (stream in rules):
                             processed_rules.append(stream)
 
-def parse_stream_pddl(stream_pddl, stream_map, stream_info):
-    streams = []
-    if stream_pddl is None:
-        return streams
-    if all(isinstance(e, External) for e in stream_pddl):
-        return stream_pddl
-    if stream_map != DEBUG:
-        stream_map = {k.lower(): v for k, v in stream_map.items()}
-    stream_info = {k.lower(): v for k, v in stream_info.items()}
+def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, pddl_name = next(stream_iter)
     assert('stream' == pddl_type)
-
-    rules = []
     for lisp_list in stream_iter:
         name = lisp_list[0] # TODO: refactor at this point
         if name in (':stream', ':wild-stream'):
-            external = parse_stream(lisp_list, stream_map, stream_info)
+            externals = [parse_stream(lisp_list, procedure_map, procedure_info)]
         elif name == ':rule':
-            external = parse_rule(lisp_list, stream_map, stream_info)
+            externals = [parse_rule(lisp_list, procedure_map, procedure_info)]
         elif name == ':function':
-            external = parse_function(lisp_list, stream_map, stream_info)
+            externals = [parse_function(lisp_list, procedure_map, procedure_info)]
         elif name == ':predicate': # Cannot just use args if want a bound
-            external = parse_predicate(lisp_list, stream_map, stream_info)
+            externals = [parse_predicate(lisp_list, procedure_map, procedure_info)]
+        elif name == ':optimizer':
+            externals = parse_optimizer(lisp_list, procedure_map, procedure_info)
         else:
             raise ValueError(name)
-        if any(e.name == external.name for e in streams):
-            raise ValueError('Stream [{}] is not unique'.format(external.name))
-        if name == ':rule':
-            rules.append(external)
-        external.pddl_name = pddl_name # TODO: move within constructors
-        streams.append(external)
-    # TODO: apply stream outputs here
-    # TODO: option to produce random wild effects as well
-    # TODO: can even still require that a tuple of outputs is produced
+        for external in externals:
+            if any(e.name == external.name for e in streams):
+                raise ValueError('Stream [{}] is not unique'.format(external.name))
+            if name == ':rule':
+                rules.append(external)
+            external.pddl_name = pddl_name # TODO: move within constructors
+            streams.append(external)
+
+def parse_stream_pddl(pddl_list, procedures, infos):
+    streams = []
+    if pddl_list is None:
+        return streams
+    if isinstance(pddl_list, str):
+        pddl_list = [pddl_list]
+    #if all(isinstance(e, External) for e in stream_pddl):
+    #    return stream_pddl
+    if procedures != DEBUG:
+        procedures = {k.lower(): v for k, v in procedures.items()}
+    infos = {k.lower(): v for k, v in infos.items()}
+    rules = []
+    for pddl in pddl_list:
+        parse_streams(streams, rules, pddl, procedures, infos)
     apply_rules_to_streams(rules, streams)
     return streams
 
@@ -280,4 +264,5 @@ def partition_externals(externals):
     negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
     negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
-    return streams, functions, negative
+    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    return streams, functions, negative #, optimizers

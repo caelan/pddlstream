@@ -4,9 +4,10 @@ from collections import deque
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, fact_from_fd, get_action_instances, \
     get_goal_instance, plan_preimage
 from pddlstream.algorithms.reorder import replace_derived, reorder_stream_plan
-from pddlstream.algorithms.algorithm import topological_sort, dump_plans
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan, \
-    combine_function_evaluations, get_plan_cost
+from pddlstream.algorithms.algorithm import dump_plans
+from pddlstream.utils import topological_sort
+from pddlstream.algorithms.scheduling.simultaneous import get_plan_cost
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan, apply_streams
 from pddlstream.algorithms.scheduling.relaxed import recover_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.refine_shared import optimistic_process_streams
@@ -88,8 +89,9 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
     stream_plan = get_synthetic_stream_plan(reorder_stream_plan(stream_plan), dynamic_streams)
 
 
-    function_evaluations = combine_function_evaluations(evaluations, stream_plan)
-    opt_cost = get_plan_cost(function_evaluations, opt_action_plan, domain)
+    # TODO: need to make this just streams
+    opt_evaluations = apply_streams(evaluations, stream_plan)
+    opt_cost = get_plan_cost(opt_evaluations, opt_action_plan, domain, unit_costs=False)
     dump_plans(stream_plan, opt_action_plan, opt_cost)
     if visualize:
         log_plans(stream_plan, action_plan, None)
@@ -97,7 +99,7 @@ def locally_optimize(evaluations, store, goal_expression, domain, functions, neg
 
     store.start_time = time.time()
     store.max_cost = store.best_cost
-    queue = SkeletonQueue(store, evaluations, domain)
+    queue = SkeletonQueue(store, evaluations, goal_expression, domain)
     queue.new_skeleton(stream_plan, opt_action_plan, opt_cost)
     queue.greedily_process()
     queue.timed_process(sampling_time)

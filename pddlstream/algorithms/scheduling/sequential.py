@@ -1,8 +1,9 @@
-from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, TOTAL_COST
+from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, TOTAL_COST, sas_from_pddl
 from pddlstream.algorithms.search import solve_from_task, abstrips_solve_from_task
-from pddlstream.algorithms.scheduling.simultaneous import get_stream_actions, evaluations_from_stream_plan, \
-    extract_function_results, get_results_from_head, add_stream_actions
+from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, add_stream_actions
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan, get_results_from_head
 from pddlstream.language.conversion import obj_from_pddl
+from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, INF, MockSet
 
 
@@ -48,26 +49,32 @@ def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
 
 
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
-                           negated, unit_costs=True, **kwargs):
+                           negated, effort_weight, unit_costs=True, debug=False, **kwargs):
+    # Intuitively, actions have infinitely more weight than streams
     if negated:
         raise NotImplementedError(negated)
+    for result in stream_results:
+        if isinstance(result.external, Stream) and result.external.is_fluent():
+            raise NotImplementedError('Fluents are not supported')
 
     # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    action_plan, action_cost = abstrips_solve_from_task(opt_task, **kwargs)
+    action_plan, action_cost = abstrips_solve_from_task(sas_from_pddl(opt_task, debug=debug), debug=debug, **kwargs)
     if action_plan is None:
         return None, action_cost
 
     actions = domain.actions[:]
     domain.actions[:] = []
-    stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results)
+    stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results) # TODO: effort_weight
     domain.actions.extend(actions)
     stream_task = task_from_domain_problem(stream_domain, get_problem(evaluations, goal_expression, stream_domain, unit_costs))
     action_from_name, function_plan = simplify_actions(opt_evaluations, action_plan, stream_task, actions, unit_costs)
 
-    planner = kwargs.get('planner', 'ff-astar')
-    combined_plan, _ = solve_from_task(stream_task, planner=planner, **kwargs) # TODO: abstrips?
+    # TODO: lmcut?
+    combined_plan, _ = solve_from_task(sas_from_pddl(opt_task, debug=debug),
+                                       planner=kwargs.get('planner', 'ff-astar'),
+                                       debug=debug, **kwargs)
     if combined_plan is None:
         return None, INF
 

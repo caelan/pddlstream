@@ -4,17 +4,17 @@ import re
 
 import numpy as np
 
-from examples.pybullet.construction.utils import TOOL_NAME, create_elements
+from examples.pybullet.construction.utils import TOOL_NAME, create_elements, get_grasp_pose, sample_direction
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, get_joint_name, get_sample_fn, \
     set_joint_positions, wait_for_interrupt, link_from_name, inverse_kinematics, get_link_pose, Pose, Euler, Point, \
-    multiply, set_pose, get_pose, invert
+    multiply, set_pose, get_pose, invert, draw_pose
 from pddlstream.algorithms.incremental import solve_exhaustive
 from pddlstream.language.constants import And, PDDLProblem
 from pddlstream.language.generator import from_test
 from pddlstream.utils import read, get_file_path, user_input, print_solution
 
 
-def sample_confs_debug(robot, num_samples=10):
+def test_confs(robot, num_samples=10):
     joints = get_movable_joints(robot)
     print('Joints', [get_joint_name(robot, joint) for joint in joints])
     sample_fn = get_sample_fn(robot, joints)
@@ -27,6 +27,8 @@ def sample_confs_debug(robot, num_samples=10):
 
 def get_test_cfree(element_bodies):
     def test(traj, element):
+        if traj.element == element:
+            return True
         return element not in traj.colliding
         #collisions = check_trajectory_collision(traj.robot, traj.trajectory, [element_bodies[element]])
         #return not any(collisions)
@@ -88,28 +90,42 @@ def test_ik(robot, node_order, node_points):
 
 
 def test_grasps(robot, node_points, elements):
-    elements = [elements[0]]
-    elements = [elements[-1]]
-    element_bodies = create_elements(node_points, elements)
-    element_body = element_bodies[0]
-    #print('Bodies: {}'.format(len(elements)))
+    element = elements[-1]
+    [element_body] = create_elements(node_points, [element])
 
     phi = 0
-    grasp_poses = [Pose(euler=Euler(roll=np.pi/2, pitch=phi, yaw=theta))
-                   for theta in np.linspace(0, 2*np.pi, 10, endpoint=False)]
-
-    link_pose = get_link_pose(robot, link_from_name(robot, TOOL_NAME))
+    link = link_from_name(robot, TOOL_NAME)
+    link_pose = get_link_pose(robot, link)
+    draw_pose(link_pose) #, parent=robot, parent_link=link)
     wait_for_interrupt()
-    for grasp_rotation in grasp_poses:
-        n1, n2 = elements[0]
-        length = np.linalg.norm(node_points[n2] - node_points[n1])
+
+    n1, n2 = element
+    p1 = node_points[n1]
+    p2 = node_points[n2]
+    length = np.linalg.norm(p2 - p1)
+    # Bottom of cylinder is p1, top is p2
+    print(element, p1, p2)
+    for phi in np.linspace(0, np.pi, 10, endpoint=True):
+        theta = np.pi/4
         for t in np.linspace(-length/2, length/2, 10):
-            element_translation = Pose(point=Point(z=t))
-            grasp_pose = multiply(grasp_rotation, element_translation)
+            translation = Pose(point=Point(z=-t)) # Want to be moving backwards because +z is out end effector
+            direction = Pose(euler=Euler(roll=np.pi / 2 + theta, pitch=phi))
+            angle = Pose(euler=Euler(yaw=1.2))
+            grasp_pose = multiply(angle, direction, translation)
             element_pose = multiply(link_pose, grasp_pose)
             set_pose(element_body, element_pose)
-            #wait_for_interrupt()
-            user_input('Continue?')
+            wait_for_interrupt()
+            #user_input('Continue?')
+
+    #for theta in np.linspace(0, 2 * np.pi, 10, endpoint=False):
+    #    n1, n2 = element
+    #    length = np.linalg.norm(node_points[n2] - node_points[n1])
+    #    for t in np.linspace(-length/2, length/2, 10):
+    #        grasp_pose = get_grasp_pose(t, phi, theta)
+    #        element_pose = multiply(link_pose, grasp_pose)
+    #        set_pose(element_body, element_pose)
+    #        wait_for_interrupt()
+    #        #user_input('Continue?')
 
 
 def test_print(robot, node_points, elements):
@@ -119,26 +135,32 @@ def test_print(robot, node_points, elements):
     wait_for_interrupt()
 
     phi = 0
-    #grasp_poses = [Pose(euler=Euler(roll=np.pi/2, pitch=phi, yaw=theta))
+    #grasp_rotations = [Pose(euler=Euler(roll=np.pi/2, pitch=phi, yaw=theta))
     #               for theta in np.linspace(0, 2*np.pi, 10, endpoint=False)]
-    grasp_poses = [Pose(euler=Euler(roll=np.pi/2, pitch=theta, yaw=phi))
-                   for theta in np.linspace(0, 2*np.pi, 10, endpoint=False)]
+    #grasp_rotations = [Pose(euler=Euler(roll=np.pi/2, pitch=theta, yaw=phi))
+    #               for theta in np.linspace(0, 2*np.pi, 10, endpoint=False)]
+    grasp_rotations = [sample_direction() for _ in range(25)]
 
     link = link_from_name(robot, TOOL_NAME)
     movable_joints = get_movable_joints(robot)
     sample_fn = get_sample_fn(robot, movable_joints)
-    for grasp_rotation in grasp_poses:
+    for grasp_rotation in grasp_rotations:
         n1, n2 = elements[0]
         length = np.linalg.norm(node_points[n2] - node_points[n1])
         set_joint_positions(robot, movable_joints, sample_fn())
         for t in np.linspace(-length/2, length/2, 10):
-            element_translation = Pose(point=Point(z=t))
-            grasp_pose = multiply(grasp_rotation, element_translation)
+            #element_translation = Pose(point=Point(z=-t))
+            #grasp_pose = multiply(grasp_rotation, element_translation)
+            #reverse = Pose(euler=Euler())
+            reverse = Pose(euler=Euler(roll=np.pi))
+            grasp_pose = get_grasp_pose(t, grasp_rotation, 0)
+            grasp_pose = multiply(grasp_pose, reverse)
+
             element_pose = get_pose(element_body)
             link_pose = multiply(element_pose, invert(grasp_pose))
             conf = inverse_kinematics(robot, link, link_pose)
-            #wait_for_interrupt()
-            user_input('Continue?')
+            wait_for_interrupt()
+            #user_input('Continue?')
 
 
 def plan_sequence_test(node_points, elements, ground_nodes):

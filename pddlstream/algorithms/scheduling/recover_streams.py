@@ -2,13 +2,17 @@ from collections import namedtuple, defaultdict
 from heapq import heappop, heappush
 
 from pddlstream.language.conversion import is_atom, fact_from_evaluation
-from pddlstream.utils import HeapElement
+from pddlstream.utils import HeapElement, INF
 
-Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: level
+Node = namedtuple('Node', ['effort', 'stream_result']) # TODO: include level
 
 NULL_COND = (None,)
+COMBINE_OP = sum # max | sum
 
-def get_achieving_streams(evaluations, stream_results, op=sum, unit_effort=False):
+def get_instance_effort(instance, unit_efforts):
+    return 1 if unit_efforts else instance.get_effort()
+
+def get_achieving_streams(evaluations, stream_results, unit_efforts=False): #, max_effort=INF):
     # TODO: could do this with bound_stream_instances instead
     unprocessed_from_atom = defaultdict(list)
     node_from_atom = {NULL_COND: Node(0, None)}
@@ -32,8 +36,11 @@ def get_achieving_streams(evaluations, stream_results, op=sum, unit_effort=False
             remaining_from_stream[result] -= 1
             if remaining_from_stream[result]:
                 continue
-            effort = 1 if unit_effort else result.instance.get_effort()
-            total_effort = effort + op(node_from_atom[cond].effort for cond in conditions_from_stream[result])
+            effort = get_instance_effort(result.instance, unit_efforts)
+            total_effort = effort + COMBINE_OP(node_from_atom[cond].effort
+                                               for cond in conditions_from_stream[result])
+            #if max_effort <= total_effort:
+            #    continue
             for new_atom in result.get_certified():
                 if (new_atom not in node_from_atom) or (total_effort < node_from_atom[new_atom].effort):
                     node_from_atom[new_atom] = Node(total_effort, result)

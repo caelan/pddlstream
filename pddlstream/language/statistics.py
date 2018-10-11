@@ -176,8 +176,8 @@ class Performance(object):
             return self._estimate_overhead()
         return self.info.overhead
 
-    def get_effort(self):
-        return geometric_cost(self.get_overhead(), self.get_p_success())
+    #def get_effort(self):
+    #    return geometric_cost(self.get_overhead(), self.get_p_success())
 
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(

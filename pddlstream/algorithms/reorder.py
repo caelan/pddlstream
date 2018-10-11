@@ -1,16 +1,17 @@
 from collections import namedtuple, deque
 
-from pddlstream.algorithms.algorithm import neighbors_from_orders, topological_sort
 from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
-    is_applicable, apply_action, get_action_instances
-from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
-from pddlstream.algorithms.scheduling.simultaneous import evaluations_from_stream_plan
+    is_applicable, apply_action, get_action_instances, substitute_derived
+from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
+    extract_axiom_plan, instantiate_axioms
+from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.language.constants import EQ, And, get_prefix
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, Verbose, MockSet, implies
+from pddlstream.utils import INF, Verbose, MockSet, implies, neighbors_from_orders, topological_sort
+
 
 # TODO: should I use the product of all future probabilities?
 
@@ -73,7 +74,8 @@ def get_future_p_successes(stream_plan):
 ##################################################
 
 def get_stream_stats(result):
-    return result.instance.get_p_success(), result.instance.get_overhead()
+    #return result.instance.get_p_success(), result.instance.get_overhead()
+    return result.instance.external.get_p_success(), result.instance.external.get_overhead()
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     # TODO: prioritize cost functions as they can prune when we have a better plan
@@ -155,6 +157,8 @@ def reorder_stream_plan(stream_plan, **kwargs):
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
     return dynamic_programming(stream_plan, valid_combine, get_stream_stats, **kwargs)
 
+##################################################
+
 def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwargs):
     if combined_plan is None:
         return None
@@ -184,55 +188,40 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
-def instantiate_axioms(model, init_facts, fluent_facts, axiom_remap={}):
-    import pddl
-    instantiated_axioms = []
-    for atom in model:
-        if isinstance(atom.predicate, pddl.Axiom):
-            axiom = axiom_remap.get(atom.predicate, atom.predicate)
-            variable_mapping = dict([(par.name, arg)
-                                     for par, arg in zip(axiom.parameters, atom.args)])
-            inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
-            if inst_axiom:
-                instantiated_axioms.append(inst_axiom)
-    return instantiated_axioms
-
 def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog
     import build_model
     import axiom_rules
     import pddl
 
-    actions = task.actions
+    original_actions = task.actions
+    original_init = task.init
     task.actions = []
     function_assignments = {f.fluent: f.expression for f in task.init
                             if isinstance(f, pddl.f_expression.FunctionAssignment)}
     task.init = (set(task.init) | {a.negate() for a in negative_init}) - set(function_assignments)
-    fluent_facts = MockSet()
     for instance in action_instances:
+        #axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}) # TODO: refactor this
+
         # TODO: just instantiate task?
         with Verbose(False):
             model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
         # fluent_facts = instantiate.get_fluent_facts(task, model)
+        fluent_facts = MockSet()
         instantiated_axioms = instantiate_axioms(model, task.init, fluent_facts)
-
-        goal_list = []  # TODO: include the goal?
+        goal_list = [] # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        axiom_from_atom = get_achieving_axioms(task.init | negative_init,
-                                               helpful_axioms, axiom_init)
+        axiom_from_atom = get_achieving_axioms(task.init | negative_init | set(axiom_init), helpful_axioms)
         # negated_from_name=negated_from_name)
-
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)
-        # TODO: what the propositional axiom has conditional derived
-        axiom_pre = {p for ax in axiom_plan for p in ax.condition}
-        axiom_eff = {ax.effect for ax in axiom_plan}
-        instance.precondition = list((set(instance.precondition) | axiom_pre) - axiom_eff)
 
-        assert (is_applicable(task.init, instance))
+        substitute_derived(axiom_plan, instance)
+        assert(is_applicable(task.init, instance))
         apply_action(task.init, instance)
-    task.actions = actions
+    task.actions = original_actions
+    task.init = original_init
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if action_plan is None:

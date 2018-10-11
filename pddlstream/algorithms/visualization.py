@@ -2,7 +2,7 @@ import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE
-from pddlstream.language.conversion import evaluation_from_fact, str_from_fact
+from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
 from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
@@ -39,13 +39,6 @@ def reset_visualizations():
     ensure_dir(CONSTRAINT_NETWORK_DIR)
     ensure_dir(STREAM_PLAN_DIR)
 
-def get_optimistic_constraints(evaluations, stream_plan):
-    # TODO: approximates needed facts using produced ones
-    constraints = set()
-    for stream in stream_plan:
-        constraints.update(stream.get_certified())
-    return set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
-
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
     decomposed_plan = decompose_stream_plan(stream_plan)
@@ -75,10 +68,11 @@ def create_visualizations(evaluations, stream_plan, iteration):
             create_synthesizer_visualizations(result, iteration)
     filename = ITERATION_TEMPLATE.format(POST_PROCESS if iteration is None else iteration)
     # visualize_stream_plan(stream_plan, path)
-    decomposed_plan = decompose_stream_plan(stream_plan)
-    constraints = get_optimistic_constraints(evaluations, stream_plan)
+    constraints = set() # TODO: approximates needed facts using produced ones
+    for stream in stream_plan:
+        constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(decomposed_plan, os.path.join(STREAM_PLAN_DIR, filename))
+    visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################
