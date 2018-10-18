@@ -229,13 +229,16 @@ def compile_fluent_streams(domain, externals):
         stream = predicate_map[literal.predicate]
         certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
         mapping = get_mapping(get_args(certified), literal.args)
+        #assert all(arg in mapping for arg in stream.inputs) # Certified must contain all inputs
+        if not all(arg in mapping for arg in stream.inputs):
+            # TODO: this excludes typing. This is not entirely safe
+            return literal
         blocked_args = tuple(mapping[arg] for arg in stream.inputs)
         blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
         if stream.is_negated():
             # TODO: add stream conditions here
             return blocked_literal
-        else:
-            return pddl.Conjunction([literal, blocked_literal])
+        return pddl.Conjunction([literal, blocked_literal])
 
     import pddl
     for action in domain.actions:
