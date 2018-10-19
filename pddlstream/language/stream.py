@@ -311,7 +311,7 @@ class Stream(External):
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
-        self.fluents = fluents
+        self.fluents = [] if gen_fn == DEBUG else fluents
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
         else:
