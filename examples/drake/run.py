@@ -25,7 +25,7 @@ from examples.drake.utils import BoundingBox, create_transform, get_model_bodies
     get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
     get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, fix_input_ports, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
-    set_joint_angles, get_random_positions, get_aabb_z_placement, set_configuration
+    set_joint_angles, get_random_positions, get_aabb_z_placement, set_configuration, get_bodies
 
 from kuka_multibody_controllers import (KukaMultibodyController,
                                         HandController,
@@ -539,7 +539,7 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
             t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
             d, n = q_knots_kuka.shape
-            print(d, n, t_knots[-1])
+            print('d={}, n={}, duration={:.3f}'.format(d, n, t_knots[-1]))
             splines.append(PiecewisePolynomial.Cubic(
                 breaks=t_knots, 
                 knots=q_knots_kuka,
@@ -553,7 +553,27 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
 
 ##################################################
 
+def get_colliding_bodies(mbp, context, min_penetration=0.0):
+    # TODO: set collision geometries pairs to check
+    # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
+    body_from_geometry_id = {}
+    for body in get_bodies(mbp):
+        for geometry_id in mbp.GetCollisionGeometriesForBody(body):
+            body_from_geometry_id[geometry_id.get_value()] = body
+    colliding_pairs = set()
+    for penetration in mbp.CalcPointPairPenetrations(context):
+        if penetration.depth < min_penetration:
+            continue
+        body1 = body_from_geometry_id[penetration.id_A.get_value()]
+        body2 = body_from_geometry_id[penetration.id_B.get_value()]
+        colliding_pairs.add((body1, body2))
+    return colliding_pairs
+
+##################################################
+
 def main():
+    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
+
     parser = argparse.ArgumentParser()  # Automatically includes help
     #parser.add_argument('-arm', required=True)
     parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
@@ -612,6 +632,11 @@ def main():
     #print(mbp.num_velocities())
     print(initial_state, type(initial_state))
 
+    #for body in get_model_bodies(mbp, broccoli):
+    #    geometry_id = mbp.GetVisualGeometriesForBody(body)[0]
+    #    print(geometry_id.get_value())
+    #    print(body.name(), mbp.GetVisualGeometriesForBody(body), mbp.GetCollisionGeometriesForBody(body))
+
     ##################################################
 
     problem = get_pddlstream_problem(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
@@ -623,7 +648,7 @@ def main():
     trajectories = postprocess_plan(mbp, gripper, plan)
     splines, gripper_setpoints = convert_splines(mbp, robot, gripper, context, trajectories)
     sim_duration = compute_duration(splines)
-    print('Splines: {}\nDuration: {} seconds'.format(len(splines), sim_duration))
+    print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
 
     ##################################################
 
@@ -637,6 +662,11 @@ def main():
     mbp.tree().get_mutable_multibody_state_vector(sub_context)[:] = initial_state
     #if not args.simulate:
     #    fix_input_ports(mbp, sub_context)
+
+    #set_world_pose(mbp, sub_context, broccoli, create_transform(translation=[table2_x, 0, table_top_z-0.1]))
+    #colliding_pairs = get_colliding_bodies(mbp, sub_context, min_penetration=0.0)
+    #for body1, body2 in colliding_pairs:
+    #    print(body1.get_parent_tree(), body2.model_instance())
 
     if args.simulate:
         simulate_splines(diagram, diagram_context, sim_duration)

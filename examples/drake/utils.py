@@ -79,12 +79,13 @@ def get_frames(mbp):
 
 
 def get_model_bodies(mbp, model_index):
-    body_names = []
-    for body in get_bodies(mbp):
-        if body.name() not in body_names:
-            body_names.append(body.name())
-    return [mbp.GetBodyByName(name, model_index)
-            for name in body_names if mbp.HasBodyNamed(name, model_index)]
+    return [body for body in get_bodies(mbp) if body.model_instance() == model_index]
+    #body_names = []
+    #for body in get_bodies(mbp):
+    #    if body.name() not in body_names:
+    #        body_names.append(body.name())
+    #return [mbp.GetBodyByName(name, model_index)
+    #        for name in body_names if mbp.HasBodyNamed(name, model_index)]
 
 
 def get_base_body(mbp, model_index):
@@ -93,12 +94,13 @@ def get_base_body(mbp, model_index):
 
 
 def get_model_joints(mbp, model_index):
-    joint_names = []
-    for joint in get_joints(mbp):
-        if joint.name() not in joint_names:
-            joint_names.append(joint.name())
-    return [mbp.GetJointByName(name, model_index)
-            for name in joint_names if mbp.HasJointNamed(name, model_index)]
+    return [joint for joint in get_joints(mbp) if joint.model_instance() == model_index]
+    #joint_names = []
+    #for joint in get_joints(mbp):
+    #    if joint.name() not in joint_names:
+    #        joint_names.append(joint.name())
+    #return [mbp.GetJointByName(name, model_index)
+    #        for name in joint_names if mbp.HasJointNamed(name, model_index)]
 
 def is_fixed_joints(joint):
     return joint.num_positions() == 0
@@ -187,8 +189,10 @@ def get_relative_transform(mbp, context, frame2, frame1=None): # frame1 -> frame
     return mbp.tree().CalcRelativeTransform(context, frame1, frame2)
 
 
-def get_body_pose(mbp, context, body):
-    return mbp.tree().EvalBodyPoseInWorld(context, body)
+def get_body_pose(context, body):
+    #mbt = mbp.tree()
+    mbt = body.get_parent_tree()
+    return mbt.EvalBodyPoseInWorld(context, body)
 
 
 def get_world_pose(mbp, context, model_index):
