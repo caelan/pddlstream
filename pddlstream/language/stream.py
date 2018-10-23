@@ -169,14 +169,14 @@ class StreamInstance(Instance):
     def _create_generator(self):
         if self._generator is None:
             input_values = self.get_input_values()
-            try:
-                if self.external.is_fluent(): # self.fluent_facts
-                    self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
-                else:
-                    self._generator = self.external.gen_fn(*input_values)
-            except TypeError as err:
-                print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
-                raise err
+            #try:
+            if self.external.is_fluent(): # self.fluent_facts
+                self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
+            else:
+                self._generator = self.external.gen_fn(*input_values)
+            #except TypeError as err:
+            #    print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
+            #    raise err
 
     def _next_outputs(self):
         self._create_generator()
@@ -311,7 +311,7 @@ class Stream(External):
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
-        self.fluents = fluents
+        self.fluents = [] if gen_fn == DEBUG else fluents
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
         else:
