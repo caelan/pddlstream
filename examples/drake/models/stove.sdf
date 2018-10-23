@@ -21,9 +21,6 @@
           <size>0.25 0.25 0.05</size>
         </box>
       </geometry>
-      <material>
-        <diffuse>1 0 0 1</diffuse>
-      </material>
     </collision>
 
    </link>

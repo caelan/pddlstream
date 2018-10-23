@@ -43,6 +43,8 @@ from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, 
 # ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
 # http://127.0.0.1:7000/static/
 
+# gz sdf -p ../urdf/iiwa14_polytope_collision.urdf > /iiwa14_polytope_collision.sdf
+
 IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
     #"iiwa14_no_collision_floating.sdf")
@@ -53,8 +55,6 @@ WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "wsg_50_description", "sdf",
     "schunk_wsg_50.sdf")
 
-print(WSG50_SDF_PATH)
-
 TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "examples", "kuka_iiwa_arm", "models", "table",
     "extra_heavy_duty_table_surface_only_collision.sdf")
@@ -64,8 +64,8 @@ SINK_PATH = os.path.join(MODELS_DIR, "sink.sdf")
 STOVE_PATH = os.path.join(MODELS_DIR, "stove.sdf")
 BROCCOLI_PATH = os.path.join(MODELS_DIR, "broccoli.sdf")
 WALL_PATH = os.path.join(MODELS_DIR, "wall.sdf")
-IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
-    "iiwa14_no_collision.sdf")
+#IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
+#    "iiwa14_no_collision.sdf")
 
 AABBs = {
     'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
@@ -723,10 +723,11 @@ def main():
     scene_graph = SceneGraph() # Geometry
     lcm = DrakeLcm()
 
+    # TODO: meshes aren't supported during collision checking
     robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='robot',
                                 scene_graph=scene_graph, plant=mbp)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
-                                  scene_graph=scene_graph, plant=mbp)
+                                  scene_graph=scene_graph, plant=mbp) # TODO: sdf frame/link error
     table = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table',
                                 scene_graph=scene_graph, plant=mbp)
     table2 = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table2',

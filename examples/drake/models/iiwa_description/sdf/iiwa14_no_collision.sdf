@@ -32,6 +32,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>0.4 0.4 0.4 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_0_fixed_joint_lump__iiwa_link_0_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_0.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -63,6 +72,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>0.4 0.4 0.4 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_1_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_1.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -125,6 +143,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_2_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_2.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -199,6 +226,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>0 0 0 1</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_3_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_3.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -261,6 +297,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_4_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_4.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -335,6 +380,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>0 0 0 1</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_5_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_5.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -397,6 +451,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_6_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_6.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
@@ -447,6 +510,15 @@ Later edited by hand to rename the base link and remove damping from the joints.
           <diffuse>0.4 0.4 0.4 1.0</diffuse>
         </material>
       </visual>
+      <collision name='iiwa_link_7_collision'>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>../meshes/collision/link_7.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
       <gravity>1</gravity>
       <velocity_decay/>
       <self_collide>0</self_collide>
