@@ -46,11 +46,14 @@ from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, 
 IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
     #"iiwa14_no_collision_floating.sdf")
+    #"iiwa14_polytope_collision.sdf")
     "iiwa14_no_collision.sdf")
 
 WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "wsg_50_description", "sdf",
     "schunk_wsg_50.sdf")
+
+print(WSG50_SDF_PATH)
 
 TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "examples", "kuka_iiwa_arm", "models", "table",
@@ -60,11 +63,14 @@ MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 SINK_PATH = os.path.join(MODELS_DIR, "sink.sdf")
 STOVE_PATH = os.path.join(MODELS_DIR, "stove.sdf")
 BROCCOLI_PATH = os.path.join(MODELS_DIR, "broccoli.sdf")
+WALL_PATH = os.path.join(MODELS_DIR, "wall.sdf")
+IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
+    "iiwa14_no_collision.sdf")
 
 AABBs = {
     'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
     'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
-    'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])),
+    'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])), # Cylinder
     'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
     'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
 }
@@ -177,19 +183,23 @@ def build_diagram(mbp, scene_graph, lcm):
 WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
 WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
 
+
 def get_close_wsg50_positions(mbp, model_index):
     left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
     right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
     return [left_joint.upper_limits()[0], right_joint.lower_limits()[0]]
+
 
 def get_open_wsg50_positions(mbp, model_index):
     left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
     right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
     return [left_joint.lower_limits()[0], right_joint.upper_limits()[0]]
 
+
 def close_wsg50_gripper(mbp, context, model_index): # 0.05
     set_max_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
     set_min_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+
 
 def open_wsg50_gripper(mbp, context, model_index):
     set_min_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
@@ -349,10 +359,12 @@ class RelPose(object):
         self.parent = parent
         self.child = child
         self.transform = transform
+
     def assign(self, context):
         parent_pose = get_relative_transform(self.mbp, context, self.parent)
         child_pose = parent_pose.multiply(self.transform)
         set_world_pose(self.mbp, context, self.child, child_pose)
+
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
 
@@ -362,9 +374,11 @@ class Config(object):
         assert len(joints) == len(positions)
         self.joints = joints
         self.positions = tuple(positions)
+
     def assign(self, context):
         for joint, position in zip(self.joints, self.positions):
-            set_joint_position(joint, context, position) 
+            set_joint_position(joint, context, position)
+
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, len(self.joints))
 
@@ -373,12 +387,14 @@ class Trajectory(object):
     def __init__(self, path, attachments=[]):
         self.path = tuple(path)
         self.attachments = attachments
+
     def iterate(self, context):
         for conf in self.path[1:]:
             conf.assign(context)
             for attach in self.attachments: # TODO: topological sort
                 attach.assign(context)
             yield
+
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, len(self.path))
 
@@ -448,8 +464,8 @@ def get_free_motion_fn(mbp, context, robot, gripper, fixed=[]):
     collision_pairs = set(product([robot, gripper], fixed))
 
     def fn(q1, q2):
+        open_wsg50_gripper(mbp, context, gripper)
         set_joint_positions(joints, context, q1.positions)
-        #path = plan_straight_line_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
@@ -464,8 +480,8 @@ def get_holding_motion_fn(mbp, context, robot, gripper, fixed=[]):
     collision_pairs = set(product([robot, gripper], fixed))
 
     def fn(q1, q2, o, g): # TODO: holding
+        #close_wsg50_gripper(mbp, context, gripper)
         set_joint_positions(joints, context, q1.positions)
-        #path = plan_straight_line_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
@@ -494,8 +510,10 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[]
         ('HandEmpty',)
     ]
 
-    #print('Movable:', movable)
-    #print('Surfaces:', fixed)
+    print('Movable:', [get_model_name(mbp, name) for name in movable])
+    print('Surfaces:', [get_model_name(mbp, name) for name in surfaces])
+    print('Fixed:', [get_model_name(mbp, name) for name in fixed])
+
     for obj in movable:
         obj_name = get_model_name(mbp, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
@@ -719,6 +737,8 @@ def main():
                                 scene_graph=scene_graph, plant=mbp)
     broccoli = AddModelFromSdfFile(file_name=BROCCOLI_PATH, model_name='broccoli',
                                    scene_graph=scene_graph, plant=mbp)
+    wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
+                               scene_graph=scene_graph, plant=mbp)
 
     table2_x = 0.75
     table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
@@ -728,6 +748,8 @@ def main():
     weld_to_world(mbp, table2, create_transform(translation=[table2_x, 0, 0]))
     weld_to_world(mbp, sink, create_transform(translation=[table2_x, 0.25, table_top_z]))
     weld_to_world(mbp, stove, create_transform(translation=[table2_x, -0.25, table_top_z]))
+    if wall is not None:
+        weld_to_world(mbp, wall, create_transform(translation=[table2_x/2, 0, table_top_z]))
     mbp.Finalize(scene_graph)
 
     #dump_plant(mbp)
@@ -764,7 +786,11 @@ def main():
 
     ##################################################
 
-    fixed = [] if args.cfree else [table, table2, sink, stove]
+    fixed = [table, table2, sink, stove]
+    if wall is not None:
+        fixed.append(wall)
+    if args.cfree:
+        fixed = []
     problem = get_pddlstream_problem(mbp, context, robot, gripper,
                                      movable=[broccoli],
                                      surfaces=[sink, stove],
