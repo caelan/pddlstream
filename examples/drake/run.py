@@ -27,9 +27,7 @@ from examples.drake.utils import BoundingBox, create_transform, get_model_bodies
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
     set_joint_angles, get_random_positions, get_aabb_z_placement, set_configuration
 
-from kuka_multibody_controllers import (KukaMultibodyController,
-                                        HandController,
-                                        ManipStateMachine)
+from kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 from pydrake.trajectories import PiecewisePolynomial
 from pydrake.systems.analysis import Simulator
 
@@ -39,7 +37,7 @@ from pydrake.systems.analysis import Simulator
 # docker rmi $(docker images -q mit6881/drake-course)
 
 # https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
-# ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20180906 .
+# ~/Programs/LIS/git/pddlstream$ ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20181012 .
 # http://127.0.0.1:7000/static/
 
 IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
@@ -147,13 +145,15 @@ def connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints
                     hand_controller.setpoint_input_port)
 
 
-def build_diagram(mbp, scene_graph, lcm):
+def build_diagram(mbp, scene_graph, lcm, meshcat=False):
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
     builder.AddSystem(mbp)
     connect_collisions(mbp, scene_graph, builder)
-    #add_meshcat_visualizer(scene_graph, builder)
-    add_drake_visualizer(scene_graph, lcm, builder)
+    if meshcat:
+        add_meshcat_visualizer(scene_graph, builder)
+    else:
+        add_drake_visualizer(scene_graph, lcm, builder)
     add_logger(mbp, builder)
     #return builder.Build()
     return builder
@@ -556,9 +556,14 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
 def main():
     parser = argparse.ArgumentParser()  # Automatically includes help
     #parser.add_argument('-arm', required=True)
-    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
+    parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
+    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate the trajectories')
     args = parser.parse_args()
 
+    meshcat_vis = None
+    if args.meshcat:
+        meshcat_vis = load_meshcat() # Important that variable is saved
+        #print('http://127.0.0.1:7000/static/')
     
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     #time_step = 0
@@ -610,12 +615,11 @@ def main():
     #print(initial_state)
     #print(mbp.num_positions())
     #print(mbp.num_velocities())
-    print(initial_state, type(initial_state))
 
     ##################################################
 
     problem = get_pddlstream_problem(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
-    solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
+    solution = solve_focused(problem, planner='ff-astar', max_cost=INF, debug=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
@@ -627,7 +631,7 @@ def main():
 
     ##################################################
 
-    builder = build_diagram(mbp, scene_graph, lcm)
+    builder = build_diagram(mbp, scene_graph, lcm, meshcat=args.meshcat)
     if args.simulate:
         connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints)
     diagram = builder.Build()
@@ -645,3 +649,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# python2 -m examples.drake.run
