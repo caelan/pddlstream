@@ -39,6 +39,7 @@ def sample_aabb_placement(object_aabb, surface_aabb, **kwargs):
 
 ##################################################
 
+
 def matrix_from_euler(euler):
     roll, pitch, yaw = euler
     return RollPitchYaw(roll, pitch, yaw).ToRotationMatrix().matrix()
@@ -53,6 +54,7 @@ def create_transform(translation=None, rotation=None):
     return pose
 
 ##################################################
+
 
 def get_model_name(mbp, model_index):
     return mbp.tree().GetModelInstanceName(model_index)
@@ -102,6 +104,7 @@ def get_model_joints(mbp, model_index):
     #return [mbp.GetJointByName(name, model_index)
     #        for name in joint_names if mbp.HasJointNamed(name, model_index)]
 
+
 def is_fixed_joints(joint):
     return joint.num_positions() == 0
 
@@ -117,18 +120,21 @@ def get_movable_joints(mbp, model_index):
 ##################################################
 
 
-def joints_from_names(mbp, joint_names):
-    return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
+#def joints_from_names(mbp, joint_names):
+#    return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
+#
+#
+#def get_joint_angles(mbp, context, joint_names):
+#    return [joint.get_angle(context) for joint in joints_from_names(mbp, joint_names)]
+#
+#
+#def set_joint_angles(mbp, context, joint_names, joint_angles):
+#    assert len(joint_names) == len(joint_angles)
+#    return [joint.set_angle(context, angle)
+#            for joint, angle in zip(joints_from_names(mbp, joint_names), joint_angles)]
 
 
-def get_joint_angles(mbp, context, joint_names):
-    return [joint.get_angle(context) for joint in joints_from_names(mbp, joint_names)]
-
-
-def set_joint_angles(mbp, context, joint_names, joint_angles):
-    assert len(joint_names) == len(joint_angles)
-    return [joint.set_angle(context, angle)
-            for joint, angle in zip(joints_from_names(mbp, joint_names), joint_angles)]
+##################################################
 
 
 def get_joint_limits(joint):
@@ -160,27 +166,47 @@ def set_joint_position(joint, context, position):
         raise NotImplementedError(joint)
 
 
-def get_configuration(mbp, context, model_index):
-    joints = prune_fixed_joints(get_model_joints(mbp, model_index))
+def get_joint_positions(joints, context):
     return [get_joint_position(joint, context) for joint in joints]
 
 
+def set_joint_positions(joints, context, positions):
+    assert len(joints) == len(positions)
+    return [set_joint_position(joint, context, position) for joint, position in zip(joints, positions)]
+
+
+def get_configuration(mbp, context, model_index):
+    return get_joint_positions(get_movable_joints(mbp, model_index), context)
+
+
 def set_configuration(mbp, context, model_index, config):
-    joints = prune_fixed_joints(get_model_joints(mbp, model_index))
-    assert len(joints) == len(config)
-    return [set_joint_position(joint, context, position) for joint, position in zip(joints, config)]
+    return set_joint_positions(get_movable_joints(mbp, model_index), context, config)
 
 
-def set_min_joint_positions(mbp, context, joints):
+##################################################
+
+
+def set_min_joint_positions(context, joints):
     for joint in prune_fixed_joints(joints):
-        [position] = joint.lower_limits()
-        set_joint_position(joint, context, position)
+        lower, _ = get_joint_limits(joint)
+        set_joint_position(joint, context, lower)
 
 
-def set_max_joint_positions(mbp, context, joints):
+def set_max_joint_positions(context, joints):
     for joint in prune_fixed_joints(joints):
-        [position] = joint.upper_limits()
-        set_joint_position(joint, context, position)
+        _, upper = get_joint_limits(joint)
+        set_joint_position(joint, context, upper)
+
+
+def get_rest_positions(joints):
+    return np.zeros(len(joints))
+
+
+def get_random_positions(joints):
+    return np.array([np.random.uniform(*get_joint_limits(joint)) for joint in joints])
+
+
+##################################################
 
 
 def get_relative_transform(mbp, context, frame2, frame1=None): # frame1 -> frame2
@@ -205,13 +231,6 @@ def set_world_pose(mbp, context, model_index, world_pose):
     body = get_base_body(mbp, model_index)
     mbp.tree().SetFreeBodyPoseOrThrow(body, world_pose, context)
 
-
-def get_rest_positions(joints):
-    return np.zeros(len(joints))
-
-
-def get_random_positions(joints):
-    return np.array([np.random.uniform(*get_joint_limits(joint)) for joint in joints])
 
 ##################################################
 
