@@ -198,6 +198,9 @@ def open_wsg50_gripper(mbp, context, model_index):
 
 ##################################################
 
+DEFAULT_WEIGHT = 1.0
+DEFAULT_RESOLUTION = 0.005
+
 
 def get_sample_fn(joints):
     return lambda: get_random_positions(joints)
@@ -219,9 +222,9 @@ def get_difference_fn(joints):
 
 
 def get_distance_fn(joints, weights=None):
-    if weights is None:
-        weights = 1*np.ones(len(joints))
     # TODO: custom weights and step sizes
+    if weights is None:
+        weights = DEFAULT_WEIGHT*np.ones(len(joints))
     difference_fn = get_difference_fn(joints)
 
     def fn(q1, q2):
@@ -245,9 +248,10 @@ def get_refine_fn(joints, num_steps=0):
 
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
-        resolutions = 0.005*np.pi*np.ones(len(joints))
+        resolutions = DEFAULT_RESOLUTION*np.pi*np.ones(len(joints))
     assert len(joints) == len(resolutions)
     difference_fn = get_difference_fn(joints)
+
     def fn(q1, q2):
         steps = np.abs(np.divide(difference_fn(q2, q1), resolutions))
         refine_fn = get_refine_fn(joints, num_steps=int(np.max(steps)))
@@ -260,21 +264,36 @@ def within_limits(joint, position):
     return lower <= position <= upper
 
 
-def get_collision_fn(joints, context, obstacles=[]):
+def get_collision_fn(mbp, context, joints, collision_pairs=set()):
+    # TODO: collision bodies or collision models?
+
     def fn(q):
         if any(not within_limits(joint, position) for joint, position in zip(joints, q)):
             return True
+        if not collision_pairs:
+            return False
         set_joint_positions(joints, context, q)
-        return False
+        return collision_pairs & get_colliding_models(mbp, context)
     return fn
 
 
-def plan_straight_line_motion(joints, context, end_positions, resolutions=None, obstacles=[]):
+def plan_straight_line_motion(mbp, context, joints, end_positions, resolutions=None, collision_pairs=set()):
     assert len(joints) == len(end_positions)
     start_positions = get_joint_positions(joints, context)
     return direct_path(start_positions, end_positions,
                        extend=get_extend_fn(joints, resolutions=resolutions),
-                       collision=get_collision_fn(joints, context, obstacles=obstacles))
+                       collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs))
+
+
+def plan_joint_motion(mbp, context, joints, end_positions,
+                      weights=None, resolutions=None, collision_pairs=set(), **kwargs):
+    assert len(joints) == len(end_positions)
+    start_positions = get_joint_positions(joints, context)
+    return birrt(start_positions, end_positions,
+                 distance=get_distance_fn(joints, weights=weights),
+                 sample=get_sample_fn(joints),
+                 extend=get_extend_fn(joints, resolutions=resolutions),
+                 collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs), **kwargs)
 
 ##################################################
 
@@ -284,6 +303,7 @@ def get_unit_vector(vec):
     if norm == 0.:
         return vec
     return np.array(vec) / norm
+
 
 def waypoints_from_path(joints, path):
     if len(path) < 2:
@@ -304,6 +324,7 @@ def waypoints_from_path(joints, path):
 
 ##################################################
 
+
 def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out of gripper
     tool = create_transform(translation=[0, 0, -0.07])
     center, extent = aabb
@@ -321,6 +342,7 @@ def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out 
 
 ##################################################
 
+
 class RelPose(object):
     def __init__(self, mbp, parent, child, transform): # TODO: operate on bodies
         self.mbp = mbp
@@ -334,6 +356,7 @@ class RelPose(object):
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
 
+
 class Config(object):
     def __init__(self, joints, positions):
         assert len(joints) == len(positions)
@@ -344,6 +367,7 @@ class Config(object):
             set_joint_position(joint, context, position) 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, len(self.joints))
+
 
 class Trajectory(object):
     def __init__(self, path, attachments=[]):
@@ -359,6 +383,7 @@ class Trajectory(object):
         return '{}({})'.format(self.__class__.__name__, len(self.path))
 
 ##################################################
+
 
 def get_stable_gen(mbp, context, fixed=[]):
     world = mbp.world_frame
@@ -394,7 +419,9 @@ def get_grasp_gen(mbp, gripper):
 def get_ik_fn(mbp, context, robot, gripper, fixed=[], distance=0.1, step_size=0.01):
     direction = np.array([0, -1, 0])
     gripper_frame = get_base_body(mbp, gripper).body_frame()
-    joints = prune_fixed_joints(get_model_joints(mbp, robot))
+    joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
+    collision_fn = get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs)
 
     def fn(obj_name, pose, grasp):
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
@@ -407,22 +434,23 @@ def get_ik_fn(mbp, context, robot, gripper, fixed=[], distance=0.1, step_size=0.
             if solution is None:
                 return None
             positions = [solution[j.position_start()] for j in joints]
-            set_joint_positions(joints, context, positions)
             # TODO: holding
-            #if is_model_colliding(mbp, context, robot, obstacles=fixed):
-            #    return None
+            if collision_fn(positions):
+                return None
             path.append(Config(joints, positions))
         traj = Trajectory(path)
         return path[-1], traj
     return fn
 
 
-def get_free_motion_fn(mbp, context, robot, fixed=[]):
+def get_free_motion_fn(mbp, context, robot, gripper, fixed=[]):
     joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
 
     def fn(q1, q2):
         set_joint_positions(joints, context, q1.positions)
-        path = plan_straight_line_motion(joints, context, q2.positions, obstacles=fixed)
+        #path = plan_straight_line_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
+        path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
         traj = Trajectory([Config(joints, q) for q in path])
@@ -431,12 +459,14 @@ def get_free_motion_fn(mbp, context, robot, fixed=[]):
     return fn
 
 
-def get_holding_motion_fn(mbp, context, robot, fixed=[]):
+def get_holding_motion_fn(mbp, context, robot, gripper, fixed=[]):
     joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
 
     def fn(q1, q2, o, g): # TODO: holding
         set_joint_positions(joints, context, q1.positions)
-        path = plan_straight_line_motion(joints, context, q2.positions, obstacles=fixed)
+        #path = plan_straight_line_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
+        path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
         traj = Trajectory([Config(joints, q) for q in path], attachments=[g])
@@ -500,8 +530,8 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[]
         'sample-pose': from_gen_fn(get_stable_gen(mbp, context, fixed=fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
         'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=fixed)),
-        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, fixed=fixed)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, fixed=fixed)),
+        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
+        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -509,6 +539,7 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[]
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 ##################################################
+
 
 def postprocess_plan(mbp, gripper, plan):
     trajectories = []
