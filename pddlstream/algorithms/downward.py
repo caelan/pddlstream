@@ -12,7 +12,9 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
 from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 # TODO: possible bug when path has a space or period
+# TODO: toggle between different FD versions
 FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
+#FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release64/')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
