@@ -215,7 +215,7 @@ def task_from_domain_problem(domain, problem):
     check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
-    init.extend(pddl.Atom("=", (obj.name, obj.name)) for obj in objects)
+    init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
 
     task = pddl.Task(domain_name, task_name, requirements, types, objects,
                      predicates, functions, init, goal, actions, axioms, use_metric)
@@ -225,6 +225,8 @@ def task_from_domain_problem(domain, problem):
 ##################################################
 
 def get_literals(condition):
+    if isinstance(condition, pddl.Truth):
+        return []
     if isinstance(condition, pddl.Literal):
         return [condition]
     if isinstance(condition, pddl.Conjunction):

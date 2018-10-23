@@ -4,10 +4,12 @@ user_input = raw_input
 
 import os
 import time
-import pydrake
 import numpy as np
 import random
 import argparse
+import pydrake
+
+from itertools import product
 
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -16,20 +18,21 @@ from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import SignalLogger
+from pydrake.trajectories import PiecewisePolynomial
+from pydrake.systems.analysis import Simulator
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
+from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt, direct_path
 from examples.drake.utils import BoundingBox, create_transform, get_model_bodies, get_model_joints, \
-    get_joint_angles, get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
-    get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, fix_input_ports, \
+    get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
+    get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, fix_input_ports, get_movable_joints, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
-    set_joint_angles, get_random_positions, get_aabb_z_placement, set_configuration
+    get_random_positions, get_aabb_z_placement, get_bodies, get_model_indices, set_joint_positions, get_joint_positions
 
-from kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
-from pydrake.trajectories import PiecewisePolynomial
-from pydrake.systems.analysis import Simulator
+from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
@@ -40,9 +43,12 @@ from pydrake.systems.analysis import Simulator
 # ~/Programs/LIS/git/pddlstream$ ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20181012 .
 # http://127.0.0.1:7000/static/
 
+# gz sdf -p ../urdf/iiwa14_polytope_collision.urdf > /iiwa14_polytope_collision.sdf
+
 IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
     #"iiwa14_no_collision_floating.sdf")
+    #"iiwa14_polytope_collision.sdf")
     "iiwa14_no_collision.sdf")
 
 WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
@@ -57,18 +63,26 @@ MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 SINK_PATH = os.path.join(MODELS_DIR, "sink.sdf")
 STOVE_PATH = os.path.join(MODELS_DIR, "stove.sdf")
 BROCCOLI_PATH = os.path.join(MODELS_DIR, "broccoli.sdf")
+WALL_PATH = os.path.join(MODELS_DIR, "wall.sdf")
+#IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
+#    "iiwa14_no_collision.sdf")
 
 AABBs = {
     'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
     'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
-    'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])),
+    'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])), # Cylinder
     'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
     'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
 }
 
+
+def get_origin_aabb(model_index):
+    raise NotImplementedError() # TODO: if AABBs name starts with type
+
 # TODO: could compute bounding boxes using a rigid body tree
 
 ##################################################
+
 
 def weld_gripper(mbp, robot_index, gripper_index):
     X_EeGripper = create_transform([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
@@ -82,11 +96,13 @@ def weld_gripper(mbp, robot_index, gripper_index):
 
 ##################################################
 
+
 def load_meshcat():
     import meshcat
     vis = meshcat.Visualizer()
     #print(dir(vis)) # set_object
     return vis
+
 
 def add_meshcat_visualizer(scene_graph, builder):
     from underactuated.meshcat_visualizer import MeshcatVisualizer
@@ -97,15 +113,18 @@ def add_meshcat_visualizer(scene_graph, builder):
     viz.load()
     return viz
 
+
 def add_drake_visualizer(scene_graph, lcm, builder):
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph, lcm=lcm)
-    DispatchLoadMessage(scene_graph, lcm)
+    DispatchLoadMessage(scene_graph, lcm) # TODO: only update viewer after a plan is found
+
 
 def add_logger(mbp, builder):
     state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
     state_log._DeclarePeriodicPublish(0.02)
     builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
     return state_log
+
 
 def connect_collisions(mbp, scene_graph, builder):
     # Connect scene_graph to MBP for collision detection.
@@ -116,8 +135,8 @@ def connect_collisions(mbp, scene_graph, builder):
         scene_graph.get_query_output_port(),
         mbp.get_geometry_query_input_port())
 
-def connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints, print_period=1.0):
-    assert len(splines) == len(gripper_setpoints)
+
+def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
     iiwa_controller = KukaMultibodyController(plant=mbp,
                                               kuka_model_instance=robot,
                                               print_period=print_period)
@@ -135,7 +154,7 @@ def connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints
     builder.Connect(mbp.get_continuous_state_output_port(),
                     hand_controller.robot_state_input_port)
 
-    state_machine = ManipStateMachine(mbp, splines, gripper_setpoints)
+    state_machine = ManipStateMachine(mbp)
     builder.AddSystem(state_machine)
     builder.Connect(mbp.get_continuous_state_output_port(),
                     state_machine.robot_state_input_port)
@@ -143,6 +162,7 @@ def connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints
                     iiwa_controller.plan_input_port)
     builder.Connect(state_machine.hand_setpoint_output_port,
                     hand_controller.setpoint_input_port)
+    return state_machine
 
 
 def build_diagram(mbp, scene_graph, lcm, meshcat=False):
@@ -158,35 +178,48 @@ def build_diagram(mbp, scene_graph, lcm, meshcat=False):
     #return builder.Build()
     return builder
 
+
 ##################################################
+
 
 WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
 WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
+
 
 def get_close_wsg50_positions(mbp, model_index):
     left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
     right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
     return [left_joint.upper_limits()[0], right_joint.lower_limits()[0]]
 
+
 def get_open_wsg50_positions(mbp, model_index):
     left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
     right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
     return [left_joint.lower_limits()[0], right_joint.upper_limits()[0]]
 
+
 def close_wsg50_gripper(mbp, context, model_index): # 0.05
-    set_max_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_min_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
+    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+
 
 def open_wsg50_gripper(mbp, context, model_index):
-    set_min_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_max_joint_positions(mbp, context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
+    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+
 
 ##################################################
+
+DEFAULT_WEIGHT = 1.0
+DEFAULT_RESOLUTION = 0.005
+
 
 def get_sample_fn(joints):
     return lambda: get_random_positions(joints)
 
+
 def get_difference_fn(joints):
+
     def fn(q2, q1):
         assert len(joints) == len(q2)
         assert len(joints) == len(q1)
@@ -199,19 +232,23 @@ def get_difference_fn(joints):
         return np.array(difference)
     return fn
 
+
 def get_distance_fn(joints, weights=None):
-    if weights is None:
-        weights = 1*np.ones(len(joints))
     # TODO: custom weights and step sizes
+    if weights is None:
+        weights = DEFAULT_WEIGHT*np.ones(len(joints))
     difference_fn = get_difference_fn(joints)
+
     def fn(q1, q2):
         diff = np.array(difference_fn(q2, q1))
         return np.sqrt(np.dot(weights, diff * diff))
     return fn
 
+
 def get_refine_fn(joints, num_steps=0):
     difference_fn = get_difference_fn(joints)
     num_steps = num_steps + 1
+
     def fn(q1, q2):
         q = q1
         for i in range(num_steps):
@@ -220,24 +257,65 @@ def get_refine_fn(joints, num_steps=0):
             # TODO: wrap these values
     return fn
 
+
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
-        resolutions = 0.005*np.pi*np.ones(len(joints))
+        resolutions = DEFAULT_RESOLUTION*np.pi*np.ones(len(joints))
     assert len(joints) == len(resolutions)
     difference_fn = get_difference_fn(joints)
+
     def fn(q1, q2):
         steps = np.abs(np.divide(difference_fn(q2, q1), resolutions))
         refine_fn = get_refine_fn(joints, num_steps=int(np.max(steps)))
         return refine_fn(q1, q2)
     return fn
 
+
+def within_limits(joint, position):
+    lower, upper = get_joint_limits(joint)
+    return lower <= position <= upper
+
+
+def get_collision_fn(mbp, context, joints, collision_pairs=set()):
+    # TODO: collision bodies or collision models?
+
+    def fn(q):
+        if any(not within_limits(joint, position) for joint, position in zip(joints, q)):
+            return True
+        if not collision_pairs:
+            return False
+        set_joint_positions(joints, context, q)
+        return collision_pairs & get_colliding_models(mbp, context)
+    return fn
+
+
+def plan_straight_line_motion(mbp, context, joints, end_positions, resolutions=None, collision_pairs=set()):
+    assert len(joints) == len(end_positions)
+    start_positions = get_joint_positions(joints, context)
+    return direct_path(start_positions, end_positions,
+                       extend=get_extend_fn(joints, resolutions=resolutions),
+                       collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs))
+
+
+def plan_joint_motion(mbp, context, joints, end_positions,
+                      weights=None, resolutions=None, collision_pairs=set(), **kwargs):
+    assert len(joints) == len(end_positions)
+    start_positions = get_joint_positions(joints, context)
+    return birrt(start_positions, end_positions,
+                 distance=get_distance_fn(joints, weights=weights),
+                 sample=get_sample_fn(joints),
+                 extend=get_extend_fn(joints, resolutions=resolutions),
+                 collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs), **kwargs)
+
 ##################################################
+
 
 def get_unit_vector(vec):
     norm = np.linalg.norm(vec)
-    if norm == 0:
+    if norm == 0.:
         return vec
     return np.array(vec) / norm
+
 
 def waypoints_from_path(joints, path):
     if len(path) < 2:
@@ -258,6 +336,7 @@ def waypoints_from_path(joints, path):
 
 ##################################################
 
+
 def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out of gripper
     tool = create_transform(translation=[0, 0, -0.07])
     center, extent = aabb
@@ -275,61 +354,76 @@ def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out 
 
 ##################################################
 
+
 class RelPose(object):
     def __init__(self, mbp, parent, child, transform): # TODO: operate on bodies
         self.mbp = mbp
         self.parent = parent
         self.child = child
         self.transform = transform
+
     def assign(self, context):
         parent_pose = get_relative_transform(self.mbp, context, self.parent)
         child_pose = parent_pose.multiply(self.transform)
         set_world_pose(self.mbp, context, self.child, child_pose)
+
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
+
 
 class Config(object):
     def __init__(self, joints, positions):
         assert len(joints) == len(positions)
         self.joints = joints
         self.positions = tuple(positions)
+
     def assign(self, context):
         for joint, position in zip(self.joints, self.positions):
-            set_joint_position(joint, context, position) 
+            set_joint_position(joint, context, position)
+
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, len(self.joints))
+
 
 class Trajectory(object):
     def __init__(self, path, attachments=[]):
         self.path = tuple(path)
         self.attachments = attachments
+
     def iterate(self, context):
         for conf in self.path[1:]:
             conf.assign(context)
             for attach in self.attachments: # TODO: topological sort
                 attach.assign(context)
             yield
+
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, len(self.path))
 
 ##################################################
 
-def get_stable_gen(mbp, context):
+
+def get_stable_gen(mbp, context, fixed=[]):
     world = mbp.world_frame
+
     def gen(obj_name, surface_name):
         object_aabb = AABBs[obj_name]
-        obj = mbp.GetModelInstanceByName(surface_name)
+        obj = mbp.GetModelInstanceByName(obj_name)
         surface_aabb = AABBs[surface_name]
         surface = mbp.GetModelInstanceByName(surface_name)
         surface_pose = get_world_pose(mbp, context, surface)
         for local_pose in sample_aabb_placement(object_aabb, surface_aabb):
             world_pose = surface_pose.multiply(local_pose)
-            pose = RelPose(mbp, world, obj, world_pose)
-            yield pose,
+            set_world_pose(mbp, context, obj, world_pose)
+            if not is_model_colliding(mbp, context, obj, obstacles=fixed): #obstacles=(fixed + [surface])):
+                pose = RelPose(mbp, world, obj, world_pose)
+                yield pose,
     return gen
+
 
 def get_grasp_gen(mbp, gripper):
     gripper_frame = get_base_body(mbp, gripper).body_frame()
+
     def gen(obj_name):
         obj = mbp.GetModelInstanceByName(obj_name)
         #obj_frame = get_base_body(mbp, obj).body_frame()
@@ -339,10 +433,14 @@ def get_grasp_gen(mbp, gripper):
             yield grasp,
     return gen
 
-def get_ik_fn(mbp, robot, gripper, distance=0.1, step_size=0.01):
+
+def get_ik_fn(mbp, context, robot, gripper, fixed=[], distance=0.1, step_size=0.01):
     direction = np.array([0, -1, 0])
     gripper_frame = get_base_body(mbp, gripper).body_frame()
-    joints = prune_fixed_joints(get_model_joints(mbp, robot))
+    joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
+    collision_fn = get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs)
+
     def fn(obj_name, pose, grasp):
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
         solution = None
@@ -353,16 +451,24 @@ def get_ik_fn(mbp, robot, gripper, distance=0.1, step_size=0.01):
             solution = solve_inverse_kinematics(mbp, gripper_frame, current_pose, initial_guess=solution)
             if solution is None:
                 return None
-            path.append(Config(joints, [solution[j.position_start()] for j in joints]))
+            positions = [solution[j.position_start()] for j in joints]
+            # TODO: holding
+            if collision_fn(positions):
+                return None
+            path.append(Config(joints, positions))
         traj = Trajectory(path)
         return path[-1], traj
     return fn
 
-def get_free_motion_fn(mbp, robot):
-    joints = prune_fixed_joints(get_model_joints(mbp, robot))
-    extend_fn = get_extend_fn(joints)
+
+def get_free_motion_fn(mbp, context, robot, gripper, fixed=[]):
+    joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
+
     def fn(q1, q2):
-        path = list(extend_fn(q1.positions, q2.positions))
+        open_wsg50_gripper(mbp, context, gripper)
+        set_joint_positions(joints, context, q1.positions)
+        path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
         traj = Trajectory([Config(joints, q) for q in path])
@@ -370,11 +476,15 @@ def get_free_motion_fn(mbp, robot):
         return traj,
     return fn
 
-def get_holding_motion_fn(mbp, robot):
-    joints = prune_fixed_joints(get_model_joints(mbp, robot))
-    extend_fn = get_extend_fn(joints)
-    def fn(q1, q2, o, g):
-        path = list(extend_fn(q1.positions, q2.positions))
+
+def get_holding_motion_fn(mbp, context, robot, gripper, fixed=[]):
+    joints = get_movable_joints(mbp, robot)
+    collision_pairs = set(product([robot, gripper], fixed))
+
+    def fn(q1, q2, o, g): # TODO: holding
+        #close_wsg50_gripper(mbp, context, gripper)
+        set_joint_positions(joints, context, q1.positions)
+        path = plan_joint_motion(mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
         if path is None:
             return None
         traj = Trajectory([Config(joints, q) for q in path], attachments=[g])
@@ -382,9 +492,11 @@ def get_holding_motion_fn(mbp, robot):
         return traj,
     return fn
 
+
 ##################################################
 
-def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
+
+def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[], fixed=[]):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
@@ -400,8 +512,10 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
         ('HandEmpty',)
     ]
 
-    #print('Movable:', movable)
-    #print('Surfaces:', fixed)
+    print('Movable:', [get_model_name(mbp, name) for name in movable])
+    print('Surfaces:', [get_model_name(mbp, name) for name in surfaces])
+    print('Fixed:', [get_model_name(mbp, name) for name in fixed])
+
     for obj in movable:
         obj_name = get_model_name(mbp, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
@@ -433,11 +547,11 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
     )
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(mbp, context)),
+        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, fixed=fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
-        'inverse-kinematics': from_fn(get_ik_fn(mbp, robot, gripper)),
-        'plan-free-motion': from_fn(get_free_motion_fn(mbp, robot)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, robot)),
+        'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=fixed)),
+        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
+        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -445,6 +559,7 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable, surfaces):
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 ##################################################
+
 
 def postprocess_plan(mbp, gripper, plan):
     trajectories = []
@@ -508,6 +623,7 @@ def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0)
 
 ##################################################
 
+
 def compute_duration(splines):
     sim_duration = 0.
     for spline in splines:
@@ -515,19 +631,20 @@ def compute_duration(splines):
     sim_duration += 5.0
     return sim_duration
 
+
 RADIANS_PER_SECOND = np.pi / 2
 
 def convert_splines(mbp, robot, gripper, context, trajectories):
     # TODO: move to trajectory class
+    print()
     splines, gripper_setpoints = [], []
-    for traj in trajectories:
+    for i, traj in enumerate(trajectories):
         traj.path[-1].assign(context)
         joints = traj.path[0].joints
         if len(joints) == 2:
             q_knots_kuka = np.zeros((2, 7))
             q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
-            splines.append(PiecewisePolynomial.ZeroOrderHold(
-                [0, 1], q_knots_kuka.T))
+            splines.append(PiecewisePolynomial.ZeroOrderHold([0, 1], q_knots_kuka.T))
         elif len(joints) == 7:
             # TODO: adjust timing based on distance & velocities
             # TODO: adjust number of waypoints
@@ -539,7 +656,7 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
             t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
             d, n = q_knots_kuka.shape
-            print(d, n, t_knots[-1])
+            print('{}) d={}, n={}, duration={:.3f}'.format(i, d, n, t_knots[-1]))
             splines.append(PiecewisePolynomial.Cubic(
                 breaks=t_knots, 
                 knots=q_knots_kuka,
@@ -551,30 +668,74 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
         gripper_setpoints.append(gripper_setpoint)
     return splines, gripper_setpoints
 
+
 ##################################################
 
+
+def get_colliding_bodies(mbp, context, min_penetration=0.0):
+    # TODO: set collision geometries pairs to check
+    # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
+    body_from_geometry_id = {}
+    for body in get_bodies(mbp):
+        for geometry_id in mbp.GetCollisionGeometriesForBody(body):
+            body_from_geometry_id[geometry_id.get_value()] = body
+    colliding_bodies = set()
+    for penetration in mbp.CalcPointPairPenetrations(context):
+        if penetration.depth < min_penetration:
+            continue
+        body1 = body_from_geometry_id[penetration.id_A.get_value()]
+        body2 = body_from_geometry_id[penetration.id_B.get_value()]
+        colliding_bodies.update([(body1, body2), (body2, body1)])
+    return colliding_bodies
+
+
+def get_colliding_models(mbp, context, **kwargs):
+    colliding_models = set()
+    for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
+        colliding_models.add((body1.model_instance(), body2.model_instance()))
+    return colliding_models
+
+
+def is_model_colliding(mbp, context, model, obstacles=None):
+    if obstacles is None:
+        obstacles = get_model_indices(mbp) # All models
+    if not obstacles:
+        return False
+    for model1, model2 in get_colliding_models(mbp, context):
+        if (model1 == model) and (model2 in obstacles):
+            return True
+    return False
+
+
+##################################################
+
+
 def main():
-    parser = argparse.ArgumentParser()  # Automatically includes help
-    #parser.add_argument('-arm', required=True)
+    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
+    # TODO: cost-sensitive planning to avoid large kuka moves
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
-    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate the trajectories')
+    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
     args = parser.parse_args()
 
     meshcat_vis = None
     if args.meshcat:
-        meshcat_vis = load_meshcat() # Important that variable is saved
-        #print('http://127.0.0.1:7000/static/')
-    
+        meshcat_vis = load_meshcat()  # Important that variable is saved
+        # print('http://127.0.0.1:7000/static/')
+
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     #time_step = 0
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph() # Geometry
     lcm = DrakeLcm()
 
+    # TODO: meshes aren't supported during collision checking
     robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='robot',
                                 scene_graph=scene_graph, plant=mbp)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
-                                  scene_graph=scene_graph, plant=mbp)
+                                  scene_graph=scene_graph, plant=mbp) # TODO: sdf frame/link error
     table = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table',
                                 scene_graph=scene_graph, plant=mbp)
     table2 = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table2',
@@ -585,6 +746,8 @@ def main():
                                 scene_graph=scene_graph, plant=mbp)
     broccoli = AddModelFromSdfFile(file_name=BROCCOLI_PATH, model_name='broccoli',
                                    scene_graph=scene_graph, plant=mbp)
+    wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
+                               scene_graph=scene_graph, plant=mbp)
 
     table2_x = 0.75
     table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
@@ -594,32 +757,54 @@ def main():
     weld_to_world(mbp, table2, create_transform(translation=[table2_x, 0, 0]))
     weld_to_world(mbp, sink, create_transform(translation=[table2_x, 0.25, table_top_z]))
     weld_to_world(mbp, stove, create_transform(translation=[table2_x, -0.25, table_top_z]))
+    if wall is not None:
+        weld_to_world(mbp, wall, create_transform(translation=[table2_x/2, 0, table_top_z]))
     mbp.Finalize(scene_graph)
 
-    ##################################################
-    
     #dump_plant(mbp)
     #dump_models(mbp)
 
-    context = mbp.CreateDefaultContext()
+    ##################################################
+
+    builder = build_diagram(mbp, scene_graph, lcm, args.meshcat)
+    state_machine = connect_controllers(builder, mbp, robot, gripper)
+    diagram = builder.Build()
+    diagram_context = diagram.CreateDefaultContext()
+    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+    #context = mbp.CreateDefaultContext()
+
     set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z]))
     open_wsg50_gripper(mbp, context, gripper)
     #close_wsg50_gripper(mbp, context, gripper)
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
-    
+
+    diagram.Publish(diagram_context)
     #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
-    initial_state = mbp.tree().get_multibody_state_vector(context)
+    initial_state = mbp.tree().get_multibody_state_vector(context).copy()
     #print(context.get_continuous_state().get_vector().get_value())
     #print(context.get_discrete_state_vector())
     #print(context.get_abstract_state())
-    #print(initial_state)
     #print(mbp.num_positions())
     #print(mbp.num_velocities())
 
+    #set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z-0.1]))
+    #colliding_pairs = get_colliding_bodies(mbp, context, min_penetration=0.0)
+    #for body1, body2 in colliding_pairs:
+    #    print(body1.get_parent_tree(), body2.model_instance())
+    #return
+
     ##################################################
 
-    problem = get_pddlstream_problem(mbp, context, robot, gripper, movable=[broccoli], surfaces=[sink, stove])
-    solution = solve_focused(problem, planner='ff-astar', max_cost=INF, debug=False)
+    fixed = [table, table2, sink, stove]
+    if wall is not None:
+        fixed.append(wall)
+    if args.cfree:
+        fixed = []
+    problem = get_pddlstream_problem(mbp, context, robot, gripper,
+                                     movable=[broccoli],
+                                     surfaces=[sink, stove],
+                                     fixed=fixed)
+    solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
@@ -627,25 +812,23 @@ def main():
     trajectories = postprocess_plan(mbp, gripper, plan)
     splines, gripper_setpoints = convert_splines(mbp, robot, gripper, context, trajectories)
     sim_duration = compute_duration(splines)
-    print('Splines: {}\nDuration: {} seconds'.format(len(splines), sim_duration))
+    print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
 
     ##################################################
 
-    builder = build_diagram(mbp, scene_graph, lcm, meshcat=args.meshcat)
-    if args.simulate:
-        connect_controllers(builder, mbp, robot, gripper, splines, gripper_setpoints)
-    diagram = builder.Build()
-    diagram_context = diagram.CreateDefaultContext()
-    sub_context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-    #sub_context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
-    mbp.tree().get_mutable_multibody_state_vector(sub_context)[:] = initial_state
+    #context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
+    mbp.tree().get_mutable_multibody_state_vector(context)[:] = initial_state
     #if not args.simulate:
-    #    fix_input_ports(mbp, sub_context)
+    #    fix_input_ports(mbp, context)
+    #sub_context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+    #print(context == sub_context) # True
 
     if args.simulate:
+        state_machine.Load(splines, gripper_setpoints)
         simulate_splines(diagram, diagram_context, sim_duration)
     else:
-        step_trajectories(diagram, diagram_context, sub_context, trajectories)
+        step_trajectories(diagram, diagram_context, context, trajectories)
+
 
 if __name__ == '__main__':
     main()
