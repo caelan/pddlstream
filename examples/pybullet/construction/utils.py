@@ -42,7 +42,7 @@ DISABLED_COLLISIONS = [
 PICKNPLACE_DIRECTORY = 'picknplace/'
 PICKNPLACE_FILENAMES = {
     #'choreo_brick_demo': 'choreo_brick_demo.json',
-    'choreo_brick_demo': 'bricks/json/brick_demo.json',
+    'choreo_brick_demo': 'json/brick_demo.json',
     'choreo_eth-trees_demo': 'choreo_eth-trees_demo.json',
 }
 
@@ -54,94 +54,81 @@ PNPElement = namedtuple('PNPElement', ['index', 'pick_link', 'place_link', 'gras
                                        'pick_contacts', 'place_contacts',
                                        'pick_supports', 'place_supports'])
 
+class Grasp(object):
+    def __init__(self):
+        pass
+
+Brick = namedtuple('Block', ['index', 'body', 'initial_pose', 'goal_pose',
+                             'grasps', 'place_supports'])
+
+PICK_GRASPS = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retreat_plane']
+
 def load_pick_and_place(extrusion_name, scale=0.001):
     assert extrusion_name == 'choreo_brick_demo'
     root_directory = os.path.dirname(os.path.abspath(__file__))
-    extrusion_path = os.path.join(root_directory, PICKNPLACE_DIRECTORY, PICKNPLACE_FILENAMES[extrusion_name])
+    bricks_directory = os.path.join(root_directory, PICKNPLACE_DIRECTORY, 'bricks')
     print('Name: {}'.format(extrusion_name))
-    print('Path: {}'.format(extrusion_path))
-    with open(extrusion_path, 'r') as f:
+    with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
         json_data = json.loads(f.read())
 
-    bricks_directory = os.path.join(root_directory, PICKNPLACE_DIRECTORY, 'bricks')
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
-        #robot = load_pybullet(os.path.join(root_directory, 'framefab_kr6_r900_support/urdf/kr6_r900_2.urdf'), fixed_base=True)
-        pass
+        robot = load_pybullet(os.path.join(root_directory, 'framefab_kr6_r900_support/urdf/kr6_r900_2.urdf'), fixed_base=True)
 
     pick_base_point = parse_point(json_data['pick_base_center_point'])
     draw_pose((pick_base_point, unit_quat()))
     place_base_point = parse_point(json_data['place_base_center_point'])
     draw_pose((place_base_point, unit_quat()))
 
-    obstacle_names = {}
+    # workspace_geo_place_support_object_11 = pick_left_over_bricks_11
+    obstacle_from_name = {}
     for filename in json_data['pick_support_surface_file_names']:
-        name = strip_extension(filename)
-        obstacle_names[name] = create_obj(os.path.join(obj_directory, filename), scale=scale, color=(0.5, 0.5, 0.5, 1))
+        obstacle_from_name[strip_extension(filename)] = \
+            create_obj(os.path.join(obj_directory, filename), scale=scale, color=(0.5, 0.5, 0.5, 1))
     for filename in json_data['place_support_surface_file_names']:
-        name = strip_extension(filename)
-        obstacle_names[name] = create_obj(os.path.join(obj_directory, filename), scale=scale, color=(1., 0., 0., 1))
+        obstacle_from_name[strip_extension(filename)] = \
+            create_obj(os.path.join(obj_directory, filename), scale=scale, color=(1., 0., 0., 1))
 
-    #pick_support = json_data['pick_support_surface_file_names']
-    #place_support = json_data['place_support_surface_file_names']
     element_from_index = {}
+    brick_from_index = {}
     for json_element in json_data['sequenced_elements']:
         index = json_element['order_id']
-        # workspace_geo_place_support_object_11 = pick_left_over_bricks_11
-        name = '{}'.format(index)
-
         pick_body = create_obj(os.path.join(obj_directory, json_element['pick_element_geometry_file_name']),
                                scale=scale, color=(0, 0, 1, 1))
-        add_body_name(pick_body, name)
+        add_body_name(pick_body, index)
         #place_body = create_obj(os.path.join(obj_directory, json_element['place_element_geometry_file_name']),
         #                        scale=scale, color=(0, 1, 0, 1))
         #add_body_name(place_body, name)
+        world_from_obj_pick = get_pose(pick_body)
 
         # [u'pick_grasp_plane', u'pick_grasp_retreat_plane', u'place_grasp_retreat_plane',
         #  u'pick_grasp_approach_plane', u'place_grasp_approach_plane', u'place_grasp_plane']
-
-        #print(get_com_pose(pick_body, BASE_LINK), get_com_pose(place_body, BASE_LINK))
-        print(pick_body, place_body, get_pose(pick_body), get_pose(place_body)) # Unit poses
-
-        # [u'pick_grasp_plane', u'pick_grasp_retreat_plane', u'place_grasp_retreat_plane',
-        #  u'pick_grasp_approach_plane', u'place_grasp_approach_plane', u'place_grasp_plane']
-        grasps = [{name: pose_from_tform(parse_transform(approach)) for name, approach in json_grasp.items()}
-                  for json_grasp in json_element['grasps']] # pick_grasp_plane
-        #for grasp in grasps:
-        #    for name, pose in grasp.items():
+        ee_grasp_poses = [{name: pose_from_tform(parse_transform(approach)) for name, approach in json_grasp.items()}
+                           for json_grasp in json_element['grasps']]
+        #for grasp in ee_grasp_poses:
+        #    for name, ee_pose in grasp.items():
         #        draw_pose(pose, length=0.04)
 
         # pick_grasp_plane is at the top of the object with z facing downwards
-        #initial_pose = get_pose(pick_body) # TODO: each body has a different coordinate frame
-        grasp = grasps[0]
-        world_from_ee_pick = grasp['pick_grasp_plane']
-        world_from_ee_place = grasp['place_grasp_plane']
-        print(world_from_ee_pick)
-        print(world_from_ee_place)
-        draw_pose(world_from_ee_pick, length=0.04)
-        draw_pose(world_from_ee_place, length=0.04)
+        grasp_index = 0
+        world_from_ee_pick = ee_grasp_poses[grasp_index]['pick_grasp_plane']
+        world_from_ee_place = ee_grasp_poses[grasp_index]['place_grasp_plane']
+        #draw_pose(world_from_ee_pick, length=0.04)
+        #draw_pose(world_from_ee_place, length=0.04)
 
-        world_from_obj_pick = get_pose(pick_body)
         ee_from_obj = multiply(invert(world_from_ee_pick), world_from_obj_pick) # Using pick frame
         world_from_obj_place = multiply(world_from_ee_place, ee_from_obj)
-
-        #ee_place_from_ee_pick = multiply(invert(world_from_ee_place), world_from_ee_pick)
-        #print(ee_place_from_ee_pick)
-        #pick_from_place = (scale*np.array(pick_from_place[0]), pick_from_place[1])
-        #print(pick_from_place)
-        #goal_pose = multiply(ee_place_from_ee_pick, unit_pose())
-
-
         set_pose(pick_body, world_from_obj_place)
-        #set_pose(place_body, invert(goal_pose))
+        # pick_contact_ngh_ids are movable element contact partial orders
+        # pick_support_surface_file_names are fixed element contact partial orders
 
-        #print(initial_pose, get_pose(pick_body), ee_place_from_ee_pick)
-        wait_for_interrupt()
+        grasps = [{name: multiply(invert(world_from_ee_pick[name]), world_from_obj_pick) for name in PICK_GRASPS}
+                  for world_from_ee_pick in ee_grasp_poses]
+        brick_from_index[index] = Brick(
+            index=index, body=pick_body, initial_pose=world_from_obj_pick, goal_pose=world_from_obj_place,
+            grasps=grasps, place_supports=json_element.get('place_contact_ngh_ids', []))
 
-
-
-        break
         element = PNPElement(index=index, grasps=grasps,
            pick_link=strip_extension(json_element['pick_element_geometry_file_name']),
            place_link=strip_extension(json_element['place_element_geometry_file_name']),
@@ -149,15 +136,11 @@ def load_pick_and_place(extrusion_name, scale=0.001):
            place_contacts=json_element.get('place_contact_ngh_ids', []),
            pick_supports=list(map(strip_extension, json_element.get('pick_support_surface_file_names', []))),
            place_supports=list(map(strip_extension, json_element.get('place_support_surface_file_names', []))))
-
-        #pick_link = link_from_name(world, element.pick_link)
-        #place_link = link_from_name(world, element.place_link)
-        #initial_pose = get_link_pose(world, pick_link)
-        #goal_pose = get_link_pose(world, place_link)
-
         element_from_index[index] = element
-        print(element.index, element.pick_link, element.place_link, len(element.grasps),
-              element.pick_contacts, element.place_contacts, element.pick_supports, element.place_supports)
+        #print(element.index, element.pick_link, element.place_link, len(element.grasps),
+        #      element.pick_contacts, element.place_contacts, element.pick_supports, element.place_supports)
+        #initial_pose = get_link_pose(world, link_from_name(world, element.pick_link))
+        #goal_pose = get_link_pose(world, link_from_name(world, element.place_link))
 
     pick_orders = set() # Initial contacts
     place_orders = set() # Goal stackings
@@ -168,8 +151,9 @@ def load_pick_and_place(extrusion_name, scale=0.001):
 
     print(pick_orders)
     print(place_orders)
+    wait_for_interrupt()
 
-    return element_from_index
+    return robot, brick_from_index, obstacle_from_name
 
 
 ##################################################
