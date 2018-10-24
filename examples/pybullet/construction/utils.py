@@ -9,8 +9,9 @@ import json
 
 from examples.pybullet.utils.pybullet_tools.utils import add_line, create_cylinder, set_point, Euler, quat_from_euler, \
     set_quat, get_movable_joints, set_joint_positions, pairwise_collision, Pose, multiply, Point, load_model, \
-    HideOutput, load_pybullet, quat_from_vector_angle, unit_point, dump_world, get_com_pose, BASE_LINK, \
-    link_from_name, get_link_pose, create_obj, get_pose, add_body_name, draw_pose, pose_from_tform
+    HideOutput, load_pybullet, quat_from_vector_angle, unit_point, dump_world, get_com_pose, BASE_LINK, unit_pose, \
+    link_from_name, get_link_pose, create_obj, get_pose, add_body_name, draw_pose, pose_from_tform, set_pose, \
+    invert, unit_quat, wait_for_interrupt
 
 
 EXTRUSION_DIRECTORY = 'spatial_extrusion/'
@@ -66,10 +67,14 @@ def load_pick_and_place(extrusion_name, scale=0.001):
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
-        robot = load_pybullet(os.path.join(root_directory, KUKA_PATH), fixed_base=True)
+        #robot = load_pybullet(os.path.join(root_directory, 'framefab_kr6_r900_support/urdf/kr6_r900_2.urdf'), fixed_base=True)
+        pass
 
-    #pick_base_point = parse_point(json_data['pick_base_center_point'])
-    #place_base_point = parse_point(json_data['place_base_center_point'])
+    pick_base_point = parse_point(json_data['pick_base_center_point'])
+    draw_pose((pick_base_point, unit_quat()))
+    place_base_point = parse_point(json_data['place_base_center_point'])
+    draw_pose((place_base_point, unit_quat()))
+
     obstacle_names = {}
     for filename in json_data['pick_support_surface_file_names']:
         name = strip_extension(filename)
@@ -92,23 +97,49 @@ def load_pick_and_place(extrusion_name, scale=0.001):
         #place_body = create_obj(os.path.join(obj_directory, json_element['place_element_geometry_file_name']),
         #                        scale=scale, color=(0, 1, 0, 1))
         #add_body_name(place_body, name)
-        # pick_grasp_plane is at the top of the object with z facing downwards
 
         # [u'pick_grasp_plane', u'pick_grasp_retreat_plane', u'place_grasp_retreat_plane',
         #  u'pick_grasp_approach_plane', u'place_grasp_approach_plane', u'place_grasp_plane']
 
         #print(get_com_pose(pick_body, BASE_LINK), get_com_pose(place_body, BASE_LINK))
-        #print(pick_body, place_body, get_pose(pick_body), get_pose(place_body)) # Unit poses
+        print(pick_body, place_body, get_pose(pick_body), get_pose(place_body)) # Unit poses
 
         # [u'pick_grasp_plane', u'pick_grasp_retreat_plane', u'place_grasp_retreat_plane',
         #  u'pick_grasp_approach_plane', u'place_grasp_approach_plane', u'place_grasp_plane']
         grasps = [{name: pose_from_tform(parse_transform(approach)) for name, approach in json_grasp.items()}
                   for json_grasp in json_element['grasps']] # pick_grasp_plane
-        for grasp in grasps:
-            print(grasp.keys())
-            print(grasp)
-            for name, pose in grasp.items():
-                draw_pose(pose, length=0.04)
+        #for grasp in grasps:
+        #    for name, pose in grasp.items():
+        #        draw_pose(pose, length=0.04)
+
+        # pick_grasp_plane is at the top of the object with z facing downwards
+        #initial_pose = get_pose(pick_body) # TODO: each body has a different coordinate frame
+        grasp = grasps[0]
+        world_from_ee_pick = grasp['pick_grasp_plane']
+        world_from_ee_place = grasp['place_grasp_plane']
+        print(world_from_ee_pick)
+        print(world_from_ee_place)
+        draw_pose(world_from_ee_pick, length=0.04)
+        draw_pose(world_from_ee_place, length=0.04)
+
+        world_from_obj_pick = get_pose(pick_body)
+        ee_from_obj = multiply(invert(world_from_ee_pick), world_from_obj_pick) # Using pick frame
+        world_from_obj_place = multiply(world_from_ee_place, ee_from_obj)
+
+        #ee_place_from_ee_pick = multiply(invert(world_from_ee_place), world_from_ee_pick)
+        #print(ee_place_from_ee_pick)
+        #pick_from_place = (scale*np.array(pick_from_place[0]), pick_from_place[1])
+        #print(pick_from_place)
+        #goal_pose = multiply(ee_place_from_ee_pick, unit_pose())
+
+
+        set_pose(pick_body, world_from_obj_place)
+        #set_pose(place_body, invert(goal_pose))
+
+        #print(initial_pose, get_pose(pick_body), ee_place_from_ee_pick)
+        wait_for_interrupt()
+
+
 
         break
         element = PNPElement(index=index, grasps=grasps,
