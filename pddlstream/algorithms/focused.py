@@ -106,7 +106,6 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     search_time = sample_time = 0
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
-    compile_fluent_streams(domain, externals)
     unit_costs |= not has_costs(domain)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)

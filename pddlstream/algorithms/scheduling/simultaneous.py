@@ -1,6 +1,6 @@
 from pddlstream.algorithms.algorithm import solve_finite
 from pddlstream.algorithms.downward import OBJECT, Domain, \
-    make_preconditions, make_effects, make_cost
+    make_preconditions, make_effects, make_cost, get_cost_scale
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
 from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
@@ -63,7 +63,7 @@ def get_stream_actions(results, unique_binding=False, unit_efforts=True, effort_
         #    enforce_output_order(result, preconditions, effects)
         if unique_binding:
             enforce_single_binding(result, preconditions, effects)
-        if is_optimizer_result(result):
+        if is_optimizer_result(result): # These effects don't seem to be pruned
             effects.append(substitute_expression(result.external.stream_fact, result.get_mapping()))
         parameters = []  # Usually all parameters are external
         stream_actions.append(pddl.Action(name=result_name, parameters=parameters,
@@ -87,6 +87,19 @@ def add_stream_actions(domain, stream_results, **kwargs):
     new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict, new_constants,
                         domain.predicates, domain.predicate_dict, domain.functions,
                         domain.actions[:] + stream_actions, domain.axioms)
+    """
+    optimizer_results = list(filter(is_optimizer_result, stream_results))
+    optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
+                       for result in optimizer_results}
+    optimizers = {result.external.optimizer for result in optimizer_results}
+    print(optimizers)
+    for optimizer in optimizers:
+        for stream in optimizer.streams:
+            print(stream.instance.get_constraints())
+            print(stream.instance)
+    #print(optimizer_results)
+    #print(optimizer_facts)
+    """
     return new_domain, stream_result_from_name
 
 ##################################################
@@ -97,7 +110,7 @@ def get_action_cost(domain, results_from_head, name, args):
     if action.cost is None:
         return 0
     if isinstance(action.cost.expression, pddl.NumericConstant):
-        return action.cost.expression.value
+        return action.cost.expression.value # / get_cost_scale()
     var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
     args = tuple(var_mapping[p] for p in action.cost.expression.args)
     head = Head(action.cost.expression.symbol, args)
@@ -144,10 +157,7 @@ def extract_function_plan(function_evaluations, action_plan, domain, unit_costs)
 
 ##################################################
 
-# TODO: add effort costs additively to actions
-# TODO: can augment state with the set of action constraints that are used (but not axiom)
-
-def augment_goal(domain, goal_expression):
+def augment_goal(domain, goal_expression, negate_actions=False):
     # TODO: only do this if optimizers are present
     #return goal_expression
     import pddl
@@ -155,10 +165,11 @@ def augment_goal(domain, goal_expression):
     if predicate.name not in domain.predicate_dict:
         domain.predicates.append(predicate)
         domain.predicate_dict[predicate.name] = predicate
-    negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
-    for action in domain.actions:
-        if negated_atom not in action.precondition.parts:
-            action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
+    if negate_actions:
+        negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
+        for action in domain.actions:
+            if negated_atom not in action.precondition.parts:
+                action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
     return And(goal_expression, Not((UNSATISFIABLE,)))
 
 def partition_plan(combined_plan, stream_result_from_name):

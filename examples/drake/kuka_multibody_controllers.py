@@ -200,22 +200,10 @@ class ManipStateMachine(LeafSystem):
     (qtraj_list[i].end_time() + 0.5) seconds, after which qtraj_list[i+1]
     will become live.
     '''
-    def __init__(self, plant, qtraj_list, gripper_setpoint_list):
+    def __init__(self, plant):
         LeafSystem.__init__(self)
         self.set_name("Manipulation State Machine")
-
-        assert len(qtraj_list) == len(gripper_setpoint_list)
-        self.gripper_setpoint_list = gripper_setpoint_list
-        self.qtraj_list = qtraj_list
-
-        self.t_traj = np.zeros(len(qtraj_list) + 1)
-        for i in range(len(qtraj_list)):
-            self.t_traj[i+1] = self.t_traj[i] + 0.5 + qtraj_list[i].end_time()
-
-        self.current_traj_idx = 0
-        self.current_plan = Plan(type=plan_types[0],
-                            trajectory=self.qtraj_list[0],
-                            start_time=0)
+        self.loaded = False
 
         self.nq = plant.num_positions()
         self.plant = plant
@@ -234,6 +222,20 @@ class ManipStateMachine(LeafSystem):
             self._DeclareVectorOutputPort(
                 BasicVector(1), self._DoCalcHandSetpointOutput)
 
+    def Load(self, qtraj_list, gripper_setpoint_list):
+        assert len(qtraj_list) == len(gripper_setpoint_list)
+        self.gripper_setpoint_list = gripper_setpoint_list
+        self.qtraj_list = qtraj_list
+
+        self.t_traj = np.zeros(len(qtraj_list) + 1)
+        for i in range(len(qtraj_list)):
+            self.t_traj[i+1] = self.t_traj[i] + 0.5 + qtraj_list[i].end_time()
+
+        self.current_traj_idx = 0
+        self.current_plan = Plan(type=plan_types[0],
+                            trajectory=self.qtraj_list[0],
+                            start_time=0)
+        self.loaded = True
 
     def _DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         # Call base method to ensure we do not get recursion.

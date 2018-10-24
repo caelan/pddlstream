@@ -33,6 +33,54 @@ DISABLED_COLLISIONS = [
 ]
 # [u'base_frame_in_rob_base', u'element_list', u'node_list', u'assembly_type', u'model_type', u'unit']
 
+##################################################
+
+PICKNPLACE_DIRECTORY = 'picknplace/'
+PICKNPLACE_FILENAMES = {
+    'choreo_brick_demo': 'choreo_brick_demo.json',
+    'choreo_eth-trees_demo': 'choreo_eth-trees_demo.json',
+}
+
+def load_pick_and_place(extrusion_name):
+    root_directory = os.path.dirname(os.path.abspath(__file__))
+    extrusion_path = os.path.join(root_directory, PICKNPLACE_DIRECTORY, PICKNPLACE_FILENAMES[extrusion_name])
+    print('Name: {}'.format(extrusion_name))
+    print('Path: {}'.format(extrusion_path))
+    with open(extrusion_path, 'r') as f:
+        json_data = json.loads(f.read())
+
+    print(json_data.keys())
+
+    parse_point(json_data['pick_base_center_point'])
+    parse_point(json_data['place_base_center_point'])
+    unstackable_bodies = json_data['pick_support_surface_file_names']
+    stackable_bodies = json_data['place_support_surface_file_names']
+    print(unstackable_bodies)
+    print(stackable_bodies)
+
+    pick_orders = set()
+    place_orders = set()
+    for json_element in json_data['sequenced_elements']:
+        # [u'place_element_geometry_file_name', u'order_id', u'place_support_surface_file_names',
+        # u'grasps', u'place_contact_ngh_ids', u'pick_support_surface_file_names',
+        # u'pick_element_geometry_file_name', u'pick_contact_ngh_ids']
+        index = json_element['order_id']
+        pick_indices = json_element.get('pick_contact_ngh_ids', [])
+        place_indices = json_element.get('place_contact_ngh_ids', [])
+        pick_orders.update((index, above) for above in pick_indices)
+        place_orders.update((index, above) for above in place_orders)
+
+
+        #json_element['pick_element_geometry_file_name']
+        #json_element['place_element_geometry_file_name']
+        pickable = json_element.get('pick_support_surface_file_names', [])
+        placable = json_element.get('place_support_surface_file_names', [])
+        grasps = [{name: parse_transform(approach)
+                   for name, approach in json_grasp.items()}
+                  for json_grasp in json_element['grasps']]
+        print(index, len(grasps), pick_indices, place_indices, pickable, placable)
+
+##################################################
 
 def load_extrusion(extrusion_name):
     root_directory = os.path.dirname(os.path.abspath(__file__))
@@ -51,8 +99,15 @@ def load_extrusion(extrusion_name):
         len(node_points), len(ground_nodes), len(elements)))
     return elements, node_points, ground_nodes
 
-def parse_point(json_point):
-    return np.array([json_point['X'], json_point['Y'], json_point['Z']]) / 1e3 # / 1e3
+def parse_point(json_point, scale=1e-3):
+    return scale * np.array([json_point['X'], json_point['Y'], json_point['Z']])
+
+def parse_transform(json_transform):
+    transform = np.eye(4)
+    transform[:3, 3] = parse_point(json_transform['Origin']) # Normal
+    transform[:3, :3] = np.vstack([parse_point(json_transform[axis], scale=1)
+                                   for axis in ['XAxis', 'YAxis', 'ZAxis']])
+    return transform
 
 
 def parse_origin(json_data):
@@ -72,6 +127,7 @@ def parse_node_points(json_data):
 def parse_ground_nodes(json_data):
     return {i for i, json_node in enumerate(json_data['node_list']) if json_node['is_grounded'] == 1}
 
+##################################################
 
 def draw_element(node_points, element, color=(1, 0, 0)):
     n1, n2 = element
@@ -166,6 +222,7 @@ def prune_dominated(trajectories):
             trajectories.remove(traj1)
     return len(trajectories) == start_len
 
+##################################################
 
 def get_node_neighbors(elements):
     node_neighbors = defaultdict(set)

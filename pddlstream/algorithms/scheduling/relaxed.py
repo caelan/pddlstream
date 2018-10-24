@@ -12,9 +12,14 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, substitute_expression
 from pddlstream.language.function import PredicateResult, Predicate
-from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result
+from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import Verbose, MockSet, INF
+from pddlstream.language.object import UniqueOptValue
+from pddlstream.language.constants import get_args, Not
+from pddlstream.utils import Verbose, MockSet, INF, get_mapping
+
+from collections import defaultdict
+from itertools import product
 
 DO_RESCHEDULE = False
 
@@ -194,7 +199,11 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 ##################################################
 
 def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
+    # TODO: instantiate axioms with negative on effects for blocking
+    # TODO: fluent streams using conditional effects. Special fluent predicate for inputs to constraint
+    # This strategy will only work for relaxed to ensure that the current state is applied
     for instance in instantiated.actions:
+        # TODO: prune stream actions here?
         # Ignores conditional effect costs
         facts = []
         for precondition in get_literals(instance.action.precondition):
@@ -214,6 +223,7 @@ def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
             effort = scale_cost(sum([0] + [r.instance.get_effort() for r in stream_plan]))
         if effort_weight is not None:
             instance.cost += effort_weight*effort
+        # TODO: bug! The FD instantiator prunes the result.external.stream_fact
         for result in stream_plan:
             # TODO: need to make multiple versions if several ways of achieving the action
             if is_optimizer_result(result):
@@ -222,6 +232,54 @@ def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
                 instantiated.atoms.add(atom)
                 effect = (tuple(), atom)
                 instance.add_effects.append(effect)
+        #domain = {fact for result in stream_plan if result.external.info.simultaneous
+        #          for fact in result.instance.get_domain()}
+        # TODO: can streams depending on these to be used if the dependent preconditions are added to the action
+
+##################################################
+
+def add_optimizer_axioms(results, instantiated):
+    # Ends up being a little slower than version in optimizer.py when not blocking shared
+    # TODO: add this to simultaneous
+    import pddl
+    results_from_instance = defaultdict(list)
+    for result in results:
+        results_from_instance[result.instance].append(result)
+    optimizer_results = list(filter(is_optimizer_result, results))
+    optimizers = {result.external.optimizer for result in optimizer_results}
+    for optimizer in optimizers:
+        optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
+                           for result in optimizer_results if result.external.optimizer is optimizer}
+        facts_from_arg = defaultdict(list)
+        for fact in optimizer_facts:
+            for arg in get_args(fact):
+                facts_from_arg[arg].append(fact)
+
+        for stream in optimizer.streams:
+            if not stream.instance.disabled:
+                continue
+            constraints = stream.instance.get_constraints()
+            output_variables = []
+            for out in stream.output_objects:
+                assert isinstance(out.param, UniqueOptValue)
+                output_variables.append([r.output_objects[out.param.output_index]
+                                         for r in results_from_instance[out.param.instance]])
+            for combo in product(*output_variables):
+                mapping = get_mapping(stream.output_objects, combo)
+                name = '({})'.join(UNSATISFIABLE)
+                blocked = set(substitute_expression(constraints, mapping))
+                additional = {fact for arg in combo for fact in facts_from_arg[arg]} - blocked
+                # TODO: like a partial disable, if something has no outputs, then adding things isn't going to help
+                if stream.instance.enumerated and not stream.instance.successes:
+                    # Assumes the optimizer is submodular
+                    condition = list(map(fd_from_fact, blocked))
+                else:
+                    condition = list(map(fd_from_fact, blocked | set(map(Not, additional))))
+                effect = fd_from_fact((UNSATISFIABLE,))
+                instantiated.axioms.append(pddl.PropositionalAxiom(name, condition, effect))
+                instantiated.atoms.add(effect)
+
+##################################################
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
                         unit_efforts, effort_weight, debug=False, **kwargs):
@@ -242,6 +300,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         return None, INF
     if (effort_weight is not None) or any(map(is_optimizer_result, applied_results)):
         add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
+    add_optimizer_axioms(stream_results, instantiated)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
