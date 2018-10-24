@@ -8,7 +8,7 @@ from itertools import product
 from examples.pybullet.construction.debug import get_test_cfree, test_grasps, test_print
 from examples.pybullet.construction.utils import parse_elements, parse_node_points, parse_ground_nodes, create_elements, \
     load_extrusion, TOOL_NAME, DISABLED_COLLISIONS, check_trajectory_collision, get_grasp_pose, load_world, \
-    prune_dominated, get_element_neighbors, get_node_neighbors, sample_direction, draw_element
+    prune_dominated, get_element_neighbors, get_node_neighbors, sample_direction, draw_element, load_pick_and_place
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
@@ -464,7 +464,7 @@ def display_trajectories(ground_nodes, trajectories, time_step=0.05):
 
 ##################################################
 
-def main(viewer=False):
+def main(viewer=True):
     # TODO: setCollisionFilterGroupMask
     # TODO: only produce collisions rather than collision-free
     # TODO: return collisions using wild-stream functionality
@@ -493,6 +493,11 @@ def main(viewer=False):
     #plan = plan_sequence_test(node_points, elements, ground_nodes)
 
     connect(use_gui=viewer)
+    load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
+    wait_for_interrupt()
+    return
+
+
     floor, robot = load_world()
     obstacles = [floor]
     initial_conf = get_joint_positions(robot, get_movable_joints(robot))

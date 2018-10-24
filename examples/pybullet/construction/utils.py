@@ -1,5 +1,7 @@
+from __future__ import print_function
+
 import os
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 import numpy as np
 import random
@@ -7,7 +9,7 @@ import json
 
 from examples.pybullet.utils.pybullet_tools.utils import add_line, create_cylinder, set_point, Euler, quat_from_euler, \
     set_quat, get_movable_joints, set_joint_positions, pairwise_collision, Pose, multiply, Point, load_model, \
-    HideOutput, load_pybullet, quat_from_vector_angle, unit_point
+    HideOutput, load_pybullet, quat_from_vector_angle, unit_point, dump_world, link_from_name, get_link_pose
 
 
 EXTRUSION_DIRECTORY = 'spatial_extrusion/'
@@ -37,9 +39,18 @@ DISABLED_COLLISIONS = [
 
 PICKNPLACE_DIRECTORY = 'picknplace/'
 PICKNPLACE_FILENAMES = {
-    'choreo_brick_demo': 'choreo_brick_demo.json',
+    #'choreo_brick_demo': 'choreo_brick_demo.json',
+    'choreo_brick_demo': 'bricks/json/brick_demo.json',
     'choreo_eth-trees_demo': 'choreo_eth-trees_demo.json',
 }
+
+def strip_extension(path):
+    root, ext = os.path.splitext(path)
+    return root
+
+PNPElement = namedtuple('PNPElement', ['index', 'pick_link', 'place_link', 'grasps',
+                                       'pick_contacts', 'place_contacts',
+                                       'pick_supports', 'place_supports'])
 
 def load_pick_and_place(extrusion_name):
     root_directory = os.path.dirname(os.path.abspath(__file__))
@@ -51,34 +62,57 @@ def load_pick_and_place(extrusion_name):
 
     print(json_data.keys())
 
-    parse_point(json_data['pick_base_center_point'])
-    parse_point(json_data['place_base_center_point'])
+    pick_base_point = parse_point(json_data['pick_base_center_point'])
+    place_base_point = parse_point(json_data['place_base_center_point'])
     unstackable_bodies = json_data['pick_support_surface_file_names']
     stackable_bodies = json_data['place_support_surface_file_names']
     print(unstackable_bodies)
     print(stackable_bodies)
 
+    path = os.path.join(root_directory, PICKNPLACE_DIRECTORY, 'bricks', 'urdf', 'brick_demo.urdf')
+    with HideOutput():
+        world = load_pybullet(path)
+    root_directory = os.path.dirname(os.path.abspath(__file__))
+    with HideOutput():
+        robot = load_pybullet(os.path.join(root_directory, KUKA_PATH), fixed_base=True)
+    #set_point(robot, pick_base_point)
+    #set_point(robot, place_base_point)
+    dump_world()
+
+    #pick_support = json_data['pick_support_surface_file_names']
+    #place_support = json_data['place_support_surface_file_names']
+    element_from_index = {}
+    for json_element in json_data['sequenced_elements']:
+        index = json_element['order_id']
+        # workspace_geo_place_support_object_11 = pick_left_over_bricks_11
+
+        grasps = [{name: parse_transform(approach) for name, approach in json_grasp.items()}
+                  for json_grasp in json_element['grasps']]
+        element = PNPElement(index=index, grasps=grasps,
+           pick_link=strip_extension(json_element['pick_element_geometry_file_name']),
+           place_link=strip_extension(json_element['place_element_geometry_file_name']),
+           pick_contacts=json_element.get('pick_contact_ngh_ids', []),
+           place_contacts=json_element.get('place_contact_ngh_ids', []),
+           pick_supports=list(map(strip_extension, json_element.get('pick_support_surface_file_names', []))),
+           place_supports=list(map(strip_extension, json_element.get('place_support_surface_file_names', []))))
+
+        pick_link = link_from_name(world, element.pick_link)
+        place_link = link_from_name(world, element.place_link)
+        initial_pose = get_link_pose(world, pick_link)
+        goal_pose = get_link_pose(world, place_link)
+
+        element_from_index[index] = element
+        print(element.index, element.pick_link, element.place_link, len(element.grasps),
+              element.pick_contacts, element.place_contacts, element.pick_supports, element.place_supports)
+
     pick_orders = set()
     place_orders = set()
-    for json_element in json_data['sequenced_elements']:
-        # [u'place_element_geometry_file_name', u'order_id', u'place_support_surface_file_names',
-        # u'grasps', u'place_contact_ngh_ids', u'pick_support_surface_file_names',
-        # u'pick_element_geometry_file_name', u'pick_contact_ngh_ids']
-        index = json_element['order_id']
-        pick_indices = json_element.get('pick_contact_ngh_ids', [])
-        place_indices = json_element.get('place_contact_ngh_ids', [])
-        pick_orders.update((index, above) for above in pick_indices)
-        place_orders.update((index, above) for above in place_orders)
+    for index, element in element_from_index.items():
+        pick_orders.update((index, above) for above in element.pick_contacts)
+        place_orders.update((index, above) for above in element.place_contacts)
 
+    return element_from_index
 
-        #json_element['pick_element_geometry_file_name']
-        #json_element['place_element_geometry_file_name']
-        pickable = json_element.get('pick_support_surface_file_names', [])
-        placable = json_element.get('place_support_surface_file_names', [])
-        grasps = [{name: parse_transform(approach)
-                   for name, approach in json_grasp.items()}
-                  for json_grasp in json_element['grasps']]
-        print(index, len(grasps), pick_indices, place_indices, pickable, placable)
 
 ##################################################
 
