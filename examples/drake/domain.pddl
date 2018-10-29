@@ -1,7 +1,7 @@
 (define (domain pick-and-place)
   (:requirements :strips :equality)
   (:predicates
-    (Stackable ?o ?r)
+    (Stackable ?o ?r ?b)
     (Sink ?r)
     (Stove ?r)
 
@@ -9,7 +9,7 @@
     (Kin ?o ?p ?g ?q ?t)
     (FreeMotion ?q1 ?t ?q2)
     (HoldingMotion ?q1 ?t ?q2 ?o ?g)
-    (Supported ?o ?p ?r)
+    (Supported ?o ?p ?r ?b)
     (TrajCollision ?t ?o2 ?p2)
 
     (AtPose ?o ?p)
@@ -20,7 +20,7 @@
     (Cleaned ?o)
     (Cooked ?o)
 
-    (On ?o ?r)
+    (On ?o ?r ?b)
     (Holding ?o)
     (UnsafeTraj ?t)
   )
@@ -54,21 +54,21 @@
                  (not (AtGrasp ?o ?g)))
   )
   (:action clean
-    :parameters (?o ?r)
-    :precondition (and (Stackable ?o ?r) (Sink ?r)
-                       (On ?o ?r))
+    :parameters (?o ?r ?b)
+    :precondition (and (Stackable ?o ?r ?b) (Sink ?r)
+                       (On ?o ?r ?b))
     :effect (Cleaned ?o)
   )
   (:action cook
-    :parameters (?o ?r)
-    :precondition (and (Stackable ?o ?r) (Stove ?r)
-                       (On ?o ?r) (Cleaned ?o))
+    :parameters (?o ?r ?b)
+    :precondition (and (Stackable ?o ?r ?b) (Stove ?r)
+                       (On ?o ?r ?b) (Cleaned ?o))
     :effect (and (Cooked ?o)
                  (not (Cleaned ?o)))
   )
 
-  (:derived (On ?o ?r)
-    (exists (?p) (and (Supported ?o ?p ?r)
+  (:derived (On ?o ?r ?b)
+    (exists (?p) (and (Supported ?o ?p ?r ?b)
                       (AtPose ?o ?p)))
   )
   (:derived (Holding ?o)

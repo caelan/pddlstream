@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+from examples.drake.iiwa_utils import weld_gripper, get_close_wsg50_positions, get_open_wsg50_positions, \
+    open_wsg50_gripper
+
 user_input = raw_input
 
 import os
@@ -10,11 +13,9 @@ import argparse
 import pydrake
 
 from itertools import product
-from collections import namedtuple
 
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
-from pydrake.multibody.multibody_tree import (WeldJoint, PrismaticJoint, JointIndex, FrameIndex)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 from pydrake.systems.framework import DiagramBuilder
@@ -27,9 +28,8 @@ from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt, direct_path
-from examples.drake.utils import BoundingBox, create_transform, get_model_bodies, get_model_joints, \
-    get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, dump_models, \
-    get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, fix_input_ports, get_movable_joints, \
+from examples.drake.utils import BoundingBox, create_transform, get_model_joints, get_body_pose, \
+    get_joint_limits, get_relative_transform, get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, get_movable_joints, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
     get_random_positions, get_aabb_z_placement, get_bodies, get_model_indices, set_joint_positions, get_joint_positions
 
@@ -92,28 +92,10 @@ AABBs = {
     'table': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
     'table2': BoundingBox(np.array([0.0, 0.0, 0.736]), np.array([0.7122, 0.762, 0.057]) / 2),
     'broccoli': BoundingBox(np.array([0.0, 0.0, 0.05]), np.array([0.025, 0.025, 0.05])), # Cylinder
-    'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
-    'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.025, 0.025, 0.05]) / 2),
+    'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.25, 0.025, 0.05]) / 2),
+    'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.25, 0.025, 0.05]) / 2),
 }
-
-
-def get_origin_aabb(model_index):
-    raise NotImplementedError() # TODO: if AABBs name starts with type
-
-# TODO: could compute bounding boxes using a rigid body tree
-
-##################################################
-
-
-def weld_gripper(mbp, robot_index, gripper_index):
-    X_EeGripper = create_transform([0, 0, 0.081], [np.pi / 2, 0, np.pi / 2])
-    robot_body = get_model_bodies(mbp, robot_index)[-1]
-    gripper_body = get_model_bodies(mbp, gripper_index)[0]
-    mbp.AddJoint(WeldJoint(name="weld_gripper_to_robot_ee",
-                           parent_frame_P=robot_body.body_frame(),
-                           child_frame_C=gripper_body.body_frame(),
-                           X_PC=X_EeGripper))
-
+# TODO: TABLE_SDF_PATH has only one link but many geometries
 
 ##################################################
 
@@ -122,10 +104,20 @@ from pydrake.lcm import DrakeMockLcm
 from pydrake.all import (
     Quaternion,
     RigidTransform,
-    RotationMatrix
+    RotationMatrix,
 )
 
-BoundingBox = namedtuple('BoundingBox', ['dims', 'pose'])
+def vertices_from_aabb(aabb):
+    center, extent = aabb
+    return [center + np.multiply(extent, np.array(signs))
+            for signs in product([-1, 1], repeat=len(extent))]
+
+def aabb_from_points(points):
+    lower = np.min(points, axis=0)
+    upper = np.max(points, axis=0)
+    center = (np.array(lower) + np.array(upper)) / 2.
+    extent = (np.array(upper) - np.array(lower)) / 2.
+    return BoundingBox(center, extent)
 
 def get_box_from_geom(scene_graph, visual_only=True):
     # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
@@ -146,34 +138,28 @@ def get_box_from_geom(scene_graph, visual_only=True):
         # source_name = 'Source_1'
         model_index = link.robot_num
 
+        points = []
         for geom_index in range(link.num_geom):
             # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
             geom = link.geom[geom_index]
             if visual_only and (geom.color[3] == 0):
                 continue
             element_local_tf = RigidTransform(
-                RotationMatrix(Quaternion(geom.quaternion)),
-                geom.position).GetAsMatrix4()
-            key = (model_index, body_index, geom_index)
-
-            # multiply
-
+                RotationMatrix(Quaternion(geom.quaternion)), geom.position) #.GetAsMatrix4()
             if geom.type == geom.BOX:
                 assert geom.num_float_data == 3
                 [width, length, height] = geom.float_data
-                dims = np.array([width, length, height])
+                extent = np.array([width, length, height]) / 2.
             elif geom.type == geom.SPHERE:
                 assert geom.num_float_data == 1
                 [radius] = geom.float_data
-                dims = 2*np.array([radius, radius, radius])
-
+                extent = np.array([radius, radius, radius])
             elif geom.type == geom.CYLINDER:
                 assert geom.num_float_data == 2
                 [radius, height] = geom.float_data
-                dims = np.array([2*radius, 2*radius, height])
+                extent = np.array([radius, radius, height/2.])
                 #meshcat_geom = meshcat.geometry.Cylinder(
-                #    geom.float_data[1],
-                #    geom.float_data[0])
+                #    geom.float_data[1], geom.float_data[0])
                 # In Drake, cylinders are along +z
             #elif geom.type == geom.MESH:
             #    meshcat_geom = meshcat.geometry.ObjMeshGeometry.from_file(
@@ -182,7 +168,12 @@ def get_box_from_geom(scene_graph, visual_only=True):
                 print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
                     link.robot_num, frame_name, geom_index, geom.type))
                 continue
-            box_from_geom[key] = BoundingBox(dims, element_local_tf)
+            aabb = BoundingBox(np.zeros(3), extent)
+            points.extend(element_local_tf.multiply(vertex) for vertex in vertices_from_aabb(aabb))
+        if points:
+            key = (model_index, frame_name)
+            box_from_geom[key] = aabb_from_points(points)
+            print(frame_name, box_from_geom[key])
     return box_from_geom
 
 ##################################################
@@ -269,36 +260,6 @@ def build_diagram(mbp, scene_graph, lcm, meshcat=False):
     add_logger(mbp, builder)
     #return builder.Build()
     return builder
-
-
-##################################################
-
-
-WSG50_LEFT_FINGER = 'left_finger_sliding_joint'
-WSG50_RIGHT_FINGER = 'right_finger_sliding_joint'
-
-
-def get_close_wsg50_positions(mbp, model_index):
-    left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
-    right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
-    return [left_joint.upper_limits()[0], right_joint.lower_limits()[0]]
-
-
-def get_open_wsg50_positions(mbp, model_index):
-    left_joint = mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)
-    right_joint = mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)
-    return [left_joint.lower_limits()[0], right_joint.upper_limits()[0]]
-
-
-def close_wsg50_gripper(mbp, context, model_index): # 0.05
-    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
-
-
-def open_wsg50_gripper(mbp, context, model_index):
-    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
-
 
 ##################################################
 
@@ -495,19 +456,26 @@ class Trajectory(object):
 ##################################################
 
 
-def get_stable_gen(mbp, context, scene_graph, fixed=[]):
+def get_stable_gen(task, context):
+    mbp = task.mbp
     world = mbp.world_frame
+    box_from_geom = get_box_from_geom(task.scene_graph)
 
-    def gen(obj_name, surface_name):
-        object_aabb = AABBs[obj_name]
+    def gen(obj_name, surface_name, body_name):
         obj = mbp.GetModelInstanceByName(obj_name)
-        surface_aabb = AABBs[surface_name]
         surface = mbp.GetModelInstanceByName(surface_name)
-        surface_pose = get_world_pose(mbp, context, surface)
+        surface_body = mbp.GetBodyByName(body_name, surface)
+        #surface_pose = get_world_pose(mbp, context, surface)
+        surface_pose = get_body_pose(context, surface_body)
+
+        #object_aabb = AABBs[obj_name]
+        #surface_aabb = AABBs[surface_name]
+        object_aabb = box_from_geom[int(obj), get_base_body(mbp, obj).name()]
+        surface_aabb = box_from_geom[int(surface), surface_body.name()]
         for local_pose in sample_aabb_placement(object_aabb, surface_aabb):
             world_pose = surface_pose.multiply(local_pose)
             set_world_pose(mbp, context, obj, world_pose)
-            if not is_model_colliding(mbp, context, obj, obstacles=fixed): #obstacles=(fixed + [surface])):
+            if not is_model_colliding(mbp, context, obj, obstacles=task.fixed): #obstacles=(fixed + [surface])):
                 pose = RelPose(mbp, world, obj, world_pose)
                 yield pose,
     return gen
@@ -614,31 +582,31 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
-        for surface in task.surfaces:
+        for surface, body_name in task.surfaces:
             surface_name = get_model_name(mbp, surface)
-            init += [('Stackable', obj_name, surface_name)]
+            init += [('Stackable', obj_name, surface_name, body_name)]
             #if is_placement(body, surface):
             #    init += [('Supported', body, pose, surface)]
 
-    for surface in task.surfaces:
+    for surface, body_name in task.surfaces:
         surface_name = get_model_name(mbp, surface)
         if 'sink' in surface_name:
-            init += [('Sink', surface_name)]
+            init += [('Sink', surface_name)] # body_name?
         if 'stove' in surface_name:
             init += [('Stove', surface_name)]
 
-    #obj_name = get_model_name(mbp, task.movable[0])
+    obj_name = get_model_name(mbp, task.movable[0])
     goal = ('and',
             ('AtConf', conf),
             #('Holding', obj_name),
             #('On', obj_name, fixed[1]),
             #('On', obj_name, fixed[2]),
             #('Cleaned', obj_name),
-            #('Cooked', obj_name),
+            ('Cooked', obj_name),
     )
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, scene_graph, fixed=task.fixed)),
+        'sample-pose': from_gen_fn(get_stable_gen(task, context)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
         'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=task.fixed)),
         'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=task.fixed)),
@@ -698,7 +666,7 @@ def step_trajectories(diagram, diagram_context, context, trajectories, time_step
             if time_step is None:
                 user_input('Continue?')
             else:
-                time.sleep(0.01)
+                time.sleep(time_step)
     user_input('Finish?')
 
 def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0):
@@ -831,9 +799,9 @@ class Task(object):
             self.__class__.__name__,
             get_model_name(self.mbp, self.robot),
             get_model_name(self.mbp, self.gripper),
-            [get_model_name(self.mbp, name) for name in self.movable],
-            [get_model_name(self.mbp, name) for name in self.surfaces],
-            [get_model_name(self.mbp, name) for name in self.fixed])
+            [get_model_name(self.mbp, model) for model in self.movable],
+            [(get_model_name(self.mbp, model), link) for model, link in self.surfaces],
+            [get_model_name(self.mbp, model) for model in self.fixed])
 
 ##################################################
 
@@ -925,15 +893,12 @@ def load_tables(time_step=0.0):
                                 scene_graph=scene_graph, plant=mbp)
     broccoli = AddModelFromSdfFile(file_name=BROCCOLI_PATH, model_name='broccoli',
                                    scene_graph=scene_graph, plant=mbp)
-    wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
-                               scene_graph=scene_graph, plant=mbp)
-
-    # box_from_geom = get_box_from_geom(scene_graph)
-    # print(sorted(box_from_geom.keys()))
-    # lookup_geoms(mbp, sink, box_from_geom)
+    #wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
+    #                           scene_graph=scene_graph, plant=mbp)
+    wall = None
 
     table2_x = 0.75
-    table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
+    table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table']) # TODO: use geometry
     weld_gripper(mbp, robot, gripper)
     weld_to_world(mbp, robot, create_transform(translation=[0, 0, table_top_z]))
     weld_to_world(mbp, table, create_transform())
@@ -945,7 +910,10 @@ def load_tables(time_step=0.0):
     mbp.Finalize(scene_graph)
 
     movable = [broccoli]
-    surfaces = [sink, stove]
+    surfaces = [
+        (sink, 'base_link'), # Could also just pass the link index
+        (stove, 'base_link'),
+    ]
     fixed = [table, table2, sink, stove]
     if wall is not None:
         fixed.append(wall)
@@ -1002,11 +970,6 @@ def main():
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     #context = mbp.CreateDefaultContext()
 
-    #box_from_geom = get_box_from_geom(scene_graph)
-    #print(sorted(box_from_geom.keys()))
-    #lookup_geoms(mbp, sink, box_from_geom)
-    #return
-
     for joint, position in task.initial_positions.items():
         set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
@@ -1018,17 +981,6 @@ def main():
     diagram.Publish(diagram_context)
     #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
     initial_state = mbp.tree().get_multibody_state_vector(context).copy()
-    #print(context.get_continuous_state().get_vector().get_value())
-    #print(context.get_discrete_state_vector())
-    #print(context.get_abstract_state())
-    #print(mbp.num_positions())
-    #print(mbp.num_velocities())
-
-    #set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z-0.1]))
-    #colliding_pairs = get_colliding_bodies(mbp, context, min_penetration=0.0)
-    #for body1, body2 in colliding_pairs:
-    #    print(body1.get_parent_tree(), body2.model_instance())
-    #return
 
     ##################################################
 
