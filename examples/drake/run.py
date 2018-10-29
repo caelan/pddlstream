@@ -50,7 +50,7 @@ from pydrake.examples.manipulation_station import ManipulationStation
 
 # gz sdf -p ../urdf/iiwa14_polytope_collision.urdf > /iiwa14_polytope_collision.sdf
 
-IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
+IIWA14_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "iiwa_description", "sdf",
     #"iiwa14_no_collision_floating.sdf")
     #"iiwa14_polytope_collision.sdf")
@@ -66,10 +66,18 @@ TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "extra_heavy_duty_table_surface_only_collision.sdf")
 
 AMAZON_TABLE_PATH = os.path.join(pydrake.getDrakePath(),
-    "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
+    "external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
+    #"examples/manipulation_station/models/amazon_table_simplified.sdf")
 
-CUPBOARD_PATH = os.path.join(pydrake.getDrakePath(),
-    "drake/examples/manipulation_station/models/cupboard.sdf")
+CUPBOARD_PATH = FindResourceOrThrow(
+    "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
+    #"drake/examples/manipulation_station/models/cupboard.sdf")
+
+IIWA7_SDF_PATH = FindResourceOrThrow(
+    "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
+
+FOAM_BRICK_PATH = FindResourceOrThrow(
+    "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
 
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -619,14 +627,14 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         if 'stove' in surface_name:
             init += [('Stove', surface_name)]
 
-    obj_name = get_model_name(mbp, task.movable[0])
+    #obj_name = get_model_name(mbp, task.movable[0])
     goal = ('and',
             ('AtConf', conf),
             #('Holding', obj_name),
             #('On', obj_name, fixed[1]),
             #('On', obj_name, fixed[2]),
             #('Cleaned', obj_name),
-            ('Cooked', obj_name),
+            #('Cooked', obj_name),
     )
 
     stream_map = {
@@ -807,7 +815,8 @@ def lookup_geoms(mbp, model_index, box_from_geom):
 
 class Task(object):
     def __init__(self, mbp, scene_graph, robot, gripper,
-                 movable=[], surfaces=[], fixed=[], initial_poses={}):
+                 movable=[], surfaces=[], fixed=[],
+                 initial_positions={}, initial_poses={}):
         self.mbp = mbp
         self.scene_graph = scene_graph
         self.robot = robot
@@ -815,6 +824,7 @@ class Task(object):
         self.movable = movable
         self.surfaces = surfaces
         self.fixed = fixed
+        self.initial_positions = initial_positions
         self.initial_poses = initial_poses
     def __repr__(self):
         return '{}(robot={}, gripper={}, movable={}, surfaces={}, fixed={})'.format(
@@ -828,8 +838,9 @@ class Task(object):
 ##################################################
 
 def load_station(time_step=0.0):
-    object_file_path = FindResourceOrThrow(
-            "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+    #object_file_path = FindResourceOrThrow(
+    #        "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+    object_file_path = FOAM_BRICK_PATH
     station = ManipulationStation(time_step)
     station.AddCupboard()
     mbp = station.get_mutable_multibody_plant()
@@ -846,12 +857,61 @@ def load_station(time_step=0.0):
 
     return station, mbp, scene_graph
 
+##################################################
+
+def load_manipulation(time_step=0.0):
+    mbp = MultibodyPlant(time_step=time_step)
+    scene_graph = SceneGraph()
+
+    dx_table_center_to_robot_base = 0.3257
+    dz_table_top_robot_base = 0.0127
+    dx_cupboard_to_table_center = 0.43 + 0.15
+    dz_cupboard_to_table_center = 0.02
+    cupboard_height = 0.815
+    cupboard_x = dx_table_center_to_robot_base + dx_cupboard_to_table_center
+    cupboard_z = dz_cupboard_to_table_center + cupboard_height / 2.0 - dz_table_top_robot_base
+
+    robot = AddModelFromSdfFile(file_name=IIWA7_SDF_PATH, model_name='iiwa',
+                                scene_graph=scene_graph, plant=mbp)
+    gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
+                                  scene_graph=scene_graph, plant=mbp)  # TODO: sdf frame/link error
+    amazon_table = AddModelFromSdfFile(file_name=AMAZON_TABLE_PATH, model_name='amazon_table',
+                                scene_graph=scene_graph, plant=mbp)
+    cupboard = AddModelFromSdfFile(file_name=CUPBOARD_PATH, model_name='cupboard',
+                                 scene_graph=scene_graph, plant=mbp)
+    brick = AddModelFromSdfFile(file_name=FOAM_BRICK_PATH, model_name='brick',
+                                 scene_graph=scene_graph, plant=mbp)
+
+    weld_gripper(mbp, robot, gripper)
+    weld_to_world(mbp, robot, create_transform())
+    weld_to_world(mbp, amazon_table, create_transform(translation=[dx_table_center_to_robot_base, 0, -dz_table_top_robot_base]))
+    weld_to_world(mbp, cupboard, create_transform(translation=[cupboard_x, 0, cupboard_z], rotation=[0, 0, np.pi]))
+    mbp.Finalize(scene_graph)
+
+    initial_positions = {
+        mbp.GetJointByName("left_door_hinge"): -np.pi/2,
+        mbp.GetJointByName("right_door_hinge"): np.pi/2,
+    }
+    initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
+    initial_positions.update(zip(get_movable_joints(mbp, robot), initial_conf))
+
+    initial_poses = {
+        brick: create_transform(translation=[.6, 0, 0]),
+    }
+
+    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], fixed=[amazon_table, cupboard],
+                initial_positions=initial_positions, initial_poses=initial_poses)
+
+    return mbp, scene_graph, task
+
+##################################################
+
 def load_tables(time_step=0.0):
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
 
     # TODO: meshes aren't supported during collision checking
-    robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='iiwa',
+    robot = AddModelFromSdfFile(file_name=IIWA14_SDF_PATH, model_name='iiwa',
                                 scene_graph=scene_graph, plant=mbp)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
                                   scene_graph=scene_graph, plant=mbp)  # TODO: sdf frame/link error
@@ -919,6 +979,7 @@ def main():
 
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     mbp, scene_graph, task = load_tables(time_step=time_step)
+    #mbp, scene_graph, task = load_manipulation(time_step=time_step)
     print(task)
 
     #station, mbp, scene_graph = load_station(time_step=time_step)
@@ -946,6 +1007,8 @@ def main():
     #lookup_geoms(mbp, sink, box_from_geom)
     #return
 
+    for joint, position in task.initial_positions.items():
+        set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
         set_world_pose(mbp, context, model, pose)
     open_wsg50_gripper(mbp, context, gripper)
