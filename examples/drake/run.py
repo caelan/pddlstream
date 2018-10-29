@@ -10,6 +10,7 @@ import argparse
 import pydrake
 
 from itertools import product
+from collections import namedtuple
 
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -34,6 +35,10 @@ from examples.drake.utils import BoundingBox, create_transform, get_model_bodies
 
 from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
+#from pydrake.examples.manipulation_station import ManipulationStation
+# https://github.com/RobotLocomotion/drake/blob/master/bindings/pydrake/examples/manipulation_station_py.cc
+
+
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
@@ -50,6 +55,7 @@ IIWA_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     #"iiwa14_no_collision_floating.sdf")
     #"iiwa14_polytope_collision.sdf")
     "iiwa14_no_collision.sdf")
+# TODO: meshcat fails the relative import
 
 WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "manipulation", "models", "wsg_50_description", "sdf",
@@ -96,6 +102,75 @@ def weld_gripper(mbp, robot_index, gripper_index):
 
 ##################################################
 
+from drake import lcmt_viewer_load_robot
+from pydrake.lcm import DrakeMockLcm
+from pydrake.all import (
+    Quaternion,
+    RigidTransform,
+    RotationMatrix
+)
+
+BoundingBox = namedtuple('BoundingBox', ['dims', 'pose'])
+
+def get_box_from_geom(scene_graph, visual_only=True):
+    # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
+    # https://github.com/RobotLocomotion/drake/blob/master/lcmtypes/lcmt_viewer_draw.lcm
+    mock_lcm = DrakeMockLcm()
+    DispatchLoadMessage(scene_graph, mock_lcm)
+    load_robot_msg = lcmt_viewer_load_robot.decode(
+        mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
+    # 'link', 'num_links'
+    #builder.Connect(scene_graph.get_pose_bundle_output_port(),
+    #                viz.get_input_port(0))
+
+    box_from_geom = {}
+    for body_index in range(load_robot_msg.num_links):
+        # 'geom', 'name', 'num_geom', 'robot_num'
+        link = load_robot_msg.link[body_index]
+        [source_name, frame_name] = link.name.split("::")
+        # source_name = 'Source_1'
+        model_index = link.robot_num
+
+        for geom_index in range(link.num_geom):
+            # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
+            geom = link.geom[geom_index]
+            if visual_only and (geom.color[3] == 0):
+                continue
+            element_local_tf = RigidTransform(
+                RotationMatrix(Quaternion(geom.quaternion)),
+                geom.position).GetAsMatrix4()
+            key = (model_index, body_index, geom_index)
+
+            # multiply
+
+            if geom.type == geom.BOX:
+                assert geom.num_float_data == 3
+                [width, length, height] = geom.float_data
+                dims = np.array([width, length, height])
+            elif geom.type == geom.SPHERE:
+                assert geom.num_float_data == 1
+                [radius] = geom.float_data
+                dims = 2*np.array([radius, radius, radius])
+
+            elif geom.type == geom.CYLINDER:
+                assert geom.num_float_data == 2
+                [radius, height] = geom.float_data
+                dims = np.array([2*radius, 2*radius, height])
+                #meshcat_geom = meshcat.geometry.Cylinder(
+                #    geom.float_data[1],
+                #    geom.float_data[0])
+                # In Drake, cylinders are along +z
+            #elif geom.type == geom.MESH:
+            #    meshcat_geom = meshcat.geometry.ObjMeshGeometry.from_file(
+            #            geom.string_data[0:-3] + "obj")
+            else:
+                print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
+                    link.robot_num, frame_name, geom_index, geom.type))
+                continue
+            box_from_geom[key] = BoundingBox(dims, element_local_tf)
+    return box_from_geom
+
+##################################################
 
 def load_meshcat():
     import meshcat
@@ -105,6 +180,8 @@ def load_meshcat():
 
 
 def add_meshcat_visualizer(scene_graph, builder):
+    # https://github.com/rdeits/meshcat-python
+    # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
     from underactuated.meshcat_visualizer import MeshcatVisualizer
     viz = MeshcatVisualizer(scene_graph)
     builder.AddSystem(viz)
@@ -403,7 +480,7 @@ class Trajectory(object):
 ##################################################
 
 
-def get_stable_gen(mbp, context, fixed=[]):
+def get_stable_gen(mbp, context, scene_graph, fixed=[]):
     world = mbp.world_frame
 
     def gen(obj_name, surface_name):
@@ -496,7 +573,7 @@ def get_holding_motion_fn(mbp, context, robot, gripper, fixed=[]):
 ##################################################
 
 
-def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[], fixed=[]):
+def get_pddlstream_problem(mbp, context, scene_graph, robot, gripper, movable=[], surfaces=[], fixed=[]):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
@@ -547,7 +624,7 @@ def get_pddlstream_problem(mbp, context, robot, gripper, movable=[], surfaces=[]
     )
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, fixed=fixed)),
+        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, scene_graph, fixed=fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
         'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=fixed)),
         'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
@@ -709,6 +786,18 @@ def is_model_colliding(mbp, context, model, obstacles=None):
 
 ##################################################
 
+def lookup_geoms(mbp, model_index, box_from_geom):
+    #geom_ids = [0] # TODO: visual geometries
+    #for body in get_model_bodies(mbp, model_index):
+    #    for geom_index in geom_ids:
+    #        key = (int(model_index), int(body.index()), geom_index)
+    #        print(key)
+    #        if key in box_from_geom:
+    #            print(box_from_geom[key])
+    for key in box_from_geom: # TODO: contains both visual and collision geometries
+        if key[0] == int(model_index):
+            print(key)
+            print(box_from_geom[key])
 
 def main():
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
@@ -749,6 +838,10 @@ def main():
     wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
                                scene_graph=scene_graph, plant=mbp)
 
+    #box_from_geom = get_box_from_geom(scene_graph)
+    #print(sorted(box_from_geom.keys()))
+    #lookup_geoms(mbp, sink, box_from_geom)
+
     table2_x = 0.75
     table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
     weld_gripper(mbp, robot, gripper)
@@ -772,6 +865,11 @@ def main():
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     #context = mbp.CreateDefaultContext()
+
+    #box_from_geom = get_box_from_geom(scene_graph)
+    #print(sorted(box_from_geom.keys()))
+    #lookup_geoms(mbp, sink, box_from_geom)
+    #return
 
     set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z]))
     open_wsg50_gripper(mbp, context, gripper)
@@ -800,7 +898,7 @@ def main():
         fixed.append(wall)
     if args.cfree:
         fixed = []
-    problem = get_pddlstream_problem(mbp, context, robot, gripper,
+    problem = get_pddlstream_problem(mbp, context, scene_graph, robot, gripper,
                                      movable=[broccoli],
                                      surfaces=[sink, stove],
                                      fixed=fixed)
