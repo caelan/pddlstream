@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 from pydrake.multibody.multibody_tree import WeldJoint
@@ -39,3 +41,21 @@ def close_wsg50_gripper(mbp, context, model_index): # 0.05
 def open_wsg50_gripper(mbp, context, model_index):
     set_min_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
     set_max_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+
+##################################################
+
+def get_top_cylinder_grasps(aabb, max_width=np.inf, grasp_length=0): # y is out of gripper
+    tool = create_transform(translation=[0, 0, -0.07])
+    center, extent = aabb
+    w, l, h = 2*extent
+    reflect_z = create_transform(rotation=[np.pi / 2, 0, 0])
+    translate_z = create_transform(translation=[0, 0, -h / 2 + grasp_length])
+    aabb_from_body = create_transform(translation=center).inverse()
+    diameter = (w + l) / 2 # TODO: check that these are close
+    if max_width < diameter:
+        return
+    while True:
+        theta = random.uniform(0, 2*np.pi)
+        rotate_z = create_transform(rotation=[0, 0, theta])
+        yield reflect_z.multiply(rotate_z).multiply(translate_z).multiply(tool).multiply(aabb_from_body)
+

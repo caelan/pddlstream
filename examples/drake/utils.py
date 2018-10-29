@@ -1,16 +1,22 @@
 from __future__ import print_function
 
 import random
+from itertools import product
+
 import numpy as np
 
 from collections import namedtuple
 
+from pydrake.geometry import DispatchLoadMessage
 from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement,
     WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, FrameIndex)
 from pydrake.multibody import inverse_kinematics
 from pydrake.solvers.mathematicalprogram import SolutionResult
 from pydrake.math import RollPitchYaw, RotationMatrix
 from pydrake.util.eigen_geometry import Isometry3
+from drake import lcmt_viewer_load_robot
+from pydrake.lcm import DrakeMockLcm
+from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
 
 BoundingBox = namedtuple('BoundingBox', ['center', 'extent'])
 
@@ -22,6 +28,21 @@ def get_aabb_lower(aabb):
 def get_aabb_upper(aabb):
     return np.array(aabb.center) + np.array(aabb.extent)
 
+
+def vertices_from_aabb(aabb):
+    center, extent = aabb
+    return [center + np.multiply(extent, np.array(signs))
+            for signs in product([-1, 1], repeat=len(extent))]
+
+
+def aabb_from_points(points):
+    lower = np.min(points, axis=0)
+    upper = np.max(points, axis=0)
+    center = (np.array(lower) + np.array(upper)) / 2.
+    extent = (np.array(upper) - np.array(lower)) / 2.
+    return BoundingBox(center, extent)
+
+##################################################
 
 def get_aabb_z_placement(object_aabb, surface_aabb, z_epsilon=1e-3):
     z = (get_aabb_upper(surface_aabb) + object_aabb.extent - object_aabb.center)[2]
@@ -82,12 +103,6 @@ def get_frames(mbp):
 
 def get_model_bodies(mbp, model_index):
     return [body for body in get_bodies(mbp) if body.model_instance() == model_index]
-    #body_names = []
-    #for body in get_bodies(mbp):
-    #    if body.name() not in body_names:
-    #        body_names.append(body.name())
-    #return [mbp.GetBodyByName(name, model_index)
-    #        for name in body_names if mbp.HasBodyNamed(name, model_index)]
 
 
 def get_base_body(mbp, model_index):
@@ -97,12 +112,6 @@ def get_base_body(mbp, model_index):
 
 def get_model_joints(mbp, model_index):
     return [joint for joint in get_joints(mbp) if joint.model_instance() == model_index]
-    #joint_names = []
-    #for joint in get_joints(mbp):
-    #    if joint.name() not in joint_names:
-    #        joint_names.append(joint.name())
-    #return [mbp.GetJointByName(name, model_index)
-    #        for name in joint_names if mbp.HasJointNamed(name, model_index)]
 
 
 def is_fixed_joints(joint):
@@ -115,23 +124,6 @@ def prune_fixed_joints(joints):
 
 def get_movable_joints(mbp, model_index):
     return prune_fixed_joints(get_model_joints(mbp, model_index))
-
-
-##################################################
-
-
-#def joints_from_names(mbp, joint_names):
-#    return [mbp.GetJointByName(joint_name) for joint_name in joint_names]
-#
-#
-#def get_joint_angles(mbp, context, joint_names):
-#    return [joint.get_angle(context) for joint in joints_from_names(mbp, joint_names)]
-#
-#
-#def set_joint_angles(mbp, context, joint_names, joint_angles):
-#    assert len(joint_names) == len(joint_angles)
-#    return [joint.set_angle(context, angle)
-#            for joint, angle in zip(joints_from_names(mbp, joint_names), joint_angles)]
 
 
 ##################################################
@@ -316,3 +308,97 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
     if result != SolutionResult.kSolutionFound:
         return None
     return prog.GetSolution(ik_scene.q())
+
+##################################################
+
+def get_colliding_bodies(mbp, context, min_penetration=0.0):
+    # TODO: set collision geometries pairs to check
+    # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
+    body_from_geometry_id = {}
+    for body in get_bodies(mbp):
+        for geometry_id in mbp.GetCollisionGeometriesForBody(body):
+            body_from_geometry_id[geometry_id.get_value()] = body
+    colliding_bodies = set()
+    for penetration in mbp.CalcPointPairPenetrations(context):
+        if penetration.depth < min_penetration:
+            continue
+        body1 = body_from_geometry_id[penetration.id_A.get_value()]
+        body2 = body_from_geometry_id[penetration.id_B.get_value()]
+        colliding_bodies.update([(body1, body2), (body2, body1)])
+    return colliding_bodies
+
+
+def get_colliding_models(mbp, context, **kwargs):
+    colliding_models = set()
+    for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
+        colliding_models.add((body1.model_instance(), body2.model_instance()))
+    return colliding_models
+
+
+def is_model_colliding(mbp, context, model, obstacles=None):
+    if obstacles is None:
+        obstacles = get_model_indices(mbp) # All models
+    if not obstacles:
+        return False
+    for model1, model2 in get_colliding_models(mbp, context):
+        if (model1 == model) and (model2 in obstacles):
+            return True
+    return False
+
+
+def get_box_from_geom(scene_graph, visual_only=True):
+    # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
+    # https://github.com/RobotLocomotion/drake/blob/master/lcmtypes/lcmt_viewer_draw.lcm
+    mock_lcm = DrakeMockLcm()
+    DispatchLoadMessage(scene_graph, mock_lcm)
+    load_robot_msg = lcmt_viewer_load_robot.decode(
+        mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
+    # 'link', 'num_links'
+    #builder.Connect(scene_graph.get_pose_bundle_output_port(),
+    #                viz.get_input_port(0))
+
+    box_from_geom = {}
+    for body_index in range(load_robot_msg.num_links):
+        # 'geom', 'name', 'num_geom', 'robot_num'
+        link = load_robot_msg.link[body_index]
+        [source_name, frame_name] = link.name.split("::")
+        # source_name = 'Source_1'
+        model_index = link.robot_num
+
+        points = []
+        for geom_index in range(link.num_geom):
+            # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
+            geom = link.geom[geom_index]
+            if visual_only and (geom.color[3] == 0):
+                continue
+            element_local_tf = RigidTransform(
+                RotationMatrix(Quaternion(geom.quaternion)), geom.position) #.GetAsMatrix4()
+            if geom.type == geom.BOX:
+                assert geom.num_float_data == 3
+                [width, length, height] = geom.float_data
+                extent = np.array([width, length, height]) / 2.
+            elif geom.type == geom.SPHERE:
+                assert geom.num_float_data == 1
+                [radius] = geom.float_data
+                extent = np.array([radius, radius, radius])
+            elif geom.type == geom.CYLINDER:
+                assert geom.num_float_data == 2
+                [radius, height] = geom.float_data
+                extent = np.array([radius, radius, height/2.])
+                #meshcat_geom = meshcat.geometry.Cylinder(
+                #    geom.float_data[1], geom.float_data[0])
+                # In Drake, cylinders are along +z
+            #elif geom.type == geom.MESH:
+            #    meshcat_geom = meshcat.geometry.ObjMeshGeometry.from_file(
+            #            geom.string_data[0:-3] + "obj")
+            else:
+                print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
+                    link.robot_num, frame_name, geom_index, geom.type))
+                continue
+            aabb = BoundingBox(np.zeros(3), extent)
+            points.extend(element_local_tf.multiply(vertex) for vertex in vertices_from_aabb(aabb))
+        if points:
+            key = (model_index, frame_name)
+            box_from_geom[key] = aabb_from_points(points)
+            print(frame_name, box_from_geom[key])
+    return box_from_geom
