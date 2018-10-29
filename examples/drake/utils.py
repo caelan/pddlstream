@@ -286,7 +286,9 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
     if initial_guess is None:
         initial_guess = np.zeros(mbp.num_positions())
         for joint in prune_fixed_joints(get_joints(mbp)):
-            initial_guess[joint.position_start()] = random.uniform(*get_joint_limits(joint))
+            lower, upper = get_joint_limits(joint)
+            if -np.inf < lower < upper < np.inf:
+                initial_guess[joint.position_start()] = random.uniform(lower, upper)
 
     ik_scene = inverse_kinematics.InverseKinematics(mbp)
     world_frame = mbp.world_frame()
@@ -369,6 +371,7 @@ def get_box_from_geom(scene_graph, visual_only=True):
         for geom_index in range(link.num_geom):
             # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
             geom = link.geom[geom_index]
+            # string_data is empty...
             if visual_only and (geom.color[3] == 0):
                 continue
             element_local_tf = RigidTransform(
@@ -400,5 +403,4 @@ def get_box_from_geom(scene_graph, visual_only=True):
         if points:
             key = (model_index, frame_name)
             box_from_geom[key] = aabb_from_points(points)
-            print(frame_name, box_from_geom[key])
     return box_from_geom

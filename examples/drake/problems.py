@@ -18,7 +18,10 @@ IIWA14_SDF_PATH = os.path.join(pydrake.getDrakePath(),
                                # "iiwa14_no_collision_floating.sdf")
                                # "iiwa14_polytope_collision.sdf")
                                "iiwa14_no_collision.sdf")
-# TODO: meshcat fails the relative import
+# TODO: meshcat fails when using relative import
+
+#IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
+#    "iiwa14_no_collision.sdf")
 
 WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
                               "manipulation", "models", "wsg_50_description", "sdf",
@@ -27,20 +30,6 @@ WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
 TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
                               "examples", "kuka_iiwa_arm", "models", "table",
                               "extra_heavy_duty_table_surface_only_collision.sdf")
-
-AMAZON_TABLE_PATH = os.path.join(pydrake.getDrakePath(),
-                                 "external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
-#"examples/manipulation_station/models/amazon_table_simplified.sdf")
-
-CUPBOARD_PATH = FindResourceOrThrow(
-    "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
-#"drake/examples/manipulation_station/models/cupboard.sdf")
-
-IIWA7_SDF_PATH = FindResourceOrThrow(
-    "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
-
-FOAM_BRICK_PATH = FindResourceOrThrow(
-    "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
@@ -51,9 +40,6 @@ STOVE_PATH = os.path.join(MODELS_DIR, "stove.sdf")
 BROCCOLI_PATH = os.path.join(MODELS_DIR, "broccoli.sdf")
 
 WALL_PATH = os.path.join(MODELS_DIR, "wall.sdf")
-
-#IIWA_SDF_PATH = os.path.join(MODELS_DIR, "iiwa_description", "sdf",
-#    "iiwa14_no_collision.sdf")
 
 ##################################################
 
@@ -71,7 +57,7 @@ AABBs = {
 class Task(object):
     def __init__(self, mbp, scene_graph, robot, gripper,
                  movable=[], surfaces=[], fixed=[],
-                 initial_positions={}, initial_poses={}):
+                 initial_positions={}, initial_poses={}, goal_on=[], goal_cooked=[]):
         self.mbp = mbp
         self.scene_graph = scene_graph
         self.robot = robot
@@ -81,6 +67,8 @@ class Task(object):
         self.fixed = fixed
         self.initial_positions = initial_positions
         self.initial_poses = initial_poses
+        self.goal_on = goal_on
+        self.goal_cooked = goal_cooked
     def __repr__(self):
         return '{}(robot={}, gripper={}, movable={}, surfaces={}, fixed={})'.format(
             self.__class__.__name__,
@@ -116,6 +104,22 @@ def load_station(time_step=0.0):
 ##################################################
 
 def load_manipulation(time_step=0.0):
+    AMAZON_TABLE_PATH = FindResourceOrThrow(
+        #"drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
+        "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
+
+    CUPBOARD_PATH = FindResourceOrThrow(
+        #"drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
+        "drake/examples/manipulation_station/models/cupboard.sdf")
+
+    IIWA7_SDF_PATH = FindResourceOrThrow(
+        #"drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
+        "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
+
+    FOAM_BRICK_PATH = FindResourceOrThrow(
+        #"drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+        "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
 
@@ -144,6 +148,10 @@ def load_manipulation(time_step=0.0):
     weld_to_world(mbp, cupboard, create_transform(translation=[cupboard_x, 0, cupboard_z], rotation=[0, 0, np.pi]))
     mbp.Finalize(scene_graph)
 
+    surfaces = [
+        (cupboard, 'top_and_bottom'),
+    ]
+
     initial_positions = {
         mbp.GetJointByName("left_door_hinge"): -np.pi/2,
         mbp.GetJointByName("right_door_hinge"): np.pi/2,
@@ -155,8 +163,9 @@ def load_manipulation(time_step=0.0):
         brick: create_transform(translation=[.6, 0, 0]),
     }
 
-    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], fixed=[amazon_table, cupboard],
-                initial_positions=initial_positions, initial_poses=initial_poses)
+    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, fixed=[amazon_table, cupboard],
+                initial_positions=initial_positions, initial_poses=initial_poses,
+                goal_on=[(brick, cupboard, 'top_and_bottom')])
 
     return mbp, scene_graph, task
 
@@ -212,6 +221,7 @@ def load_tables(time_step=0.0):
 
     task = Task(mbp, scene_graph, robot, gripper,
                 movable=movable, fixed=fixed, surfaces=surfaces,
-                initial_poses=initial_poses)
+                initial_poses=initial_poses,
+                goal_cooked=[broccoli])
 
     return mbp, scene_graph, task

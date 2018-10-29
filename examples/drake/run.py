@@ -5,7 +5,7 @@ from examples.drake.generators import RelPose, Config, Trajectory, get_stable_ge
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
-from examples.drake.problems import load_tables
+from examples.drake.problems import load_tables, load_manipulation
 
 user_input = raw_input
 
@@ -22,10 +22,11 @@ from pydrake.systems.analysis import Simulator
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn
+from pddlstream.language.constants import And
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name
+    prune_fixed_joints, get_configuration, get_model_name, dump_models
 
 from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
@@ -45,9 +46,7 @@ from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, 
 
 def load_meshcat():
     import meshcat
-    vis = meshcat.Visualizer()
-    #print(dir(vis)) # set_object
-    return vis
+    return meshcat.Visualizer()  # vis.set_object
 
 
 def add_meshcat_visualizer(scene_graph, builder):
@@ -62,9 +61,13 @@ def add_meshcat_visualizer(scene_graph, builder):
     return viz
 
 
-def add_drake_visualizer(scene_graph, lcm, builder):
+def add_drake_visualizer(scene_graph, builder):
+    lcm = DrakeLcm()
     ConnectDrakeVisualizer(builder=builder, scene_graph=scene_graph, lcm=lcm)
     DispatchLoadMessage(scene_graph, lcm) # TODO: only update viewer after a plan is found
+    return lcm # Important that variable is saved
+
+##################################################
 
 
 def add_logger(mbp, builder):
@@ -90,7 +93,7 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                                               print_period=print_period)
     builder.AddSystem(iiwa_controller)
     builder.Connect(iiwa_controller.get_output_port(0),
-                    mbp.get_input_port(0))
+                    mbp.get_input_port(0)) # RuntimeError: Input port is already wired
     builder.Connect(mbp.get_continuous_state_output_port(),
                     iiwa_controller.robot_state_input_port)
 
@@ -113,18 +116,18 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
     return state_machine
 
 
-def build_diagram(mbp, scene_graph, lcm, meshcat=False):
+def build_diagram(mbp, scene_graph, meshcat=False):
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
     builder.AddSystem(mbp)
     connect_collisions(mbp, scene_graph, builder)
     if meshcat:
-        add_meshcat_visualizer(scene_graph, builder)
+        vis = add_meshcat_visualizer(scene_graph, builder)
     else:
-        add_drake_visualizer(scene_graph, lcm, builder)
+        vis = add_drake_visualizer(scene_graph, builder)
     add_logger(mbp, builder)
     #return builder.Build()
-    return builder
+    return builder, vis
 
 ##################################################
 
@@ -167,15 +170,17 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         if 'stove' in surface_name:
             init += [('Stove', surface_name)]
 
-    obj_name = get_model_name(mbp, task.movable[0])
-    goal = ('and',
-            ('AtConf', conf),
-            #('Holding', obj_name),
-            #('On', obj_name, fixed[1]),
-            #('On', obj_name, fixed[2]),
-            #('Cleaned', obj_name),
-            ('Cooked', obj_name),
-    )
+    goal_literals = [
+        ('AtConf', conf),
+    ]
+    for obj, surface, body_name in task.goal_on:
+        obj_name = get_model_name(mbp, obj)
+        surface_name = get_model_name(mbp, surface)
+        goal_literals.append(('On', obj_name, surface_name, body_name))
+    for obj in task.goal_cooked:
+        obj_name = get_model_name(mbp, obj)
+        goal_literals.append(('Cooked', obj_name))
+    goal = And(*goal_literals)
 
     stream_map = {
         'sample-pose': from_gen_fn(get_stable_gen(task, context)),
@@ -326,17 +331,16 @@ def main():
     #builder.AddSystem(station)
 
     #dump_plant(mbp)
-    #dump_models(mbp)
+    dump_models(mbp)
 
     ##################################################
 
-    robot = task.robot
-    gripper = task.gripper
-
-    lcm = DrakeLcm()
-    #lcm = None
-    builder = build_diagram(mbp, scene_graph, lcm, args.meshcat)
-    state_machine = connect_controllers(builder, mbp, robot, gripper)
+    builder, _ = build_diagram(mbp, scene_graph, args.meshcat)
+    if args.simulate:
+        # TODO: RuntimeError: Input port is already wired
+        state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
+    else:
+        state_machine = None
     diagram = builder.Build()
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
@@ -346,9 +350,9 @@ def main():
         set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
         set_world_pose(mbp, context, model, pose)
-    open_wsg50_gripper(mbp, context, gripper)
-    #close_wsg50_gripper(mbp, context, gripper)
-    #set_configuration(mbp, context, gripper, [-0.05, 0.05])
+    open_wsg50_gripper(mbp, context, task.gripper)
+    #close_wsg50_gripper(mbp, context, task.gripper)
+    #set_configuration(mbp, context, task.gripper, [-0.05, 0.05])
 
     diagram.Publish(diagram_context)
     #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
@@ -364,8 +368,8 @@ def main():
     plan, cost, evaluations = solution
     if plan is None:
         return
-    trajectories = postprocess_plan(mbp, gripper, plan)
-    splines, gripper_setpoints = convert_splines(mbp, robot, gripper, context, trajectories)
+    trajectories = postprocess_plan(mbp, task.gripper, plan)
+    splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
     sim_duration = compute_duration(splines)
     print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
 
