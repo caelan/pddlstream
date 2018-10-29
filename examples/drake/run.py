@@ -28,16 +28,16 @@ from pddlstream.utils import print_solution, read, INF, get_file_path
 
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt, direct_path
 from examples.drake.utils import BoundingBox, create_transform, get_model_bodies, get_model_joints, \
-    get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, \
+    get_joint_limits, set_min_joint_positions, set_max_joint_positions, get_relative_transform, dump_models, \
     get_world_pose, set_world_pose, set_joint_position, sample_aabb_placement, fix_input_ports, get_movable_joints, \
     get_base_body, solve_inverse_kinematics, prune_fixed_joints, weld_to_world, get_configuration, get_model_name, \
     get_random_positions, get_aabb_z_placement, get_bodies, get_model_indices, set_joint_positions, get_joint_positions
 
 from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
-#from pydrake.examples.manipulation_station import ManipulationStation
+from pydrake.common import FindResourceOrThrow
+from pydrake.examples.manipulation_station import ManipulationStation
 # https://github.com/RobotLocomotion/drake/blob/master/bindings/pydrake/examples/manipulation_station_py.cc
-
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
@@ -64,6 +64,13 @@ WSG50_SDF_PATH = os.path.join(pydrake.getDrakePath(),
 TABLE_SDF_PATH = os.path.join(pydrake.getDrakePath(),
     "examples", "kuka_iiwa_arm", "models", "table",
     "extra_heavy_duty_table_surface_only_collision.sdf")
+
+AMAZON_TABLE_PATH = os.path.join(pydrake.getDrakePath(),
+    "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
+
+CUPBOARD_PATH = os.path.join(pydrake.getDrakePath(),
+    "drake/examples/manipulation_station/models/cupboard.sdf")
+
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 SINK_PATH = os.path.join(MODELS_DIR, "sink.sdf")
@@ -573,10 +580,13 @@ def get_holding_motion_fn(mbp, context, robot, gripper, fixed=[]):
 ##################################################
 
 
-def get_pddlstream_problem(mbp, context, scene_graph, robot, gripper, movable=[], surfaces=[], fixed=[]):
+def get_pddlstream_problem(mbp, context, scene_graph, task):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
+
+    robot = task.robot
+    gripper = task.gripper
 
     #world = mbp.world_body()
     world = mbp.world_frame()
@@ -589,31 +599,27 @@ def get_pddlstream_problem(mbp, context, scene_graph, robot, gripper, movable=[]
         ('HandEmpty',)
     ]
 
-    print('Movable:', [get_model_name(mbp, name) for name in movable])
-    print('Surfaces:', [get_model_name(mbp, name) for name in surfaces])
-    print('Fixed:', [get_model_name(mbp, name) for name in fixed])
-
-    for obj in movable:
+    for obj in task.movable:
         obj_name = get_model_name(mbp, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
         obj_pose = RelPose(mbp, world, obj, get_world_pose(mbp, context, obj))
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
-        for surface in surfaces:
+        for surface in task.surfaces:
             surface_name = get_model_name(mbp, surface)
             init += [('Stackable', obj_name, surface_name)]
             #if is_placement(body, surface):
             #    init += [('Supported', body, pose, surface)]
 
-    for surface in surfaces:
+    for surface in task.surfaces:
         surface_name = get_model_name(mbp, surface)
         if 'sink' in surface_name:
             init += [('Sink', surface_name)]
         if 'stove' in surface_name:
             init += [('Stove', surface_name)]
 
-    obj_name = get_model_name(mbp, movable[0])
+    obj_name = get_model_name(mbp, task.movable[0])
     goal = ('and',
             ('AtConf', conf),
             #('Holding', obj_name),
@@ -624,11 +630,11 @@ def get_pddlstream_problem(mbp, context, scene_graph, robot, gripper, movable=[]
     )
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, scene_graph, fixed=fixed)),
+        'sample-pose': from_gen_fn(get_stable_gen(mbp, context, scene_graph, fixed=task.fixed)),
         'sample-grasp': from_gen_fn(get_grasp_gen(mbp, gripper)),
-        'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=fixed)),
-        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, gripper, fixed=fixed)),
+        'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=task.fixed)),
+        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=task.fixed)),
+        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, gripper, fixed=task.fixed)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -799,32 +805,56 @@ def lookup_geoms(mbp, model_index, box_from_geom):
             print(key)
             print(box_from_geom[key])
 
-def main():
-    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
-    # TODO: cost-sensitive planning to avoid large kuka moves
+class Task(object):
+    def __init__(self, mbp, scene_graph, robot, gripper,
+                 movable=[], surfaces=[], fixed=[], initial_poses={}):
+        self.mbp = mbp
+        self.scene_graph = scene_graph
+        self.robot = robot
+        self.gripper = gripper
+        self.movable = movable
+        self.surfaces = surfaces
+        self.fixed = fixed
+        self.initial_poses = initial_poses
+    def __repr__(self):
+        return '{}(robot={}, gripper={}, movable={}, surfaces={}, fixed={})'.format(
+            self.__class__.__name__,
+            get_model_name(self.mbp, self.robot),
+            get_model_name(self.mbp, self.gripper),
+            [get_model_name(self.mbp, name) for name in self.movable],
+            [get_model_name(self.mbp, name) for name in self.surfaces],
+            [get_model_name(self.mbp, name) for name in self.fixed])
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
-    parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
-    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
-    args = parser.parse_args()
+##################################################
 
-    meshcat_vis = None
-    if args.meshcat:
-        meshcat_vis = load_meshcat()  # Important that variable is saved
-        # print('http://127.0.0.1:7000/static/')
+def load_station(time_step=0.0):
+    object_file_path = FindResourceOrThrow(
+            "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+    station = ManipulationStation(time_step)
+    station.AddCupboard()
+    mbp = station.get_mutable_multibody_plant()
+    scene_graph = station.get_mutable_scene_graph()
+    object = AddModelFromSdfFile(
+        file_name=object_file_path,
+        model_name="object",
+        plant=mbp,
+        scene_graph=scene_graph)
+    station.Finalize()
 
-    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
-    #time_step = 0
+    robot = mbp.GetModelInstanceByName('iiwa')
+    gripper = mbp.GetModelInstanceByName('gripper')
+
+    return station, mbp, scene_graph
+
+def load_tables(time_step=0.0):
     mbp = MultibodyPlant(time_step=time_step)
-    scene_graph = SceneGraph() # Geometry
-    lcm = DrakeLcm()
+    scene_graph = SceneGraph()
 
     # TODO: meshes aren't supported during collision checking
-    robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='robot',
+    robot = AddModelFromSdfFile(file_name=IIWA_SDF_PATH, model_name='iiwa',
                                 scene_graph=scene_graph, plant=mbp)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
-                                  scene_graph=scene_graph, plant=mbp) # TODO: sdf frame/link error
+                                  scene_graph=scene_graph, plant=mbp)  # TODO: sdf frame/link error
     table = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table',
                                 scene_graph=scene_graph, plant=mbp)
     table2 = AddModelFromSdfFile(file_name=TABLE_SDF_PATH, model_name='table2',
@@ -838,9 +868,9 @@ def main():
     wall = AddModelFromSdfFile(file_name=WALL_PATH, model_name='wall',
                                scene_graph=scene_graph, plant=mbp)
 
-    #box_from_geom = get_box_from_geom(scene_graph)
-    #print(sorted(box_from_geom.keys()))
-    #lookup_geoms(mbp, sink, box_from_geom)
+    # box_from_geom = get_box_from_geom(scene_graph)
+    # print(sorted(box_from_geom.keys()))
+    # lookup_geoms(mbp, sink, box_from_geom)
 
     table2_x = 0.75
     table_top_z = get_aabb_z_placement(AABBs['sink'], AABBs['table'])
@@ -851,14 +881,59 @@ def main():
     weld_to_world(mbp, sink, create_transform(translation=[table2_x, 0.25, table_top_z]))
     weld_to_world(mbp, stove, create_transform(translation=[table2_x, -0.25, table_top_z]))
     if wall is not None:
-        weld_to_world(mbp, wall, create_transform(translation=[table2_x/2, 0, table_top_z]))
+        weld_to_world(mbp, wall, create_transform(translation=[table2_x / 2, 0, table_top_z]))
     mbp.Finalize(scene_graph)
+
+    movable = [broccoli]
+    surfaces = [sink, stove]
+    fixed = [table, table2, sink, stove]
+    if wall is not None:
+        fixed.append(wall)
+
+    initial_poses = {
+        broccoli: create_transform(translation=[table2_x, 0, table_top_z]),
+    }
+
+    task = Task(mbp, scene_graph, robot, gripper,
+                movable=movable, fixed=fixed, surfaces=surfaces,
+                initial_poses=initial_poses)
+
+    return mbp, scene_graph, task
+
+##################################################
+
+def main():
+    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
+    # TODO: cost-sensitive planning to avoid large kuka moves
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
+    parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
+    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
+    args = parser.parse_args()
+
+    meshcat_vis = None
+    if args.meshcat:
+        meshcat_vis = load_meshcat()  # Important that variable is saved
+        # http://127.0.0.1:7000/static/
+
+    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
+    mbp, scene_graph, task = load_tables(time_step=time_step)
+    print(task)
+
+    #station, mbp, scene_graph = load_station(time_step=time_step)
+    #builder.AddSystem(station)
 
     #dump_plant(mbp)
     #dump_models(mbp)
 
     ##################################################
 
+    robot = task.robot
+    gripper = task.gripper
+
+    lcm = DrakeLcm()
+    #lcm = None
     builder = build_diagram(mbp, scene_graph, lcm, args.meshcat)
     state_machine = connect_controllers(builder, mbp, robot, gripper)
     diagram = builder.Build()
@@ -871,7 +946,8 @@ def main():
     #lookup_geoms(mbp, sink, box_from_geom)
     #return
 
-    set_world_pose(mbp, context, broccoli, create_transform(translation=[table2_x, 0, table_top_z]))
+    for model, pose in task.initial_poses.items():
+        set_world_pose(mbp, context, model, pose)
     open_wsg50_gripper(mbp, context, gripper)
     #close_wsg50_gripper(mbp, context, gripper)
     #set_configuration(mbp, context, gripper, [-0.05, 0.05])
@@ -893,15 +969,9 @@ def main():
 
     ##################################################
 
-    fixed = [table, table2, sink, stove]
-    if wall is not None:
-        fixed.append(wall)
     if args.cfree:
-        fixed = []
-    problem = get_pddlstream_problem(mbp, context, scene_graph, robot, gripper,
-                                     movable=[broccoli],
-                                     surfaces=[sink, stove],
-                                     fixed=fixed)
+        task.fixed = []
+    problem = get_pddlstream_problem(mbp, context, scene_graph, task)
     solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution

@@ -57,7 +57,7 @@ def create_transform(translation=None, rotation=None):
 
 
 def get_model_name(mbp, model_index):
-    return mbp.tree().GetModelInstanceName(model_index)
+    return str(mbp.tree().GetModelInstanceName(model_index))
 
 
 def get_model_indices(mbp):
