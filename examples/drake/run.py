@@ -186,9 +186,9 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
     stream_map = {
         'sample-pose': from_gen_fn(get_stable_gen(task, context)),
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
-        'inverse-kinematics': from_fn(get_ik_fn(mbp, context, robot, gripper, fixed=task.fixed)),
-        'plan-free-motion': from_fn(get_free_motion_fn(mbp, context, robot, gripper, fixed=task.fixed)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(mbp, context, robot, gripper, fixed=task.fixed)),
+        'inverse-kinematics': from_fn(get_ik_fn(task, context)),
+        'plan-free-motion': from_fn(get_free_motion_fn(task, context)),
+        'plan-holding-motion': from_fn(get_holding_motion_fn(task, context)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -197,18 +197,20 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
 
 ##################################################
 
+def get_open_trajectory(mbp, gripper):
+    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper))
+    gripper_extend_fn = get_extend_fn(gripper_joints)
+    gripper_closed_conf = get_close_wsg50_positions(mbp, gripper)
+    gripper_path = list(gripper_extend_fn(gripper_closed_conf, get_open_wsg50_positions(mbp, gripper)))
+    gripper_path.insert(0, gripper_closed_conf)
+    return Trajectory(Config(gripper_joints, q) for q in gripper_path)
 
 def postprocess_plan(mbp, gripper, plan):
     trajectories = []
     if plan is None:
         return trajectories
 
-    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper)) 
-    gripper_extend_fn = get_extend_fn(gripper_joints)
-    gripper_closed_conf = get_close_wsg50_positions(mbp, gripper)
-    gripper_path = list(gripper_extend_fn(gripper_closed_conf, get_open_wsg50_positions(mbp, gripper)))
-    gripper_path.insert(0, gripper_closed_conf)
-    open_traj = Trajectory(Config(gripper_joints, q) for q in gripper_path)
+    open_traj = get_open_trajectory(mbp, gripper)
     close_traj = Trajectory(reversed(open_traj.path))
     # TODO: ceiling & orientation constraints
     # TODO: sampler chooses configurations that are far apart

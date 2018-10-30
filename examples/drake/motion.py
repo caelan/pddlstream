@@ -72,8 +72,9 @@ def within_limits(joint, position):
     return lower <= position <= upper
 
 
-def get_collision_fn(mbp, context, joints, collision_pairs=set()):
+def get_collision_fn(mbp, context, joints, collision_pairs=set(), attachments=[]):
     # TODO: collision bodies or collision models?
+    # TODO: self-collisions
 
     def fn(q):
         if any(not within_limits(joint, position) for joint, position in zip(joints, q)):
@@ -81,28 +82,34 @@ def get_collision_fn(mbp, context, joints, collision_pairs=set()):
         if not collision_pairs:
             return False
         set_joint_positions(joints, context, q)
+        for attachment in attachments:
+            attachment.assign()
         return collision_pairs & get_colliding_models(mbp, context)
     return fn
 
 ##################################################
 
-def plan_straight_line_motion(mbp, context, joints, end_positions, resolutions=None, collision_pairs=set()):
+def plan_straight_line_motion(mbp, context, joints, end_positions, resolutions=None,
+                              collision_pairs=set(), attachments=[]):
     assert len(joints) == len(end_positions)
     start_positions = get_joint_positions(joints, context)
     return direct_path(start_positions, end_positions,
                        extend=get_extend_fn(joints, resolutions=resolutions),
-                       collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs))
+                       collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
+                                                  attachments=attachments))
 
 
 def plan_joint_motion(mbp, context, joints, end_positions,
-                      weights=None, resolutions=None, collision_pairs=set(), **kwargs):
+                      weights=None, resolutions=None,
+                      collision_pairs=set(), attachments=[], **kwargs):
     assert len(joints) == len(end_positions)
     start_positions = get_joint_positions(joints, context)
     return birrt(start_positions, end_positions,
                  distance=get_distance_fn(joints, weights=weights),
                  sample=get_sample_fn(joints),
                  extend=get_extend_fn(joints, resolutions=resolutions),
-                 collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs), **kwargs)
+                 collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
+                                            attachments=attachments), **kwargs)
 
 ##################################################
 
