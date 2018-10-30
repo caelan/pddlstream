@@ -368,9 +368,8 @@ def get_box_from_geom(scene_graph, visual_only=True):
         model_index = link.robot_num
 
         visual_index = 0
-        for geom_index in range(link.num_geom):
+        for geom in sorted(link.geom, key=lambda g: g.position[::-1]): # sort by z, y, x
             # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
-            geom = link.geom[geom_index]
             # string_data is empty...
             if visual_only and (geom.color[3] == 0):
                 continue
@@ -396,14 +395,10 @@ def get_box_from_geom(scene_graph, visual_only=True):
             #            geom.string_data[0:-3] + "obj")
             else:
                 print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
-                    link.robot_num, frame_name, geom_index, geom.type))
+                    model_index, frame_name, visual_index-1, geom.type))
                 continue
-            element_local_tf = RigidTransform(
+            link_from_box = RigidTransform(
                 RotationMatrix(Quaternion(geom.quaternion)), geom.position).GetAsIsometry3() #.GetAsMatrix4()
             box_from_geom[model_index, frame_name, visual_index-1] = \
-                (BoundingBox(np.zeros(3), extent), element_local_tf)
-            #points.extend(element_local_tf.multiply(vertex) for vertex in vertices_from_aabb(aabb))
-        #if points:
-        #    key = (model_index, frame_name)
-        #    box_from_geom[key] = aabb_from_points(points)
+                (BoundingBox(np.zeros(3), extent), link_from_box)
     return box_from_geom

@@ -26,7 +26,7 @@ from pddlstream.language.constants import And
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name, dump_models
+    prune_fixed_joints, get_configuration, get_model_name, dump_models, get_relative_transform
 
 from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
@@ -153,12 +153,11 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
     for obj in task.movable:
         obj_name = get_model_name(mbp, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
-        obj_pose = RelPose(mbp, world, obj, get_world_pose(mbp, context, obj))
+        obj_pose = RelPose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
         for surface in task.surfaces:
-            #surface_name = get_model_name(mbp, surface)
             init += [('Stackable', obj_name, surface)]
             #if is_placement(body, surface):
             #    init += [('Supported', body, pose, surface)]
@@ -172,10 +171,10 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
 
     goal_literals = [
         ('AtConf', conf),
+        #('Holding', get_model_name(mbp, task.movable[0])),
     ]
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
-        #surface_name = get_model_name(mbp, surface)
         goal_literals.append(('On', obj_name, surface))
     for obj in task.goal_cooked:
         obj_name = get_model_name(mbp, obj)
@@ -325,7 +324,7 @@ def main():
     args = parser.parse_args()
 
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
-    problem_fn = load_tables # load_tables | load_manipulation
+    problem_fn = load_manipulation # load_tables | load_manipulation
 
     meshcat_vis = None
     if args.meshcat:
@@ -337,6 +336,8 @@ def main():
     #builder.AddSystem(station)
     #dump_plant(mbp)
     dump_models(mbp)
+    if args.cfree:
+        task.fixed = []
     print(task)
 
     ##################################################
@@ -366,8 +367,29 @@ def main():
 
     ##################################################
 
-    if args.cfree:
-        task.fixed = []
+    # from utils import get_base_body, get_body_pose
+    # print(get_base_body(mbp, task.gripper).name())
+    # print(get_body_pose(context, mbp.GetBodyByName('left_finger', task.gripper)).matrix() -
+    #       get_body_pose(context, get_base_body(mbp, task.gripper)).matrix())
+    # user_input('Start')
+    # model = task.movable[0]
+    # grasp_gen_fn = get_grasp_gen(task)
+    # for grasp, in grasp_gen_fn(get_model_name(mbp, model)):
+    #     grasp.assign(context)
+    #     diagram.Publish(diagram_context)
+    #     user_input('Continue')
+
+    # Test placements
+    # user_input('Start')
+    #pose_gen_fn = get_stable_gen(task, context)
+    #model = task.movable[0]
+    #for pose, in pose_gen_fn(get_model_name(mbp, model), task.surfaces[0]):
+    #    pose.assign(context)
+    #    diagram.Publish(diagram_context)
+    #    user_input('Continue')
+
+    ##################################################
+
     problem = get_pddlstream_problem(mbp, context, scene_graph, task)
     solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
     print_solution(solution)
@@ -392,7 +414,7 @@ def main():
         state_machine.Load(splines, gripper_setpoints)
         simulate_splines(diagram, diagram_context, sim_duration)
     else:
-        step_trajectories(diagram, diagram_context, context, trajectories, time_step=None)
+        step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None)
 
 
 if __name__ == '__main__':

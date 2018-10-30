@@ -162,6 +162,7 @@ def load_manipulation(time_step=0.0):
 
     goal_surface = VisualElement(cupboard, 'top_and_bottom', shelves.index('bottom'))
     surfaces = [
+        VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
 
