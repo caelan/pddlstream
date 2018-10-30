@@ -157,30 +157,32 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
-        for surface, body_name in task.surfaces:
-            surface_name = get_model_name(mbp, surface)
-            init += [('Stackable', obj_name, surface_name, body_name)]
+        for surface in task.surfaces:
+            #surface_name = get_model_name(mbp, surface)
+            init += [('Stackable', obj_name, surface)]
             #if is_placement(body, surface):
             #    init += [('Supported', body, pose, surface)]
 
-    for surface, body_name in task.surfaces:
-        surface_name = get_model_name(mbp, surface)
+    for surface in task.surfaces:
+        surface_name = get_model_name(mbp, surface.model_index)
         if 'sink' in surface_name:
-            init += [('Sink', surface_name)] # body_name?
+            init += [('Sink', surface)]
         if 'stove' in surface_name:
-            init += [('Stove', surface_name)]
+            init += [('Stove', surface)]
 
     goal_literals = [
         ('AtConf', conf),
     ]
-    for obj, surface, body_name in task.goal_on:
+    for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
-        surface_name = get_model_name(mbp, surface)
-        goal_literals.append(('On', obj_name, surface_name, body_name))
+        #surface_name = get_model_name(mbp, surface)
+        goal_literals.append(('On', obj_name, surface))
     for obj in task.goal_cooked:
         obj_name = get_model_name(mbp, obj)
         goal_literals.append(('Cooked', obj_name))
     goal = And(*goal_literals)
+    print('Initial:', init)
+    print('Goal:', goal)
 
     stream_map = {
         'sample-pose': from_gen_fn(get_stable_gen(task, context)),
@@ -238,6 +240,8 @@ def step_trajectories(diagram, diagram_context, context, trajectories, time_step
     diagram.Publish(diagram_context)
     user_input('Start?')
     for traj in trajectories:
+        if time_step is None:
+            traj.path = traj.path[::len(traj.path)-1]
         for _ in traj.iterate(context):
             diagram.Publish(diagram_context)
             if time_step is None:
@@ -310,28 +314,30 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
 def main():
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
+    # get_contact_results_output_port
+    # TODO: gripper closing via collision information
 
     parser = argparse.ArgumentParser()
+    #parser.add_argument('-p', '--problem')
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
     parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
     args = parser.parse_args()
+
+    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
+    problem_fn = load_tables # load_tables | load_manipulation
 
     meshcat_vis = None
     if args.meshcat:
         meshcat_vis = load_meshcat()  # Important that variable is saved
         # http://127.0.0.1:7000/static/
 
-    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
-    mbp, scene_graph, task = load_tables(time_step=time_step)
-    #mbp, scene_graph, task = load_manipulation(time_step=time_step)
-    print(task)
-
+    mbp, scene_graph, task = problem_fn(time_step=time_step)
     #station, mbp, scene_graph = load_station(time_step=time_step)
     #builder.AddSystem(station)
-
     #dump_plant(mbp)
     dump_models(mbp)
+    print(task)
 
     ##################################################
 
@@ -386,7 +392,7 @@ def main():
         state_machine.Load(splines, gripper_setpoints)
         simulate_splines(diagram, diagram_context, sim_duration)
     else:
-        step_trajectories(diagram, diagram_context, context, trajectories)
+        step_trajectories(diagram, diagram_context, context, trajectories, time_step=None)
 
 
 if __name__ == '__main__':

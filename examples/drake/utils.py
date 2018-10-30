@@ -367,15 +367,15 @@ def get_box_from_geom(scene_graph, visual_only=True):
         # source_name = 'Source_1'
         model_index = link.robot_num
 
-        points = []
+        visual_index = 0
         for geom_index in range(link.num_geom):
             # 'color', 'float_data', 'num_float_data', 'position', 'quaternion', 'string_data', 'type'
             geom = link.geom[geom_index]
             # string_data is empty...
             if visual_only and (geom.color[3] == 0):
                 continue
-            element_local_tf = RigidTransform(
-                RotationMatrix(Quaternion(geom.quaternion)), geom.position) #.GetAsMatrix4()
+
+            visual_index += 1 # TODO: affected by transparent visual
             if geom.type == geom.BOX:
                 assert geom.num_float_data == 3
                 [width, length, height] = geom.float_data
@@ -398,9 +398,12 @@ def get_box_from_geom(scene_graph, visual_only=True):
                 print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
                     link.robot_num, frame_name, geom_index, geom.type))
                 continue
-            aabb = BoundingBox(np.zeros(3), extent)
-            points.extend(element_local_tf.multiply(vertex) for vertex in vertices_from_aabb(aabb))
-        if points:
-            key = (model_index, frame_name)
-            box_from_geom[key] = aabb_from_points(points)
+            element_local_tf = RigidTransform(
+                RotationMatrix(Quaternion(geom.quaternion)), geom.position).GetAsIsometry3() #.GetAsMatrix4()
+            box_from_geom[model_index, frame_name, visual_index-1] = \
+                (BoundingBox(np.zeros(3), extent), element_local_tf)
+            #points.extend(element_local_tf.multiply(vertex) for vertex in vertices_from_aabb(aabb))
+        #if points:
+        #    key = (model_index, frame_name)
+        #    box_from_geom[key] = aabb_from_points(points)
     return box_from_geom

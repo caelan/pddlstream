@@ -1,9 +1,9 @@
 (define (stream kuka-tamp)
   (:stream sample-pose
-    :inputs (?o ?r ?b)
-    :domain (Stackable ?o ?r ?b)
+    :inputs (?o ?s)
+    :domain (Stackable ?o ?s)
     :outputs (?p)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r ?b))
+    :certified (and (Pose ?o ?p) (Supported ?o ?p ?s))
   )
   (:stream sample-grasp
     :inputs (?o)

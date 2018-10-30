@@ -61,19 +61,19 @@ def get_stable_gen(task, context):
     world = mbp.world_frame
     box_from_geom = get_box_from_geom(task.scene_graph)
 
-    def gen(obj_name, surface_name, body_name):
+    def gen(obj_name, surface):
         obj = mbp.GetModelInstanceByName(obj_name)
-        surface = mbp.GetModelInstanceByName(surface_name)
-        surface_body = mbp.GetBodyByName(body_name, surface)
+        surface_body = mbp.GetBodyByName(surface.body_name, surface.model_index)
         #surface_pose = get_world_pose(mbp, context, surface)
         surface_pose = get_body_pose(context, surface_body)
 
-        #object_aabb = AABBs[obj_name]
-        #surface_aabb = AABBs[surface_name]
-        object_aabb = box_from_geom[int(obj), get_base_body(mbp, obj).name()]
-        surface_aabb = box_from_geom[int(surface), surface_body.name()]
-        for local_pose in sample_aabb_placement(object_aabb, surface_aabb):
-            world_pose = surface_pose.multiply(local_pose)
+        #object_aabb, object_local = AABBs[obj_name], Isometry3.Identity()
+        #surface_aabb, surface_local = AABBs[surface_name], Isometry3.Identity()
+        object_aabb, object_local = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        surface_aabb, surface_local = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
+        for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb):
+            world_pose = surface_pose.multiply(surface_local).multiply(
+                surface_from_object).multiply(object_local.inverse())
             set_world_pose(mbp, context, obj, world_pose)
             if not is_model_colliding(mbp, context, obj, obstacles=task.fixed): #obstacles=(fixed + [surface])):
                 pose = RelPose(mbp, world, obj, world_pose)
@@ -89,11 +89,13 @@ def get_grasp_gen(task):
     def gen(obj_name):
         obj = mbp.GetModelInstanceByName(obj_name)
         #obj_frame = get_base_body(mbp, obj).body_frame()
-        #aabb = AABBs[obj_name]
-        aabb = box_from_geom[int(obj), get_base_body(mbp, obj).name()]
+        #aabb, obj_from_box = AABBs[obj_name], Isometry3.Identity()
+        aabb, obj_from_box = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        # TODO: union of bounding boxes
 
-        for transform in get_top_cylinder_grasps(aabb):
-            grasp = RelPose(mbp, gripper_frame, obj, transform)
+        for gripper_from_box in get_top_cylinder_grasps(aabb):
+            gripper_from_obj = gripper_from_box.multiply(obj_from_box.inverse())
+            grasp = RelPose(mbp, gripper_frame, obj, gripper_from_obj)
             yield grasp,
     return gen
 

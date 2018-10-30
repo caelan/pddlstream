@@ -1,7 +1,8 @@
 import os
-
 import numpy as np
 import pydrake
+
+from collections import namedtuple
 
 from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
@@ -52,6 +53,8 @@ AABBs = {
 }
 # TODO: TABLE_SDF_PATH has only one link but many geometries
 
+VisualElement = namedtuple('VisualElement', ['model_index', 'body_name', 'visual_index'])
+
 ##################################################
 
 class Task(object):
@@ -75,7 +78,7 @@ class Task(object):
             get_model_name(self.mbp, self.robot),
             get_model_name(self.mbp, self.gripper),
             [get_model_name(self.mbp, model) for model in self.movable],
-            [(get_model_name(self.mbp, model), link) for model, link in self.surfaces],
+            self.surfaces,
             [get_model_name(self.mbp, model) for model in self.fixed])
 
 ##################################################
@@ -104,21 +107,23 @@ def load_station(time_step=0.0):
 ##################################################
 
 def load_manipulation(time_step=0.0):
+    #AMAZON_TABLE_PATH = FindResourceOrThrow(
+    #    "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
+    #CUPBOARD_PATH = FindResourceOrThrow(
+    #    "drake/examples/manipulation_station/models/cupboard.sdf")
+    #IIWA7_PATH = FindResourceOrThrow(
+    #    "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
+    #FOAM_BRICK_PATH = FindResourceOrThrow(
+    #    "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+
     AMAZON_TABLE_PATH = FindResourceOrThrow(
-        #"drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
-        "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
-
+        "drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
     CUPBOARD_PATH = FindResourceOrThrow(
-        #"drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
-        "drake/examples/manipulation_station/models/cupboard.sdf")
-
-    IIWA7_SDF_PATH = FindResourceOrThrow(
-        #"drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
-        "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
-
+        "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
+    IIWA7_PATH = FindResourceOrThrow(
+        "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
     FOAM_BRICK_PATH = FindResourceOrThrow(
-        #"drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
-        "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+        "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
 
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
@@ -131,7 +136,7 @@ def load_manipulation(time_step=0.0):
     cupboard_x = dx_table_center_to_robot_base + dx_cupboard_to_table_center
     cupboard_z = dz_cupboard_to_table_center + cupboard_height / 2.0 - dz_table_top_robot_base
 
-    robot = AddModelFromSdfFile(file_name=IIWA7_SDF_PATH, model_name='iiwa',
+    robot = AddModelFromSdfFile(file_name=IIWA7_PATH, model_name='iiwa',
                                 scene_graph=scene_graph, plant=mbp)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
                                   scene_graph=scene_graph, plant=mbp)  # TODO: sdf frame/link error
@@ -144,12 +149,20 @@ def load_manipulation(time_step=0.0):
 
     weld_gripper(mbp, robot, gripper)
     weld_to_world(mbp, robot, create_transform())
-    weld_to_world(mbp, amazon_table, create_transform(translation=[dx_table_center_to_robot_base, 0, -dz_table_top_robot_base]))
-    weld_to_world(mbp, cupboard, create_transform(translation=[cupboard_x, 0, cupboard_z], rotation=[0, 0, np.pi]))
+    weld_to_world(mbp, amazon_table, create_transform(
+        translation=[dx_table_center_to_robot_base, 0, -dz_table_top_robot_base]))
+    weld_to_world(mbp, cupboard, create_transform(
+        translation=[cupboard_x, 0, cupboard_z], rotation=[0, 0, np.pi]))
     mbp.Finalize(scene_graph)
 
+    shelves = [
+        'bottom',
+        'top',
+    ]
+
+    goal_surface = VisualElement(cupboard, 'top_and_bottom', shelves.index('bottom'))
     surfaces = [
-        (cupboard, 'top_and_bottom'),
+        goal_surface,
     ]
 
     initial_positions = {
@@ -165,7 +178,7 @@ def load_manipulation(time_step=0.0):
 
     task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, fixed=[amazon_table, cupboard],
                 initial_positions=initial_positions, initial_poses=initial_poses,
-                goal_on=[(brick, cupboard, 'top_and_bottom')])
+                goal_on=[(brick, goal_surface)])
 
     return mbp, scene_graph, task
 
@@ -208,8 +221,8 @@ def load_tables(time_step=0.0):
 
     movable = [broccoli]
     surfaces = [
-        (sink, 'base_link'), # Could also just pass the link index
-        (stove, 'base_link'),
+        VisualElement(sink, 'base_link', 0), # Could also just pass the link index
+        VisualElement(stove, 'base_link', 0),
     ]
     fixed = [table, table2, sink, stove]
     if wall is not None:
