@@ -65,6 +65,9 @@ def get_top_cylinder_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFA
         rotate_z = create_transform(rotation=[0, 0, theta])
         yield reflect_z.multiply(translate_z).multiply(rotate_z).multiply(aabb_from_body)
 
+# TODO: cylinder grasps
+# TODO: detect geometry type from the dictionary
+
 def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGTH,
                    pitch_range=(-np.pi/2, np.pi/2)): # y is out of gripper initially
     center, extent = aabb
@@ -74,12 +77,12 @@ def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGT
     while True:
         # TODO: different positions
         pitch = random.uniform(*pitch_range)
-        for i in range(4):
-            d1, d2 = (dx, dy) if (i % 2) == 1 else (dy, dx)
-            if 2*d2 <= max_width:
-                rotate_z = create_transform(rotation=[0, 0, i*np.pi/2])
-                rotate_x = create_transform(rotation=[pitch, 0, 0])
-                threshold = math.atan2(d1, dz)
-                distance = dz / math.cos(pitch) if abs(pitch) < threshold else d1 / abs(math.sin(pitch))
-                translate_z = create_transform(translation=[0, 0, - TOOL_Z - distance + grasp_length])
-                yield reflect_z.multiply(translate_z).multiply(rotate_x).multiply(rotate_z).multiply(aabb_from_body)
+        orientation = random.randint(0, 3)
+        d1, d2 = (dx, dy) if (orientation % 2) == 1 else (dy, dx)
+        if 2*d2 <= max_width:
+            rotate_z = create_transform(rotation=[0, 0, orientation*np.pi/2])
+            rotate_x = create_transform(rotation=[pitch, 0, 0])
+            threshold = math.atan2(d1, dz)
+            distance = dz / math.cos(pitch) if abs(pitch) < threshold else d1 / abs(math.sin(pitch))
+            translate_z = create_transform(translation=[0, 0, - TOOL_Z - distance + grasp_length])
+            yield reflect_z.multiply(translate_z).multiply(rotate_x).multiply(rotate_z).multiply(aabb_from_body)

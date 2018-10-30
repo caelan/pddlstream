@@ -107,23 +107,25 @@ def load_station(time_step=0.0):
 ##################################################
 
 def load_manipulation(time_step=0.0):
-    #AMAZON_TABLE_PATH = FindResourceOrThrow(
-    #    "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
-    #CUPBOARD_PATH = FindResourceOrThrow(
-    #    "drake/examples/manipulation_station/models/cupboard.sdf")
-    #IIWA7_PATH = FindResourceOrThrow(
-    #    "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
-    #FOAM_BRICK_PATH = FindResourceOrThrow(
-    #    "drake/examples/manipulation_station/models/061_foam_brick.sdf")
-
     AMAZON_TABLE_PATH = FindResourceOrThrow(
-        "drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
+       "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
     CUPBOARD_PATH = FindResourceOrThrow(
-        "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
-    IIWA7_PATH = FindResourceOrThrow(
-        "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
+       "drake/examples/manipulation_station/models/cupboard.sdf")
+    #IIWA7_PATH = FindResourceOrThrow(
+    #   "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
+    IIWA7_PATH = os.path.join(MODELS_DIR, "iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
     FOAM_BRICK_PATH = FindResourceOrThrow(
-        "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+       "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+    print(CUPBOARD_PATH)
+
+    # AMAZON_TABLE_PATH = FindResourceOrThrow(
+    #     "drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
+    # CUPBOARD_PATH = FindResourceOrThrow(
+    #     "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
+    # IIWA7_PATH = FindResourceOrThrow(
+    #     "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
+    # FOAM_BRICK_PATH = FindResourceOrThrow(
+    #     "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
 
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
@@ -157,18 +159,22 @@ def load_manipulation(time_step=0.0):
 
     shelves = [
         'bottom',
+        'shelf_lower',
+        'shelf_upper'
         'top',
     ]
 
-    goal_surface = VisualElement(cupboard, 'top_and_bottom', shelves.index('bottom'))
+    goal_surface = VisualElement(cupboard, 'top_and_bottom', shelves.index('shelf_lower'))
     surfaces = [
         VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
 
     initial_positions = {
-        mbp.GetJointByName("left_door_hinge"): -np.pi/2,
-        mbp.GetJointByName("right_door_hinge"): np.pi/2,
+        #mbp.GetJointByName("left_door_hinge"): -np.pi/2,
+        #mbp.GetJointByName("right_door_hinge"): np.pi/2,
+        mbp.GetJointByName("left_door_hinge"): -np.pi,
+        mbp.GetJointByName("right_door_hinge"): np.pi,
     }
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
     initial_positions.update(zip(get_movable_joints(mbp, robot), initial_conf))

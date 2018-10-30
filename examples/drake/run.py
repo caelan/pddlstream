@@ -1,17 +1,21 @@
 from __future__ import print_function
 
+import time
+import numpy as np
+import argparse
+import cProfile
+import pstats
+from itertools import product
+
 from examples.drake.generators import RelPose, Config, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
     get_free_motion_fn, get_holding_motion_fn
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
-from examples.drake.problems import load_tables, load_manipulation
-
-user_input = raw_input
-
-import time
-import numpy as np
-import argparse
+from examples.drake.problems import load_manipulation
+from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
+    prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, get_model_indices, exists_colliding_pair
+from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
 from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -24,11 +28,6 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.language.constants import And
 from pddlstream.utils import print_solution, read, INF, get_file_path
-
-from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name, dump_models, get_relative_transform
-
-from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
 # https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
@@ -354,6 +353,8 @@ def main():
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     #context = mbp.CreateDefaultContext()
+    task.diagram = diagram
+    task.diagram_context = diagram_context
 
     for joint, position in task.initial_positions.items():
         set_joint_position(joint, context, position)
@@ -366,6 +367,7 @@ def main():
     diagram.Publish(diagram_context)
     #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
     initial_state = mbp.tree().get_multibody_state_vector(context).copy()
+    #print(exists_colliding_pair(mbp, context, product(get_model_indices(mbp), repeat=2)))
 
     ##################################################
 
@@ -393,7 +395,11 @@ def main():
     ##################################################
 
     problem = get_pddlstream_problem(mbp, context, scene_graph, task)
-    solution = solve_focused(problem, planner='ff-astar', max_cost=INF)
+    pr = cProfile.Profile()
+    pr.enable()
+    solution = solve_focused(problem, planner='ff-wastar2', max_cost=INF, max_time=60, debug=True)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

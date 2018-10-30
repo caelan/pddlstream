@@ -26,6 +26,17 @@
 	       <diffuse>0.4 0.4 0.4 1.0</diffuse>
         </material>
       </visual>
+      <visual name='iiwa_link_0_collision_visual'>
+        <pose>-0.004563 0 0.07875 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.216874 0.207874 0.1575</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>0.4 0.4 0.4 0.5</diffuse>
+        </material>
+      </visual>
       <collision name='iiwa_link_0_collision'>
         <pose>-0.004563 0 0.07875 0 -0 0</pose>
         <geometry>
@@ -64,6 +75,17 @@
         </geometry>
         <material>
 	       <diffuse>0.4 0.4 0.4 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name='iiwa_link_1_collision_visual'>
+        <pose>0 -0.023301 0.127997 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.13596 0.182584 0.260995</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>0.4 0.4 0.4 0.5</diffuse>
         </material>
       </visual>
       <collision name='iiwa_link_1_collision'>
@@ -124,7 +146,18 @@
 	       <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
-       <collision name='iiwa_link_2_collision'>
+      <visual name='iiwa_link_2_collision_visual'>
+        <pose>0 0.0580045 0.0173035 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.135988 0.251991 0.182605</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>1.0 0.423529411765 0.0392156862745 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='iiwa_link_2_collision'>
         <pose>0 0.0580045 0.0173035 0 -0 0</pose>
         <geometry>
           <box>
@@ -179,6 +212,17 @@
         </geometry>
         <material>
 	       <diffuse>0.4 0.4 0.4 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name='iiwa_link_3_collision_visual'>
+        <pose>6.5e-06 0.0182965 0.11073 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.135987 0.182593 0.29346</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>0.4 0.4 0.4 0.5</diffuse>
         </material>
       </visual>
       <collision name='iiwa_link_3_collision'>
@@ -238,6 +282,17 @@
 	       <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
+      <visual name='iiwa_link_4_collision_visual'>
+        <pose>0 0.0580045 0.0233035 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.135988 0.251991 0.182605</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>1.0 0.423529411765 0.0392156862745 0.5</diffuse>
+        </material>
+      </visual>
       <collision name='iiwa_link_4_collision'>
         <pose>0 0.0580045 0.0233035 0 -0 0</pose>
         <geometry>
@@ -293,6 +348,17 @@
         </geometry>
         <material>
 	       <diffuse>0.4 0.4 0.4 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name='iiwa_link_5_collision_visual'>
+        <pose>0 0.015546 0.102458 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.135999 0.167092 0.276916</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>0.4 0.4 0.4 0.5</diffuse>
         </material>
       </visual>
       <collision name='iiwa_link_5_collision'>
@@ -352,6 +418,17 @@
 	       <diffuse>1.0 0.423529411765 0.0392156862745 1.0</diffuse>
         </material>
       </visual>
+      <visual name='iiwa_link_6_collision_visual'>
+        <pose>1e-06 0.0022065 0.0582045 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.132334 0.177387 0.137409</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>1.0 0.423529411765 0.0392156862745 0.5</diffuse>
+        </material>
+      </visual>
       <collision name='iiwa_link_6_collision'>
         <pose>1e-06 0.0022065 0.0582045 0 -0 0</pose>
         <geometry>
@@ -407,6 +484,17 @@
         </geometry>
         <material>
 	       <diffuse>0.4 0.4 0.4 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name='iiwa_link_7_collision_visual'>
+        <pose>2e-06 2.5e-06 0.021997 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.10385 0.103885 0.045</size>
+          </box>
+        </geometry>
+        <material>
+	       <diffuse>0.4 0.4 0.4 0.5</diffuse>
         </material>
       </visual>
       <collision name='iiwa_link_7_collision'>

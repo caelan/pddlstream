@@ -1,7 +1,7 @@
 import numpy as np
 
 from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, get_joint_positions, \
-    get_colliding_models
+    exists_colliding_pair
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import direct_path, birrt
 
 DEFAULT_WEIGHT = 1.0
@@ -83,8 +83,8 @@ def get_collision_fn(mbp, context, joints, collision_pairs=set(), attachments=[]
             return False
         set_joint_positions(joints, context, q)
         for attachment in attachments:
-            attachment.assign()
-        return collision_pairs & get_colliding_models(mbp, context)
+            attachment.assign(context)
+        return exists_colliding_pair(mbp, context, collision_pairs)
     return fn
 
 ##################################################

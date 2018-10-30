@@ -49,12 +49,14 @@ def get_aabb_z_placement(object_aabb, surface_aabb, z_epsilon=1e-3):
     return z + z_epsilon
 
 
-def sample_aabb_placement(object_aabb, surface_aabb, **kwargs):
+def sample_aabb_placement(object_aabb, surface_aabb, shrink=0.01, **kwargs):
     z = get_aabb_z_placement(object_aabb, surface_aabb, **kwargs)
     while True:
         yaw = np.random.uniform(-np.pi, np.pi)
-        lower = get_aabb_lower(surface_aabb)[:2]
-        upper = get_aabb_upper(surface_aabb)[:2]
+        lower = get_aabb_lower(surface_aabb)[:2] + shrink*np.ones(2)
+        upper = get_aabb_upper(surface_aabb)[:2] - shrink*np.ones(2)
+        if np.greater(lower, upper).any():
+            break
         [x, y] = np.random.uniform(lower, upper) - object_aabb.center[:2]
         yield create_transform(np.array([x, y, z]), np.array([0, 0, yaw]))
 
@@ -284,6 +286,7 @@ def fix_input_ports(mbp, context):
 def solve_inverse_kinematics(mbp, target_frame, target_pose,
         max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
     if initial_guess is None:
+        # TODO: provide initial guess for some joints (like iiwa joint0)
         initial_guess = np.zeros(mbp.num_positions())
         for joint in prune_fixed_joints(get_joints(mbp)):
             lower, upper = get_joint_limits(joint)
@@ -331,19 +334,32 @@ def get_colliding_bodies(mbp, context, min_penetration=0.0):
 
 
 def get_colliding_models(mbp, context, **kwargs):
+    # WARNING: indices have equality defined but not a hash function
     colliding_models = set()
     for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
         colliding_models.add((body1.model_instance(), body2.model_instance()))
     return colliding_models
 
 
+def exists_colliding_pair(mbp, context, pairs, **kwargs):
+    if not pairs:
+        return False
+    check_indices = {(int(one), int(two)) for one, two in pairs}
+    colliding_indices = {(int(one), int(two)) for one, two in get_colliding_models(mbp, context, **kwargs)}
+    intersection = check_indices & colliding_indices
+    #if intersection:
+    #    print([(get_model_name(mbp, ModelInstanceIndex(one)),
+    #            get_model_name(mbp, ModelInstanceIndex(two))) for one, two in intersection])
+    return bool(intersection)
+
+
 def is_model_colliding(mbp, context, model, obstacles=None):
     if obstacles is None:
-        obstacles = get_model_indices(mbp) # All models
+        obstacles = get_model_indices(mbp)  # All models
     if not obstacles:
         return False
     for model1, model2 in get_colliding_models(mbp, context):
-        if (model1 == model) and (model2 in obstacles):
+        if (model1 == model) and (model2 in obstacles):  # Okay if obstacles is a list (equality)
             return True
     return False
 
@@ -402,3 +418,6 @@ def get_box_from_geom(scene_graph, visual_only=True):
             box_from_geom[model_index, frame_name, visual_index-1] = \
                 (BoundingBox(np.zeros(3), extent), link_from_box)
     return box_from_geom
+
+
+user_input = raw_input

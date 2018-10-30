@@ -6,7 +6,7 @@ from examples.drake.iiwa_utils import get_top_cylinder_grasps, open_wsg50_grippe
 from examples.drake.motion import get_collision_fn, plan_joint_motion
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
     get_base_body, sample_aabb_placement, is_model_colliding, get_movable_joints, create_transform, \
-    solve_inverse_kinematics, set_joint_positions, get_box_from_geom
+    solve_inverse_kinematics, set_joint_positions, get_box_from_geom, get_joint_positions
 
 
 class RelPose(object):
@@ -84,6 +84,10 @@ def get_grasp_gen(task):
     mbp = task.mbp
     gripper_frame = get_base_body(mbp, task.gripper).body_frame()
     box_from_geom = get_box_from_geom(task.scene_graph)
+    #pitch_range = (0, 0) # Top grasps
+    #pitch_range = (np.pi/3, np.pi/3)
+    pitch_range = (2*np.pi/5, 2*np.pi/5)
+    #pitch_range = (-np.pi/2, np.pi/2)
 
     def gen(obj_name):
         obj = mbp.GetModelInstanceByName(obj_name)
@@ -93,23 +97,27 @@ def get_grasp_gen(task):
         # TODO: union of bounding boxes
 
         #for gripper_from_box in get_top_cylinder_grasps(obj_aabb):
-        for gripper_from_box in get_box_grasps(obj_aabb):
+        for gripper_from_box in get_box_grasps(obj_aabb, pitch_range=pitch_range):
             gripper_from_obj = gripper_from_box.multiply(obj_from_box.inverse())
             grasp = RelPose(mbp, gripper_frame, obj, gripper_from_obj)
             yield grasp,
     return gen
 
 
-def get_ik_fn(task, context, max_failures=1, distance=0.1, step_size=0.01):
+def get_ik_fn(task, context, max_failures=1, distance=0.15, step_size=0.05):
+    #distance = 0.0
     direction = np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     joints = get_movable_joints(task.mbp, task.robot)
     collision_pairs = set(product([task.robot, task.gripper], task.fixed))
     collision_fn = get_collision_fn(task.mbp, context, joints, collision_pairs=collision_pairs)
+    initial_guess = None
+    #initial_guess = get_joint_positions(joints, context)
 
     def fn(obj_name, pose, grasp):
+        # TODO: if gripper/block in collision, return
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
-        solution = None
+        solution = initial_guess
         path = []
         attempts = 0
         last_success = 0
@@ -124,6 +132,8 @@ def get_ik_fn(task, context, max_failures=1, distance=0.1, step_size=0.01):
                 positions = [solution[j.position_start()] for j in joints]
                 # TODO: holding
                 if collision_fn(positions):
+                    #task.diagram.Publish(task.diagram_context)
+                    #raw_input("Collision!")
                     return None
                 path.append(Config(joints, positions))
             traj = Trajectory(path)
@@ -137,14 +147,15 @@ def get_free_motion_fn(task, context):
     joints = get_movable_joints(task.mbp, task.robot)
     collision_pairs = set(product([task.robot, task.gripper], task.fixed))
 
-    def fn(q1, q2):
+    def fn(conf1, conf2):
         open_wsg50_gripper(task.mbp, context, task.gripper)
-        set_joint_positions(joints, context, q1.positions)
-        path = plan_joint_motion(task.mbp, context, joints, q2.positions, collision_pairs=collision_pairs)
+        set_joint_positions(joints, context, conf1.positions)
+        path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
+                                 collision_pairs=collision_pairs,
+                                 restarts=5, iterations=50, smooth=100)
         if path is None:
             return None
         traj = Trajectory([Config(joints, q) for q in path])
-        #traj = Trajectory([q1, q2])
         return traj,
     return fn
 
@@ -152,15 +163,16 @@ def get_free_motion_fn(task, context):
 def get_holding_motion_fn(task, context):
     joints = get_movable_joints(task.mbp, task.robot)
 
-    def fn(q1, q2, o, g):
-        collision_pairs = set(product([task.robot, task.gripper, o], task.fixed))
+    def fn(conf1, conf2, obj_name, grasp):
+        #obj = task.mbp.GetModelInstanceByName(obj_name)
+        collision_pairs = set(product([task.robot, task.gripper, grasp.child], task.fixed))
         #close_wsg50_gripper(mbp, context, gripper)
-        set_joint_positions(joints, context, q1.positions)
-        path = plan_joint_motion(task.mbp, context, joints, q2.positions,
-                                 collision_pairs=collision_pairs, attachments=[g])
+        set_joint_positions(joints, context, conf1.positions)
+        path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
+                                 collision_pairs=collision_pairs, attachments=[grasp],
+                                 restarts=5, iterations=50, smooth=100)
         if path is None:
             return None
-        traj = Trajectory([Config(joints, q) for q in path], attachments=[g])
-        #traj = Trajectory([q1, q2], attachments=[g])
+        traj = Trajectory([Config(joints, q) for q in path], attachments=[grasp])
         return traj,
     return fn
