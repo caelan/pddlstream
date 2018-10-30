@@ -3,7 +3,7 @@ from itertools import product
 import numpy as np
 
 from examples.drake.iiwa_utils import get_top_cylinder_grasps, open_wsg50_gripper, get_box_grasps, WSG50_LEFT_FINGER
-from examples.drake.motion import get_collision_fn, plan_joint_motion
+from examples.drake.motion import get_collision_fn, plan_joint_motion, plan_waypoints_joint_motion, refine_joint_path
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
     get_base_body, sample_aabb_placement, is_model_colliding, get_movable_joints, create_transform, \
     solve_inverse_kinematics, set_joint_positions, get_box_from_geom, get_joint_positions
@@ -104,7 +104,7 @@ def get_grasp_gen(task):
     return gen
 
 
-def get_ik_fn(task, context, max_failures=1, distance=0.15, step_size=0.05):
+def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
     #distance = 0.0
     direction = np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
@@ -112,33 +112,40 @@ def get_ik_fn(task, context, max_failures=1, distance=0.15, step_size=0.05):
     collision_pairs = set(product([task.robot, task.gripper], task.fixed))
     collision_fn = get_collision_fn(task.mbp, context, joints, collision_pairs=collision_pairs)
     initial_guess = None
-    #initial_guess = get_joint_positions(joints, context)
+    #initial_guess = get_joint_positions(joints, context) # TODO: start with initial
 
     def fn(obj_name, pose, grasp):
         # TODO: if gripper/block in collision, return
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
-        solution = initial_guess
-        path = []
         attempts = 0
         last_success = 0
         while (attempts - last_success) < max_failures:
             attempts += 1
+            solution = initial_guess
+            waypoints = []
             for t in list(np.arange(0, distance, step_size)) + [distance]:
                 current_vector = t * direction / np.linalg.norm(direction)
                 current_pose = grasp_pose.multiply(create_transform(translation=current_vector))
                 solution = solve_inverse_kinematics(task.mbp, gripper_frame, current_pose, initial_guess=solution)
                 if solution is None:
-                    return None
+                    break
                 positions = [solution[j.position_start()] for j in joints]
                 # TODO: holding
                 if collision_fn(positions):
                     #task.diagram.Publish(task.diagram_context)
                     #raw_input("Collision!")
-                    return None
-                path.append(Config(joints, positions))
-            traj = Trajectory(path)
-            last_success = attempts
-            return path[-1], traj
+                    break
+                waypoints.append(positions)
+            else:
+                set_joint_positions(joints, context, waypoints[0])
+                path = plan_waypoints_joint_motion(task.mbp, context, joints, waypoints[1:], collision_pairs=collision_pairs)
+                if path is None:
+                    continue
+                path = refine_joint_path(joints, path)
+                traj = Trajectory([Config(joints, q) for q in path])
+                #print(attempts - last_success)
+                last_success = attempts
+                return traj.path[-1], traj
     return fn
 
 ##################################################
@@ -152,9 +159,10 @@ def get_free_motion_fn(task, context):
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
                                  collision_pairs=collision_pairs,
-                                 restarts=5, iterations=50, smooth=100)
+                                 restarts=5, iterations=75, smooth=100)
         if path is None:
             return None
+        path = refine_joint_path(joints, path)
         traj = Trajectory([Config(joints, q) for q in path])
         return traj,
     return fn
@@ -170,9 +178,10 @@ def get_holding_motion_fn(task, context):
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
                                  collision_pairs=collision_pairs, attachments=[grasp],
-                                 restarts=5, iterations=50, smooth=100)
+                                 restarts=5, iterations=75, smooth=100)
         if path is None:
             return None
+        path = refine_joint_path(joints, path)
         traj = Trajectory([Config(joints, q) for q in path], attachments=[grasp])
         return traj,
     return fn

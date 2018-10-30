@@ -5,7 +5,7 @@ from examples.drake.utils import get_random_positions, get_joint_limits, set_joi
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import direct_path, birrt
 
 DEFAULT_WEIGHT = 1.0
-DEFAULT_RESOLUTION = 0.005
+DEFAULT_RESOLUTION = 0.005*np.pi
 
 ##################################################
 
@@ -42,6 +42,7 @@ def get_distance_fn(joints, weights=None):
 
 
 def get_refine_fn(joints, num_steps=0):
+    # TODO: no need for this to be standalone
     difference_fn = get_difference_fn(joints)
     num_steps = num_steps + 1
 
@@ -56,7 +57,7 @@ def get_refine_fn(joints, num_steps=0):
 
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
-        resolutions = DEFAULT_RESOLUTION*np.pi*np.ones(len(joints))
+        resolutions = DEFAULT_RESOLUTION*np.ones(len(joints))
     assert len(joints) == len(resolutions)
     difference_fn = get_difference_fn(joints)
 
@@ -89,15 +90,31 @@ def get_collision_fn(mbp, context, joints, collision_pairs=set(), attachments=[]
 
 ##################################################
 
-def plan_straight_line_motion(mbp, context, joints, end_positions, resolutions=None,
-                              collision_pairs=set(), attachments=[]):
-    assert len(joints) == len(end_positions)
-    start_positions = get_joint_positions(joints, context)
-    return direct_path(start_positions, end_positions,
-                       extend=get_extend_fn(joints, resolutions=resolutions),
-                       collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
-                                                  attachments=attachments))
 
+def refine_joint_path(joints, waypoints, resolutions=None):
+    if resolutions is None:
+        resolutions = 0.1*DEFAULT_RESOLUTION*np.ones(len(joints))
+    extend_fn = get_extend_fn(joints, resolutions=resolutions)
+    refined_path = []
+    for q1, q2 in zip(waypoints, waypoints[1:]):
+        refined_path.extend(extend_fn(q1, q2))
+    return refined_path
+
+
+def plan_waypoints_joint_motion(mbp, context, joints, waypoints, resolutions=None,
+                                collision_pairs=set(), attachments=[]):
+    extend_fn = get_extend_fn(joints, resolutions=resolutions)
+    collision_fn = get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
+                                    attachments=attachments)
+    start_positions = get_joint_positions(joints, context)
+    path = [start_positions]
+    for waypoint in waypoints:
+        assert len(joints) == len(waypoint)
+        for q in extend_fn(path[-1], waypoint):
+            if collision_fn(q):
+                return None
+            path.append(q)
+    return path
 
 def plan_joint_motion(mbp, context, joints, end_positions,
                       weights=None, resolutions=None,

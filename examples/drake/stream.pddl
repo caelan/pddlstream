@@ -15,7 +15,7 @@
     :inputs (?o ?p ?g)
     :domain (and (Pose ?o ?p) (Grasp ?o ?g))
     :outputs (?q ?t)
-    :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t))
+    :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t) (GraspConf ?o ?g ?q)) ; TODO: (GraspConf ?o ?g ?q) for initial conf
   )
   (:stream plan-free-motion
     :inputs (?q1 ?q2)
@@ -27,7 +27,8 @@
   )
   (:stream plan-holding-motion
     :inputs (?q1 ?q2 ?o ?g)
-    :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
+    ;:domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
+    :domain (and (GraspConf ?o ?g ?q1) (GraspConf ?o ?g ?q2)) ; Condition that ?o ?g make sense for ?q1 ?q2
     ;:fluents (AtPose)
     :outputs (?t)
     ;:certified (and (Traj ?t) (HoldingMotion ?q1 ?t ?q2 ?o ?g))

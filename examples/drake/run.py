@@ -236,11 +236,11 @@ def postprocess_plan(mbp, gripper, plan):
 
     return trajectories
 
-def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.01):
+def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.001, teleport=False):
     diagram.Publish(diagram_context)
     user_input('Start?')
     for traj in trajectories:
-        if time_step is None:
+        if teleport:
             traj.path = traj.path[::len(traj.path)-1]
         for _ in traj.iterate(context):
             diagram.Publish(diagram_context)
@@ -397,7 +397,7 @@ def main():
     problem = get_pddlstream_problem(mbp, context, scene_graph, task)
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(problem, planner='ff-wastar2', max_cost=INF, max_time=60, debug=True)
+    solution = solve_focused(problem, planner='ff-wastar2', max_cost=INF, max_time=120, debug=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     print_solution(solution)
@@ -422,7 +422,7 @@ def main():
         state_machine.Load(splines, gripper_setpoints)
         simulate_splines(diagram, diagram_context, sim_duration)
     else:
-        step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None)
+        step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None) #, teleport=True)
 
 
 if __name__ == '__main__':
