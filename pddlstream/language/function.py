@@ -57,11 +57,11 @@ class FunctionInstance(Instance):  # Head(Instance):
         assert not self.enumerated
         self.enumerated = True
         input_values = self.get_input_values()
-        try:
-            value = self.external.fn(*input_values)
-        except TypeError as err:
-            print('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
-            raise err
+        #try:
+        value = self.external.fn(*input_values)
+        #except TypeError as err:
+        #    print('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
+        #    raise err
         self.value = self.external._codomain(value)
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._codomain):
@@ -73,7 +73,7 @@ class FunctionInstance(Instance):  # Head(Instance):
         #                     'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
-        if verbose:
+        if (self.value is not False) and verbose:
             print('0) {}{}={}'.format(get_prefix(self.external.head),
                                       str_from_object(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]

@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import cProfile
 import pstats
-
 import numpy as np
 
 from examples.pybullet.construction.debug import get_test_cfree
