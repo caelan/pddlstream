@@ -95,10 +95,6 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
     # TODO: conversion from stream cost to real cost units?
     # TODO: any predicates derived would need to be replaced as well
     fluent_predicates = get_fluents(domain)
-    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    if not (domain_predicates & fluent_predicates):
-        return
-
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
@@ -152,12 +148,6 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     # TODO: no attribute certified
     import pddl
     fluent_predicates = get_fluents(domain)
-    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    exogenous_predicates = domain_predicates & fluent_predicates
-    if not exogenous_predicates:
-        return
-    print('Exogenous predicates: {}'.format(exogenous_predicates))
-
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
@@ -206,7 +196,18 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
 
 ##################################################
 
+def get_exogenous_predicates(domain, streams):
+    fluent_predicates = get_fluents(domain)
+    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
+    return list(domain_predicates & fluent_predicates)
+
 def compile_to_exogenous(evaluations, domain, streams, use_axioms=True):
+    exogenous_predicates = get_exogenous_predicates(domain, streams)
+    if not exogenous_predicates:
+        return False
+    print('Warning! The following predicates are mentioned in both action effects '
+          'and stream domain conditions: {}'.format(exogenous_predicates))
     if use_axioms:
         compile_to_exogenous_axioms(evaluations, domain, streams)
     compile_to_exogenous_actions(evaluations, domain, streams)
+    return True

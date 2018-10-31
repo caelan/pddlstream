@@ -293,6 +293,8 @@ class Stream(External):
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
 
         for p, c in Counter(self.outputs).items():
+            if not is_parameter(p):
+                raise ValueError('Output [{}] for stream [{}] is not a parameter'.format(p, name))
             if c != 1:
                 raise ValueError('Output [{}] for stream [{}] is not unique'.format(p, name))
         for p in set(self.inputs) & set(self.outputs):
@@ -300,6 +302,8 @@ class Stream(External):
         certified_parameters = {a for i in certified for a in get_args(i) if is_parameter(a)}
         for p in (certified_parameters - set(self.inputs + self.outputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within outputs'.format(p, name))
+        for p in (set(self.outputs) - certified_parameters):
+            print('Warning! Output [{}] for stream [{}] is not covered by a certified condition'.format(p, name))
 
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn

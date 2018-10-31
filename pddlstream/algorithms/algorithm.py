@@ -1,8 +1,8 @@
 import time
-from collections import OrderedDict, deque, namedtuple
+from collections import OrderedDict, deque, namedtuple, Counter
 
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    parse_lisp, sas_from_pddl
+    parse_lisp, sas_from_pddl, parse_goal
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
@@ -23,22 +23,43 @@ INITIAL_EVALUATION = None
 def parse_constants(domain, constant_map):
     obj_from_constant = {}
     for constant in domain.constants:
-        if constant.name.startswith(Object._prefix):
-            # TODO: remap names
+        if constant.name.startswith(Object._prefix): # TODO: check other prefixes
             raise NotImplementedError('Constants are not currently allowed to begin with {}'.format(Object._prefix))
         if constant.name not in constant_map:
             raise ValueError('Undefined constant {}'.format(constant.name))
         value = constant_map.get(constant.name, constant.name)
-        obj_from_constant[constant] = Object(value, name=constant.name)
+        obj_from_constant[constant.name] = Object(value, name=constant.name) # TODO: remap names
         # TODO: add object predicate
     for name in constant_map:
         for constant in domain.constants:
             if constant.name == name:
                 break
         else:
-            raise ValueError('Constant map {} not mentioned in domain'.format(name))
+            raise ValueError('Constant map value {} not mentioned in domain :constants'.format(name))
     del domain.constants[:] # So not set twice
     return obj_from_constant
+
+def check_problem(domain, streams, obj_from_constant):
+    for action in domain.actions + domain.axioms:
+        for p, c in Counter(action.parameters).items():
+            if c != 1:
+                raise ValueError('Parameter [{}] for action [{}] is not unique'.format(p.name, action.name))
+        # TODO: check that no undeclared parameters & constants
+        #action.dump()
+    for stream in streams:
+        # TODO: domain.functions
+        facts = list(stream.domain)
+        if isinstance(stream, Stream):
+            facts.extend(stream.certified)
+        for fact in facts:
+            name = get_prefix(fact)
+            if name not in domain.predicate_dict: # Undeclared predicate: {}
+                print('Warning! Undeclared predicate used in stream [{}]: {}'.format(stream.name, name))
+            elif len(get_args(fact)) != domain.predicate_dict[name].get_arity(): # predicate used with wrong arity: {}
+                print('Warning! predicate used with wrong arity in stream [{}]: {}'.format(stream.name, fact))
+        for constant in stream.constants:
+            if constant not in obj_from_constant:
+                raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
 
 def parse_problem(problem, stream_info={}):
     # TODO: just return the problem if already written programmatically
@@ -46,10 +67,12 @@ def parse_problem(problem, stream_info={}):
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
-    parse_constants(domain, constant_map)
+    obj_from_constant = parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
     goal_expression = obj_from_value_expression(goal)
+    check_problem(domain, streams, obj_from_constant)
+    parse_goal(goal_expression, domain) # Just to check that it parses
     #normalize_domain_goal(domain, goal_expression)
     # TODO: refactor the following?
     compile_to_exogenous(evaluations, domain, streams)

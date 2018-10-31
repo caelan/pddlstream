@@ -26,7 +26,6 @@ def pddlstream_from_belief():
     # - always at the pose, observation just makes it observable
     # - object has a unobserved fluent
 
-
     block = 'block1'
     pose = None # Unknown
     #pose = np.array([1, 0])
@@ -58,8 +57,8 @@ def main(focused=True):
     # TODO: maybe load problems as a domain explicitly
     pddlstream_problem = pddlstream_from_belief()
     _, _, _, _, init, goal = pddlstream_problem
-    print(sorted(init, key=lambda f: f[0]))
-    print(goal)
+    print('Init:', sorted(init, key=lambda f: f[0]))
+    print('Goal:', goal)
     pr = cProfile.Profile()
     pr.enable()
     if focused:
@@ -67,9 +66,10 @@ def main(focused=True):
     else:
         #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
         solution = solve_incremental(pddlstream_problem, unit_costs=False)
-    print_solution(solution)
     pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    pstats.Stats(pr).sort_stats('tottime').print_stats(5)
+    print_solution(solution)
+
 
 if __name__ == '__main__':
     main()
