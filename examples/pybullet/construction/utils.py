@@ -1,18 +1,15 @@
 from __future__ import print_function
 
+import json
 import os
-from collections import defaultdict, namedtuple
+import random
+from collections import defaultdict
 
 import numpy as np
-import random
-import json
 
 from examples.pybullet.utils.pybullet_tools.utils import add_line, create_cylinder, set_point, Euler, quat_from_euler, \
     set_quat, get_movable_joints, set_joint_positions, pairwise_collision, Pose, multiply, Point, load_model, \
-    HideOutput, load_pybullet, quat_from_vector_angle, unit_point, dump_world, get_com_pose, BASE_LINK, unit_pose, \
-    link_from_name, get_link_pose, create_obj, get_pose, add_body_name, draw_pose, pose_from_tform, set_pose, \
-    invert, unit_quat, wait_for_interrupt, point_from_pose
-
+    HideOutput, load_pybullet
 
 EXTRUSION_DIRECTORY = 'spatial_extrusion/'
 EXTRUSION_FILENAMES = {
@@ -36,111 +33,6 @@ DISABLED_COLLISIONS = [
     ('robot_link_5', 'eef_base_link'),
 ]
 # [u'base_frame_in_rob_base', u'element_list', u'node_list', u'assembly_type', u'model_type', u'unit']
-
-##################################################
-
-PICKNPLACE_DIRECTORY = 'picknplace/'
-PICKNPLACE_FILENAMES = {
-    #'choreo_brick_demo': 'choreo_brick_demo.json',
-    'choreo_brick_demo': 'json/brick_demo.json',
-    'choreo_eth-trees_demo': 'choreo_eth-trees_demo.json',
-}
-
-def strip_extension(path):
-    root, ext = os.path.splitext(path)
-    return root
-
-
-class Grasp(object):
-    def __init__(self, index, num, approach, attach, retreat):
-        self.index = index
-        self.num = num
-        self.approach = approach
-        self.attach = attach
-        self.retreat = retreat
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, self.index, self.num)
-
-Brick = namedtuple('Brick', ['index', 'body', 'initial_pose', 'goal_pose',
-                             'grasps', 'goal_supports'])
-
-GRASP_NAMES = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retreat_plane']
-
-class WorldPose(object):
-    def __init__(self, index, value):
-        self.index = index
-        self.value = value
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, self.index, str(np.array(point_from_pose(self.value))))
-
-def load_pick_and_place(extrusion_name, scale=0.001):
-    assert extrusion_name == 'choreo_brick_demo'
-    root_directory = os.path.dirname(os.path.abspath(__file__))
-    bricks_directory = os.path.join(root_directory, PICKNPLACE_DIRECTORY, 'bricks')
-    print('Name: {}'.format(extrusion_name))
-    with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
-        json_data = json.loads(f.read())
-
-    obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
-    with HideOutput():
-        #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
-        robot = load_pybullet(os.path.join(root_directory, 'framefab_kr6_r900_support/urdf/kr6_r900_2.urdf'), fixed_base=True)
-    set_point(robot, (0.1, 0, 0))
-
-    pick_base_point = parse_point(json_data['pick_base_center_point'])
-    draw_pose((pick_base_point, unit_quat()))
-    place_base_point = parse_point(json_data['place_base_center_point'])
-    draw_pose((place_base_point, unit_quat()))
-
-    # workspace_geo_place_support_object_11 = pick_left_over_bricks_11
-    obstacle_from_name = {}
-    for filename in json_data['pick_support_surface_file_names']:
-        obstacle_from_name[strip_extension(filename)] = \
-            create_obj(os.path.join(obj_directory, filename), scale=scale, color=(0.5, 0.5, 0.5, 1))
-    for filename in json_data['place_support_surface_file_names']:
-        obstacle_from_name[strip_extension(filename)] = \
-            create_obj(os.path.join(obj_directory, filename), scale=scale, color=(1., 0., 0., 1))
-
-    brick_from_index = {}
-    for json_element in json_data['sequenced_elements'][:5]:
-        index = json_element['order_id']
-        pick_body = create_obj(os.path.join(obj_directory, json_element['pick_element_geometry_file_name']),
-                               scale=scale, color=(0, 0, 1, 1))
-        add_body_name(pick_body, index)
-        #place_body = create_obj(os.path.join(obj_directory, json_element['place_element_geometry_file_name']),
-        #                        scale=scale, color=(0, 1, 0, 1))
-        #add_body_name(place_body, name)
-        world_from_obj_pick = get_pose(pick_body)
-
-        # [u'pick_grasp_plane', u'pick_grasp_retreat_plane', u'place_grasp_retreat_plane',
-        #  u'pick_grasp_approach_plane', u'place_grasp_approach_plane', u'place_grasp_plane']
-        ee_grasp_poses = [{name: pose_from_tform(parse_transform(approach)) for name, approach in json_grasp.items()}
-                           for json_grasp in json_element['grasps']]
-
-        # pick_grasp_plane is at the top of the object with z facing downwards
-        grasp_index = 0
-        world_from_ee_pick = ee_grasp_poses[grasp_index]['pick_grasp_plane']
-        world_from_ee_place = ee_grasp_poses[grasp_index]['place_grasp_plane']
-        #draw_pose(world_from_ee_pick, length=0.04)
-        #draw_pose(world_from_ee_place, length=0.04)
-
-        ee_from_obj = multiply(invert(world_from_ee_pick), world_from_obj_pick) # Using pick frame
-        world_from_obj_place = multiply(world_from_ee_place, ee_from_obj)
-        #set_pose(pick_body, world_from_obj_place)
-
-        grasps = [Grasp(index, num, *[multiply(invert(world_from_ee_pick[name]), world_from_obj_pick)
-                                      for name in GRASP_NAMES])
-                  for num, world_from_ee_pick in enumerate(ee_grasp_poses)]
-        brick_from_index[index] = Brick(index=index, body=pick_body,
-                                        initial_pose=WorldPose(index, world_from_obj_pick),
-                                        goal_pose=WorldPose(index, world_from_obj_place),
-                                        grasps=grasps,
-                                        goal_supports=json_element.get('place_contact_ngh_ids', []))
-        # pick_contact_ngh_ids are movable element contact partial orders
-        # pick_support_surface_file_names are fixed element contact partial orders
-
-    return robot, brick_from_index, obstacle_from_name
-
 
 ##################################################
 
