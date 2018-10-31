@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wa
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, \
-    get_collision_fn, WorldSaver
+    get_collision_fn
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test

@@ -194,6 +194,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     #parser.add_argument('-viewer', action='store_true', help='enable viewer.')
     #parser.add_argument('-display', action='store_true', help='enable viewer.')
     #args = parser.parse_args()
+    # TODO: getopt
 
     connect(use_gui=viewer)
     problem_fn = cooking_problem

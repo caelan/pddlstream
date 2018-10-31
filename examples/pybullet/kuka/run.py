@@ -58,7 +58,7 @@ def get_holding_motion_synth(robot, movable=[], teleport=False):
 
 #######################################################
 
-def pddlstream_from_problem(robot, movable=[], teleport=False, movable_collisions=False, grasp_name='top'):
+def pddlstream_from_problem(robot, movable=[], teleport=False, grasp_name='top'):
     #assert (not are_colliding(tree, kin_cache))
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -157,21 +157,18 @@ def postprocess_plan(plan):
 
 #######################################################
 
-def main(viewer=False, display=True, simulate=False, teleport=False):
-    # TODO: fix argparse & FastDownward
-    #parser = argparse.ArgumentParser()  # Automatically includes help
-    #parser.add_argument('-viewer', action='store_true', help='enable viewer.')
-    #parser.add_argument('-display', action='store_true', help='enable viewer.')
-    #args = parser.parse_args()
-    # TODO: getopt
+def main(display=True, teleport=False):
+    parser = argparse.ArgumentParser()  # Automatically includes help
+    parser.add_argument('-viewer', action='store_true', help='enable viewer.')
+    parser.add_argument('-simulate', action='store_true', help='enable viewer.')
+    args = parser.parse_args()
 
-    connect(use_gui=viewer)
+    connect(use_gui=args.viewer)
     robot, names, movable = load_world()
     saved_world = WorldSaver()
     #dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(robot, movable=movable,
-                                                 teleport=teleport, movable_collisions=True)
+    pddlstream_problem = pddlstream_from_problem(robot, movable=movable, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     synthesizers = [
         StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
@@ -199,7 +196,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         disconnect()
         return
 
-    if not viewer: # TODO: how to reenable the viewer
+    if not args.viewer: # TODO: how to reenable the viewer
         disconnect()
         connect(use_gui=True)
         load_world()
@@ -207,10 +204,11 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         saved_world.restore()
 
     command = postprocess_plan(plan)
-    user_input('Execute?')
-    if simulate:
+    if args.simulate:
+        user_input('Simulate?')
         command.control()
     else:
+        user_input('Execute?')
         #command.step()
         command.refine(num_steps=10).execute(time_step=0.001)
 

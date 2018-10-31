@@ -3,6 +3,7 @@ import os
 import cProfile
 import pstats
 import numpy as np
+import time
 
 from collections import namedtuple
 
@@ -11,7 +12,9 @@ from examples.pybullet.construction.utils import DISABLED_COLLISIONS, parse_poin
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, has_link, set_pose, \
     multiply, invert, inverse_kinematics, plan_waypoints_joint_motion, Attachment, set_joint_positions, unit_quat, \
     plan_joint_motion, get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, set_point, \
-    draw_pose, unit_quat, create_obj, add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn
+    draw_pose, unit_quat, create_obj, add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn, \
+    wait_for_duration, enable_gravity, enable_real_time, trajectory_controller, simulate_controller, \
+    add_fixed_constraint, remove_fixed_constraint, elapsed_time
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import read, get_file_path, print_solution
@@ -268,33 +271,19 @@ def get_pddlstream(robot, brick_from_index, obstacle_from_name):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
+##################################################
 
 def step_trajectory(trajectory, attachments={}, time_step=np.inf):
     for _ in trajectory.iterate():
         for attachment in attachments.values():
             attachment.assign()
-        wait_for_interrupt(time_step)
+        if time_step == np.inf:
+            wait_for_interrupt(time_step)
+        else:
+            wait_for_duration(time_step)
 
-def main(viewer=True):
-    connect(use_gui=viewer)
-    robot, brick_from_index, obstacle_from_name = load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
-
-    np.set_printoptions(precision=2)
-    pr = cProfile.Profile()
-    pr.enable()
-    with WorldSaver():
-        pddlstream_problem = get_pddlstream(robot, brick_from_index, obstacle_from_name)
-        solution = solve_focused(pddlstream_problem, planner='ff-wastar1', max_time=30)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('cumtime').print_stats(10)
-    print_solution(solution)
-    plan, _, _ = solution
-    if plan is None:
-        return
-
+def step_plan(plan, time_step=0.02): #time_step=np.inf
     wait_for_interrupt()
-    #time_step = np.inf
-    time_step = 0.02
     attachments = {}
     for action, args in plan:
         trajectory = args[-1]
@@ -313,6 +302,60 @@ def main(viewer=True):
         else:
             raise NotImplementedError(action)
     wait_for_interrupt()
+
+##################################################
+
+def simulate_trajectory(trajectory, time_step=0.0):
+    start_time = time.time()
+    for sim_time in simulate_controller(trajectory_controller(trajectory.robot, trajectory.joints, trajectory.path)):
+        if time_step:
+            time.sleep(time_step)
+        #print(sim_time, elapsed_time(start_time))
+
+def simulate_plan(plan, time_step=0.0, real_time=False): #time_step=np.inf
+    wait_for_interrupt()
+    enable_gravity()
+    if real_time:
+        enable_real_time()
+    for action, args in plan:
+        trajectory = args[-1]
+        if action == 'move':
+            simulate_trajectory(trajectory, time_step)
+        elif action == 'pick':
+            attachment = trajectory.attachments.pop()
+            simulate_trajectory(trajectory, time_step)
+            add_fixed_constraint(attachment.child, attachment.parent, attachment.parent_link)
+            simulate_trajectory(trajectory.reverse(), time_step)
+        elif action == 'place':
+            attachment = trajectory.attachments.pop()
+            simulate_trajectory(trajectory, time_step)
+            remove_fixed_constraint(attachment.child, attachment.parent, attachment.parent_link)
+            simulate_trajectory(trajectory.reverse(), time_step)
+        else:
+            raise NotImplementedError(action)
+    wait_for_interrupt()
+
+##################################################
+
+def main(viewer=True):
+    connect(use_gui=viewer)
+    robot, brick_from_index, obstacle_from_name = load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
+
+    np.set_printoptions(precision=2)
+    pr = cProfile.Profile()
+    pr.enable()
+    with WorldSaver():
+        pddlstream_problem = get_pddlstream(robot, brick_from_index, obstacle_from_name)
+        solution = solve_focused(pddlstream_problem, planner='ff-wastar1', max_time=30)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('cumtime').print_stats(10)
+    print_solution(solution)
+    plan, _, _ = solution
+    if plan is None:
+        return
+    step_plan(plan)
+    #simulate_plan(plan)
+
 
 if __name__ == '__main__':
     main()
