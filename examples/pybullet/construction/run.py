@@ -13,12 +13,13 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, dis
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, \
-    get_collision_fn, compute_joint_weights
+    get_collision_fn, compute_joint_weights, draw_pose, set_pose, create_attachment, has_link, \
+    plan_waypoints_joint_motion, Attachment, WorldSaver
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
-from pddlstream.language.generator import from_test, from_gen_fn
+from pddlstream.language.generator import from_test, from_gen_fn, from_fn
 from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
@@ -27,10 +28,17 @@ JOINT_WEIGHTS = [0.3078557810844393, 0.443600199302506, 0.23544367607317915,
                  0.03637161028426032, 0.04644626184081511, 0.015054267683041092]
 
 class MotionTrajectory(object):
-    def __init__(self, robot, joints, path):
+    def __init__(self, robot, joints, path, attachments=[]):
         self.robot = robot
         self.joints = joints
         self.path = path
+        self.attachments = attachments
+    def reverse(self):
+        return self.__class__(self.robot, self.joints, self.path[::-1], self.attachments)
+    def iterate(self):
+        for conf in self.path[1:]:
+            set_joint_positions(self.robot, self.joints, conf)
+            yield
     def __repr__(self):
         return 'm({},{})'.format(len(self.joints), len(self.path))
 
@@ -464,6 +472,122 @@ def display_trajectories(ground_nodes, trajectories, time_step=0.05):
 
 ##################################################
 
+def get_grasp_gen_fn(brick_from_index):
+    def gen_fn(index):
+        brick = brick_from_index[index]
+        for grasp in brick.grasps:
+            yield grasp,
+    return gen_fn
+
+def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
+    movable_joints = get_movable_joints(robot)
+    tool_link = link_from_name(robot, 'robot_tool0')
+    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
+                           for pair in DISABLED_COLLISIONS}
+
+    def gen_fn(index, pose, grasp):
+        body = brick_from_index[index].body
+        #world_pose = get_link_pose(robot, tool_link)
+        #draw_pose(world_pose, length=0.04)
+        #set_pose(body, multiply(world_pose, grasp.attach))
+        #draw_pose(multiply(pose.value, invert(grasp.attach)), length=0.04)
+        #wait_for_interrupt()
+        set_pose(body, pose.value)
+        for _ in range(max_attempts):
+            attach_pose = multiply(pose.value, invert(grasp.attach))
+            attach_conf = inverse_kinematics(robot, tool_link, attach_pose)
+            if attach_conf is None:
+                continue
+            approach_pose = multiply(pose.value, invert(grasp.approach))
+            approach_conf = inverse_kinematics(robot, tool_link, approach_pose)
+            if approach_conf is None:
+                continue
+            # TODO: retreat
+            path = plan_waypoints_joint_motion(robot, movable_joints, [approach_conf, attach_conf],
+                                               obstacles=obstacle_from_name.values(),
+                                               self_collisions=True, disabled_collisions=disabled_collisions)
+            if path is None:
+                continue
+            #path = [approach_conf, attach_conf]
+            attachment = Attachment(robot, tool_link, grasp.attach, body)
+            traj = MotionTrajectory(robot, movable_joints, path, attachments=[attachment])
+            yield approach_conf, traj
+    return gen_fn
+
+def get_motion_fn(robot, brick_from_index, obstacle_from_name):
+    movable_joints = get_movable_joints(robot)
+    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
+                           for pair in DISABLED_COLLISIONS}
+    def fn(conf1, conf2):
+        #path = [conf1, conf2]
+        set_joint_positions(robot, movable_joints, conf1)
+        path = plan_joint_motion(robot, movable_joints, conf2, obstacles=obstacle_from_name.values(),
+                                 self_collisions=True, disabled_collisions=disabled_collisions,
+                                 #weights=weights, resolutions=resolutions,
+                                 restarts=5, iterations=50, smooth=100)
+        if path is None:
+            return None
+        traj = MotionTrajectory(robot, movable_joints, path)
+        return traj,
+    return fn
+
+def get_collision_test(robot, brick_from_index):
+    def test(*args):
+        return False
+    return test
+
+from examples.pybullet.utils.pybullet_tools.utils import get_configuration
+
+def pddlstream_stuff(robot, brick_from_index, obstacle_from_name):
+    domain_pddl = read(get_file_path(__file__, 'picknplace/domain.pddl'))
+    stream_pddl = read(get_file_path(__file__, 'picknplace/stream.pddl'))
+    constant_map = {}
+
+    conf = np.array(get_configuration(robot))
+    init = [
+        ('CanMove',),
+        ('Conf', conf),
+        ('AtConf', conf),
+        ('HandEmpty',),
+    ]
+
+    goal_literals = [
+        ('AtConf', conf),
+        #('HandEmpty',),
+    ]
+    for index, brick in brick_from_index.items():
+        init += [
+            ('Graspable', index),
+            ('Pose', index, brick.initial_pose),
+            ('AtPose', index, brick.initial_pose),
+            ('Pose', index, brick.goal_pose),
+        ]
+        goal_literals += [
+            #('Holding', index),
+            ('AtPose', index, brick.goal_pose),
+        ]
+
+        #for base in brick.goal_supports:
+        #    pass
+    goal = And(*goal_literals)
+
+    stream_map = {
+        'sample-grasp': from_gen_fn(get_grasp_gen_fn(brick_from_index)),
+        'inverse-kinematics': from_gen_fn(get_ik_gen_fn(robot, brick_from_index, obstacle_from_name)),
+        'plan-motion': from_fn(get_motion_fn(robot, brick_from_index, obstacle_from_name)),
+        'TrajCollision': get_collision_test(robot, brick_from_index),
+    }
+    #stream_map = 'debug'
+
+    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+
+
+def step_trajectory(trajectory, attachments={}, time_step=np.inf):
+    for _ in trajectory.iterate():
+        for attachment in attachments.values():
+            attachment.assign()
+        wait_for_interrupt(time_step)
+
 def main(viewer=True):
     # TODO: setCollisionFilterGroupMask
     # TODO: only produce collisions rather than collision-free
@@ -493,7 +617,37 @@ def main(viewer=True):
     #plan = plan_sequence_test(node_points, elements, ground_nodes)
 
     connect(use_gui=viewer)
-    load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
+    robot, brick_from_index, obstacle_from_name = load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
+
+    np.set_printoptions(precision=2)
+    with WorldSaver():
+        pddlstream_problem = pddlstream_stuff(robot, brick_from_index, obstacle_from_name)
+        solution = solve_focused(pddlstream_problem)
+    print_solution(solution)
+    plan, _, _ = solution
+    if plan is None:
+        return
+
+    wait_for_interrupt()
+    #time_step = np.inf
+    time_step = 0.02
+    attachments = {}
+    for action, args in plan:
+        trajectory = args[-1]
+        if action == 'move':
+            step_trajectory(trajectory, attachments, time_step)
+        elif action == 'pick':
+            attachment = trajectory.attachments.pop()
+            step_trajectory(trajectory, attachments, time_step)
+            attachments[attachment.child] = attachment
+            step_trajectory(trajectory.reverse(), attachments, time_step)
+        elif action == 'place':
+            attachment = trajectory.attachments.pop()
+            step_trajectory(trajectory, attachments, time_step)
+            del attachments[attachment.child]
+            step_trajectory(trajectory.reverse(), attachments, time_step)
+        else:
+            raise NotImplementedError(action)
     wait_for_interrupt()
     return
 
