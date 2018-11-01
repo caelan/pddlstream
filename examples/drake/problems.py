@@ -196,7 +196,8 @@ def load_manipulation(time_step=0.0):
     ]
     doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
 
-    door_position = DOOR_CLOSED  # np.pi/2
+    #door_position = DOOR_CLOSED  # np.pi/2
+    door_position = np.pi/8
     initial_positions = {
         mbp.GetJointByName('left_door_hinge'): -door_position,
         mbp.GetJointByName('right_door_hinge'): door_position,
@@ -206,7 +207,8 @@ def load_manipulation(time_step=0.0):
     initial_positions.update(zip(get_movable_joints(mbp, robot), initial_conf))
 
     initial_poses = {
-        brick: create_transform(translation=[.6, 0, 0]),
+        #brick: create_transform(translation=[0.6, 0, 0]),
+        brick: create_transform(translation=[0.4, 0, 0]),
     }
 
     task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors, fixed=[amazon_table, cupboard],

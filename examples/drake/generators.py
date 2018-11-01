@@ -71,8 +71,8 @@ def get_stable_gen(task, context):
 
         #object_aabb, object_local = AABBs[obj_name], Isometry3.Identity()
         #surface_aabb, surface_local = AABBs[surface_name], Isometry3.Identity()
-        object_aabb, object_local = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
-        surface_aabb, surface_local = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
+        object_aabb, object_local, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        surface_aabb, surface_local, _ = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
         for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb):
             world_pose = surface_pose.multiply(surface_local).multiply(
                 surface_from_object).multiply(object_local.inverse())
@@ -95,7 +95,7 @@ def get_grasp_gen(task):
     def gen(obj_name):
         obj = mbp.GetModelInstanceByName(obj_name)
         #obj_aabb, obj_from_box = AABBs[obj_name], Isometry3.Identity()
-        obj_aabb, obj_from_box = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        obj_aabb, obj_from_box, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
         #finger_aabb, finger_from_box = box_from_geom[int(task.gripper), 'left_finger', 0]
         # TODO: union of bounding boxes
 
@@ -156,7 +156,7 @@ def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
             if path is None:
                 continue
             #path = refine_joint_path(joints, path)
-            traj = Trajectory([Conf(joints, q) for q in path])
+            traj = Trajectory(Conf(joints, q) for q in path)
             #print(attempts - last_success)
             last_success = attempts
             return traj.path[-1], traj
@@ -164,57 +164,58 @@ def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
 
 
 def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
-    cupboard = task.mbp.GetModelInstanceByName('cupboard')
     box_from_geom = get_box_from_geom(task.scene_graph)
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     robot_joints = get_movable_joints(task.mbp, task.robot)
+    collision_pairs = set(product([task.robot, task.gripper], task.fixed))
+    # TODO: need to change my collision pairs
 
     distance = 0.01
     approach_vector = distance*np.array([0, -1, 0])
     # TODO: could also push the door
+    # TODO: could solve for kinematic solution of robot and doors
+    # DoDifferentialInverseKinematics
 
-    def fn(body_name):
-        body = task.mbp.GetBodyByName(body_name, cupboard)
-        door_joints = get_parent_joints(task.mbp, body)
-
-        limit = 0.497*np.pi # Seems to be the limit
-
-        #print(get_joint_limits(door_joints[0])) # -inf, +inf
-        start_positions = get_joint_positions(door_joints, context)
-        #end_positions = [-np.pi/2]
-        #end_positions = [-limit]
-        end_positions = [-0.49*np.pi]
+    def fn(robot_name, body_name, dq1, dq2):
+        door_body = task.mbp.GetBodyByName(body_name)
+        door_joints = get_parent_joints(task.mbp, door_body)
 
         extend_fn = get_extend_fn(door_joints, resolutions=step_size*np.ones(len(door_joints)))
-        door_joint_path = [start_positions] + list(extend_fn(start_positions, end_positions)) # TODO: check for collisions
-        door_pose_path = []
+        door_joint_path = [dq1.positions] + list(extend_fn(dq1.positions, dq2.positions)) # TODO: check for collisions
+        door_cartesian_path = []
         for robot_conf in door_joint_path:
             set_joint_positions(door_joints, context, robot_conf)
-            door_pose_path.append(get_body_pose(context, body))
+            door_cartesian_path.append(get_body_pose(context, door_body))
 
-        handle_aabb, handle_from_box = box_from_geom[int(cupboard), body_name, 1]
+        for i in range(2):
+            handle_aabb, handle_from_box, handle_shape = box_from_geom[int(door_body.model_instance()), body_name, i]
+            if handle_shape == 'cylinder':
+                break
+        else:
+            raise RuntimeError()
         grasps = list(get_box_grasps(handle_aabb, pitch_range=(np.pi/2, np.pi/2), grasp_length=0.01))
         gripper_from_box = grasps[1] # Second grasp is np.pi/2, corresponding to +y
         gripper_from_obj = gripper_from_box.multiply(handle_from_box.inverse())
-        pull_path = [body_pose.multiply(gripper_from_obj.inverse()) for body_pose in door_pose_path]
+        pull_cartesian_path = [body_pose.multiply(gripper_from_obj.inverse()) for body_pose in door_cartesian_path]
 
-        start_path = list(interpolate_translation(pull_path[0], approach_vector))
-        end_path = list(interpolate_translation(pull_path[-1], approach_vector))
-        gripper_path = start_path[::-1] + pull_path[1:] + end_path[1:]
-
+        #start_path = list(interpolate_translation(pull_cartesian_path[0], approach_vector))
+        #end_path = list(interpolate_translation(pull_cartesian_path[-1], approach_vector))
         for _ in range(max_attempts):
-            robot_path = plan_workspace_motion(task.mbp, context, robot_joints, gripper_frame, reversed(gripper_path))
-            if robot_path is None:
+            pull_joint_waypoints = plan_workspace_motion(task.mbp, context, robot_joints, gripper_frame, pull_cartesian_path,
+                                                    collision_pairs=collision_pairs) # reversed(gripper_path))
+            if pull_joint_waypoints is None:
                 continue
-            robot_path = robot_path[::-1]
-            for door_conf, robot_conf in zip(door_joint_path, robot_path):
-                set_joint_positions(door_joints, context, door_conf)
-                set_joint_positions(robot_joints, context, robot_conf)
-                yield robot_conf
-
-            #grasp = RelPose(mbp, gripper_frame, obj, gripper_from_obj)
-            #yield grasp,
-
+            rq1 = Conf(robot_joints, pull_joint_waypoints[0])
+            rq2 = Conf(robot_joints, pull_joint_waypoints[-1])
+            combined_joints = robot_joints + door_joints
+            combined_waypoints = [list(rq) + list(dq) for rq, dq in zip(pull_joint_waypoints, door_joint_path)]
+            set_joint_positions(combined_joints, context, combined_waypoints[0])
+            pull_joint_path = plan_waypoints_joint_motion(task.mbp, context, combined_joints,
+                                                          combined_waypoints[1:], collision_pairs=collision_pairs)
+            if pull_joint_path is None:
+                continue
+            traj = Trajectory(Conf(combined_joints, combined_conf) for combined_conf in pull_joint_path)
+            return rq1, rq2, traj
     return fn
 
 ##################################################
@@ -225,8 +226,10 @@ def get_motion_fn(task, context, fluents=[]):
     def fn(robot_name, conf1, conf2):
         robot = task.mbp.GetModelInstanceByName(robot_name)
         joints = get_movable_joints(task.mbp, robot)
-        collision_pairs = set(product([robot, gripper], task.fixed))
+        obstacles = list(task.fixed)
+        # TODO: fluents
 
+        collision_pairs = set(product([robot, gripper], obstacles))
         open_wsg50_gripper(task.mbp, context, gripper)
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
@@ -235,7 +238,7 @@ def get_motion_fn(task, context, fluents=[]):
         if path is None:
             return None
         #path = refine_joint_path(joints, path)
-        traj = Trajectory([Conf(joints, q) for q in path])
+        traj = Trajectory(Conf(joints, q) for q in path)
         return traj,
     return fn
 
@@ -254,6 +257,6 @@ def get_holding_motion_fn(task, context):
         if path is None:
             return None
         #path = refine_joint_path(joints, path)
-        traj = Trajectory([Conf(joints, q) for q in path], attachments=[grasp])
+        traj = Trajectory((Conf(joints, q) for q in path), attachments=[grasp])
         return traj,
     return fn

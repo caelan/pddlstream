@@ -10,13 +10,15 @@ from collections import namedtuple
 from pydrake.geometry import DispatchLoadMessage
 from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement,
     WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, FrameIndex)
-from pydrake.multibody import inverse_kinematics
+from pydrake.multibody.inverse_kinematics import InverseKinematics
 from pydrake.solvers.mathematicalprogram import SolutionResult
 from pydrake.math import RollPitchYaw, RotationMatrix
 from pydrake.util.eigen_geometry import Isometry3
 from drake import lcmt_viewer_load_robot
 from pydrake.lcm import DrakeMockLcm
 from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
+
+user_input = raw_input
 
 BoundingBox = namedtuple('BoundingBox', ['center', 'extent'])
 
@@ -298,7 +300,7 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
             if -np.inf < lower < upper < np.inf:
                 initial_guess[joint.position_start()] = random.uniform(lower, upper)
 
-    ik_scene = inverse_kinematics.InverseKinematics(mbp)
+    ik_scene = InverseKinematics(mbp)
     world_frame = mbp.world_frame()
 
     ik_scene.AddOrientationConstraint(
@@ -368,6 +370,16 @@ def is_model_colliding(mbp, context, model, obstacles=None):
             return True
     return False
 
+##################################################
+
+def get_geom_name(geom):
+    name_from_type = {
+        geom.BOX: 'box',
+        geom.CYLINDER: 'cylinder',
+        geom.SPHERE: 'sphere',
+        geom.MESH: 'mesh',
+    }
+    return name_from_type[geom.type]
 
 def get_box_from_geom(scene_graph, visual_only=True):
     # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
@@ -395,6 +407,8 @@ def get_box_from_geom(scene_graph, visual_only=True):
             if visual_only and (geom.color[3] == 0):
                 continue
 
+            # TODO: sort by lowest point on the bounding box?
+            # TODO: maybe just return the set of bodies in order and let the user decide what to with them
             visual_index += 1 # TODO: affected by transparent visual
             if geom.type == geom.BOX:
                 assert geom.num_float_data == 3
@@ -421,8 +435,5 @@ def get_box_from_geom(scene_graph, visual_only=True):
             link_from_box = RigidTransform(
                 RotationMatrix(Quaternion(geom.quaternion)), geom.position).GetAsIsometry3() #.GetAsMatrix4()
             box_from_geom[model_index, frame_name, visual_index-1] = \
-                (BoundingBox(np.zeros(3), extent), link_from_box)
+                (BoundingBox(np.zeros(3), extent), link_from_box, get_geom_name(geom))
     return box_from_geom
-
-
-user_input = raw_input

@@ -53,7 +53,7 @@
     :precondition (and (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
                        (HandEmpty ?r) (AtConf ?r ?rq1) (AtConf ?d ?dq1) (not (UnsafeTraj ?t)))
     :effect (and (AtConf ?r ?rq2) (AtConf ?d ?dq2) (CanMove ?r)
-                 (not (AtConf ?r ?rq1)) (not (AtConf ?d ?dq2)))
+                 (not (AtConf ?r ?rq1)) (not (AtConf ?d ?dq1)))
   )
 
   (:action clean

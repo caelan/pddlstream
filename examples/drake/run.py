@@ -174,6 +174,10 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         ('AtConf', robot_name, robot_conf),
         ('HandEmpty', robot_name),
     ]
+    goal_literals = [
+        ('AtConf', robot_name, robot_conf),
+        #('Holding', robot_name, get_model_name(mbp, task.movable[0])),
+    ]
 
     for obj in task.movable:
         obj_name = get_model_name(mbp, obj)
@@ -204,19 +208,18 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
             ('Conf', door_name, door_conf),
             ('AtConf', door_name, door_conf),
         ]
-        for conf in [get_open_positions(door_body), get_closed_positions(door_body)]:
+        for positions in [get_open_positions(door_body)]: #, get_closed_positions(door_body)]:
+            conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
+            goal_literals += [('AtConf', door_name, conf)]
 
-    goal_literals = [
-        ('AtConf', robot_name, robot_conf),
-        #('Holding', robot_name, get_model_name(mbp, task.movable[0])),
-    ]
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
         goal_literals.append(('On', obj_name, surface))
     for obj in task.goal_cooked:
         obj_name = get_model_name(mbp, obj)
         goal_literals.append(('Cooked', obj_name))
+
     goal = And(*goal_literals)
     print('Initial:', init)
     print('Goal:', goal)
@@ -226,6 +229,7 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_fn(get_ik_fn(task, context)),
         'plan-motion': from_fn(get_motion_fn(task, context)),
+        'plan-pull': from_fn(get_door_fn(task, context)),
         #'plan-holding-motion': from_fn(get_holding_motion_fn(task, context)),
         #'TrajCollision': get_movable_collision_test(),
     }
@@ -253,6 +257,7 @@ def postprocess_plan(mbp, gripper, plan):
     # TODO: ceiling & orientation constraints
     # TODO: sampler chooses configurations that are far apart
 
+    # TODO: maybe just specify the position sequence
     attachments = {}
     for name, args in plan:
         if name in ['clean', 'cook']:
@@ -267,6 +272,9 @@ def postprocess_plan(mbp, gripper, plan):
             trajectories.extend([Trajectory(reversed(t.path), attachments=attachments.values()), open_traj])
             del attachments[o]
             trajectories.append(Trajectory(t.path, attachments=attachments.values()))
+        elif name == 'pull':
+            t = args[-1]
+            trajectories.extend([close_traj, Trajectory(t.path, attachments=attachments.values()), open_traj])
         else:
             t = args[-1]
             trajectories.append(Trajectory(t.path, attachments=attachments.values()))
@@ -294,7 +302,7 @@ def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0)
     simulator.Initialize()
 
     diagram.Publish(diagram_context)
-    user_input('Start?')
+    user_input('Simulate?')
     simulator.StepTo(sim_duration)
     user_input('Finish?')
 
@@ -318,6 +326,9 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
     for i, traj in enumerate(trajectories):
         traj.path[-1].assign(context)
         joints = traj.path[0].joints
+        if len(joints) == 8: # TODO: fix this
+            joints = joints[:7]
+
         if len(joints) == 2:
             q_knots_kuka = np.zeros((2, 7))
             q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
@@ -327,7 +338,7 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             # TODO: adjust number of waypoints
             distance_fn = get_distance_fn(joints)
             #path = [traj.path[0].positions, traj.path[-1].positions]
-            path = [q.positions for q in traj.path]
+            path = [q.positions[:len(joints)] for q in traj.path]
             path = waypoints_from_path(joints, path) # TODO: increase time for pick/place & hold
             q_knots_kuka = np.vstack(path).T
             distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
@@ -501,7 +512,7 @@ def main():
         splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
         sim_duration = compute_duration(splines)
         print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
-        user_input('Simulate?')
+        mbp.tree().get_mutable_multibody_state_vector(context)[:] = initial_state
 
         if True:
             state_machine.Load(splines, gripper_setpoints)
@@ -511,6 +522,7 @@ def main():
             from .lab_1.robot_plans import JointSpacePlan
             plan_list = [JointSpacePlan(spline) for spline in splines]
             #meshcat_vis.delete()
+            user_input('Simulate?')
             test_manipulation(plan_list, gripper_setpoints)
     else:
         step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None) #, teleport=True)

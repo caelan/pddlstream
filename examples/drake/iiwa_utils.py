@@ -95,7 +95,10 @@ def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGT
 ##################################################
 
 DOOR_CLOSED = 0
-DOOR_OPEN = np.pi
+#DOOR_OPEN = np.pi
+#DOOR_OPEN = 0.497 * np.pi  # Seems to be the limit
+#DOOR_OPEN = 0.49 * np.pi
+DOOR_OPEN = 0.45 * np.pi
 
 
 def get_open_positions(door_body):
