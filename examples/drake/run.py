@@ -7,14 +7,15 @@ import cProfile
 import pstats
 from itertools import product
 
-from examples.drake.generators import RelPose, Config, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
+from examples.drake.generators import Pose, Conf, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_holding_motion_fn, get_door_fn
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
-    open_wsg50_gripper
+    open_wsg50_gripper, get_open_positions, get_closed_positions
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
 from examples.drake.problems import load_manipulation, load_station, load_tables
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, get_model_indices, exists_colliding_pair
+    prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, \
+    get_model_indices, exists_colliding_pair, get_joint_positions, get_parent_joints
 
 from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -165,19 +166,19 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
 
     world = mbp.world_frame() # mbp.world_body()
     robot_joints = prune_fixed_joints(get_model_joints(mbp, robot))
-    conf = Config(robot_joints, get_configuration(mbp, context, robot))
+    robot_conf = Conf(robot_joints, get_configuration(mbp, context, robot))
     init = [
         ('Robot', robot_name),
         ('CanMove', robot_name),
-        ('Conf', robot_name, conf),
-        ('AtConf', robot_name, conf),
+        ('Conf', robot_name, robot_conf),
+        ('AtConf', robot_name, robot_conf),
         ('HandEmpty', robot_name),
     ]
 
     for obj in task.movable:
         obj_name = get_model_name(mbp, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
-        obj_pose = RelPose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
+        obj_pose = Pose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
@@ -193,8 +194,21 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         if 'stove' in surface_name:
             init += [('Stove', surface)]
 
+    for door in task.doors:
+        door_body = mbp.tree().get_body(door)
+        door_name = door_body.name()
+        door_joints = get_parent_joints(mbp, door_body)
+        door_conf = Conf(door_joints, get_joint_positions(door_joints, context))
+        init += [
+            ('Door', door_name),
+            ('Conf', door_name, door_conf),
+            ('AtConf', door_name, door_conf),
+        ]
+        for conf in [get_open_positions(door_body), get_closed_positions(door_body)]:
+            init += [('Conf', door_name, conf)]
+
     goal_literals = [
-        ('AtConf', robot_name, conf),
+        ('AtConf', robot_name, robot_conf),
         #('Holding', robot_name, get_model_name(mbp, task.movable[0])),
     ]
     for obj, surface in task.goal_on:
@@ -227,7 +241,7 @@ def get_open_trajectory(mbp, gripper):
     gripper_closed_conf = get_close_wsg50_positions(mbp, gripper)
     gripper_path = list(gripper_extend_fn(gripper_closed_conf, get_open_wsg50_positions(mbp, gripper)))
     gripper_path.insert(0, gripper_closed_conf)
-    return Trajectory(Config(gripper_joints, q) for q in gripper_path)
+    return Trajectory(Conf(gripper_joints, q) for q in gripper_path)
 
 def postprocess_plan(mbp, gripper, plan):
     trajectories = []

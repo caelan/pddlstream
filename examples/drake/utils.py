@@ -128,6 +128,11 @@ def get_movable_joints(mbp, model_index):
     return prune_fixed_joints(get_model_joints(mbp, model_index))
 
 
+def get_parent_joints(mbp, body):
+    # Really should just be none or one
+    return [joint for joint in get_movable_joints(mbp, body.model_instance())
+            if joint.child_body() == body]
+
 ##################################################
 
 

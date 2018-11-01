@@ -1,16 +1,14 @@
 import os
+
 import numpy as np
 import pydrake
-
-from collections import namedtuple
-
-from pydrake.geometry import (ConnectDrakeVisualizer, SceneGraph, DispatchLoadMessage)
+from pydrake.common import FindResourceOrThrow
+from pydrake.examples.manipulation_station import ManipulationStation
+from pydrake.geometry import (SceneGraph)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
-from pydrake.examples.manipulation_station import ManipulationStation
-from pydrake.common import FindResourceOrThrow
 
-from examples.drake.iiwa_utils import weld_gripper
+from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED
 from examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
     get_aabb_z_placement, BoundingBox, get_model_indices
 
@@ -51,15 +49,21 @@ AABBs = {
     'sink': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.25, 0.025, 0.05]) / 2),
     'stove': BoundingBox(np.array([0.0, 0.0, 0.025]), np.array([0.25, 0.025, 0.05]) / 2),
 }
-# TODO: TABLE_SDF_PATH has only one link but many geometries
 
-VisualElement = namedtuple('VisualElement', ['model_index', 'body_name', 'visual_index'])
+class VisualElement(object):
+    def __init__(self, model_index, body_name, visual_index):
+        self.model_index = model_index
+        self.body_name = body_name
+        self.visual_index = visual_index
+    def __repr__(self):
+        return '{}({},{},{})'.format(self.__class__.__name__,
+                                     int(self.model_index), self.body_name, self.visual_index)
 
 ##################################################
 
 class Task(object):
     def __init__(self, mbp, scene_graph, robot, gripper,
-                 movable=[], surfaces=[], fixed=[],
+                 movable=[], surfaces=[], doors=[], fixed=[],
                  initial_positions={}, initial_poses={}, goal_on=[], goal_cooked=[]):
         self.mbp = mbp
         self.scene_graph = scene_graph
@@ -67,6 +71,7 @@ class Task(object):
         self.gripper = gripper
         self.movable = movable
         self.surfaces = surfaces
+        self.doors = doors
         self.fixed = fixed
         self.initial_positions = initial_positions
         self.initial_poses = initial_poses
@@ -119,9 +124,6 @@ def load_station(time_step=0.0):
     return mbp, scene_graph, task
 
 ##################################################
-
-DOOR_CLOSED = 0
-DOOR_OPEN = np.pi
 
 def load_manipulation(time_step=0.0):
     source = False
@@ -192,11 +194,12 @@ def load_manipulation(time_step=0.0):
         VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
+    doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
 
-    door_position = DOOR_CLOSED # np.pi/2
+    door_position = DOOR_CLOSED  # np.pi/2
     initial_positions = {
-        mbp.GetJointByName("left_door_hinge"): -door_position,
-        mbp.GetJointByName("right_door_hinge"): door_position,
+        mbp.GetJointByName('left_door_hinge'): -door_position,
+        mbp.GetJointByName('right_door_hinge'): door_position,
     }
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
     #initial_conf[1] += np.pi / 6
@@ -206,7 +209,7 @@ def load_manipulation(time_step=0.0):
         brick: create_transform(translation=[.6, 0, 0]),
     }
 
-    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, fixed=[amazon_table, cupboard],
+    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors, fixed=[amazon_table, cupboard],
                 initial_positions=initial_positions, initial_poses=initial_poses,
                 goal_on=[(brick, goal_surface)])
 

@@ -2,15 +2,15 @@ from itertools import product
 
 import numpy as np
 
-from examples.drake.iiwa_utils import get_top_cylinder_grasps, open_wsg50_gripper, get_box_grasps, WSG50_LEFT_FINGER
+from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps
 from examples.drake.motion import get_collision_fn, plan_joint_motion, plan_waypoints_joint_motion, \
-    refine_joint_path, get_extend_fn
+    get_extend_fn
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
-    get_base_body, sample_aabb_placement, is_model_colliding, get_movable_joints, create_transform, \
-    solve_inverse_kinematics, set_joint_positions, get_box_from_geom, get_joint_positions, get_joint_limits
+    get_base_body, sample_aabb_placement, is_model_colliding, get_movable_joints, create_transform, get_model_name, \
+    solve_inverse_kinematics, set_joint_positions, get_box_from_geom, get_joint_positions, get_parent_joints
 
 
-class RelPose(object):
+class Pose(object):
     def __init__(self, mbp, parent, child, transform): # TODO: operate on bodies
         self.mbp = mbp
         self.parent = parent
@@ -23,10 +23,10 @@ class RelPose(object):
         set_world_pose(self.mbp, context, self.child, child_pose)
 
     def __repr__(self):
-        return '{}()'.format(self.__class__.__name__)
+        return '{}({}->{})'.format(self.__class__.__name__, get_model_name(self.mbp, self.child), self.parent.name())
 
 
-class Config(object):
+class Conf(object):
     def __init__(self, joints, positions):
         assert len(joints) == len(positions)
         self.joints = joints
@@ -44,6 +44,7 @@ class Trajectory(object):
     def __init__(self, path, attachments=[]):
         self.path = tuple(path)
         self.attachments = attachments
+        # TODO: store a common set of joints instead
 
     def iterate(self, context):
         for conf in self.path[1:]:
@@ -53,7 +54,8 @@ class Trajectory(object):
             yield
 
     def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, len(self.path))
+        joints = self.path[0].joints
+        return '{}({},{})'.format(self.__class__.__name__, len(joints), len(self.path))
 
 ##################################################
 
@@ -74,7 +76,7 @@ def get_stable_gen(task, context):
         for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb):
             world_pose = surface_pose.multiply(surface_local).multiply(
                 surface_from_object).multiply(object_local.inverse())
-            pose = RelPose(mbp, world, obj, world_pose)
+            pose = Pose(mbp, world, obj, world_pose)
             pose.assign(context)
             if not is_model_colliding(mbp, context, obj, obstacles=task.fixed): #obstacles=(fixed + [surface])):
                 yield pose,
@@ -100,7 +102,7 @@ def get_grasp_gen(task):
         #for gripper_from_box in get_top_cylinder_grasps(obj_aabb):
         for gripper_from_box in get_box_grasps(obj_aabb, pitch_range=pitch_range):
             gripper_from_obj = gripper_from_box.multiply(obj_from_box.inverse())
-            grasp = RelPose(mbp, gripper_frame, obj, gripper_from_obj)
+            grasp = Pose(mbp, gripper_frame, obj, gripper_from_obj)
             yield grasp,
     return gen
 
@@ -154,11 +156,12 @@ def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
             if path is None:
                 continue
             #path = refine_joint_path(joints, path)
-            traj = Trajectory([Config(joints, q) for q in path])
+            traj = Trajectory([Conf(joints, q) for q in path])
             #print(attempts - last_success)
             last_success = attempts
             return traj.path[-1], traj
     return fn
+
 
 def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
     cupboard = task.mbp.GetModelInstanceByName('cupboard')
@@ -172,8 +175,7 @@ def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
 
     def fn(body_name):
         body = task.mbp.GetBodyByName(body_name, cupboard)
-        door_joints = [joint for joint in get_movable_joints(task.mbp, cupboard)
-                       if joint.child_body().name() == body_name]
+        door_joints = get_parent_joints(task.mbp, body)
 
         limit = 0.497*np.pi # Seems to be the limit
 
@@ -218,11 +220,14 @@ def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
 ##################################################
 
 def get_motion_fn(task, context, fluents=[]):
-    joints = get_movable_joints(task.mbp, task.robot)
-    collision_pairs = set(product([task.robot, task.gripper], task.fixed))
+    gripper = task.gripper
 
     def fn(robot_name, conf1, conf2):
-        open_wsg50_gripper(task.mbp, context, task.gripper)
+        robot = task.mbp.GetModelInstanceByName(robot_name)
+        joints = get_movable_joints(task.mbp, robot)
+        collision_pairs = set(product([robot, gripper], task.fixed))
+
+        open_wsg50_gripper(task.mbp, context, gripper)
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
                                  collision_pairs=collision_pairs,
@@ -230,7 +235,7 @@ def get_motion_fn(task, context, fluents=[]):
         if path is None:
             return None
         #path = refine_joint_path(joints, path)
-        traj = Trajectory([Config(joints, q) for q in path])
+        traj = Trajectory([Conf(joints, q) for q in path])
         return traj,
     return fn
 
@@ -249,6 +254,6 @@ def get_holding_motion_fn(task, context):
         if path is None:
             return None
         #path = refine_joint_path(joints, path)
-        traj = Trajectory([Config(joints, q) for q in path], attachments=[grasp])
+        traj = Trajectory([Conf(joints, q) for q in path], attachments=[grasp])
         return traj,
     return fn

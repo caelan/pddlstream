@@ -15,7 +15,7 @@
     :inputs (?r ?o ?p ?g)
     :domain (and (Robot ?r) (Pose ?o ?p) (Grasp ?o ?g))
     :outputs (?q ?t)
-    :certified (and (Conf ?r ?q) (Traj ?r ?t)
+    :certified (and (Conf ?r ?q) (Traj ?t)
                     (Kin ?r ?o ?p ?g ?q ?t))
   )
   (:stream plan-motion
@@ -26,7 +26,7 @@
     :certified (Motion ?r ?q1 ?q2 ?t)
   )
 
-  ;(:predicate (TrajCollision ?r ?t ?o2 ?p2)
-  ;  (and (Traj ?r ?t) (Pose ?o2 ?p2))
+  ;(:predicate (TrajCollision ?t ?o2 ?p2)
+  ;  (and (Traj ?t) (Pose ?o2 ?p2))
   ;)
 )

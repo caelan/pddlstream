@@ -9,8 +9,9 @@
     (Grasp ?o ?g)
     (Kin ?r ?o ?p ?g ?q ?t)
     (Motion ?r ?q1 ?q2 ?t)
+    (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
     (Supported ?o ?p ?s)
-    (TrajCollision ?r ?t ?o2 ?p2)
+    (TrajCollision ?t ?o2 ?p2)
 
     (AtPose ?o ?p)
     (AtGrasp ?r ?o ?g)
@@ -22,13 +23,13 @@
 
     (On ?o ?s)
     (Holding ?o)
-    (UnsafeTraj ?r ?t)
+    (UnsafeTraj ?t)
   )
 
   (:action move
     :parameters (?r ?q1 ?q2 ?t)
     :precondition (and (Motion ?r ?q1 ?q2 ?t)
-                       (AtConf ?r ?q1) (CanMove ?r)) ; (not (UnsafeTraj ?r ?t)))
+                       (AtConf ?r ?q1) (CanMove ?r)) ; (not (UnsafeTraj ?t)))
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r)))
   )
@@ -36,16 +37,23 @@
   (:action pick
     :parameters (?r ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?r ?o ?p ?g ?q ?t)
-                       (AtPose ?o ?p) (HandEmpty ?r) (AtConf ?r ?q) (not (UnsafeTraj ?r ?t)))
+                       (AtPose ?o ?p) (HandEmpty ?r) (AtConf ?r ?q) (not (UnsafeTraj ?t)))
     :effect (and (AtGrasp ?r ?o ?g) (CanMove ?r)
                  (not (AtPose ?o ?p)) (not (HandEmpty ?r)))
   )
   (:action place
     :parameters (?r ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?r ?o ?p ?g ?q ?t)
-                       (AtGrasp ?r ?o ?g) (AtConf ?r ?q) (not (UnsafeTraj ?r ?t)))
+                       (AtGrasp ?r ?o ?g) (AtConf ?r ?q) (not (UnsafeTraj ?t)))
     :effect (and (AtPose ?o ?p) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?o ?g)))
+  )
+  (:action pull
+    :parameters (?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
+    :precondition (and (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
+                       (HandEmpty ?r) (AtConf ?r ?rq1) (AtConf ?d ?dq1) (not (UnsafeTraj ?t)))
+    :effect (and (AtConf ?r ?rq2) (AtConf ?d ?dq2) (CanMove ?r)
+                 (not (AtConf ?r ?rq1)) (not (AtConf ?d ?dq2)))
   )
 
   (:action clean
@@ -70,8 +78,8 @@
     (exists (?g) (and (Robot ?r) (Grasp ?o ?g)
                       (AtGrasp ?r ?o ?g)))
   )
-  ;(:derived (UnsafeTraj ?r ?t)
-  ;  (exists (?o2 ?p2) (and (TrajCollision ?r ?t ?o2 ?p2)
+  ;(:derived (UnsafeTraj ?t)
+  ;  (exists (?o2 ?p2) (and (TrajCollision ?t ?o2 ?p2)
   ;                         (AtPose ?o2 ?p2)))
   ;)
 )
