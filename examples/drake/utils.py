@@ -410,8 +410,8 @@ def get_box_from_geom(scene_graph, visual_only=True):
             #    meshcat_geom = meshcat.geometry.ObjMeshGeometry.from_file(
             #            geom.string_data[0:-3] + "obj")
             else:
-                print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
-                    model_index, frame_name, visual_index-1, geom.type))
+                #print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
+                #    model_index, frame_name, visual_index-1, geom.type))
                 continue
             link_from_box = RigidTransform(
                 RotationMatrix(Quaternion(geom.quaternion)), geom.position).GetAsIsometry3() #.GetAsMatrix4()

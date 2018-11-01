@@ -8,7 +8,7 @@ import pstats
 from itertools import product
 
 from examples.drake.generators import RelPose, Config, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
-    get_free_motion_fn, get_holding_motion_fn, get_door_fn
+    get_motion_fn, get_holding_motion_fn, get_door_fn
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
@@ -160,17 +160,18 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
     constant_map = {}
 
     robot = task.robot
-    gripper = task.gripper
+    #gripper = task.gripper
+    robot_name = get_model_name(mbp, robot)
 
-    #world = mbp.world_body()
-    world = mbp.world_frame()
+    world = mbp.world_frame() # mbp.world_body()
     robot_joints = prune_fixed_joints(get_model_joints(mbp, robot))
     conf = Config(robot_joints, get_configuration(mbp, context, robot))
     init = [
-        ('CanMove',),
-        ('Conf', conf),
-        ('AtConf', conf),
-        ('HandEmpty',)
+        ('Robot', robot_name),
+        ('CanMove', robot_name),
+        ('Conf', robot_name, conf),
+        ('AtConf', robot_name, conf),
+        ('HandEmpty', robot_name),
     ]
 
     for obj in task.movable:
@@ -193,8 +194,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
             init += [('Stove', surface)]
 
     goal_literals = [
-        ('AtConf', conf),
-        #('Holding', get_model_name(mbp, task.movable[0])),
+        ('AtConf', robot_name, conf),
+        #('Holding', robot_name, get_model_name(mbp, task.movable[0])),
     ]
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
@@ -210,8 +211,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
         'sample-pose': from_gen_fn(get_stable_gen(task, context)),
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_fn(get_ik_fn(task, context)),
-        'plan-free-motion': from_fn(get_free_motion_fn(task, context)),
-        'plan-holding-motion': from_fn(get_holding_motion_fn(task, context)),
+        'plan-motion': from_fn(get_motion_fn(task, context)),
+        #'plan-holding-motion': from_fn(get_holding_motion_fn(task, context)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -238,25 +239,23 @@ def postprocess_plan(mbp, gripper, plan):
     # TODO: ceiling & orientation constraints
     # TODO: sampler chooses configurations that are far apart
 
+    attachments = {}
     for name, args in plan:
         if name in ['clean', 'cook']:
             continue
         if name == 'pick':
-            o, p, g, q, t = args
-            trajectories.extend([
-                Trajectory(reversed(t.path)),
-                close_traj,
-                Trajectory(t.path, attachments=[g]),
-            ])
+            r, o, p, g, q, t = args
+            trajectories.extend([Trajectory(reversed(t.path), attachments=attachments.values()), close_traj])
+            attachments[o] = g
+            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
         elif name == 'place':
-            o, p, g, q, t = args
-            trajectories.extend([
-                Trajectory(reversed(t.path), attachments=[g]),
-                open_traj,
-                Trajectory(t.path),
-            ])
+            r, o, p, g, q, t = args
+            trajectories.extend([Trajectory(reversed(t.path), attachments=attachments.values()), open_traj])
+            del attachments[o]
+            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
         else:
-            trajectories.append(args[-1])
+            t = args[-1]
+            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
 
     return trajectories
 

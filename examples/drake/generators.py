@@ -133,11 +133,10 @@ def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     joints = get_movable_joints(task.mbp, task.robot)
     collision_pairs = set(product([task.robot, task.gripper], task.fixed))
-    collision_fn = get_collision_fn(task.mbp, context, joints, collision_pairs=collision_pairs)
     initial_guess = None
     #initial_guess = get_joint_positions(joints, context) # TODO: start with initial
 
-    def fn(obj_name, pose, grasp):
+    def fn(robot_name, obj_name, pose, grasp):
         # TODO: if gripper/block in collision, return
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
         gripper_path = list(interpolate_translation(grasp_pose, approach_vector))
@@ -146,29 +145,19 @@ def get_ik_fn(task, context, max_failures=5, distance=0.15, step_size=0.04):
         last_success = 0
         while (attempts - last_success) < max_failures:
             attempts += 1
-            solution = initial_guess
-            waypoints = []
-            for gripper_pose in gripper_path:
-                solution = solve_inverse_kinematics(task.mbp, gripper_frame, gripper_pose, initial_guess=solution)
-                if solution is None:
-                    break
-                positions = [solution[j.position_start()] for j in joints]
-                # TODO: holding
-                if collision_fn(positions):
-                    #task.diagram.Publish(task.diagram_context)
-                    #raw_input("Collision!")
-                    break
-                waypoints.append(positions)
-            else:
-                set_joint_positions(joints, context, waypoints[0])
-                path = plan_waypoints_joint_motion(task.mbp, context, joints, waypoints[1:], collision_pairs=collision_pairs)
-                if path is None:
-                    continue
-                #path = refine_joint_path(joints, path)
-                traj = Trajectory([Config(joints, q) for q in path])
-                #print(attempts - last_success)
-                last_success = attempts
-                return traj.path[-1], traj
+            waypoints = plan_workspace_motion(task.mbp, context, joints, gripper_frame, gripper_path,
+                                              initial_guess=initial_guess, collision_pairs=collision_pairs) # TODO: while holding
+            if waypoints is None:
+                continue
+            set_joint_positions(joints, context, waypoints[0])
+            path = plan_waypoints_joint_motion(task.mbp, context, joints, waypoints[1:], collision_pairs=collision_pairs)
+            if path is None:
+                continue
+            #path = refine_joint_path(joints, path)
+            traj = Trajectory([Config(joints, q) for q in path])
+            #print(attempts - last_success)
+            last_success = attempts
+            return traj.path[-1], traj
     return fn
 
 def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
@@ -228,11 +217,11 @@ def get_door_fn(task, context, max_attempts=25, step_size=np.pi/16):
 
 ##################################################
 
-def get_free_motion_fn(task, context):
+def get_motion_fn(task, context, fluents=[]):
     joints = get_movable_joints(task.mbp, task.robot)
     collision_pairs = set(product([task.robot, task.gripper], task.fixed))
 
-    def fn(conf1, conf2):
+    def fn(robot_name, conf1, conf2):
         open_wsg50_gripper(task.mbp, context, task.gripper)
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(task.mbp, context, joints, conf2.positions,
@@ -249,7 +238,7 @@ def get_free_motion_fn(task, context):
 def get_holding_motion_fn(task, context):
     joints = get_movable_joints(task.mbp, task.robot)
 
-    def fn(conf1, conf2, obj_name, grasp):
+    def fn(robot_name, conf1, conf2, obj_name, grasp):
         #obj = task.mbp.GetModelInstanceByName(obj_name)
         collision_pairs = set(product([task.robot, task.gripper, grasp.child], task.fixed))
         #close_wsg50_gripper(mbp, context, gripper)
