@@ -3,23 +3,20 @@ from __future__ import print_function
 import cProfile
 import pstats
 import numpy as np
-from itertools import product
 
-from examples.pybullet.construction.debug import get_test_cfree, test_grasps, test_print
-from examples.pybullet.construction.utils import parse_elements, parse_node_points, parse_ground_nodes, create_elements, \
+from examples.pybullet.construction.debug import get_test_cfree
+from examples.pybullet.construction.utils import create_elements, \
     load_extrusion, TOOL_NAME, DISABLED_COLLISIONS, check_trajectory_collision, get_grasp_pose, load_world, \
-    prune_dominated, get_element_neighbors, get_node_neighbors, sample_direction, draw_element, load_pick_and_place
-from examples.pybullet.utils.pybullet_tools.utils import connect, dump_body, disconnect, wait_for_interrupt, \
+    get_node_neighbors, sample_direction, draw_element
+from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
-    get_link_pose, multiply, wait_for_duration, set_color, has_gui, add_text, angle_between, plan_joint_motion, \
+    get_link_pose, multiply, wait_for_duration, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, \
-    get_collision_fn, compute_joint_weights
-from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
-from pddlstream.language.stream import StreamInfo, PartialInputs
+    get_collision_fn
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
-from pddlstream.language.generator import from_test, from_gen_fn
-from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, topological_sort, neighbors_from_orders
+from pddlstream.language.generator import from_test
+from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
 
@@ -27,10 +24,17 @@ JOINT_WEIGHTS = [0.3078557810844393, 0.443600199302506, 0.23544367607317915,
                  0.03637161028426032, 0.04644626184081511, 0.015054267683041092]
 
 class MotionTrajectory(object):
-    def __init__(self, robot, joints, path):
+    def __init__(self, robot, joints, path, attachments=[]):
         self.robot = robot
         self.joints = joints
         self.path = path
+        self.attachments = attachments
+    def reverse(self):
+        return self.__class__(self.robot, self.joints, self.path[::-1], self.attachments)
+    def iterate(self):
+        for conf in self.path[1:]:
+            set_joint_positions(self.robot, self.joints, conf)
+            yield
     def __repr__(self):
         return 'm({},{})'.format(len(self.joints), len(self.path))
 
@@ -493,11 +497,6 @@ def main(viewer=True):
     #plan = plan_sequence_test(node_points, elements, ground_nodes)
 
     connect(use_gui=viewer)
-    load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
-    wait_for_interrupt()
-    return
-
-
     floor, robot = load_world()
     obstacles = [floor]
     initial_conf = get_joint_positions(robot, get_movable_joints(robot))

@@ -149,6 +149,7 @@ def replace_predicates(predicate_map, expression):
     return replace_literals(replace_fn, expression)
 
 def compile_to_exogenous_axioms(evaluations, domain, streams):
+    # TODO: no attribute certified
     import pddl
     fluent_predicates = get_fluents(domain)
     domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
