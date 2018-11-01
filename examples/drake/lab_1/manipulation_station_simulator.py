@@ -6,18 +6,12 @@ directly tele-operating the joints.
 import numpy as np
 import time
 
-from pydrake.common import FindResourceOrThrow
-from pydrake.examples.manipulation_station import (ManipulationStation,
-                                    ManipulationStationHardwareInterface)
-
-from pydrake.geometry import ConnectDrakeVisualizer
-from pydrake.manipulation.simple_ui import JointSliders, SchunkWsgButtons
+from pydrake.examples.manipulation_station import ManipulationStation
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.util.eigen_geometry import Isometry3
 
-from underactuated.meshcat_visualizer import MeshcatVisualizer
 from manipulation_station_plan_runner import KukaPlanRunner, ManipStateMachine
 from pydrake.systems.primitives import SignalLogger
 
@@ -89,6 +83,7 @@ class ManipulationStationSimulator:
                         state_machine.iiwa_position_input_port)
 
         # Add meshcat visualizer
+        from underactuated.meshcat_visualizer import MeshcatVisualizer
         scene_graph = self.station.get_mutable_scene_graph()
         viz = MeshcatVisualizer(scene_graph)
         builder.AddSystem(viz)
@@ -162,6 +157,8 @@ class ManipulationStationSimulator:
         :param q0_kuka:
         :return:
         '''
+        from pydrake.examples.manipulation_station import ManipulationStationHardwareInterface
+
         builder = DiagramBuilder()
         self.station_hardware = ManipulationStationHardwareInterface()
         builder.AddSystem(self.station_hardware)

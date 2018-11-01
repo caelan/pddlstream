@@ -15,7 +15,6 @@ from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from
 from examples.drake.problems import load_manipulation
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, get_model_indices, exists_colliding_pair
-from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
 from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -87,6 +86,8 @@ def connect_collisions(mbp, scene_graph, builder):
 
 
 def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
+    from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
+
     iiwa_controller = KukaMultibodyController(plant=mbp,
                                               kuka_model_instance=robot,
                                               print_period=print_period)
@@ -112,6 +113,29 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                     iiwa_controller.plan_input_port)
     builder.Connect(state_machine.hand_setpoint_output_port,
                     hand_controller.setpoint_input_port)
+    return state_machine
+
+def connect_controllers2(builder, plant, print_period=1.0):
+    from examples.drake.manipulation_station_plan_runner import (KukaPlanRunner, ManipStateMachine)
+
+    plan_runner = KukaPlanRunner(plant, print_period=print_period)
+    builder.AddSystem(plan_runner)
+    builder.Connect(plan_runner.get_output_port(0),
+                    plant.get_input_port(0))
+                    #self.station.GetInputPort("iiwa_position"))
+
+    # Add state machine.
+    state_machine = ManipStateMachine(plant=plant)
+    builder.AddSystem(state_machine)
+    builder.Connect(state_machine.kuka_plan_output_port,
+                    plan_runner.plan_input_port)
+    builder.Connect(state_machine.hand_setpoint_output_port,
+                    plant.get_input_port(1))
+                    #self.station.GetInputPort("wsg_position"))
+    #builder.Connect(state_machine.gripper_force_limit_output_port,
+    #                self.station.GetInputPort("wsg_force_limit"))
+    #builder.Connect(self.station.GetOutputPort("iiwa_position_measured"),
+    #                state_machine.iiwa_position_input_port)
     return state_machine
 
 
@@ -311,6 +335,31 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
 
 ##################################################
 
+def test_manipulation(plan_list, gripper_setpoint_list):
+    from pydrake.common import FindResourceOrThrow
+    from .lab_1.manipulation_station_simulator import ManipulationStationSimulator
+
+    is_hardware = False
+    object_file_path = FindResourceOrThrow(
+            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+            #"drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+
+    manip_station_sim = ManipulationStationSimulator(
+        time_step=1e-3,
+        object_file_path=object_file_path,
+        object_base_link_name="base_link",
+        is_hardware=is_hardware)
+
+    q0 = [0, 0.6-np.pi/6, 0, -1.75, 0, 1.0, 0]
+
+    if is_hardware:
+        iiwa_position_command_log = manip_station_sim.RunRealRobot(plan_list, gripper_setpoint_list)
+    else:
+        q0[1] += np.pi/6
+        iiwa_position_command_log = manip_station_sim.RunSimulation(plan_list, gripper_setpoint_list,
+                                        extra_time=2.0, q0_kuka=q0)
+
+
 def main():
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
@@ -347,6 +396,7 @@ def main():
     if args.simulate:
         # TODO: RuntimeError: Input port is already wired
         state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
+        #state_machine = connect_controllers2(builder, mbp)
     else:
         state_machine = None
     diagram = builder.Build()
@@ -423,6 +473,10 @@ def main():
         simulate_splines(diagram, diagram_context, sim_duration)
     else:
         step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None) #, teleport=True)
+
+    #plan_list = []
+    #gripper_setpoint_list = []
+    #test_manipulation(plan_list, gripper_setpoint_list)
 
 
 if __name__ == '__main__':

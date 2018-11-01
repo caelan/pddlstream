@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 from pydrake.all import (
     BasicVector,
@@ -10,8 +12,36 @@ from pydrake.trajectories import (
     PiecewisePolynomial
 )
 
-from robot_plans import JointSpacePlan, PlanBase
+class PlanBase:
+    def __init__(self,
+                 type = None,
+                 trajectory = None):
+        self.type = type
+        self.traj = trajectory
+        self.traj_d = None
+        self.duration = None
+        if trajectory is not None:
+            self.traj_d = trajectory.derivative(1)
+            self.duration = trajectory.end_time()
 
+        self.start_time = None
+
+    def get_duration(self):
+        return self.duration
+
+    def set_start_time(self, time):
+        self.start_time = time
+
+
+class JointSpacePlan(PlanBase):
+    def __init__(self,
+                 trajectory=None):
+        PlanBase.__init__(self,
+                          type=self.__class__.__name__,
+                          trajectory=trajectory)
+
+
+##################################################
 
 class KukaPlanRunner(LeafSystem):
     def __init__(self, plant, control_period=0.005, print_period=0.5):
@@ -52,7 +82,7 @@ class KukaPlanRunner(LeafSystem):
 
         if (self.print_period and
                 t - self.last_print_time >= self.print_period):
-            print "t: ", context.get_time()
+            print("t: ", context.get_time())
             self.last_print_time = context.get_time()
 
         y = y_data.get_mutable_value()
@@ -69,9 +99,27 @@ class ManipStateMachine(LeafSystem):
     (kuka_plans[i].duration() + 0.5) seconds, after which kuka_plans[i+1]
     will become live.
     '''
-    def __init__(self, plant, kuka_plans, gripper_setpoint_list):
+    def __init__(self, plant):
         LeafSystem.__init__(self)
         self.set_name("Manipulation State Machine")
+        self.nq = plant.num_positions()
+        self.plant = plant
+
+        self._DeclareDiscreteState(1)
+        self._DeclarePeriodicDiscreteUpdate(period_sec=0.01)
+        self.kuka_plan_output_port = \
+            self._DeclareAbstractOutputPort("iiwa_plan",
+                lambda: AbstractValue.Make(PlanBase()), self.GetCurrentPlan)
+        self.hand_setpoint_output_port = \
+            self._DeclareVectorOutputPort(
+                "gripper_setpoint", BasicVector(1), self.CalcHandSetpointOutput)
+        self.gripper_force_limit_output_port = \
+            self._DeclareVectorOutputPort(
+                "force_limit", BasicVector(1), self.CalcForceLimitOutput)
+        self.iiwa_position_input_port = \
+            self._DeclareInputPort("iiwa_position", PortDataType.kVectorValued, 7)
+
+    def Load(self, kuka_plans, gripper_setpoint_list):
         # Append plan_list with a plan that moves the robot from its current position to
         # plan_list[0].traj.value(0)
         kuka_plans.insert(0, JointSpacePlan())
@@ -97,24 +145,7 @@ class ManipStateMachine(LeafSystem):
         for i in range(2, self.num_plans):
             self.t_plan[i + 1] = \
                 self.t_plan[i] + kuka_plans[i].get_duration() * 1.1
-        print self.t_plan
-
-        self.nq = plant.num_positions()
-        self.plant = plant
-
-        self._DeclareDiscreteState(1)
-        self._DeclarePeriodicDiscreteUpdate(period_sec=0.01)
-        self.kuka_plan_output_port = \
-            self._DeclareAbstractOutputPort("iiwa_plan",
-                lambda: AbstractValue.Make(PlanBase()), self.GetCurrentPlan)
-        self.hand_setpoint_output_port = \
-            self._DeclareVectorOutputPort(
-                "gripper_setpoint", BasicVector(1), self.CalcHandSetpointOutput)
-        self.gripper_force_limit_output_port = \
-            self._DeclareVectorOutputPort(
-                "force_limit", BasicVector(1), self.CalcForceLimitOutput)
-        self.iiwa_position_input_port = \
-            self._DeclareInputPort("iiwa_position", PortDataType.kVectorValued, 7)
+        print(self.t_plan)
 
     def _DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         # Call base method to ensure we do not get recursion.
@@ -180,5 +211,3 @@ class ManipStateMachine(LeafSystem):
 
     def CalcForceLimitOutput(self, context, output):
         output.SetAtIndex(0, 40.0)
-
-
