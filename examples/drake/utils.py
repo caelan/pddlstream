@@ -284,7 +284,7 @@ def fix_input_ports(mbp, context):
 ##################################################
 
 def solve_inverse_kinematics(mbp, target_frame, target_pose,
-        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
+        max_position_error=0.005, theta_bound=0.01*np.pi, initial_guess=None):
     if initial_guess is None:
         # TODO: provide initial guess for some joints (like iiwa joint0)
         initial_guess = np.zeros(mbp.num_positions())

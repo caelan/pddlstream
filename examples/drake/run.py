@@ -8,11 +8,11 @@ import pstats
 from itertools import product
 
 from examples.drake.generators import RelPose, Config, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
-    get_free_motion_fn, get_holding_motion_fn
+    get_free_motion_fn, get_holding_motion_fn, get_door_fn
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
-from examples.drake.problems import load_manipulation
+from examples.drake.problems import load_manipulation, load_station, load_tables
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, get_model_indices, exists_colliding_pair
 
@@ -51,7 +51,7 @@ def add_meshcat_visualizer(scene_graph, builder):
     # https://github.com/rdeits/meshcat-python
     # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
     from underactuated.meshcat_visualizer import MeshcatVisualizer
-    viz = MeshcatVisualizer(scene_graph)
+    viz = MeshcatVisualizer(scene_graph, draw_timestep=0.033333)
     builder.AddSystem(viz)
     builder.Connect(scene_graph.get_pose_bundle_output_port(),
                     viz.get_input_port(0))
@@ -262,7 +262,7 @@ def postprocess_plan(mbp, gripper, plan):
 
 def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.001, teleport=False):
     diagram.Publish(diagram_context)
-    user_input('Start?')
+    user_input('Step?')
     for traj in trajectories:
         if teleport:
             traj.path = traj.path[::len(traj.path)-1]
@@ -341,8 +341,8 @@ def test_manipulation(plan_list, gripper_setpoint_list):
 
     is_hardware = False
     object_file_path = FindResourceOrThrow(
-            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
-            #"drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+            #"drake/examples/manipulation_station/models/061_foam_brick.sdf")
+            "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
 
     manip_station_sim = ManipulationStationSimulator(
         time_step=1e-3,
@@ -355,10 +355,12 @@ def test_manipulation(plan_list, gripper_setpoint_list):
     if is_hardware:
         iiwa_position_command_log = manip_station_sim.RunRealRobot(plan_list, gripper_setpoint_list)
     else:
-        q0[1] += np.pi/6
+        #q0[1] += np.pi/6
         iiwa_position_command_log = manip_station_sim.RunSimulation(plan_list, gripper_setpoint_list,
                                         extra_time=2.0, q0_kuka=q0)
+    return iiwa_position_command_log
 
+##################################################
 
 def main():
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
@@ -374,7 +376,7 @@ def main():
     args = parser.parse_args()
 
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
-    problem_fn = load_manipulation # load_tables | load_manipulation
+    problem_fn = load_manipulation # load_tables | load_manipulation | load_station
 
     meshcat_vis = None
     if args.meshcat:
@@ -385,7 +387,7 @@ def main():
     #station, mbp, scene_graph = load_station(time_step=time_step)
     #builder.AddSystem(station)
     #dump_plant(mbp)
-    dump_models(mbp)
+    #dump_models(mbp)
     if args.cfree:
         task.fixed = []
     print(task)
@@ -402,10 +404,11 @@ def main():
     diagram = builder.Build()
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-    #context = mbp.CreateDefaultContext()
     task.diagram = diagram
     task.diagram_context = diagram_context
 
+    #context = mbp.CreateDefaultContext()
+    #context = scene_graph.CreateDefaultContext()
     for joint, position in task.initial_positions.items():
         set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
@@ -414,10 +417,17 @@ def main():
     #close_wsg50_gripper(mbp, context, task.gripper)
     #set_configuration(mbp, context, task.gripper, [-0.05, 0.05])
 
+    # from underactuated.meshcat_visualizer import MeshcatVisualizer
+    # #add_meshcat_visualizer(scene_graph)
+    # viz = MeshcatVisualizer(scene_graph, draw_timestep=0.033333)
+    # viz.load()
+    # viz.draw(context)
+
     diagram.Publish(diagram_context)
     #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
     initial_state = mbp.tree().get_multibody_state_vector(context).copy()
     #print(exists_colliding_pair(mbp, context, product(get_model_indices(mbp), repeat=2)))
+    #point_pair = scene_graph.get_query_output_port().Eval(builder.CreateDefaultContext())
 
     ##################################################
 
@@ -442,6 +452,15 @@ def main():
     #    diagram.Publish(diagram_context)
     #    user_input('Continue')
 
+    #fn = get_door_fn(task, context)
+    #for positions in fn('left_door'):
+    #    print(positions)
+    #    if positions is None:
+    #        continue
+    #    diagram.Publish(diagram_context)
+    #    user_input('Continue?')
+    #return
+
     ##################################################
 
     problem = get_pddlstream_problem(mbp, context, scene_graph, task)
@@ -455,9 +474,6 @@ def main():
     if plan is None:
         return
     trajectories = postprocess_plan(mbp, task.gripper, plan)
-    splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
-    sim_duration = compute_duration(splines)
-    print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
 
     ##################################################
 
@@ -469,14 +485,22 @@ def main():
     #print(context == sub_context) # True
 
     if args.simulate:
-        state_machine.Load(splines, gripper_setpoints)
-        simulate_splines(diagram, diagram_context, sim_duration)
+        splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
+        sim_duration = compute_duration(splines)
+        print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
+        user_input('Simulate?')
+
+        if True:
+            state_machine.Load(splines, gripper_setpoints)
+            simulate_splines(diagram, diagram_context, sim_duration)
+        else:
+            # NOTE: there is a plan that moves home initially for 15 seconds
+            from .lab_1.robot_plans import JointSpacePlan
+            plan_list = [JointSpacePlan(spline) for spline in splines]
+            #meshcat_vis.delete()
+            test_manipulation(plan_list, gripper_setpoints)
     else:
         step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None) #, teleport=True)
-
-    #plan_list = []
-    #gripper_setpoint_list = []
-    #test_manipulation(plan_list, gripper_setpoint_list)
 
 
 if __name__ == '__main__':
