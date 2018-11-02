@@ -313,6 +313,8 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
     ik_scene.AddPositionConstraint(
         frameB=target_frame, p_BQ=np.zeros(3),
         frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
+    # AddAngleBetweenVectorsConstraint
+    # AddGazeTargetConstraint
 
     prog = ik_scene.prog()
     prog.SetInitialGuess(ik_scene.q(), initial_guess)
@@ -323,25 +325,22 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
 
 ##################################################
 
-def get_colliding_bodies(mbp, context, min_penetration=0.0):
+def get_colliding_bodies(diagram, diagram_context, plant, scene_graph, min_penetration=0.0):
     # TODO: set collision geometries pairs to check
     # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
-    body_from_geometry_id = {}
-    for body in get_bodies(mbp):
-        for geometry_id in mbp.GetCollisionGeometriesForBody(body):
-            body_from_geometry_id[geometry_id.get_value()] = body
+    # WARNING: indices have equality defined but not a hash function
+    sg_context = diagram.GetMutableSubsystemContext(scene_graph, diagram_context)
+    query_object = scene_graph.get_query_output_port().Eval(sg_context)
+    inspector = query_object.inspector()
     colliding_bodies = set()
-    for penetration in mbp.CalcPointPairPenetrations(context):
-        if penetration.depth < min_penetration:
-            continue
-        body1 = body_from_geometry_id[penetration.id_A.get_value()]
-        body2 = body_from_geometry_id[penetration.id_B.get_value()]
-        colliding_bodies.update([(body1, body2), (body2, body1)])
+    for penetration in query_object.ComputePointPairPenetration():
+        if min_penetration <= penetration.depth:
+            body1, body2 = [plant.GetBodyFromFrameId(inspector.GetFrameId(geometry_id))
+                  for geometry_id in [penetration.id_A, penetration.id_B]]
+            colliding_bodies.update([(body1, body2), (body2, body1)])
     return colliding_bodies
 
-
 def get_colliding_models(mbp, context, **kwargs):
-    # WARNING: indices have equality defined but not a hash function
     colliding_models = set()
     for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
         colliding_models.add((body1.model_instance(), body2.model_instance()))

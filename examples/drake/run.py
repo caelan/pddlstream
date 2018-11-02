@@ -8,7 +8,7 @@ import pstats
 from itertools import product
 
 from examples.drake.generators import Pose, Conf, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
-    get_motion_fn, get_holding_motion_fn, get_door_fn
+    get_motion_fn, get_pull_fn
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper, get_open_positions, get_closed_positions
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
@@ -116,30 +116,6 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                     hand_controller.setpoint_input_port)
     return state_machine
 
-def connect_controllers2(builder, plant, print_period=1.0):
-    from examples.drake.manipulation_station_plan_runner import (KukaPlanRunner, ManipStateMachine)
-
-    plan_runner = KukaPlanRunner(plant, print_period=print_period)
-    builder.AddSystem(plan_runner)
-    builder.Connect(plan_runner.get_output_port(0),
-                    plant.get_input_port(0))
-                    #self.station.GetInputPort("iiwa_position"))
-
-    # Add state machine.
-    state_machine = ManipStateMachine(plant=plant)
-    builder.AddSystem(state_machine)
-    builder.Connect(state_machine.kuka_plan_output_port,
-                    plan_runner.plan_input_port)
-    builder.Connect(state_machine.hand_setpoint_output_port,
-                    plant.get_input_port(1))
-                    #self.station.GetInputPort("wsg_position"))
-    #builder.Connect(state_machine.gripper_force_limit_output_port,
-    #                self.station.GetInputPort("wsg_force_limit"))
-    #builder.Connect(self.station.GetOutputPort("iiwa_position_measured"),
-    #                state_machine.iiwa_position_input_port)
-    return state_machine
-
-
 def build_diagram(mbp, scene_graph, meshcat=False):
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
@@ -155,7 +131,7 @@ def build_diagram(mbp, scene_graph, meshcat=False):
 
 ##################################################
 
-def get_pddlstream_problem(mbp, context, scene_graph, task):
+def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
@@ -225,12 +201,11 @@ def get_pddlstream_problem(mbp, context, scene_graph, task):
     print('Goal:', goal)
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(task, context)),
+        'sample-pose': from_gen_fn(get_stable_gen(task, context, collisions=collisions)),
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
-        'inverse-kinematics': from_fn(get_ik_fn(task, context)),
-        'plan-motion': from_fn(get_motion_fn(task, context)),
-        'plan-pull': from_fn(get_door_fn(task, context)),
-        #'plan-holding-motion': from_fn(get_holding_motion_fn(task, context)),
+        'inverse-kinematics': from_fn(get_ik_fn(task, context, collisions=collisions)),
+        'plan-motion': from_fn(get_motion_fn(task, context, collisions-collisions)),
+        'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
         #'TrajCollision': get_movable_collision_test(),
     }
     #stream_map = 'debug'
@@ -345,11 +320,13 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
             d, n = q_knots_kuka.shape
             print('{}) d={}, n={}, duration={:.3f}'.format(i, d, n, t_knots[-1]))
+            print(t_knots)
             splines.append(PiecewisePolynomial.Cubic(
                 breaks=t_knots, 
                 knots=q_knots_kuka,
                 knot_dot_start=np.zeros(d), 
                 knot_dot_end=np.zeros(d)))
+            # RuntimeError: times must be in increasing order.
         else:
             raise ValueError(joints)
         _, gripper_setpoint = get_configuration(mbp, context, gripper)
@@ -412,9 +389,9 @@ def main():
     #builder.AddSystem(station)
     #dump_plant(mbp)
     #dump_models(mbp)
-    if args.cfree:
-        task.fixed = []
     print(task)
+    #print(sorted(body.name() for body in task.movable_bodies()))
+    #print(sorted(body.name() for body in task.fixed_bodies()))
 
     ##################################################
 
@@ -422,7 +399,6 @@ def main():
     if args.simulate:
         # TODO: RuntimeError: Input port is already wired
         state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
-        #state_machine = connect_controllers2(builder, mbp)
     else:
         state_machine = None
     diagram = builder.Build()
@@ -453,6 +429,10 @@ def main():
     #print(exists_colliding_pair(mbp, context, product(get_model_indices(mbp), repeat=2)))
     #point_pair = scene_graph.get_query_output_port().Eval(builder.CreateDefaultContext())
 
+    # get_mutable_multibody_state_vector
+    #q = mbp.tree().get_multibody_state_vector(context)[:mbp.num_positions()]
+    #print(mbp.tree().get_positions_from_array(task.movable[0], q))
+
     ##################################################
 
     # from utils import get_base_body, get_body_pose
@@ -476,18 +456,9 @@ def main():
     #    diagram.Publish(diagram_context)
     #    user_input('Continue')
 
-    #fn = get_door_fn(task, context)
-    #for positions in fn('left_door'):
-    #    print(positions)
-    #    if positions is None:
-    #        continue
-    #    diagram.Publish(diagram_context)
-    #    user_input('Continue?')
-    #return
-
     ##################################################
 
-    problem = get_pddlstream_problem(mbp, context, scene_graph, task)
+    problem = get_pddlstream_problem(mbp, context, scene_graph, task, collisions=not args.cfree)
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(problem, planner='ff-wastar2', max_cost=INF, max_time=120, debug=False)

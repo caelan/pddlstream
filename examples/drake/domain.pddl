@@ -78,6 +78,7 @@
     (exists (?g) (and (Robot ?r) (Grasp ?o ?g)
                       (AtGrasp ?r ?o ?g)))
   )
+  ; TODO: can do an or
   ;(:derived (UnsafeTraj ?t)
   ;  (exists (?o2 ?p2) (and (TrajCollision ?t ?o2 ?p2)
   ;                         (AtPose ?o2 ?p2)))

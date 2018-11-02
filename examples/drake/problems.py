@@ -10,7 +10,7 @@ from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 
 from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED
 from examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
-    get_aabb_z_placement, BoundingBox, get_model_indices
+    get_aabb_z_placement, BoundingBox, get_model_indices, get_model_bodies, get_bodies
 
 IIWA14_SDF_PATH = os.path.join(pydrake.getDrakePath(),
                                "manipulation", "models", "iiwa_description", "sdf",
@@ -63,7 +63,7 @@ class VisualElement(object):
 
 class Task(object):
     def __init__(self, mbp, scene_graph, robot, gripper,
-                 movable=[], surfaces=[], doors=[], fixed=[],
+                 movable=[], surfaces=[], doors=[],
                  initial_positions={}, initial_poses={}, goal_on=[], goal_cooked=[]):
         self.mbp = mbp
         self.scene_graph = scene_graph
@@ -72,19 +72,28 @@ class Task(object):
         self.movable = movable
         self.surfaces = surfaces
         self.doors = doors
-        self.fixed = fixed
         self.initial_positions = initial_positions
         self.initial_poses = initial_poses
         self.goal_on = goal_on
         self.goal_cooked = goal_cooked
+    def movable_bodies(self):
+        movable = {self.mbp.tree().get_body(index) for index in self.doors}
+        for model in [self.robot, self.gripper] + list(self.movable):
+            movable.update(get_model_bodies(self.mbp, model))
+            #for body in get_model_bodies(self.mbp, model):
+            #    #print(self.mbp.tree().get_body(body.index()) in {body}) # True
+            #    #print(body.index() in {body.index()}) # False
+            #    movable.add(body.index())
+        return movable
+    def fixed_bodies(self):
+        return set(get_bodies(self.mbp)) - self.movable_bodies()
     def __repr__(self):
-        return '{}(robot={}, gripper={}, movable={}, surfaces={}, fixed={})'.format(
+        return '{}(robot={}, gripper={}, movable={}, surfaces={})'.format(
             self.__class__.__name__,
             get_model_name(self.mbp, self.robot),
             get_model_name(self.mbp, self.gripper),
             [get_model_name(self.mbp, model) for model in self.movable],
-            self.surfaces,
-            [get_model_name(self.mbp, model) for model in self.fixed])
+            self.surfaces)
 
 ##################################################
 
@@ -114,10 +123,8 @@ def load_station(time_step=0.0):
     initial_poses = {
         object: create_transform(translation=[.6, 0, 0]),
     }
-    movable = [object]
-    fixed = [model for model in get_model_indices(mbp) if model not in (movable + [robot, gripper])]
 
-    task = Task(mbp, scene_graph, robot, gripper, movable=[object], surfaces=[], fixed=fixed,
+    task = Task(mbp, scene_graph, robot, gripper, movable=[object], surfaces=[],
                 initial_positions=initial_positions, initial_poses=initial_poses,
                 goal_on=[])
 
@@ -211,7 +218,7 @@ def load_manipulation(time_step=0.0):
         brick: create_transform(translation=[0.4, 0, 0]),
     }
 
-    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors, fixed=[amazon_table, cupboard],
+    task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors,
                 initial_positions=initial_positions, initial_poses=initial_poses,
                 goal_on=[(brick, goal_surface)])
 
@@ -259,16 +266,13 @@ def load_tables(time_step=0.0):
         VisualElement(sink, 'base_link', 0), # Could also just pass the link index
         VisualElement(stove, 'base_link', 0),
     ]
-    fixed = [table, table2, sink, stove]
-    if wall is not None:
-        fixed.append(wall)
 
     initial_poses = {
         broccoli: create_transform(translation=[table2_x, 0, table_top_z]),
     }
 
     task = Task(mbp, scene_graph, robot, gripper,
-                movable=movable, fixed=fixed, surfaces=surfaces,
+                movable=movable, surfaces=surfaces,
                 initial_poses=initial_poses,
                 goal_cooked=[broccoli])
 
