@@ -2,14 +2,12 @@
 
 from __future__ import print_function
 
-import math
 import os
+import numpy as np
 from collections import namedtuple
 
-import numpy as np
 from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
-
 from pddlstream.algorithms.incremental import solve_exhaustive
 #from pddlstream.algorithms.execution import solve_execution
 from pddlstream.language.constants import And, Equal

@@ -10,13 +10,15 @@ from collections import namedtuple
 from pydrake.geometry import DispatchLoadMessage
 from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement,
     WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, FrameIndex)
-from pydrake.multibody import inverse_kinematics
+from pydrake.multibody.inverse_kinematics import InverseKinematics
 from pydrake.solvers.mathematicalprogram import SolutionResult
 from pydrake.math import RollPitchYaw, RotationMatrix
 from pydrake.util.eigen_geometry import Isometry3
 from drake import lcmt_viewer_load_robot
 from pydrake.lcm import DrakeMockLcm
 from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
+
+user_input = raw_input
 
 BoundingBox = namedtuple('BoundingBox', ['center', 'extent'])
 
@@ -127,6 +129,11 @@ def prune_fixed_joints(joints):
 def get_movable_joints(mbp, model_index):
     return prune_fixed_joints(get_model_joints(mbp, model_index))
 
+
+def get_parent_joints(mbp, body):
+    # Really should just be none or one
+    return [joint for joint in get_movable_joints(mbp, body.model_instance())
+            if joint.child_body() == body]
 
 ##################################################
 
@@ -284,7 +291,7 @@ def fix_input_ports(mbp, context):
 ##################################################
 
 def solve_inverse_kinematics(mbp, target_frame, target_pose,
-        max_position_error=0.001, theta_bound=0.01*np.pi, initial_guess=None):
+        max_position_error=0.005, theta_bound=0.01*np.pi, initial_guess=None):
     if initial_guess is None:
         # TODO: provide initial guess for some joints (like iiwa joint0)
         initial_guess = np.zeros(mbp.num_positions())
@@ -293,7 +300,7 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
             if -np.inf < lower < upper < np.inf:
                 initial_guess[joint.position_start()] = random.uniform(lower, upper)
 
-    ik_scene = inverse_kinematics.InverseKinematics(mbp)
+    ik_scene = InverseKinematics(mbp)
     world_frame = mbp.world_frame()
 
     ik_scene.AddOrientationConstraint(
@@ -306,6 +313,8 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
     ik_scene.AddPositionConstraint(
         frameB=target_frame, p_BQ=np.zeros(3),
         frameA=world_frame, p_AQ_lower=lower, p_AQ_upper=upper)
+    # AddAngleBetweenVectorsConstraint
+    # AddGazeTargetConstraint
 
     prog = ik_scene.prog()
     prog.SetInitialGuess(ik_scene.q(), initial_guess)
@@ -316,53 +325,42 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
 
 ##################################################
 
-def get_colliding_bodies(mbp, context, min_penetration=0.0):
+
+def get_colliding_bodies(diagram, diagram_context, plant, scene_graph, min_penetration=0.0):
     # TODO: set collision geometries pairs to check
     # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
-    body_from_geometry_id = {}
-    for body in get_bodies(mbp):
-        for geometry_id in mbp.GetCollisionGeometriesForBody(body):
-            body_from_geometry_id[geometry_id.get_value()] = body
+    # WARNING: indices have equality defined but not a hash function
+    sg_context = diagram.GetMutableSubsystemContext(scene_graph, diagram_context)
+    query_object = scene_graph.get_query_output_port().Eval(sg_context)
+    inspector = query_object.inspector()
     colliding_bodies = set()
-    for penetration in mbp.CalcPointPairPenetrations(context):
-        if penetration.depth < min_penetration:
-            continue
-        body1 = body_from_geometry_id[penetration.id_A.get_value()]
-        body2 = body_from_geometry_id[penetration.id_B.get_value()]
-        colliding_bodies.update([(body1, body2), (body2, body1)])
+    for penetration in query_object.ComputePointPairPenetration():
+        if min_penetration <= penetration.depth:
+            body1, body2 = [plant.GetBodyFromFrameId(inspector.GetFrameId(geometry_id))
+                  for geometry_id in [penetration.id_A, penetration.id_B]]
+            colliding_bodies.update([(body1, body2), (body2, body1)])
     return colliding_bodies
 
 
-def get_colliding_models(mbp, context, **kwargs):
-    # WARNING: indices have equality defined but not a hash function
-    colliding_models = set()
-    for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
-        colliding_models.add((body1.model_instance(), body2.model_instance()))
-    return colliding_models
-
-
-def exists_colliding_pair(mbp, context, pairs, **kwargs):
-    if not pairs:
+def exists_colliding_pair(mbp, context, body_pairs, **kwargs):
+    if not body_pairs:
         return False
-    check_indices = {(int(one), int(two)) for one, two in pairs}
-    colliding_indices = {(int(one), int(two)) for one, two in get_colliding_models(mbp, context, **kwargs)}
-    intersection = check_indices & colliding_indices
+    intersection = get_colliding_bodies(context, mbp, **kwargs) & body_pairs
     #if intersection:
     #    print([(get_model_name(mbp, ModelInstanceIndex(one)),
     #            get_model_name(mbp, ModelInstanceIndex(two))) for one, two in intersection])
     return bool(intersection)
 
+##################################################
 
-def is_model_colliding(mbp, context, model, obstacles=None):
-    if obstacles is None:
-        obstacles = get_model_indices(mbp)  # All models
-    if not obstacles:
-        return False
-    for model1, model2 in get_colliding_models(mbp, context):
-        if (model1 == model) and (model2 in obstacles):  # Okay if obstacles is a list (equality)
-            return True
-    return False
-
+def get_geom_name(geom):
+    name_from_type = {
+        geom.BOX: 'box',
+        geom.CYLINDER: 'cylinder',
+        geom.SPHERE: 'sphere',
+        geom.MESH: 'mesh',
+    }
+    return name_from_type[geom.type]
 
 def get_box_from_geom(scene_graph, visual_only=True):
     # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
@@ -375,6 +373,7 @@ def get_box_from_geom(scene_graph, visual_only=True):
     #builder.Connect(scene_graph.get_pose_bundle_output_port(),
     #                viz.get_input_port(0))
 
+    # TODO: hash bodies instead
     box_from_geom = {}
     for body_index in range(load_robot_msg.num_links):
         # 'geom', 'name', 'num_geom', 'robot_num'
@@ -390,6 +389,8 @@ def get_box_from_geom(scene_graph, visual_only=True):
             if visual_only and (geom.color[3] == 0):
                 continue
 
+            # TODO: sort by lowest point on the bounding box?
+            # TODO: maybe just return the set of bodies in order and let the user decide what to with them
             visual_index += 1 # TODO: affected by transparent visual
             if geom.type == geom.BOX:
                 assert geom.num_float_data == 3
@@ -410,14 +411,11 @@ def get_box_from_geom(scene_graph, visual_only=True):
             #    meshcat_geom = meshcat.geometry.ObjMeshGeometry.from_file(
             #            geom.string_data[0:-3] + "obj")
             else:
-                print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
-                    model_index, frame_name, visual_index-1, geom.type))
+                #print("Robot {}, link {}, geometry {}: UNSUPPORTED GEOMETRY TYPE {} WAS IGNORED".format(
+                #    model_index, frame_name, visual_index-1, geom.type))
                 continue
             link_from_box = RigidTransform(
                 RotationMatrix(Quaternion(geom.quaternion)), geom.position).GetAsIsometry3() #.GetAsMatrix4()
             box_from_geom[model_index, frame_name, visual_index-1] = \
-                (BoundingBox(np.zeros(3), extent), link_from_box)
+                (BoundingBox(np.zeros(3), extent), link_from_box, get_geom_name(geom))
     return box_from_geom
-
-
-user_input = raw_input

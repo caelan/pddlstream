@@ -91,3 +91,25 @@ def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGT
             distance = dz / math.cos(pitch) if abs(pitch) < threshold else d1 / abs(math.sin(pitch))
             translate_z = create_transform(translation=[0, 0, - TOOL_Z - distance + grasp_length])
             yield reflect_z.multiply(translate_z).multiply(rotate_x).multiply(rotate_z).multiply(aabb_from_body)
+
+##################################################
+
+DOOR_CLOSED = 0
+#DOOR_OPEN = np.pi
+#DOOR_OPEN = 0.497 * np.pi  # Seems to be the limit
+#DOOR_OPEN = 0.49 * np.pi
+DOOR_OPEN = 0.45 * np.pi
+
+
+def get_open_positions(door_body):
+    name = door_body.name()
+    if name == 'left_door':
+        return [-DOOR_OPEN]
+    elif name == 'right_door':
+        return [DOOR_OPEN]
+    else:
+        raise ValueError(name)
+
+
+def get_closed_positions(door_body):
+    return [DOOR_CLOSED]

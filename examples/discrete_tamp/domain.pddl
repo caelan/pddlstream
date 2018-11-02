@@ -24,7 +24,7 @@
                        (AtConf ?q1) (CanMove))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))
-             (increase (total-cost) (Distance ?q1 ?q2)))
+                 (increase (total-cost) (Distance ?q1 ?q2)))
   )
   (:action pick
     :parameters (?b ?p ?q)

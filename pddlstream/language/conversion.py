@@ -67,9 +67,10 @@ def list_from_conjunction(parent):
     if parent is None:
         return []
     clauses = dnf_from_positive_formula(parent)
-    assert len(clauses) <= 1
     if not clauses:
         return clauses
+    if 1 < len(clauses):
+        raise ValueError('Formula {} has more than one conjunctive clauses'.format(parent))
     return clauses[0]
 
 def substitute_expression(parent, mapping):

@@ -150,11 +150,16 @@ class External(Performance):
         self.inputs = tuple(inputs)
         self.domain = tuple(domain)
         for p, c in Counter(self.inputs).items():
+            if not is_parameter(p):
+                # AssertionError: Expected item to be a variable: q2 in (?q1 q2)
+                raise ValueError('Input [{}] for stream [{}] is not a parameter'.format(p, name))
             if c != 1:
                 raise ValueError('Input [{}] for stream [{}] is not unique'.format(p, name))
         parameters = {a for i in self.domain for a in get_args(i) if is_parameter(a)}
         for p in (parameters - set(self.inputs)):
             raise ValueError('Parameter [{}] for stream [{}] is not included within inputs'.format(p, name))
+        for p in (set(self.inputs) - parameters):
+            print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
 
@@ -180,11 +185,15 @@ def get_procedure_fn(stream_map, name):
         raise ValueError('Undefined external procedure: {}'.format(name))
     return stream_map[name]
 
-def parse_lisp_list(lisp_list):
-    assert(len(lisp_list) % 2 == 0)
-    attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
-    values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
-    return get_mapping(attributes, values)
+def is_attribute(attribute):
+    return isinstance(attribute, str) and attribute.startswith(':')
 
-#def is_property(s):
-#    return s.startswith(':')
+def parse_lisp_list(lisp_list):
+    attributes = [lisp_list[i] for i in range(0, len(lisp_list), 2)]
+    for attribute in attributes:
+        if not is_attribute(attribute):
+            raise ValueError('Expected an attribute but got: {}'.format(attribute))
+    values = [lisp_list[i] for i in range(1, len(lisp_list), 2)]
+    if len(lisp_list) % 2 != 0:
+        raise ValueError('No value specified for attribute [{}]'.format(lisp_list[-1]))
+    return get_mapping(attributes, values)

@@ -12,30 +12,28 @@
     :certified (Grasp ?o ?g)
   )
   (:stream inverse-kinematics
-    :inputs (?o ?p ?g)
-    :domain (and (Pose ?o ?p) (Grasp ?o ?g))
+    :inputs (?r ?o ?p ?g)
+    :domain (and (Robot ?r) (Pose ?o ?p) (Grasp ?o ?g))
     :outputs (?q ?t)
-    :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t) (GraspConf ?o ?g ?q)) ; TODO: (GraspConf ?o ?g ?q) for initial conf
+    :certified (and (Conf ?r ?q) (Traj ?t)
+                    (Kin ?r ?o ?p ?g ?q ?t))
   )
-  (:stream plan-free-motion
-    :inputs (?q1 ?q2)
-    :domain (and (Conf ?q1) (Conf ?q2))
-    ;:fluents (AtPose)
+  (:stream plan-motion
+    :inputs (?r ?q1 ?q2)
+    :domain (and (Conf ?r ?q1) (Conf ?r ?q2) (Robot ?r))
+    :fluents (AtConf AtPose AtGrasp)
     :outputs (?t)
-    ;:certified (and (Traj ?t) (FreeMotion ?q1 ?t ?q2))
-    :certified (FreeMotion ?q1 ?t ?q2)
+    :certified (Motion ?r ?q1 ?q2 ?t)
   )
-  (:stream plan-holding-motion
-    :inputs (?q1 ?q2 ?o ?g)
-    ;:domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
-    :domain (and (GraspConf ?o ?g ?q1) (GraspConf ?o ?g ?q2)) ; Condition that ?o ?g make sense for ?q1 ?q2
-    ;:fluents (AtPose)
-    :outputs (?t)
-    ;:certified (and (Traj ?t) (HoldingMotion ?q1 ?t ?q2 ?o ?g))
-    :certified (HoldingMotion ?q1 ?t ?q2 ?o ?g)
+  (:stream plan-pull
+    :inputs (?r ?d ?dq1 ?dq2)
+    :domain (and (Robot ?r) (Conf ?d ?dq1) (Conf ?d ?dq2) (Door ?d))
+    :outputs (?rq1 ?rq2 ?t)
+    :certified (and (Conf ?r ?rq1) (Conf ?r ?rq2) (Traj ?t)
+                    (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t))
   )
 
-  ;(:predicate (TrajCollision ?t ?o2 ?p2)
-  ;  (and (Traj ?t) (Pose ?o2 ?p2))
-  ;)
+  (:predicate (TrajCollision ?t ?o2 ?p2)
+    (and (Traj ?t) (Pose ?o2 ?p2))
+  )
 )
