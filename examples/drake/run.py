@@ -22,8 +22,7 @@ from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from
 from examples.drake.problems import load_manipulation, load_tables, load_station
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
-    get_base_body, get_body_pose, \
-    get_state, set_state
+    get_base_body, get_body_pose, get_state, set_state, RenderSystemWithGraphviz
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
@@ -69,6 +68,12 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                                               kuka_model_instance=robot,
                                               print_period=print_period)
     builder.AddSystem(iiwa_controller)
+
+    print(mbp.GetInputPort('iiwa_actuation').size(), iiwa_controller.get_output_port(0).size(),
+          mbp.GetInputPort('gripper_actuation').size())
+    # Failure at bazel-out/k8-opt/bin/tools/install/libdrake/_virtual_includes/drake_shared_library/drake/systems/framework/diagram_builder.h:134
+    # in Connect(): condition 'src.size() == dest.size()' failed.
+
     builder.Connect(iiwa_controller.get_output_port(0),
                     mbp.GetInputPort('iiwa_actuation'))
                     #mbp.get_input_port(0)) # RuntimeError: Input port is already wired
@@ -177,8 +182,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         for positions in [get_open_positions(door_body)]: #, get_closed_positions(door_body)]:
             conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
-            goal_literals += [('AtConf', door_name, conf)]
-        #goal_literals += [('AtConf', door_name, door_conf)]
+            #goal_literals += [('AtConf', door_name, conf)]
+        goal_literals += [('AtConf', door_name, door_conf)]
 
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
@@ -435,7 +440,7 @@ def main(deterministic=True):
     else:
         state_machine = None
     diagram = builder.Build()
-    #RenderSystemWithGraphviz(diagram) # Useful for getting port names
+    RenderSystemWithGraphviz(diagram) # Useful for getting port names
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     task.diagram = diagram

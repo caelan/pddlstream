@@ -203,7 +203,7 @@ def load_manipulation(time_step=0.0):
     ]
     door_names = [
         'left_door',
-        #'right_door',
+        'right_door',
     ]
     doors = [mbp.GetBodyByName(name).index() for name in door_names]
 
