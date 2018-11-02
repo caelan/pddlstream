@@ -65,7 +65,10 @@ class Trajectory(object):
 
     @property
     def bodies(self):
-        return {joint.child_body() for joint in self.joints}
+        joint_bodies = {joint.child_body() for joint in self.joints}
+        for attachment in self.attachments:
+            joint_bodies.update(attachment.bodies)
+        return joint_bodies
 
     def iterate(self, context):
         for conf in self.path[1:]:
@@ -208,11 +211,12 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
         gripper_from_box = grasps[1] # Second grasp is np.pi/2, corresponding to +y
         gripper_from_obj = gripper_from_box.multiply(handle_from_box.inverse())
         pull_cartesian_path = [body_pose.multiply(gripper_from_obj.inverse()) for body_pose in door_cartesian_path]
+        # TODO: can also pull from the side of the door
 
         #start_path = list(interpolate_translation(pull_cartesian_path[0], approach_vector))
         #end_path = list(interpolate_translation(pull_cartesian_path[-1], approach_vector))
         for _ in range(max_attempts):
-            pull_joint_waypoints = plan_workspace_motion(task.mbp, context, robot_joints, gripper_frame, pull_cartesian_path,
+            pull_joint_waypoints = plan_workspace_motion(task.mbp, robot_joints, gripper_frame, pull_cartesian_path,
                                                          collision_fn=collision_fn) # reversed(gripper_path))
             if pull_joint_waypoints is None:
                 continue
@@ -268,7 +272,7 @@ def get_motion_fn(task, context, collisions=True):
         open_wsg50_gripper(task.mbp, context, gripper)
         set_joint_positions(joints, context, conf1.positions)
         path = plan_joint_motion(joints, conf1.positions, conf2.positions, collision_fn=collision_fn,
-                                 restarts=5, iterations=75, smooth=100)
+                                 restarts=7, iterations=75, smooth=100)
         if path is None:
             return None
         #path = refine_joint_path(joints, path)
@@ -284,11 +288,13 @@ def get_collision_test(task, context, collisions=True):
             return False
         moving = bodies_from_models(task.mbp, [task.robot, task.gripper])
         moving.update(traj.bodies)
+        obstacles = set(pose.bodies) - moving
+        collision_pairs = set(product(moving, obstacles))
+        if not collision_pairs:
+            return False
         pose.assign(context)
-        collision_pairs = set(product(moving, pose.bodies))
         for _ in traj.iterate(context):
-            pass
-            #if exists_colliding_pair(task.mbp, context, collision_pairs):
-            #    return True
+            if exists_colliding_pair(task.diagram, task.diagram_context, task.mbp, task.scene_graph, collision_pairs):
+                return True
         return False
     return test

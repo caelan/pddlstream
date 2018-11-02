@@ -188,7 +188,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         for positions in [get_open_positions(door_body)]: #, get_closed_positions(door_body)]:
             conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
-            goal_literals += [('AtConf', door_name, conf)]
+            #goal_literals += [('AtConf', door_name, conf)]
+        goal_literals += [('AtConf', door_name, door_conf)]
 
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
@@ -207,7 +208,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         'inverse-kinematics': from_fn(get_ik_fn(task, context, collisions=collisions)),
         'plan-motion': from_fn(get_motion_fn(task, context, collisions=collisions)),
         'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
-        'TrajCollision': get_collision_test(task, context, collisions=collisions),
+        'TrajPoseCollision': get_collision_test(task, context, collisions=collisions),
+        'TrajConfCollision': get_collision_test(task, context, collisions=collisions),
     }
     #stream_map = 'debug'
 
@@ -507,7 +509,7 @@ def main(deterministic=True):
     else:
         #time_step = None
         #time_step = 0.001
-        time_step = 0.01
+        time_step = 0.02
         step_trajectories(diagram, diagram_context, context, trajectories, time_step=time_step) #, teleport=True)
 
 

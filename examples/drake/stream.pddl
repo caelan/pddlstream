@@ -1,4 +1,4 @@
-(define (stream kuka-tamp)
+(define (stream manipulation-station)
   (:stream sample-pose
     :inputs (?o ?s)
     :domain (Stackable ?o ?s)
@@ -33,7 +33,10 @@
                     (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t))
   )
 
-  (:predicate (TrajCollision ?t ?o2 ?p2)
-    (and (Traj ?t) (Pose ?o2 ?p2))
+  (:predicate (TrajPoseCollision ?t ?o ?p)
+    (and (Traj ?t) (Pose ?o ?p))
+  )
+  (:predicate (TrajConfCollision ?t ?d ?q)
+    (and (Traj ?t) (Conf ?d ?q))
   )
 )

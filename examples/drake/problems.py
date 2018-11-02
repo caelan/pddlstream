@@ -201,16 +201,20 @@ def load_manipulation(time_step=0.0):
         #VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
-    #doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
-    doors = []
+    door_names = [
+        'left_door',
+        #'right_door',
+    ]
+    doors = [mbp.GetBodyByName(name).index() for name in door_names]
 
-    #door_position = DOOR_CLOSED  # np.pi/2
+    door_position = DOOR_CLOSED  # np.pi/2
     #door_position = DOOR_OPEN
-    door_position = np.pi
+    #door_position = np.pi
     #door_position = np.pi/8
     initial_positions = {
         mbp.GetJointByName('left_door_hinge'): -door_position,
-        mbp.GetJointByName('right_door_hinge'): door_position,
+        #mbp.GetJointByName('right_door_hinge'): door_position,
+        mbp.GetJointByName('right_door_hinge'): np.pi,
     }
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
     #initial_conf[1] += np.pi / 6
@@ -221,9 +225,12 @@ def load_manipulation(time_step=0.0):
         brick: create_transform(translation=[0.4, 0, 0]),
     }
 
+    goal_on = [
+        (brick, goal_surface),
+    ]
+
     task = Task(mbp, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors,
-                initial_positions=initial_positions, initial_poses=initial_poses,
-                goal_on=[(brick, goal_surface)])
+                initial_positions=initial_positions, initial_poses=initial_poses, goal_on=goal_on)
 
     return mbp, scene_graph, task
 

@@ -1,4 +1,4 @@
-(define (domain pick-and-place)
+(define (domain manipulation-station)
   (:requirements :strips :equality)
   (:predicates
     (Stackable ?o ?s)
@@ -6,15 +6,23 @@
     (Stove ?r)
 
     (Robot ?r)
-    (Grasp ?o ?g)
     (Kin ?r ?o ?p ?g ?q ?t)
     (Motion ?r ?q1 ?q2 ?t)
     (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
     (Supported ?o ?p ?s)
-    (Traj ?t)
-    (Pose ?o ?p)
-    (TrajCollision ?t ?o2 ?p2)
 
+    ; "Type" static predicates
+    (Conf ?r ?q)
+    (Pose ?o ?p)
+    (Grasp ?o ?g)
+    (Traj ?t)
+
+
+    ; Collision static predicates
+    (TrajPoseCollision ?t ?o ?p)
+    (TrajConfCollision ?t ?d ?q)
+
+    ; Fluents
     (AtPose ?o ?p)
     (AtGrasp ?r ?o ?g)
     (HandEmpty ?r)
@@ -23,6 +31,7 @@
     (Cleaned ?o)
     (Cooked ?o)
 
+    ; Derived predicates (alternatively axioms)
     (On ?o ?s)
     (Holding ?o)
     (UnsafeTraj ?t)
@@ -80,10 +89,13 @@
     (exists (?g) (and (Robot ?r) (Grasp ?o ?g)
                       (AtGrasp ?r ?o ?g)))
   )
-  ; TODO: can do an or
 
   (:derived (UnsafeTraj ?t)
-    (exists (?o2 ?p2) (and (TrajCollision ?t ?o2 ?p2) (Traj ?t) (Pose ?o2 ?p2)
-                           (AtPose ?o2 ?p2)))
+    (or
+      (exists (?o ?p) (and (TrajPoseCollision ?t ?o ?p) (Traj ?t) (Pose ?o ?p)
+                           (AtPose ?o ?p)))
+      (exists (?d ?q) (and (TrajConfCollision ?t ?d ?q) (Traj ?t) (Conf ?d ?q)
+                           (AtConf ?d ?q)))
+    )
   )
 )
