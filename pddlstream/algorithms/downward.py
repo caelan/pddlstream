@@ -24,6 +24,7 @@ TRANSLATE_FLAGS = ['--negative-axioms'] # '--negative-axioms'
 original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
+# TODO: max translate time
 
 import pddl.f_expression
 import translate
@@ -88,6 +89,7 @@ SEARCH_OPTIONS['ff-ehc'] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NO
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,' \
               'cost_type=NORMAL,max_time=%s,bound=%s)"'
 
+# TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
 DEFAULT_PLANNER = 'ff-astar'
 
