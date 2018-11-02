@@ -5,17 +5,18 @@ import numpy as np
 import argparse
 import cProfile
 import pstats
+import random
 from itertools import product
 
 from examples.drake.generators import Pose, Conf, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
-    get_motion_fn, get_pull_fn
+    get_motion_fn, get_pull_fn, get_collision_test
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
     open_wsg50_gripper, get_open_positions, get_closed_positions
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
 from examples.drake.problems import load_manipulation, load_station, load_tables
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, \
-    get_model_indices, exists_colliding_pair, get_joint_positions, get_parent_joints
+    get_model_indices, exists_colliding_pair, get_joint_positions, get_parent_joints, get_base_body, get_body_pose
 
 from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
@@ -206,7 +207,7 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         'inverse-kinematics': from_fn(get_ik_fn(task, context, collisions=collisions)),
         'plan-motion': from_fn(get_motion_fn(task, context, collisions-collisions)),
         'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
-        #'TrajCollision': get_movable_collision_test(),
+        'TrajCollision': get_collision_test(task, context, collisions=collisions),
     }
     #stream_map = 'debug'
 
@@ -363,11 +364,42 @@ def test_manipulation(plan_list, gripper_setpoint_list):
 
 ##################################################
 
-def main():
+def test_generators(task, diagram, diagram_context):
+    mbp = task.mbp
+    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
+
+    # Test grasps
+    print(get_base_body(mbp, task.gripper).name())
+    print(get_body_pose(context, mbp.GetBodyByName('left_finger', task.gripper)).matrix() -
+          get_body_pose(context, get_base_body(mbp, task.gripper)).matrix())
+    user_input('Start')
+    model = task.movable[0]
+    grasp_gen_fn = get_grasp_gen(task)
+    for grasp, in grasp_gen_fn(get_model_name(mbp, model)):
+        grasp.assign(context)
+        diagram.Publish(diagram_context)
+        user_input('Continue')
+
+    # Test placements
+    user_input('Start')
+    pose_gen_fn = get_stable_gen(task, context)
+    model = task.movable[0]
+    for pose, in pose_gen_fn(get_model_name(mbp, model), task.surfaces[0]):
+       pose.assign(context)
+       diagram.Publish(diagram_context)
+       user_input('Continue')
+
+##################################################
+
+def main(deterministic=True):
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
     # get_contact_results_output_port
     # TODO: gripper closing via collision information
+
+    if deterministic:
+        random.seed(0)
+        np.random.seed(0)
 
     parser = argparse.ArgumentParser()
     #parser.add_argument('-p', '--problem')
@@ -432,29 +464,6 @@ def main():
     # get_mutable_multibody_state_vector
     #q = mbp.tree().get_multibody_state_vector(context)[:mbp.num_positions()]
     #print(mbp.tree().get_positions_from_array(task.movable[0], q))
-
-    ##################################################
-
-    # from utils import get_base_body, get_body_pose
-    # print(get_base_body(mbp, task.gripper).name())
-    # print(get_body_pose(context, mbp.GetBodyByName('left_finger', task.gripper)).matrix() -
-    #       get_body_pose(context, get_base_body(mbp, task.gripper)).matrix())
-    # user_input('Start')
-    # model = task.movable[0]
-    # grasp_gen_fn = get_grasp_gen(task)
-    # for grasp, in grasp_gen_fn(get_model_name(mbp, model)):
-    #     grasp.assign(context)
-    #     diagram.Publish(diagram_context)
-    #     user_input('Continue')
-
-    # Test placements
-    # user_input('Start')
-    #pose_gen_fn = get_stable_gen(task, context)
-    #model = task.movable[0]
-    #for pose, in pose_gen_fn(get_model_name(mbp, model), task.surfaces[0]):
-    #    pose.assign(context)
-    #    diagram.Publish(diagram_context)
-    #    user_input('Continue')
 
     ##################################################
 

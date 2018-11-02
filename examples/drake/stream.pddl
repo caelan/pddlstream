@@ -21,7 +21,7 @@
   (:stream plan-motion
     :inputs (?r ?q1 ?q2)
     :domain (and (Conf ?r ?q1) (Conf ?r ?q2) (Robot ?r))
-    ;:fluents (AtPose AtConf)
+    :fluents (AtConf AtPose AtGrasp)
     :outputs (?t)
     :certified (Motion ?r ?q1 ?q2 ?t)
   )
@@ -33,7 +33,7 @@
                     (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t))
   )
 
-  ;(:predicate (TrajCollision ?t ?o2 ?p2)
-  ;  (and (Traj ?t) (Pose ?o2 ?p2))
-  ;)
+  (:predicate (TrajCollision ?t ?o2 ?p2)
+    (and (Traj ?t) (Pose ?o2 ?p2))
+  )
 )

@@ -1,8 +1,8 @@
 import numpy as np
 
 from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, get_joint_positions, \
-    exists_colliding_pair
-from examples.pybullet.utils.motion.motion_planners.rrt_connect import direct_path, birrt
+    exists_colliding_pair, create_transform, solve_inverse_kinematics
+from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
 
 DEFAULT_WEIGHT = 1.0
 DEFAULT_RESOLUTION = 0.005*np.pi
@@ -41,20 +41,6 @@ def get_distance_fn(joints, weights=None):
     return fn
 
 
-def get_refine_fn(joints, num_steps=0):
-    # TODO: no need for this to be standalone
-    difference_fn = get_difference_fn(joints)
-    num_steps = num_steps + 1
-
-    def fn(q1, q2):
-        q = q1
-        for i in range(num_steps):
-            q = (1. / (num_steps - i)) * np.array(difference_fn(q2, q)) + q
-            yield q
-            # TODO: wrap these values
-    return fn
-
-
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
         resolutions = DEFAULT_RESOLUTION*np.ones(len(joints))
@@ -62,9 +48,12 @@ def get_extend_fn(joints, resolutions=None):
     difference_fn = get_difference_fn(joints)
 
     def fn(q1, q2):
-        steps = np.abs(np.divide(difference_fn(q2, q1), resolutions))
-        refine_fn = get_refine_fn(joints, num_steps=int(np.max(steps)))
-        return refine_fn(q1, q2)
+        num_steps = int(np.max(np.abs(np.divide(difference_fn(q2, q1), resolutions)))) + 1
+        q = q1
+        for i in range(num_steps):
+            q = (1. / (num_steps - i)) * np.array(difference_fn(q2, q)) + q
+            yield q
+            # TODO: wrap these values
     return fn
 
 
@@ -144,7 +133,9 @@ def waypoints_from_path(joints, path):
     waypoints = [path[0]]
     last_conf = path[1]
     last_difference = get_unit_vector(difference_fn(last_conf, waypoints[-1]))
-    for conf in path[2:]:
+    for i, conf in enumerate(path[2:]):
+        if np.linalg.norm(difference_fn(path[i-1], conf)) == 0:
+            continue
         difference = get_unit_vector(difference_fn(conf, waypoints[-1]))
         if not np.allclose(last_difference, difference, atol=1e-3, rtol=0):
             waypoints.append(last_conf)
@@ -152,4 +143,29 @@ def waypoints_from_path(joints, path):
         last_conf = conf
         last_difference = difference
     waypoints.append(last_conf)
+    return waypoints
+
+
+def interpolate_translation(transform, translation, step_size=0.01):
+    distance = np.linalg.norm(translation)
+    if distance == 0:
+        yield transform
+        return
+    direction = np.array(translation) / distance
+    for t in list(np.arange(0, distance, step_size)) + [distance]:
+        yield transform.multiply(create_transform(translation=t * direction))
+
+
+def plan_workspace_motion(mbp, context, joints, frame, frame_path, initial_guess=None, **kwargs):
+    collision_fn = get_collision_fn(mbp, context, joints, **kwargs)
+    solution = initial_guess
+    waypoints = []
+    for frame_pose in frame_path:
+        solution = solve_inverse_kinematics(mbp, frame, frame_pose, initial_guess=solution)
+        if solution is None:
+            return None
+        positions = [solution[j.position_start()] for j in joints]
+        if collision_fn(positions):
+            return None
+        waypoints.append(positions)
     return waypoints

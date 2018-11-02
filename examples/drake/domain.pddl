@@ -11,6 +11,8 @@
     (Motion ?r ?q1 ?q2 ?t)
     (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
     (Supported ?o ?p ?s)
+    (Traj ?t)
+    (Pose ?o ?p)
     (TrajCollision ?t ?o2 ?p2)
 
     (AtPose ?o ?p)
@@ -29,7 +31,7 @@
   (:action move
     :parameters (?r ?q1 ?q2 ?t)
     :precondition (and (Motion ?r ?q1 ?q2 ?t)
-                       (AtConf ?r ?q1) (CanMove ?r)) ; (not (UnsafeTraj ?t)))
+                       (AtConf ?r ?q1) (CanMove ?r))
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r)))
   )
@@ -79,8 +81,9 @@
                       (AtGrasp ?r ?o ?g)))
   )
   ; TODO: can do an or
-  ;(:derived (UnsafeTraj ?t)
-  ;  (exists (?o2 ?p2) (and (TrajCollision ?t ?o2 ?p2)
-  ;                         (AtPose ?o2 ?p2)))
-  ;)
+
+  (:derived (UnsafeTraj ?t)
+    (exists (?o2 ?p2) (and (TrajCollision ?t ?o2 ?p2) (Traj ?t) (Pose ?o2 ?p2)
+                           (AtPose ?o2 ?p2)))
+  )
 )

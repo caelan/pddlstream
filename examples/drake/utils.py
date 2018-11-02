@@ -325,6 +325,7 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
 
 ##################################################
 
+
 def get_colliding_bodies(diagram, diagram_context, plant, scene_graph, min_penetration=0.0):
     # TODO: set collision geometries pairs to check
     # TODO: check collisions with a buffer (e.g. ComputeSignedDistancePairwiseClosestPoints())
@@ -340,34 +341,15 @@ def get_colliding_bodies(diagram, diagram_context, plant, scene_graph, min_penet
             colliding_bodies.update([(body1, body2), (body2, body1)])
     return colliding_bodies
 
-def get_colliding_models(mbp, context, **kwargs):
-    colliding_models = set()
-    for body1, body2 in get_colliding_bodies(mbp, context, **kwargs):
-        colliding_models.add((body1.model_instance(), body2.model_instance()))
-    return colliding_models
 
-
-def exists_colliding_pair(mbp, context, pairs, **kwargs):
-    if not pairs:
+def exists_colliding_pair(mbp, context, body_pairs, **kwargs):
+    if not body_pairs:
         return False
-    check_indices = {(int(one), int(two)) for one, two in pairs}
-    colliding_indices = {(int(one), int(two)) for one, two in get_colliding_models(mbp, context, **kwargs)}
-    intersection = check_indices & colliding_indices
+    intersection = get_colliding_bodies(context, mbp, **kwargs) & body_pairs
     #if intersection:
     #    print([(get_model_name(mbp, ModelInstanceIndex(one)),
     #            get_model_name(mbp, ModelInstanceIndex(two))) for one, two in intersection])
     return bool(intersection)
-
-
-def is_model_colliding(mbp, context, model, obstacles=None):
-    if obstacles is None:
-        obstacles = get_model_indices(mbp)  # All models
-    if not obstacles:
-        return False
-    for model1, model2 in get_colliding_models(mbp, context):
-        if (model1 == model) and (model2 in obstacles):  # Okay if obstacles is a list (equality)
-            return True
-    return False
 
 ##################################################
 
@@ -391,6 +373,7 @@ def get_box_from_geom(scene_graph, visual_only=True):
     #builder.Connect(scene_graph.get_pose_bundle_output_port(),
     #                viz.get_input_port(0))
 
+    # TODO: hash bodies instead
     box_from_geom = {}
     for body_index in range(load_robot_msg.num_links):
         # 'geom', 'name', 'num_geom', 'robot_num'
