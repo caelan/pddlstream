@@ -174,12 +174,11 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
     box_from_geom = get_box_from_geom(task.scene_graph)
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
-    pitch = np.pi/2
+    pitch = np.pi/2 # TODO: can use a different pitch
     grasp_length = 0.02
-    # TODO: need to change my collision pairs
 
     #approach_vector = 0.01*np.array([0, -1, 0])
-    # TODO: could also push the door
+    # TODO: could also push the door either perpendicular or parallel
     # TODO: could solve for kinematic solution of robot and doors
     # DoDifferentialInverseKinematics
     # TODO: allow small rotation error perpendicular to handle
@@ -201,25 +200,26 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
             set_joint_positions(door_joints, context, robot_conf)
             door_cartesian_path.append(get_body_pose(context, door_body))
 
+        shape, index = 'cylinder', 1 # Second grasp is np.pi/2, corresponding to +y
+        #shape, index = 'box', 0 # left_door TODO: right_door
         for i in range(2):
             handle_aabb, handle_from_box, handle_shape = box_from_geom[int(door_body.model_instance()), door_name, i]
-            if handle_shape == 'cylinder':
+            if handle_shape == shape:
                 break
         else:
-            raise RuntimeError()
-        grasps = list(get_box_grasps(handle_aabb, pitch_range=(pitch, pitch), grasp_length=grasp_length))
-        gripper_from_box = grasps[1] # Second grasp is np.pi/2, corresponding to +y
+            raise RuntimeError(shape)
+        [gripper_from_box] = list(get_box_grasps(handle_aabb, orientations=[index], pitch_range=(pitch, pitch), grasp_length=grasp_length))
         gripper_from_obj = gripper_from_box.multiply(handle_from_box.inverse())
         pull_cartesian_path = [body_pose.multiply(gripper_from_obj.inverse()) for body_pose in door_cartesian_path]
-        # TODO: can also pull from the side of the door
 
         #start_path = list(interpolate_translation(pull_cartesian_path[0], approach_vector))
         #end_path = list(interpolate_translation(pull_cartesian_path[-1], approach_vector))
         for _ in range(max_attempts):
-            pull_joint_waypoints = plan_workspace_motion(task.mbp, robot_joints, gripper_frame, pull_cartesian_path,
-                                                         collision_fn=collision_fn) # reversed(gripper_path))
+            pull_joint_waypoints = plan_workspace_motion(task.mbp, robot_joints, gripper_frame, reversed(pull_cartesian_path),
+                                                         collision_fn=collision_fn)
             if pull_joint_waypoints is None:
                 continue
+            pull_joint_waypoints = pull_joint_waypoints[::-1]
             rq1 = Conf(robot_joints, pull_joint_waypoints[0])
             rq2 = Conf(robot_joints, pull_joint_waypoints[-1])
             combined_joints = robot_joints + door_joints

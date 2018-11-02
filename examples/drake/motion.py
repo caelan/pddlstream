@@ -1,7 +1,7 @@
 import numpy as np
 
-from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, get_joint_positions, \
-    exists_colliding_pair, create_transform, solve_inverse_kinematics
+from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, exists_colliding_pair, \
+    create_transform, solve_inverse_kinematics, get_unit_vector
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
 
 DEFAULT_WEIGHT = 1.0
@@ -141,12 +141,6 @@ def plan_joint_motion(joints, start_positions, end_positions,
                  collision=collision_fn, **kwargs)
 
 ##################################################
-
-def get_unit_vector(vec):
-    norm = np.linalg.norm(vec)
-    if norm == 0.:
-        return vec
-    return np.array(vec) / norm
 
 
 def waypoints_from_path(joints, path):

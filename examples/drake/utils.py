@@ -9,7 +9,7 @@ from collections import namedtuple
 
 from pydrake.geometry import DispatchLoadMessage
 from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement,
-    WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, FrameIndex)
+    WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, JointActuatorIndex, FrameIndex)
 from pydrake.multibody.inverse_kinematics import InverseKinematics
 from pydrake.solvers.mathematicalprogram import SolutionResult
 from pydrake.math import RollPitchYaw, RotationMatrix
@@ -65,6 +65,13 @@ def sample_aabb_placement(object_aabb, surface_aabb, shrink=0.01, **kwargs):
 ##################################################
 
 
+def get_unit_vector(vec):
+    norm = np.linalg.norm(vec)
+    if norm == 0.:
+        return vec
+    return np.array(vec) / norm
+
+
 def matrix_from_euler(euler):
     roll, pitch, yaw = euler
     return RollPitchYaw(roll, pitch, yaw).ToRotationMatrix().matrix()
@@ -99,6 +106,10 @@ def get_bodies(mbp):
 
 def get_joints(mbp):
     return [mbp.tree().get_joint(JointIndex(i)) for i in range(mbp.num_joints())]
+
+
+def get_joint_actuators(mbp):
+    return [mbp.tree().get_joint_actuator(JointActuatorIndex(i)) for i in range(mbp.num_actuators())]
 
 
 def get_frames(mbp):
@@ -235,6 +246,24 @@ def set_world_pose(mbp, context, model_index, world_pose):
 
 ##################################################
 
+
+def get_state(mbp, context):
+    #q = mbp.tree().get_multibody_state_vector(context)[:mbp.num_positions()]
+    #print(mbp.tree().get_positions_from_array(task.movable[0], q))
+    #return context.get_continuous_state_vector().get_value() # CopyToVector
+    return mbp.tree().get_multibody_state_vector(context).copy()
+
+
+def set_state(mbp, context, state):
+    #context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
+    mbp.tree().get_mutable_multibody_state_vector(context)[:] = state
+
+
+def get_positions(mbp, context):
+    return get_state(mbp, context)[:mbp.num_positions()]
+
+##################################################
+
 def dump_plant(mbp):
     print('\nModels:')
     for i, name in enumerate(get_model_names(mbp)):
@@ -280,12 +309,22 @@ def weld_to_world(mbp, model_index, world_pose):
                   parent_frame_P=mbp.world_body().body_frame(),
                   child_frame_C=get_base_body(mbp, model_index).body_frame(),
                   X_PC=world_pose))
+
+
+def RenderSystemWithGraphviz(system, output_file="system_view.gz"):
+    ''' Renders the Drake system (presumably a diagram,
+    otherwise this graph will be fairly trivial) using
+    graphviz to a specified file. '''
+    from graphviz import Source
+    string = system.GetGraphvizString()
+    src = Source(string)
+    src.render(output_file, view=False)
     
 
-def fix_input_ports(mbp, context):
-    for i in range(mbp.get_num_input_ports()):
-        model_index = mbp.get_input_port(i)
-        context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
+#def fix_input_ports(mbp, context):
+#    for i in range(mbp.get_num_input_ports()):
+#        model_index = mbp.get_input_port(i)
+#        context.FixInputPort(model_index.get_index(), np.zeros(model_index.size()))
 
 
 ##################################################

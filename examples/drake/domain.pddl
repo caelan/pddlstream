@@ -1,15 +1,14 @@
 (define (domain manipulation-station)
   (:requirements :strips :equality)
   (:predicates
-    (Stackable ?o ?s)
-    (Sink ?r)
-    (Stove ?r)
 
+    ; Model static predicates
     (Robot ?r)
-    (Kin ?r ?o ?p ?g ?q ?t)
-    (Motion ?r ?q1 ?q2 ?t)
-    (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
-    (Supported ?o ?p ?s)
+    (Graspable ?o)
+    (Stackable ?o ?s)
+    (Door ?d)
+    (Sink ?s)
+    (Stove ?s)
 
     ; "Type" static predicates
     (Conf ?r ?q)
@@ -17,26 +16,32 @@
     (Grasp ?o ?g)
     (Traj ?t)
 
+    ; Stream-certified static predicates
+    (Supported ?o ?p ?s)
+    (Motion ?r ?q1 ?q2 ?t)
+    (Kin ?r ?o ?p ?g ?q ?t)
+    (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t)
 
     ; Collision static predicates
     (TrajPoseCollision ?t ?o ?p)
     (TrajConfCollision ?t ?d ?q)
 
-    ; Fluents
+    ; Fluents predicates
     (AtPose ?o ?p)
     (AtGrasp ?r ?o ?g)
-    (HandEmpty ?r)
     (AtConf ?r ?q)
+    (HandEmpty ?r)
     (CanMove ?r)
     (Cleaned ?o)
     (Cooked ?o)
 
-    ; Derived predicates (alternatively axioms)
+    ; Derived predicates (also called axioms)
     (On ?o ?s)
     (Holding ?o)
     (UnsafeTraj ?t)
   )
 
+  ; General movement action
   (:action move
     :parameters (?r ?q1 ?q2 ?t)
     :precondition (and (Motion ?r ?q1 ?q2 ?t)
@@ -45,6 +50,7 @@
                  (not (AtConf ?r ?q1)) (not (CanMove ?r)))
   )
 
+  ; Manipulation actions
   (:action pick
     :parameters (?r ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?r ?o ?p ?g ?q ?t)
@@ -67,6 +73,7 @@
                  (not (AtConf ?r ?rq1)) (not (AtConf ?d ?dq1)))
   )
 
+  ; Discrete actions for a cooking task
   (:action clean
     :parameters (?o ?s)
     :precondition (and (Stackable ?o ?s) (Sink ?s)
@@ -81,6 +88,7 @@
                  (not (Cleaned ?o)))
   )
 
+  ; Derived predicate specification
   (:derived (On ?o ?s)
     (exists (?p) (and (Supported ?o ?p ?s)
                       (AtPose ?o ?p)))

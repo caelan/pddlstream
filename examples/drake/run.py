@@ -1,52 +1,44 @@
 from __future__ import print_function
 
-import time
-import numpy as np
 import argparse
 import cProfile
 import pstats
 import random
-from itertools import product
+import time
+
+import numpy as np
+from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
+from pydrake.lcm import DrakeLcm  # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
+from pydrake.systems.analysis import Simulator
+from pydrake.systems.framework import DiagramBuilder
+from pydrake.systems.primitives import SignalLogger
+from pydrake.trajectories import PiecewisePolynomial
 
 from examples.drake.generators import Pose, Conf, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test
 from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
-    open_wsg50_gripper, get_open_positions, get_closed_positions
+    open_wsg50_gripper, get_open_positions
 from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
-from examples.drake.problems import load_manipulation, load_station, load_tables
+from examples.drake.problems import load_manipulation, load_tables, load_station
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name, dump_models, user_input, \
-    get_model_indices, exists_colliding_pair, get_joint_positions, get_parent_joints, get_base_body, get_body_pose
-
-from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
-from pydrake.lcm import DrakeLcm # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
-from pydrake.systems.framework import DiagramBuilder
-from pydrake.systems.primitives import SignalLogger
-from pydrake.trajectories import PiecewisePolynomial
-from pydrake.systems.analysis import Simulator
-
+    prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
+    get_base_body, get_body_pose, \
+    get_state, set_state
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.language.constants import And
+from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
-# https://drake.mit.edu/doxygen_cxx/classdrake_1_1multibody_1_1_multibody_tree.html
-# wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
+
+# Listing all available docker images
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
+# wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
 # docker rmi $(docker images -q mit6881/drake-course)
 
-# https://github.com/RobotLocomotion/drake/blob/a54513f9d0e746a810da15b5b63b097b917845f0/bindings/pydrake/multibody/test/multibody_tree_test.py
 # ~/Programs/LIS/git/pddlstream$ ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20181012 .
-# http://127.0.0.1:7000/static/
-
 # gz sdf -p ../urdf/iiwa14_polytope_collision.urdf > /iiwa14_polytope_collision.sdf
 
 ##################################################
-
-
-def load_meshcat():
-    import meshcat
-    return meshcat.Visualizer()  # vis.set_object
 
 
 def add_meshcat_visualizer(scene_graph, builder):
@@ -70,23 +62,6 @@ def add_drake_visualizer(scene_graph, builder):
 ##################################################
 
 
-def add_logger(mbp, builder):
-    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
-    state_log._DeclarePeriodicPublish(0.02)
-    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
-    return state_log
-
-
-def connect_collisions(mbp, scene_graph, builder):
-    # Connect scene_graph to MBP for collision detection.
-    builder.Connect(
-        mbp.get_geometry_poses_output_port(),
-        scene_graph.get_source_pose_port(mbp.get_source_id()))
-    builder.Connect(
-        scene_graph.get_query_output_port(),
-        mbp.get_geometry_query_input_port())
-
-
 def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
     from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
 
@@ -95,7 +70,8 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                                               print_period=print_period)
     builder.AddSystem(iiwa_controller)
     builder.Connect(iiwa_controller.get_output_port(0),
-                    mbp.get_input_port(0)) # RuntimeError: Input port is already wired
+                    mbp.GetInputPort('iiwa_actuation'))
+                    #mbp.get_input_port(0)) # RuntimeError: Input port is already wired
     builder.Connect(mbp.get_continuous_state_output_port(),
                     iiwa_controller.robot_state_input_port)
 
@@ -103,7 +79,8 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                                      model_instance=gripper)
     builder.AddSystem(hand_controller)
     builder.Connect(hand_controller.get_output_port(0),
-                    mbp.get_input_port(1))
+                    mbp.GetInputPort('gripper_actuation'))
+                    #mbp.get_input_port(1))
     builder.Connect(mbp.get_continuous_state_output_port(),
                     hand_controller.robot_state_input_port)
 
@@ -121,12 +98,24 @@ def build_diagram(mbp, scene_graph, meshcat=False):
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
     builder.AddSystem(mbp)
-    connect_collisions(mbp, scene_graph, builder)
+
+    # Connect scene_graph to MBP for collision detection.
+    builder.Connect(
+        mbp.get_geometry_poses_output_port(),
+        scene_graph.get_source_pose_port(mbp.get_source_id()))
+    builder.Connect(
+        scene_graph.get_query_output_port(),
+        mbp.get_geometry_query_input_port())
+
     if meshcat:
         vis = add_meshcat_visualizer(scene_graph, builder)
     else:
         vis = add_drake_visualizer(scene_graph, builder)
-    add_logger(mbp, builder)
+
+    state_log = builder.AddSystem(SignalLogger(mbp.get_continuous_state_output_port().size()))
+    state_log._DeclarePeriodicPublish(0.02)
+    builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
+
     #return builder.Build()
     return builder, vis
 
@@ -188,8 +177,8 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         for positions in [get_open_positions(door_body)]: #, get_closed_positions(door_body)]:
             conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
-            #goal_literals += [('AtConf', door_name, conf)]
-        goal_literals += [('AtConf', door_name, door_conf)]
+            goal_literals += [('AtConf', door_name, conf)]
+        #goal_literals += [('AtConf', door_name, door_conf)]
 
     for obj, surface in task.goal_on:
         obj_name = get_model_name(mbp, obj)
@@ -323,7 +312,6 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
             d, n = q_knots_kuka.shape
             print('{}) d={}, n={}, duration={:.3f}'.format(i, d, n, t_knots[-1]))
-            print(t_knots)
             splines.append(PiecewisePolynomial.Cubic(
                 breaks=t_knots, 
                 knots=q_knots_kuka,
@@ -393,29 +381,41 @@ def test_generators(task, diagram, diagram_context):
 
 ##################################################
 
+PROBLEMS = [
+    load_tables,
+    load_manipulation,
+    load_station,
+]
+
 def main(deterministic=True):
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
     # get_contact_results_output_port
     # TODO: gripper closing via collision information
 
+    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     if deterministic:
         random.seed(0)
         np.random.seed(0)
 
     parser = argparse.ArgumentParser()
-    #parser.add_argument('-p', '--problem')
+    parser.add_argument('-p', '--problem', default='load_manipulation', help='The name of the problem to solve.')
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
-    parser.add_argument('-m', '--meshcat', action='store_true', help='Use the meshcat viewer')
+    parser.add_argument('-v', '--visualizer', action='store_true', help='Use the drake visualizer')
     parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
     args = parser.parse_args()
 
-    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
-    problem_fn = load_manipulation # load_tables | load_manipulation | load_station
+    problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
+    if args.problem not in problem_fn_from_name:
+        raise ValueError(args.problem)
+    print('Problem:', args.problem)
+    problem_fn = problem_fn_from_name[args.problem]
 
     meshcat_vis = None
-    if args.meshcat:
-        meshcat_vis = load_meshcat()  # Important that variable is saved
+    if not args.visualizer:
+        import meshcat
+        # Important that variable is saved
+        meshcat_vis = meshcat.Visualizer()  # vis.set_object
         # http://127.0.0.1:7000/static/
 
     mbp, scene_graph, task = problem_fn(time_step=time_step)
@@ -429,20 +429,19 @@ def main(deterministic=True):
 
     ##################################################
 
-    builder, _ = build_diagram(mbp, scene_graph, args.meshcat)
+    builder, _ = build_diagram(mbp, scene_graph, not args.visualizer)
     if args.simulate:
-        # TODO: RuntimeError: Input port is already wired
         state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
     else:
         state_machine = None
     diagram = builder.Build()
+    #RenderSystemWithGraphviz(diagram) # Useful for getting port names
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     task.diagram = diagram
     task.diagram_context = diagram_context
 
-    #context = mbp.CreateDefaultContext()
-    #context = scene_graph.CreateDefaultContext()
+    #context = mbp.CreateDefaultContext() # scene_graph.CreateDefaultContext()
     for joint, position in task.initial_positions.items():
         set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
@@ -458,14 +457,7 @@ def main(deterministic=True):
     # viz.draw(context)
 
     diagram.Publish(diagram_context)
-    #initial_state = context.get_continuous_state_vector().get_value() # CopyToVector
-    initial_state = mbp.tree().get_multibody_state_vector(context).copy()
-    #print(exists_colliding_pair(mbp, context, product(get_model_indices(mbp), repeat=2)))
-    #point_pair = scene_graph.get_query_output_port().Eval(builder.CreateDefaultContext())
-
-    # get_mutable_multibody_state_vector
-    #q = mbp.tree().get_multibody_state_vector(context)[:mbp.num_positions()]
-    #print(mbp.tree().get_positions_from_array(task.movable[0], q))
+    initial_state = get_state(mbp, context)
 
     ##################################################
 
@@ -483,18 +475,12 @@ def main(deterministic=True):
 
     ##################################################
 
-    #context.get_mutable_continuous_state_vector().SetFromVector(initial_state)
-    mbp.tree().get_mutable_multibody_state_vector(context)[:] = initial_state
-    #if not args.simulate:
-    #    fix_input_ports(mbp, context)
-    #sub_context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-    #print(context == sub_context) # True
-
+    set_state(mbp, context, initial_state)
     if args.simulate:
         splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
         sim_duration = compute_duration(splines)
         print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
-        mbp.tree().get_mutable_multibody_state_vector(context)[:] = initial_state
+        set_state(mbp, context, initial_state)
 
         if True:
             state_machine.Load(splines, gripper_setpoints)
@@ -516,4 +502,4 @@ def main(deterministic=True):
 if __name__ == '__main__':
     main()
 
-# python2 -m examples.drake.run
+# .../pddlstream$ python2 -m examples.drake.run

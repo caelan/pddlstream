@@ -70,14 +70,13 @@ def get_top_cylinder_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFA
 # TODO: detect geometry type from the dictionary
 
 def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGTH,
-                   pitch_range=(-np.pi/2, np.pi/2)): # y is out of gripper initially
+                   orientations=list(range(4)), pitch_range=(-np.pi/2, np.pi/2)): # y is out of gripper initially
     # TODO: different positions
     center, extent = aabb
     dx, dy, dz = extent
     reflect_z = create_transform(rotation=[np.pi / 2, 0, 0])
     aabb_from_body = create_transform(translation=center).inverse()
     min_pitch, max_pitch = pitch_range
-    orientations = list(range(4))
     if min_pitch == max_pitch:
         generator = ((min_pitch, ori) for ori in orientations)
     else:
@@ -96,10 +95,10 @@ def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGT
 
 DOOR_CLOSED = 0
 #DOOR_OPEN = np.pi
-#DOOR_OPEN = 0.497 * np.pi  # Seems to be the limit
+#DOOR_OPEN = 0.497 * np.pi  # Seems to be the limit for the handle
 #DOOR_OPEN = 0.49 * np.pi
 DOOR_OPEN = 0.45 * np.pi
-
+#DOOR_OPEN = 0.25 * np.pi  # Seems to be the limit for the door itself
 
 def get_open_positions(door_body):
     name = door_body.name()
