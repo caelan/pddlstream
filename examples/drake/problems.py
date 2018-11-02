@@ -8,7 +8,7 @@ from pydrake.geometry import (SceneGraph)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 
-from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED
+from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED, DOOR_OPEN
 from examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
     get_aabb_z_placement, BoundingBox, get_model_indices, get_model_bodies, get_bodies
 
@@ -133,7 +133,7 @@ def load_station(time_step=0.0):
 ##################################################
 
 def load_manipulation(time_step=0.0):
-    source = False
+    source = True
     if source:
         AMAZON_TABLE_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
@@ -198,13 +198,16 @@ def load_manipulation(time_step=0.0):
 
     goal_surface = VisualElement(cupboard, 'top_and_bottom', shelves.index(goal_shelf))
     surfaces = [
-        VisualElement(amazon_table, 'amazon_table', 0),
+        #VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
-    doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
+    #doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
+    doors = []
 
     #door_position = DOOR_CLOSED  # np.pi/2
-    door_position = np.pi/8
+    #door_position = DOOR_OPEN
+    door_position = np.pi
+    #door_position = np.pi/8
     initial_positions = {
         mbp.GetJointByName('left_door_hinge'): -door_position,
         mbp.GetJointByName('right_door_hinge'): door_position,

@@ -62,19 +62,23 @@ def within_limits(joint, position):
     return lower <= position <= upper
 
 
-def get_collision_fn(mbp, context, joints, collision_pairs=set(), attachments=[]):
-    # TODO: collision bodies or collision models?
+def get_collision_fn(diagram, diagram_context, plant, scene_graph,
+                     joints, collision_pairs=set(), attachments=[]):
     # TODO: self-collisions
+    plant_context = diagram.GetMutableSubsystemContext(plant, diagram_context)
 
     def fn(q):
         if any(not within_limits(joint, position) for joint, position in zip(joints, q)):
             return True
         if not collision_pairs:
             return False
-        set_joint_positions(joints, context, q)
+        set_joint_positions(joints, plant_context, q)
         for attachment in attachments:
-            attachment.assign(context)
-        return exists_colliding_pair(mbp, context, collision_pairs)
+            attachment.assign(plant_context)
+        #if attachments:
+        #    diagram.Publish(diagram_context)
+        #    raw_input('Continue?')
+        return exists_colliding_pair(diagram, diagram_context, plant, scene_graph, collision_pairs)
     return fn
 
 ##################################################
@@ -90,32 +94,51 @@ def refine_joint_path(joints, waypoints, resolutions=None):
     return refined_path
 
 
-def plan_waypoints_joint_motion(mbp, context, joints, waypoints, resolutions=None,
-                                collision_pairs=set(), attachments=[]):
-    extend_fn = get_extend_fn(joints, resolutions=resolutions)
-    collision_fn = get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
-                                    attachments=attachments)
-    start_positions = get_joint_positions(joints, context)
-    path = [start_positions]
+def plan_workspace_motion(plant, joints, frame, frame_path, initial_guess=None,
+                          collision_fn=lambda q: False, **kwargs):
+    solution = initial_guess # TODO: specify just the active joints
+    waypoints = []
+    for frame_pose in frame_path:
+        solution = solve_inverse_kinematics(plant, frame, frame_pose, initial_guess=solution, **kwargs)
+        if solution is None:
+            return None
+        positions = [solution[j.position_start()] for j in joints]
+        if collision_fn(positions):
+            return None
+        waypoints.append(positions)
+    return waypoints
+
+
+def plan_waypoints_joint_motion(joints, waypoints, resolutions=None,
+                                collision_fn=lambda q: False):
+    if not waypoints:
+        return []
     for waypoint in waypoints:
         assert len(joints) == len(waypoint)
+        if collision_fn(waypoint):
+            return None
+
+    extend_fn = get_extend_fn(joints, resolutions=resolutions)
+    path = [waypoints[0]]
+    for waypoint in waypoints[1:]:
         for q in extend_fn(path[-1], waypoint):
             if collision_fn(q):
                 return None
             path.append(q)
     return path
 
-def plan_joint_motion(mbp, context, joints, end_positions,
+
+def plan_joint_motion(joints, start_positions, end_positions,
                       weights=None, resolutions=None,
-                      collision_pairs=set(), attachments=[], **kwargs):
+                      collision_fn=lambda q: False,
+                      **kwargs):
+    assert len(joints) == len(start_positions)
     assert len(joints) == len(end_positions)
-    start_positions = get_joint_positions(joints, context)
     return birrt(start_positions, end_positions,
                  distance=get_distance_fn(joints, weights=weights),
                  sample=get_sample_fn(joints),
                  extend=get_extend_fn(joints, resolutions=resolutions),
-                 collision=get_collision_fn(mbp, context, joints, collision_pairs=collision_pairs,
-                                            attachments=attachments), **kwargs)
+                 collision=collision_fn, **kwargs)
 
 ##################################################
 
@@ -154,18 +177,3 @@ def interpolate_translation(transform, translation, step_size=0.01):
     direction = np.array(translation) / distance
     for t in list(np.arange(0, distance, step_size)) + [distance]:
         yield transform.multiply(create_transform(translation=t * direction))
-
-
-def plan_workspace_motion(mbp, context, joints, frame, frame_path, initial_guess=None, **kwargs):
-    collision_fn = get_collision_fn(mbp, context, joints, **kwargs)
-    solution = initial_guess
-    waypoints = []
-    for frame_pose in frame_path:
-        solution = solve_inverse_kinematics(mbp, frame, frame_pose, initial_guess=solution)
-        if solution is None:
-            return None
-        positions = [solution[j.position_start()] for j in joints]
-        if collision_fn(positions):
-            return None
-        waypoints.append(positions)
-    return waypoints

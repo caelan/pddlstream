@@ -342,13 +342,14 @@ def get_colliding_bodies(diagram, diagram_context, plant, scene_graph, min_penet
     return colliding_bodies
 
 
-def exists_colliding_pair(mbp, context, body_pairs, **kwargs):
+def exists_colliding_pair(diagram, diagram_context, plant, scene_graph, body_pairs, **kwargs):
     if not body_pairs:
         return False
-    intersection = get_colliding_bodies(context, mbp, **kwargs) & body_pairs
+    intersection = get_colliding_bodies(diagram, diagram_context, plant, scene_graph, **kwargs) & body_pairs
     #if intersection:
-    #    print([(get_model_name(mbp, ModelInstanceIndex(one)),
-    #            get_model_name(mbp, ModelInstanceIndex(two))) for one, two in intersection])
+    #    print([(one.name(), two.name()) for one, two in intersection])
+    #    diagram.Publish(diagram_context)
+    #    raw_input('Continue?')
     return bool(intersection)
 
 ##################################################

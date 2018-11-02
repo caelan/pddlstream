@@ -205,7 +205,7 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         'sample-pose': from_gen_fn(get_stable_gen(task, context, collisions=collisions)),
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_fn(get_ik_fn(task, context, collisions=collisions)),
-        'plan-motion': from_fn(get_motion_fn(task, context, collisions-collisions)),
+        'plan-motion': from_fn(get_motion_fn(task, context, collisions=collisions)),
         'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
         'TrajCollision': get_collision_test(task, context, collisions=collisions),
     }
@@ -505,7 +505,10 @@ def main(deterministic=True):
             user_input('Simulate?')
             test_manipulation(plan_list, gripper_setpoints)
     else:
-        step_trajectories(diagram, diagram_context, context, trajectories) #, time_step=None) #, teleport=True)
+        #time_step = None
+        #time_step = 0.001
+        time_step = 0.01
+        step_trajectories(diagram, diagram_context, context, trajectories, time_step=time_step) #, teleport=True)
 
 
 if __name__ == '__main__':
