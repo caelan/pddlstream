@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>mit_arch_suction_gripper</name>
+  <version>0.1.0</version>
+  <description>
+    TODO.
+  </description>
+
+  <maintainer email="yijiangh@mit.edu">Yijiang Huang</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>

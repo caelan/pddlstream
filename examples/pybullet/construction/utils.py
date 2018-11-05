@@ -22,8 +22,9 @@ EXTRUSION_FILENAMES = {
     'voronoi': 'voronoi_S1.0_09-05-2018.json',
 }
 
-KUKA_PATH = 'framefab_kr6_r900_support/urdf/kr6_r900.urdf'
+KUKA_PATH = 'urdf/framefab_kr6_r900_support/urdf/kr6_r900.urdf'
 #KUKA_PATH = 'framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
+
 TOOL_NAME = 'eef_tcp_frame'
 DISABLED_COLLISIONS = [
     # ('robot_link_1', 'workspace_objects'),

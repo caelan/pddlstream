@@ -1,0 +1,5 @@
+# compensation for inaccuracy of the digital model
+transform:
+  x: 0.000088
+  y: 0.000769
+  z: -0.002121

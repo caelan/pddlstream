@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>asw_material_feeder</name>
+  <version>0.1.0</version>
+  <description>
+    URDF robot description model for asw 3D printing material feeder rack.
+  </description>
+
+  <maintainer email="yijiangh@mit.edu">Yijiang Huang</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>industrial_robot_client</exec_depend>
+
+</package>
