@@ -4,6 +4,8 @@ from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_instance_effort
+from pddlstream.algorithms.algorithm import dump_plans
+from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.object import OptimisticObject
@@ -132,6 +134,8 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     # TODO: check empty plan first?
     combined_plan, cost = solve_stream_plan(stream_results)
     stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
+    #dump_plans(stream_plan, action_plan, cost)
+    #create_visualizations(evaluations, stream_plan, depth)
     if stream_plan is None:
         return stream_plan, cost, depth
     plan_index = get_stream_plan_index(stream_plan)

@@ -1,4 +1,3 @@
-import math
 from collections import namedtuple
 
 import numpy as np
@@ -10,12 +9,6 @@ BLOCK_HEIGHT = BLOCK_WIDTH
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
 CARRY_Y = 5
-
-SCALE_COST = 1.
-
-
-def scale_cost(cost):
-    return int(math.ceil(SCALE_COST*cost))
 
 
 def interval_contains(i1, i2):
@@ -42,7 +35,7 @@ def collision_test(b1, p1, b2, p2):
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
-    return scale_cost(1 + np.linalg.norm(q2 - q1, ord=ord))
+    return 1 + np.linalg.norm(q2 - q1, ord=ord)
 
 
 def inverse_kin_fn(b, p):

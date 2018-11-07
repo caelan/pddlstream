@@ -79,11 +79,14 @@ def function_process_stream_queue(instantiator, evaluations, store):
 
 def layered_process_stream_queue(instantiator, evaluations, store, num_layers):
     # TODO: priority queue and iteratively increase max stream max or add effort
+    num_calls = 0
     for _ in range(num_layers):
         for _ in range(len(instantiator.stream_queue)):
             if store.is_terminated():
-                return
+                return num_calls
             process_stream_queue(instantiator, evaluations, verbose=store.verbose)
+            num_calls += 1
+    return num_calls
 
 def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=True, **search_kwargs):
     """
@@ -104,15 +107,16 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
     #load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
+    num_calls = 0
     while not store.is_terminated():
         num_iterations += 1
-        print('Iteration: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, len(evaluations), store.best_cost, store.elapsed_time()))
+        print('Iteration: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+            num_iterations, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
         function_process_stream_queue(instantiator, evaluations, store)
         plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
         store.add_plan(plan, cost)
-        if not instantiator.stream_queue:
+        if store.is_terminated() or not instantiator.stream_queue:
             break
-        layered_process_stream_queue(instantiator, evaluations, store, layers)
+        num_calls += layered_process_stream_queue(instantiator, evaluations, store, layers)
     #write_stream_statistics(externals, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

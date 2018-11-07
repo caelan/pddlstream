@@ -1,6 +1,7 @@
 (define (stream pick-and-place)
   (:stream s-region
     :inputs (?b ?r)
+    ;:domain (and (Block ?b) (Region ?r))
     :domain (Placeable ?b ?r)
     :outputs (?p)
     :certified (and (Pose ?b ?p) (Contained ?b ?p ?r)))
@@ -26,6 +27,8 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
   )
+  ;(:function (Length ?t)
+  ;   (Traj ?t))
 
   ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
   ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))

@@ -25,7 +25,7 @@ from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.optimizer import OptimizerInfo
-from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
+from pddlstream.utils import print_solution, user_input, read, INF, get_file_path, str_from_object
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -48,7 +48,8 @@ def pddlstream_from_tamp(tamp_problem):
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
-           [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
+           [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()] + \
+           [('Region', r) for r in tamp_problem.goal_regions.values() + [GROUND_NAME]]
 
     goal_literals = [('In', b, r) for b, r in tamp_problem.goal_regions.items()] #+ [('HandEmpty',)]
 
@@ -128,7 +129,7 @@ def display_plan(tamp_problem, plan, display=True):
         user_input('Finish?')
 
 
-def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=False):
+def main(focused=True, deterministic=True, unit_costs=False, use_synthesizers=False):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -139,7 +140,7 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
         print('Warning! use_synthesizers=True requires gurobipy. Setting use_synthesizers=False.')
     print('Focused: {} | Costs: {} | Synthesizers: {}'.format(focused, not unit_costs, use_synthesizers))
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = get_blocked_problem  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
@@ -168,22 +169,19 @@ def main(focused=True, deterministic=False, unit_costs=False, use_synthesizers=F
     ] if use_synthesizers else []
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    print('Initial:', pddlstream_problem.init)
-    print('Goal:', pddlstream_problem.goal)
+    print('Initial:', str_from_object(pddlstream_problem.init))
+    print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()
     pr.enable()
     if focused:
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
-                                 planner='ff-wastar1',
-                                 max_planner_time=10,
-                                 synthesizers=synthesizers,
+                                 planner='ff-wastar1', max_planner_time=10, synthesizers=synthesizers, verbose=True,
                                  max_time=300, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=1,
-                                 unit_costs=unit_costs, postprocess=False,
-                                 visualize=False)
+                                 effort_weight=1, search_sampling_ratio=0, # TODO: run without to see difference
+                                 unit_costs=unit_costs, postprocess=False, visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
-                                     unit_costs=unit_costs)
+                                     unit_costs=unit_costs, verbose=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

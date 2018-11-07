@@ -310,7 +310,8 @@ def compile_fluent_streams(domain, externals):
 
 def dump_plans(stream_plan, action_plan, cost):
     print('Stream plan ({}, {:.1f}): {}\nAction plan ({}, {}): {}'.format(get_length(stream_plan),
-                                                                          get_plan_effort(stream_plan), stream_plan,
+                                                                          get_plan_effort(stream_plan),
+                                                                          stream_plan,
                                                                           get_length(action_plan), cost,
                                                                           str_from_plan(action_plan)))
 
