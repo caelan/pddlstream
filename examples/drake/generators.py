@@ -132,7 +132,7 @@ def get_grasp_gen(task):
     return gen
 
 
-def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.15, step_size=0.04):
+def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.1, step_size=0.035):
     #distance = 0.0
     approach_vector = distance*np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
@@ -149,7 +149,7 @@ def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.15, ste
                                         joints, collision_pairs=collision_pairs) # TODO: while holding
 
         grasp_pose = pose.transform.multiply(grasp.transform.inverse())
-        gripper_path = list(interpolate_translation(grasp_pose, approach_vector))
+        gripper_path = list(interpolate_translation(grasp_pose, approach_vector, step_size=step_size))
 
         attempts = 0
         last_success = 0

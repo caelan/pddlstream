@@ -132,16 +132,14 @@ def load_station(time_step=0.0):
 
 ##################################################
 
-def load_manipulation(time_step=0.0):
-    source = True
-    if source:
+def load_manipulation(time_step=0.0, new_models=True):
+    if new_models:
         AMAZON_TABLE_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
         CUPBOARD_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/cupboard.sdf")
-        #IIWA7_PATH = FindResourceOrThrow(
-        #   "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
-        IIWA7_PATH = os.path.join(MODELS_DIR, "iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
+        IIWA7_PATH = FindResourceOrThrow(
+           "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
         FOAM_BRICK_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
         goal_shelf = 'shelf_lower'
@@ -152,10 +150,10 @@ def load_manipulation(time_step=0.0):
             "drake/external/models_robotlocomotion/manipulation_station/cupboard.sdf")
         IIWA7_PATH = FindResourceOrThrow(
             "drake/external/models_robotlocomotion/iiwa7/iiwa7_no_collision.sdf")
-        #IIWA7_PATH = os.path.join(MODELS_DIR, "iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
         FOAM_BRICK_PATH = FindResourceOrThrow(
             "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
         goal_shelf = 'bottom'
+    #IIWA7_PATH = os.path.join(MODELS_DIR, "iiwa_description/iiwa7/iiwa7_with_box_collision.sdf")
 
     mbp = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
@@ -201,23 +199,19 @@ def load_manipulation(time_step=0.0):
         #VisualElement(amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
-    door_names = [
-        'left_door',
-        'right_door',
-    ]
-    doors = [mbp.GetBodyByName(name).index() for name in door_names]
+    doors = [mbp.GetBodyByName(name).index() for name in ['left_door', 'right_door']]
 
-    door_position = DOOR_CLOSED  # np.pi/2
+    door_position = DOOR_CLOSED  # ~np.pi/2
     #door_position = DOOR_OPEN
     #door_position = np.pi
     #door_position = np.pi/8
     initial_positions = {
         mbp.GetJointByName('left_door_hinge'): -door_position,
         #mbp.GetJointByName('right_door_hinge'): door_position,
-        mbp.GetJointByName('right_door_hinge'): np.pi,
+        mbp.GetJointByName('right_door_hinge'): np.pi/2,
     }
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
-    #initial_conf[1] += np.pi / 6
+    initial_conf[1] += np.pi / 6
     initial_positions.update(zip(get_movable_joints(mbp, robot), initial_conf))
 
     initial_poses = {

@@ -10,6 +10,7 @@ from pydrake.all import (
 )
 
 from pydrake.multibody.multibody_tree import MultibodyForces
+from utils import get_model_actuators
 
 
 plan_types = [
@@ -37,15 +38,13 @@ class KukaMultibodyController(LeafSystem):
         LeafSystem.__init__(self)
         self.set_name("Kuka Controller")
 
-        kuka_model_index_idx = 0
         self.plant = plant
         self.tree = plant.tree()
         self.print_period = print_period
         self.last_print_time = -print_period
         self.control_period = control_period
         self.model_instance = kuka_model_instance
-        #TODO: access actuation ports with model_instance index
-        self.nu = plant.get_input_port(kuka_model_index_idx).size()
+        self.nu = len(get_model_actuators(plant, kuka_model_instance))
         self.nq = plant.num_positions()
 
         v_dummy = np.arange(plant.num_velocities())
@@ -128,14 +127,12 @@ class HandController(LeafSystem):
                  control_period=0.001):
         LeafSystem.__init__(self)
         self.set_name("Hand Controller")
-        gripper_model_index_idx = 1
 
         self.max_force = 100.  # gripper max closing / opening force
         self.plant = plant
         self.model_instance = model_instance
 
-        # TODO: access actuation ports with model_instance index
-        self.nu = plant.get_input_port(gripper_model_index_idx).size()
+        self.nu = len(get_model_actuators(plant, model_instance))
         self.nq = plant.num_positions()
 
         self.robot_state_input_port = \

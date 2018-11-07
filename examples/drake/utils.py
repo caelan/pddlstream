@@ -129,12 +129,16 @@ def get_model_joints(mbp, model_index):
     return [joint for joint in get_joints(mbp) if joint.model_instance() == model_index]
 
 
-def is_fixed_joints(joint):
+def get_model_actuators(mbp, model_index):
+    return [actuator for actuator in get_joint_actuators(mbp) if actuator.model_instance() == model_index]
+
+
+def is_fixed_joint(joint):
     return joint.num_positions() == 0
 
 
 def prune_fixed_joints(joints):
-    return list(filter(lambda j: not is_fixed_joints(j), joints))
+    return list(filter(lambda j: not is_fixed_joint(j), joints))
 
 
 def get_movable_joints(mbp, model_index):

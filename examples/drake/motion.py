@@ -20,12 +20,7 @@ def get_difference_fn(joints):
         assert len(joints) == len(q2)
         assert len(joints) == len(q1)
         # TODO: circular joints
-        difference = []
-        for joint, value2, value1 in zip(joints, q2, q1):
-            #difference.append((value2 - value1) if is_circular(body, joint)
-            #                  else circular_difference(value2, value1))
-            difference.append(value2 - value1)
-        return np.array(difference)
+        return np.array(q2) - np.array(q1)
     return fn
 
 

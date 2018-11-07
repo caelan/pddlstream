@@ -12,17 +12,15 @@ from pydrake.lcm import DrakeLcm  # Required else "ConnectDrakeVisualizer(): inc
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import SignalLogger
-from pydrake.trajectories import PiecewisePolynomial
 
-from examples.drake.generators import Pose, Conf, Trajectory, get_stable_gen, get_grasp_gen, get_ik_fn, \
+from examples.drake.generators import Pose, Conf, get_stable_gen, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test
-from examples.drake.iiwa_utils import get_close_wsg50_positions, get_open_wsg50_positions, \
-    open_wsg50_gripper, get_open_positions
-from examples.drake.motion import get_distance_fn, get_extend_fn, waypoints_from_path
+from examples.drake.iiwa_utils import open_wsg50_gripper, get_open_positions
+from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines
 from examples.drake.problems import load_manipulation, load_tables, load_station
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
-    get_base_body, get_body_pose, get_state, set_state, RenderSystemWithGraphviz
+    get_state, set_state, RenderSystemWithGraphviz
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
@@ -32,9 +30,11 @@ from pddlstream.utils import print_solution, read, INF, get_file_path
 # Listing all available docker images
 # https://stackoverflow.com/questions/28320134/how-to-list-all-tags-for-a-docker-image-on-a-remote-registry
 # wget -q https://registry.hub.docker.com/v1/repositories/mit6881/drake-course/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
+
+# Removing old docker images
 # docker rmi $(docker images -q mit6881/drake-course)
 
-# ~/Programs/LIS/git/pddlstream$ ~/Programs/Classes/6811/drake_docker_utility_scripts/docker_run_bash_mac.sh drake-20181012 .
+# Converting from URDF to SDF
 # gz sdf -p ../urdf/iiwa14_polytope_collision.urdf > /iiwa14_polytope_collision.sdf
 
 ##################################################
@@ -69,14 +69,8 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                                               print_period=print_period)
     builder.AddSystem(iiwa_controller)
 
-    print(mbp.GetInputPort('iiwa_actuation').size(), iiwa_controller.get_output_port(0).size(),
-          mbp.GetInputPort('gripper_actuation').size())
-    # Failure at bazel-out/k8-opt/bin/tools/install/libdrake/_virtual_includes/drake_shared_library/drake/systems/framework/diagram_builder.h:134
-    # in Connect(): condition 'src.size() == dest.size()' failed.
-
     builder.Connect(iiwa_controller.get_output_port(0),
                     mbp.GetInputPort('iiwa_actuation'))
-                    #mbp.get_input_port(0)) # RuntimeError: Input port is already wired
     builder.Connect(mbp.get_continuous_state_output_port(),
                     iiwa_controller.robot_state_input_port)
 
@@ -85,7 +79,6 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
     builder.AddSystem(hand_controller)
     builder.Connect(hand_controller.get_output_port(0),
                     mbp.GetInputPort('gripper_actuation'))
-                    #mbp.get_input_port(1))
     builder.Connect(mbp.get_continuous_state_output_port(),
                     hand_controller.robot_state_input_port)
 
@@ -211,48 +204,6 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
 
 ##################################################
 
-def get_open_trajectory(mbp, gripper):
-    gripper_joints = prune_fixed_joints(get_model_joints(mbp, gripper))
-    gripper_extend_fn = get_extend_fn(gripper_joints)
-    gripper_closed_conf = get_close_wsg50_positions(mbp, gripper)
-    gripper_path = list(gripper_extend_fn(gripper_closed_conf, get_open_wsg50_positions(mbp, gripper)))
-    gripper_path.insert(0, gripper_closed_conf)
-    return Trajectory(Conf(gripper_joints, q) for q in gripper_path)
-
-def postprocess_plan(mbp, gripper, plan):
-    trajectories = []
-    if plan is None:
-        return trajectories
-
-    open_traj = get_open_trajectory(mbp, gripper)
-    close_traj = Trajectory(reversed(open_traj.path))
-    # TODO: ceiling & orientation constraints
-    # TODO: sampler chooses configurations that are far apart
-
-    # TODO: maybe just specify the position sequence
-    attachments = {}
-    for name, args in plan:
-        if name in ['clean', 'cook']:
-            continue
-        if name == 'pick':
-            r, o, p, g, q, t = args
-            trajectories.extend([Trajectory(reversed(t.path), attachments=attachments.values()), close_traj])
-            attachments[o] = g
-            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
-        elif name == 'place':
-            r, o, p, g, q, t = args
-            trajectories.extend([Trajectory(reversed(t.path), attachments=attachments.values()), open_traj])
-            del attachments[o]
-            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
-        elif name == 'pull':
-            t = args[-1]
-            trajectories.extend([close_traj, Trajectory(t.path, attachments=attachments.values()), open_traj])
-        else:
-            t = args[-1]
-            trajectories.append(Trajectory(t.path, attachments=attachments.values()))
-
-    return trajectories
-
 def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.001, teleport=False):
     diagram.Publish(diagram_context)
     user_input('Step?')
@@ -278,68 +229,16 @@ def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0)
     simulator.StepTo(sim_duration)
     user_input('Finish?')
 
-##################################################
-
-
-def compute_duration(splines):
-    sim_duration = 0.
-    for spline in splines:
-        sim_duration += spline.end_time() + 0.5
-    sim_duration += 5.0
-    return sim_duration
-
-
-RADIANS_PER_SECOND = np.pi / 2
-
-def convert_splines(mbp, robot, gripper, context, trajectories):
-    # TODO: move to trajectory class
-    print()
-    splines, gripper_setpoints = [], []
-    for i, traj in enumerate(trajectories):
-        traj.path[-1].assign(context)
-        joints = traj.path[0].joints
-        if len(joints) == 8: # TODO: fix this
-            joints = joints[:7]
-
-        if len(joints) == 2:
-            q_knots_kuka = np.zeros((2, 7))
-            q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
-            splines.append(PiecewisePolynomial.ZeroOrderHold([0, 1], q_knots_kuka.T))
-        elif len(joints) == 7:
-            # TODO: adjust timing based on distance & velocities
-            # TODO: adjust number of waypoints
-            distance_fn = get_distance_fn(joints)
-            #path = [traj.path[0].positions, traj.path[-1].positions]
-            path = [q.positions[:len(joints)] for q in traj.path]
-            path = waypoints_from_path(joints, path) # TODO: increase time for pick/place & hold
-            q_knots_kuka = np.vstack(path).T
-            distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
-            t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
-            d, n = q_knots_kuka.shape
-            print('{}) d={}, n={}, duration={:.3f}'.format(i, d, n, t_knots[-1]))
-            splines.append(PiecewisePolynomial.Cubic(
-                breaks=t_knots, 
-                knots=q_knots_kuka,
-                knot_dot_start=np.zeros(d), 
-                knot_dot_end=np.zeros(d)))
-            # RuntimeError: times must be in increasing order.
-        else:
-            raise ValueError(joints)
-        _, gripper_setpoint = get_configuration(mbp, context, gripper)
-        gripper_setpoints.append(gripper_setpoint)
-    return splines, gripper_setpoints
-
 
 ##################################################
 
-def test_manipulation(plan_list, gripper_setpoint_list):
+def test_manipulation(plan_list, gripper_setpoint_list, is_hardware=False):
     from pydrake.common import FindResourceOrThrow
     from .lab_1.manipulation_station_simulator import ManipulationStationSimulator
 
-    is_hardware = False
+
     object_file_path = FindResourceOrThrow(
-            #"drake/examples/manipulation_station/models/061_foam_brick.sdf")
-            "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
+            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
 
     manip_station_sim = ManipulationStationSimulator(
         time_step=1e-3,
@@ -347,42 +246,14 @@ def test_manipulation(plan_list, gripper_setpoint_list):
         object_base_link_name="base_link",
         is_hardware=is_hardware)
 
-    q0 = [0, 0.6-np.pi/6, 0, -1.75, 0, 1.0, 0]
-
     if is_hardware:
         iiwa_position_command_log = manip_station_sim.RunRealRobot(plan_list, gripper_setpoint_list)
     else:
+        q0 = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
         #q0[1] += np.pi/6
         iiwa_position_command_log = manip_station_sim.RunSimulation(plan_list, gripper_setpoint_list,
-                                        extra_time=2.0, q0_kuka=q0)
+                                                                    extra_time=2.0, q0_kuka=q0)
     return iiwa_position_command_log
-
-##################################################
-
-def test_generators(task, diagram, diagram_context):
-    mbp = task.mbp
-    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-
-    # Test grasps
-    print(get_base_body(mbp, task.gripper).name())
-    print(get_body_pose(context, mbp.GetBodyByName('left_finger', task.gripper)).matrix() -
-          get_body_pose(context, get_base_body(mbp, task.gripper)).matrix())
-    user_input('Start')
-    model = task.movable[0]
-    grasp_gen_fn = get_grasp_gen(task)
-    for grasp, in grasp_gen_fn(get_model_name(mbp, model)):
-        grasp.assign(context)
-        diagram.Publish(diagram_context)
-        user_input('Continue')
-
-    # Test placements
-    user_input('Start')
-    pose_gen_fn = get_stable_gen(task, context)
-    model = task.movable[0]
-    for pose, in pose_gen_fn(get_model_name(mbp, model), task.surfaces[0]):
-       pose.assign(context)
-       diagram.Publish(diagram_context)
-       user_input('Continue')
 
 ##################################################
 
@@ -499,8 +370,7 @@ def main(deterministic=True):
             test_manipulation(plan_list, gripper_setpoints)
     else:
         #time_step = None
-        #time_step = 0.001
-        time_step = 0.02
+        time_step = 0.001 if meshcat else 0.02
         step_trajectories(diagram, diagram_context, context, trajectories, time_step=time_step) #, teleport=True)
 
 
