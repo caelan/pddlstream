@@ -132,7 +132,7 @@ def get_grasp_gen(task):
     return gen
 
 
-def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.1, step_size=0.035):
+def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.15, step_size=0.035):
     #distance = 0.0
     approach_vector = distance*np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
@@ -155,6 +155,7 @@ def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.1, step
         last_success = 0
         while (attempts - last_success) < max_failures:
             attempts += 1
+            pose.assign(context)
             waypoints = plan_workspace_motion(task.mbp, joints, gripper_frame, gripper_path,
                                               initial_guess=initial_guess, collision_fn=collision_fn)
             if waypoints is None:
@@ -165,7 +166,7 @@ def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.1, step
             #path = refine_joint_path(joints, path)
             traj = Trajectory(Conf(joints, q) for q in path)
             #print(attempts - last_success)
-            last_success = attempts
+            #last_success = attempts
             return traj.path[-1], traj
     return fn
 
@@ -233,6 +234,26 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
 
 ##################################################
 
+def parse_fluents(fluents, context, obstacles):
+    attachments = []
+    for fact in fluents:
+        predicate = fact[0]
+        if predicate == 'atconf':
+            name, conf = fact[1:]
+            conf.assign(context)
+            obstacles.update(conf.bodies)
+        elif predicate == 'atpose':
+            name, pose = fact[1:]
+            pose.assign(context)
+            obstacles.update(pose.bodies)
+        elif predicate == 'atgrasp':
+            robot, name, grasp = fact[1:]
+            attachments.append(grasp)
+        else:
+            raise ValueError(predicate)
+    return attachments
+
+
 def get_motion_fn(task, context, collisions=True):
     gripper = task.gripper
 
@@ -242,25 +263,11 @@ def get_motion_fn(task, context, collisions=True):
 
         moving = bodies_from_models(task.mbp, [robot, gripper])
         obstacles = set(task.fixed_bodies())
-        attachments = []
-        for fact in fluents:
-            predicate = fact[0]
-            if predicate == 'atconf':
-                name, conf = fact[1:]
-                conf.assign(context)
-                obstacles.update(conf.bodies)
-            elif predicate == 'atpose':
-                name, pose = fact[1:]
-                pose.assign(context)
-                obstacles.update(pose.bodies)
-            elif predicate == 'atgrasp':
-                robot, name, grasp = fact[1:]
-                attachments.append(grasp)
-                moving.update(grasp.bodies)
-            else:
-                raise ValueError(predicate)
-
+        attachments = parse_fluents(fluents, context, obstacles)
+        for grasp in attachments:
+            moving.update(grasp.bodies)
         obstacles -= moving
+
         #print(sorted(body.name() for body in moving))
         #print(sorted(body.name() for body in obstacles))
         #print(attachments)

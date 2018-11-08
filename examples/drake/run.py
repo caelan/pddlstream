@@ -15,15 +15,17 @@ from pydrake.systems.primitives import SignalLogger
 
 from examples.drake.generators import Pose, Conf, get_stable_gen, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test
-from examples.drake.iiwa_utils import open_wsg50_gripper, get_open_positions
+from examples.drake.iiwa_utils import open_wsg50_gripper, get_door_open_positions
 from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines
 from examples.drake.problems import load_manipulation, load_tables, load_station
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
     get_state, set_state, RenderSystemWithGraphviz
+
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
+from pddlstream.language.function import FunctionInfo
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 
@@ -58,8 +60,6 @@ def add_drake_visualizer(scene_graph, builder):
     DispatchLoadMessage(scene_graph, lcm) # TODO: only update viewer after a plan is found
     return lcm # Important that variable is saved
 
-##################################################
-
 
 def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
     from examples.drake.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
@@ -92,6 +92,7 @@ def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
                     hand_controller.setpoint_input_port)
     return state_machine
 
+
 def build_diagram(mbp, scene_graph, meshcat=False):
     builder = DiagramBuilder()
     builder.AddSystem(scene_graph)
@@ -115,17 +116,17 @@ def build_diagram(mbp, scene_graph, meshcat=False):
     builder.Connect(mbp.get_continuous_state_output_port(), state_log.get_input_port(0))
 
     #return builder.Build()
-    return builder, vis
+    return builder
 
 ##################################################
 
-def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
+def get_pddlstream_problem(task, context, collisions=True):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
+    mbp = task.mbp
     robot = task.robot
-    #gripper = task.gripper
     robot_name = get_model_name(mbp, robot)
 
     world = mbp.world_frame() # mbp.world_body()
@@ -138,10 +139,9 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
         ('AtConf', robot_name, robot_conf),
         ('HandEmpty', robot_name),
     ]
-    goal_literals = [
-        ('AtConf', robot_name, robot_conf),
-        #('Holding', robot_name, get_model_name(mbp, task.movable[0])),
-    ]
+    goal_literals = []
+    if task.reset_robot:
+        goal_literals.append(('AtConf', robot_name, robot_conf),)
 
     for obj in task.movable:
         obj_name = get_model_name(mbp, obj)
@@ -172,18 +172,19 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
             ('Conf', door_name, door_conf),
             ('AtConf', door_name, door_conf),
         ]
-        for positions in [get_open_positions(door_body)]: #, get_closed_positions(door_body)]:
+        for positions in [get_door_open_positions(door_body)]: #, get_closed_positions(door_body)]:
             conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
             #goal_literals += [('AtConf', door_name, conf)]
-        goal_literals += [('AtConf', door_name, door_conf)]
+        if task.reset_doors:
+            goal_literals += [('AtConf', door_name, door_conf)]
 
+    for obj in task.goal_holding:
+        goal_literals.append(('Holding', robot_name, get_model_name(mbp, obj)))
     for obj, surface in task.goal_on:
-        obj_name = get_model_name(mbp, obj)
-        goal_literals.append(('On', obj_name, surface))
+        goal_literals.append(('On', get_model_name(mbp, obj), surface))
     for obj in task.goal_cooked:
-        obj_name = get_model_name(mbp, obj)
-        goal_literals.append(('Cooked', obj_name))
+        goal_literals.append(('Cooked', get_model_name(mbp, obj)))
 
     goal = And(*goal_literals)
     print('Initial:', init)
@@ -201,6 +202,25 @@ def get_pddlstream_problem(mbp, context, scene_graph, task, collisions=True):
     #stream_map = 'debug'
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+
+def plan_trajectories(task, context, collisions=True):
+    stream_info = {
+        'TrajPoseCollision': FunctionInfo(p_success=1e-3),
+        'TrajConfCollision': FunctionInfo(p_success=1e-3),
+    }
+    problem = get_pddlstream_problem(task, context, collisions=collisions)
+    pr = cProfile.Profile()
+    pr.enable()
+    solution = solve_focused(problem, stream_info=stream_info, planner='ff-wastar2',
+                             max_cost=INF, max_time=120, debug=False,
+                             effort_weight=1, search_sampling_ratio=1)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    print_solution(solution)
+    plan, cost, evaluations = solution
+    if plan is None:
+        return None
+    return postprocess_plan(task.mbp, task.gripper, plan)
 
 ##################################################
 
@@ -266,7 +286,7 @@ PROBLEMS = [
 def main(deterministic=True):
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
-    # get_contact_results_output_port
+    # TODO: get_contact_results_output_port
     # TODO: gripper closing via collision information
 
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
@@ -305,7 +325,7 @@ def main(deterministic=True):
 
     ##################################################
 
-    builder, _ = build_diagram(mbp, scene_graph, not args.visualizer)
+    builder = build_diagram(mbp, scene_graph, not args.visualizer)
     if args.simulate:
         state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
     else:
@@ -317,37 +337,18 @@ def main(deterministic=True):
     task.diagram = diagram
     task.diagram_context = diagram_context
 
-    #context = mbp.CreateDefaultContext() # scene_graph.CreateDefaultContext()
+    #context = mbp.CreateDefaultContext()
     for joint, position in task.initial_positions.items():
         set_joint_position(joint, context, position)
     for model, pose in task.initial_poses.items():
         set_world_pose(mbp, context, model, pose)
     open_wsg50_gripper(mbp, context, task.gripper)
-    #close_wsg50_gripper(mbp, context, task.gripper)
-    #set_configuration(mbp, context, task.gripper, [-0.05, 0.05])
-
-    # from underactuated.meshcat_visualizer import MeshcatVisualizer
-    # #add_meshcat_visualizer(scene_graph)
-    # viz = MeshcatVisualizer(scene_graph, draw_timestep=0.033333)
-    # viz.load()
-    # viz.draw(context)
 
     diagram.Publish(diagram_context)
     initial_state = get_state(mbp, context)
-
-    ##################################################
-
-    problem = get_pddlstream_problem(mbp, context, scene_graph, task, collisions=not args.cfree)
-    pr = cProfile.Profile()
-    pr.enable()
-    solution = solve_focused(problem, planner='ff-wastar2', max_cost=INF, max_time=120, debug=False)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    print_solution(solution)
-    plan, cost, evaluations = solution
-    if plan is None:
+    trajectories = plan_trajectories(task, context, not args.cfree)
+    if trajectories is None:
         return
-    trajectories = postprocess_plan(mbp, task.gripper, plan)
 
     ##################################################
 

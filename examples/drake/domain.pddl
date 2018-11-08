@@ -37,7 +37,7 @@
 
     ; Derived predicates (also called axioms)
     (On ?o ?s)
-    (Holding ?o)
+    (Holding ?r ?o)
     (UnsafeTraj ?t)
   )
 

@@ -5,7 +5,7 @@ from itertools import count
 
 from pydrake.multibody.multibody_tree import WeldJoint
 
-from examples.drake.utils import create_transform, get_model_bodies, set_max_joint_positions, set_min_joint_positions
+from examples.drake.utils import create_transform, get_model_bodies, set_joint_positions, get_movable_joints
 
 
 def weld_gripper(mbp, robot_index, gripper_index):
@@ -35,13 +35,13 @@ def get_open_wsg50_positions(mbp, model_index):
 
 
 def close_wsg50_gripper(mbp, context, model_index): # 0.05
-    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+    set_joint_positions(get_movable_joints(mbp, model_index), context,
+                        get_close_wsg50_positions(mbp, model_index))
 
 
 def open_wsg50_gripper(mbp, context, model_index):
-    set_min_joint_positions(context, [mbp.GetJointByName(WSG50_LEFT_FINGER, model_index)])
-    set_max_joint_positions(context, [mbp.GetJointByName(WSG50_RIGHT_FINGER, model_index)])
+    set_joint_positions(get_movable_joints(mbp, model_index), context,
+                        get_open_wsg50_positions(mbp, model_index))
 
 ##################################################
 
@@ -101,15 +101,14 @@ DOOR_OPEN = 0.45 * np.pi
 #DOOR_OPEN = 0.25 * np.pi  # Seems to be the limit for the door itself
 # np.pi/2 is the physical max
 
-def get_open_positions(door_body):
+def get_door_open_positions(door_body):
     name = door_body.name()
     if name == 'left_door':
         return [-DOOR_OPEN]
     elif name == 'right_door':
         return [DOOR_OPEN]
-    else:
-        raise ValueError(name)
+    raise ValueError(name)
 
 
-def get_closed_positions(door_body):
+def get_door_closed_positions(door_body):
     return [DOOR_CLOSED]

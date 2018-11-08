@@ -5,7 +5,7 @@ from examples.drake.utils import get_random_positions, get_joint_limits, set_joi
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
 
 DEFAULT_WEIGHT = 1.0
-DEFAULT_RESOLUTION = 0.005*np.pi
+DEFAULT_RESOLUTION = 0.01*np.pi
 
 ##################################################
 
@@ -129,6 +129,12 @@ def plan_joint_motion(joints, start_positions, end_positions,
                       **kwargs):
     assert len(joints) == len(start_positions)
     assert len(joints) == len(end_positions)
+    if collision_fn(start_positions):
+        print('Warning! Start positions in collision')
+        return None
+    if collision_fn(end_positions):
+        print('Warning! End positions in collision')
+        return None
     return birrt(start_positions, end_positions,
                  distance=get_distance_fn(joints, weights=weights),
                  sample=get_sample_fn(joints),

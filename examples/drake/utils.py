@@ -199,22 +199,8 @@ def set_configuration(mbp, context, model_index, config):
     return set_joint_positions(get_movable_joints(mbp, model_index), context, config)
 
 
-##################################################
-
-
-def set_min_joint_positions(context, joints):
-    for joint in prune_fixed_joints(joints):
-        lower, _ = get_joint_limits(joint)
-        set_joint_position(joint, context, lower)
-
-
-def set_max_joint_positions(context, joints):
-    for joint in prune_fixed_joints(joints):
-        _, upper = get_joint_limits(joint)
-        set_joint_position(joint, context, upper)
-
-
 def get_rest_positions(joints):
+    # TODO: get min/max positions
     return np.zeros(len(joints))
 
 
