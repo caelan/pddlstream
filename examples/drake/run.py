@@ -212,7 +212,7 @@ def plan_trajectories(task, context, collisions=True):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(problem, stream_info=stream_info, planner='ff-wastar2',
-                             max_cost=INF, max_time=120, debug=False,
+                             max_cost=INF, max_time=180, debug=False,
                              effort_weight=1, search_sampling_ratio=1)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

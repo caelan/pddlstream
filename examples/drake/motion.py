@@ -1,8 +1,10 @@
 import numpy as np
+import math
 
 from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, exists_colliding_pair, \
-    create_transform, solve_inverse_kinematics, get_unit_vector
+    create_transform, solve_inverse_kinematics, get_unit_vector, get_body_pose
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
+from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
 
 DEFAULT_WEIGHT = 1.0
 DEFAULT_RESOLUTION = 0.01*np.pi
@@ -11,6 +13,7 @@ DEFAULT_RESOLUTION = 0.01*np.pi
 
 
 def get_sample_fn(joints):
+    # TODO: reject colliding?
     return lambda: get_random_positions(joints)
 
 
@@ -33,6 +36,36 @@ def get_distance_fn(joints, weights=None):
     def fn(q1, q2):
         diff = np.array(difference_fn(q2, q1))
         return np.sqrt(np.dot(weights, diff * diff))
+    return fn
+
+
+def quaternion_distance(quat1, quat2):
+    #return 2*(1 - np.dot(quat1.wxyz(), quat2.wxyz()))
+    x = 2 * math.pow(np.dot(quat1.wxyz(), quat2.wxyz()), 2) - 1
+    if abs(x - 1.) < 1e-6:
+        return 0.
+    return math.acos(x) # [0, np.pi]
+
+
+def get_ee_distance_fn(plant, context, joints):
+    cache = {}
+    body = joints[-1].child_body()
+
+    def get_value(q):
+        key = id(q)
+        if key not in cache:
+            set_joint_positions(joints, context, q)
+            cache[key] = get_body_pose(context, body)
+        return cache[key]
+
+    def fn(q1, q2):
+        #diff = get_value(q2).inverse().multiply(get_value(q1))
+        pose1 = get_value(q1)
+        pose2 = get_value(q2)
+        dtranslation = np.linalg.norm(pose2.translation() - pose1.translation())
+        dquaternion = quaternion_distance(pose1.quaternion(), pose2.quaternion())
+        #print(body.name(), dtranslation, dquaternion)
+        return dtranslation + 0.1*(dquaternion / np.pi)
     return fn
 
 
@@ -60,6 +93,7 @@ def within_limits(joint, position):
 def get_collision_fn(diagram, diagram_context, plant, scene_graph,
                      joints, collision_pairs=set(), attachments=[]):
     # TODO: self-collisions
+    # TODO: enforce that the arm remains within the station?
     plant_context = diagram.GetMutableSubsystemContext(plant, diagram_context)
 
     def fn(q):
@@ -125,6 +159,7 @@ def plan_waypoints_joint_motion(joints, waypoints, resolutions=None,
 
 def plan_joint_motion(joints, start_positions, end_positions,
                       weights=None, resolutions=None,
+                      distance_fn=None,
                       collision_fn=lambda q: False,
                       **kwargs):
     assert len(joints) == len(start_positions)
@@ -135,8 +170,10 @@ def plan_joint_motion(joints, start_positions, end_positions,
     if collision_fn(end_positions):
         print('Warning! End positions in collision')
         return None
+    if distance_fn is None:
+        distance_fn = get_distance_fn(joints, weights=weights)
     return birrt(start_positions, end_positions,
-                 distance=get_distance_fn(joints, weights=weights),
+                 distance=distance_fn,
                  sample=get_sample_fn(joints),
                  extend=get_extend_fn(joints, resolutions=resolutions),
                  collision=collision_fn, **kwargs)

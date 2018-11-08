@@ -193,13 +193,13 @@ def load_manipulation(time_step=0.0, new_models=True):
         #Surface(plant, amazon_table, 'amazon_table', 0),
         goal_surface,
     ]
-    #door_names = ['left_door', 'right_door']
-    door_names = []
+    door_names = ['left_door', 'right_door']
+    #door_names = []
     doors = [plant.GetBodyByName(name).index() for name in door_names]
 
-    #door_position = DOOR_CLOSED  # ~np.pi/2
+    door_position = DOOR_CLOSED  # ~np.pi/2
     #door_position = DOOR_OPEN
-    door_position = np.pi/2
+    #door_position = np.pi/2
     #door_position = np.pi/8
     initial_positions = {
         plant.GetJointByName('left_door_hinge'): -door_position,
@@ -207,12 +207,13 @@ def load_manipulation(time_step=0.0, new_models=True):
         plant.GetJointByName('right_door_hinge'): np.pi/2,
     }
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
-    initial_conf[1] += np.pi / 6
+    #initial_conf[1] += np.pi / 6
     initial_positions.update(zip(get_movable_joints(plant, robot), initial_conf))
 
     initial_poses = {
         #brick: create_transform(translation=[0.6, 0, 0]),
-        brick: create_transform(translation=[0.4, 0.05, 0], rotation=[0, 0, np.pi/8]),
+        brick: create_transform(translation=[0.3, 0, 0]),
+        #brick: create_transform(translation=[0.4, 0.05, 0], rotation=[0, 0, np.pi/8]),
     }
 
     goal_holding = [

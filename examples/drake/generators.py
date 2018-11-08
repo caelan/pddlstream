@@ -4,7 +4,7 @@ import numpy as np
 
 from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps
 from examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
-    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn
+    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_ee_distance_fn
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
     get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, \
     set_joint_positions, get_box_from_geom, get_parent_joints, exists_colliding_pair, get_model_bodies
@@ -175,7 +175,8 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
     box_from_geom = get_box_from_geom(task.scene_graph)
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
-    pitch = np.pi/2 # TODO: can use a different pitch
+    #pitch = np.pi/2
+    pitch = np.pi/3
     grasp_length = 0.02
 
     #approach_vector = 0.01*np.array([0, -1, 0])
@@ -225,7 +226,8 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
             rq2 = Conf(robot_joints, pull_joint_waypoints[-1])
             combined_joints = robot_joints + door_joints
             combined_waypoints = [list(rq) + list(dq) for rq, dq in zip(pull_joint_waypoints, door_joint_path)]
-            pull_joint_path = plan_waypoints_joint_motion(combined_joints, combined_waypoints, collision_fn=lambda q: False)
+            pull_joint_path = plan_waypoints_joint_motion(combined_joints, combined_waypoints,
+                                                          collision_fn=lambda q: False)
             if pull_joint_path is None:
                 continue
             traj = Trajectory(Conf(combined_joints, combined_conf) for combined_conf in pull_joint_path)
@@ -275,10 +277,13 @@ def get_motion_fn(task, context, collisions=True):
         collision_pairs = set(product(moving, obstacles)) if collisions else set()
         collision_fn = get_collision_fn(task.diagram, task.diagram_context, task.mbp, task.scene_graph,
                                         joints, collision_pairs=collision_pairs, attachments=attachments)
+        weights = np.ones(len(joints))
+        distance_fn = get_ee_distance_fn(task.mbp, context, joints)
 
         open_wsg50_gripper(task.mbp, context, gripper)
         set_joint_positions(joints, context, conf1.positions)
-        path = plan_joint_motion(joints, conf1.positions, conf2.positions, collision_fn=collision_fn,
+        path = plan_joint_motion(joints, conf1.positions, conf2.positions,
+                                 weights=weights, distance_fn=distance_fn, collision_fn=collision_fn,
                                  restarts=7, iterations=75, smooth=100)
         if path is None:
             return None
