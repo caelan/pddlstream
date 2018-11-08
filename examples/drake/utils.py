@@ -44,6 +44,13 @@ def aabb_from_points(points):
     extent = (np.array(upper) - np.array(lower)) / 2.
     return BoundingBox(center, extent)
 
+
+def aabb_contains_point(point, aabb):
+    lower = get_aabb_lower(aabb)
+    upper = get_aabb_upper(aabb)
+    return np.greater_equal(point, lower).all() and \
+           np.greater_equal(upper, point).all()
+
 ##################################################
 
 def get_aabb_z_placement(object_aabb, surface_aabb, z_epsilon=1e-3):

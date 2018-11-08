@@ -1,4 +1,4 @@
-from examples.drake.generators import get_grasp_gen, get_stable_gen
+from examples.drake.generators import get_grasp_gen, get_pose_gen
 from examples.drake.utils import get_base_body, get_body_pose, user_input, get_model_name
 
 
@@ -20,7 +20,7 @@ def test_generators(task, diagram, diagram_context):
 
     # Test placements
     user_input('Start')
-    pose_gen_fn = get_stable_gen(task, context)
+    pose_gen_fn = get_pose_gen(task, context)
     model = task.movable[0]
     for pose, in pose_gen_fn(get_model_name(mbp, model), task.surfaces[0]):
        pose.assign(context)

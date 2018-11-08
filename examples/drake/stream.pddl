@@ -1,29 +1,30 @@
 (define (stream manipulation-station)
-  (:stream sample-pose
-    :inputs (?o ?s)
-    :domain (Stackable ?o ?s)
-    :outputs (?p)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?s))
-  )
+  ;(:stream sample-pose
+  ;  :inputs (?o ?s)
+  ;  :domain (Stackable ?o ?s)
+  ;  :outputs (?p)
+  ;  :certified (and (Pose ?o ?p) (Supported ?o ?p ?s))
+  ;)
+
   (:stream sample-grasp
     :inputs (?o)
     :domain (Graspable ?o)
     :outputs (?g)
     :certified (Grasp ?o ?g)
   )
-  (:stream inverse-kinematics
+  (:stream plan-ik
     :inputs (?r ?o ?p ?g)
-    :domain (and (Robot ?r) (Pose ?o ?p) (Grasp ?o ?g))
+    :domain (and (Robot ?r) (InitPose ?o ?p) (Grasp ?o ?g))
     :outputs (?q ?t)
     :certified (and (Conf ?r ?q) (Traj ?t)
                     (Kin ?r ?o ?p ?g ?q ?t))
   )
-  (:stream plan-motion
-    :inputs (?r ?q1 ?q2)
-    :domain (and (Conf ?r ?q1) (Conf ?r ?q2) (Robot ?r))
-    :fluents (AtConf AtPose AtGrasp)
-    :outputs (?t)
-    :certified (Motion ?r ?q1 ?q2 ?t)
+  (:stream sample-reachable-pose
+    :inputs (?r ?o ?g ?s)
+    :domain (and (Robot ?r) (Grasp ?o ?g) (Stackable ?o ?s))
+    :outputs (?p ?q ?t)
+    :certified (and (Pose ?o ?p) (Supported ?o ?p ?s) (Conf ?r ?q) (Traj ?t)
+                    (Kin ?r ?o ?p ?g ?q ?t))
   )
   (:stream plan-pull
     :inputs (?r ?d ?dq1 ?dq2)
@@ -32,7 +33,15 @@
     :certified (and (Conf ?r ?rq1) (Conf ?r ?rq2) (Traj ?t)
                     (Pull ?r ?rq1 ?rq2 ?d ?dq1 ?dq2 ?t))
   )
+  (:stream plan-motion
+    :inputs (?r ?q1 ?q2)
+    :domain (and (Conf ?r ?q1) (Conf ?r ?q2) (Robot ?r))
+    :fluents (AtConf AtPose AtGrasp)
+    :outputs (?t)
+    :certified (Motion ?r ?q1 ?q2 ?t)
+  )
 
+  ; Boolean functions (i.e. predicates) that are similar to test streams
   (:predicate (TrajPoseCollision ?t ?o ?p)
     (and (Traj ?t) (Pose ?o ?p))
   )

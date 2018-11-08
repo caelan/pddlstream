@@ -13,8 +13,8 @@ from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import SignalLogger
 
-from examples.drake.generators import Pose, Conf, get_stable_gen, get_grasp_gen, get_ik_fn, \
-    get_motion_fn, get_pull_fn, get_collision_test
+from examples.drake.generators import Pose, Conf, get_pose_gen, get_grasp_gen, get_ik_fn, \
+    get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen
 from examples.drake.iiwa_utils import open_wsg50_gripper, get_door_open_positions
 from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines
 from examples.drake.problems import load_manipulation, load_tables, load_station
@@ -149,6 +149,7 @@ def get_pddlstream_problem(task, context, collisions=True):
         obj_pose = Pose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
+                 ('InitPose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
         for surface in task.surfaces:
             init += [('Stackable', obj_name, surface)]
@@ -191,9 +192,10 @@ def get_pddlstream_problem(task, context, collisions=True):
     print('Goal:', goal)
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(task, context, collisions=collisions)),
+        #'sample-pose': from_gen_fn(get_stable_gen(task, context, collisions=collisions)),
+        'sample-reachable-pose': from_gen_fn(get_reachable_pose_gen(task, context, collisions=collisions)),
         'sample-grasp': from_gen_fn(get_grasp_gen(task)),
-        'inverse-kinematics': from_fn(get_ik_fn(task, context, collisions=collisions)),
+        'plan-ik': from_fn(get_ik_fn(task, context, collisions=collisions)),
         'plan-motion': from_fn(get_motion_fn(task, context, collisions=collisions)),
         'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
         'TrajPoseCollision': get_collision_test(task, context, collisions=collisions),
@@ -205,15 +207,15 @@ def get_pddlstream_problem(task, context, collisions=True):
 
 def plan_trajectories(task, context, collisions=True):
     stream_info = {
-        'TrajPoseCollision': FunctionInfo(p_success=1e-3),
-        'TrajConfCollision': FunctionInfo(p_success=1e-3),
+        'TrajPoseCollision': FunctionInfo(p_success=1e-3, eager=False),
+        'TrajConfCollision': FunctionInfo(p_success=1e-3, eager=False),
     }
     problem = get_pddlstream_problem(task, context, collisions=collisions)
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(problem, stream_info=stream_info, planner='ff-wastar2',
                              max_cost=INF, max_time=180, debug=False,
-                             effort_weight=1, search_sampling_ratio=1)
+                             unit_efforts=True, effort_weight=1, search_sampling_ratio=0)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     print_solution(solution)
@@ -256,7 +258,6 @@ def test_manipulation(plan_list, gripper_setpoint_list, is_hardware=False):
     from pydrake.common import FindResourceOrThrow
     from .lab_1.manipulation_station_simulator import ManipulationStationSimulator
 
-
     object_file_path = FindResourceOrThrow(
             "drake/examples/manipulation_station/models/061_foam_brick.sdf")
 
@@ -283,7 +284,7 @@ PROBLEMS = [
     load_station,
 ]
 
-def main(deterministic=True):
+def main(deterministic=False):
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
     # TODO: get_contact_results_output_port
@@ -291,14 +292,15 @@ def main(deterministic=True):
 
     time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     if deterministic:
+        # TODO: still not fully deterministic
         random.seed(0)
         np.random.seed(0)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--problem', default='load_manipulation', help='The name of the problem to solve.')
-    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
+    parser.add_argument('-p', '--problem', default='load_manipulation', help='The name of the problem to solve')
+    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions when planning')
     parser.add_argument('-v', '--visualizer', action='store_true', help='Use the drake visualizer')
-    parser.add_argument('-s', '--simulate', action='store_true', help='Simulate')
+    parser.add_argument('-s', '--simulate', action='store_true', help='Simulates the system')
     args = parser.parse_args()
 
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
@@ -336,6 +338,7 @@ def main(deterministic=True):
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
     task.diagram = diagram
     task.diagram_context = diagram_context
+    task.meshcat_vis = meshcat_vis
 
     #context = mbp.CreateDefaultContext()
     for joint, position in task.initial_positions.items():

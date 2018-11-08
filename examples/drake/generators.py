@@ -4,10 +4,11 @@ import numpy as np
 
 from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps
 from examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
-    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_ee_distance_fn
+    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_ee_distance_fn, get_sample_fn
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
-    get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, \
-    set_joint_positions, get_box_from_geom, get_parent_joints, exists_colliding_pair, get_model_bodies
+    get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, get_joint_positions, \
+    set_joint_positions, get_box_from_geom, get_parent_joints, exists_colliding_pair, get_model_bodies, \
+    vertices_from_aabb, aabb_from_points, aabb_contains_point
 
 
 def bodies_from_models(mbp, models):
@@ -82,7 +83,34 @@ class Trajectory(object):
 
 ##################################################
 
-def get_stable_gen(task, context, collisions=True):
+
+def get_model_aabb(mbp, context, box_from_geom, model_index):
+    points = []
+    body_names = {body.name() for body in get_model_bodies(mbp, model_index)}
+    for (model_int, body_name, _), (aabb, body_from_geom, _) in box_from_geom.items():
+        if (int(model_index) == model_int) and (body_name in body_names):
+            body = mbp.GetBodyByName(body_name, model_index)
+            world_from_body = get_body_pose(context, body)
+            points.extend(world_from_body.multiply(body_from_geom).multiply(vertex)
+                          for vertex in vertices_from_aabb(aabb))
+    return aabb_from_points(points)
+
+
+def get_aabb_sample_fn(joints, context, body, aabb, sample_fn):
+    #sample_fn = get_sample_fn(joints)
+    def fn():
+        while True:
+            q = sample_fn()
+            set_joint_positions(joints, context, q)
+            world_from_body = get_body_pose(context, body)
+            point_world = world_from_body.translation()
+            if aabb_contains_point(point_world, aabb):
+                return q
+    return fn
+
+##################################################
+
+def get_pose_gen(task, context, collisions=True, shrink=0.025):
     mbp = task.mbp
     world = mbp.world_frame()
     box_from_geom = get_box_from_geom(task.scene_graph)
@@ -94,11 +122,10 @@ def get_stable_gen(task, context, collisions=True):
         surface_pose = get_body_pose(context, surface_body)
         collision_pairs = set(product(get_model_bodies(mbp, obj), fixed)) # + [surface]
 
-        #object_aabb, object_local = AABBs[obj_name], Isometry3.Identity()
-        #surface_aabb, surface_local = AABBs[surface_name], Isometry3.Identity()
         object_aabb, object_local, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
         surface_aabb, surface_local, _ = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
-        for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb):
+        #object_radius = min(object_aabb[:2])
+        for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb, shrink=shrink):
             world_pose = surface_pose.multiply(surface_local).multiply(
                 surface_from_object).multiply(object_local.inverse())
             pose = Pose(mbp, world, obj, world_pose)
@@ -132,13 +159,13 @@ def get_grasp_gen(task):
     return gen
 
 
-def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.15, step_size=0.035):
-    #distance = 0.0
+def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.2, step_size=0.035):
     approach_vector = distance*np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
     initial_guess = None
-    #initial_guess = get_joint_positions(joints, context) # TODO: start with initial
+    #joints = get_movable_joints(task.mbp, task.robot)
+    #initial_guess = get_joint_positions(joints, context)
 
     def fn(robot_name, obj_name, pose, grasp):
         # TODO: if gripper/block in collision, return
@@ -163,13 +190,21 @@ def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.15, ste
             path = plan_waypoints_joint_motion(joints, waypoints, collision_fn=collision_fn)
             if path is None:
                 continue
-            #path = refine_joint_path(joints, path)
             traj = Trajectory(Conf(joints, q) for q in path)
-            #print(attempts - last_success)
             #last_success = attempts
             return traj.path[-1], traj
     return fn
 
+def get_reachable_pose_gen(task, context, collisions=True, **kwargs):
+    pose_gen = get_pose_gen(task, context, collisions=collisions)
+    ik_fn = get_ik_fn(task, context, collisions=collisions, max_failures=1, **kwargs)
+    def gen(r, o, g, s):
+        for p, in pose_gen(o, s):
+            result = ik_fn(r, o, p, g)
+            if result is not None:
+                q, t = result
+                yield (p, q, t)
+    return gen
 
 def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi / 16):
     box_from_geom = get_box_from_geom(task.scene_graph)
@@ -256,12 +291,22 @@ def parse_fluents(fluents, context, obstacles):
     return attachments
 
 
-def get_motion_fn(task, context, collisions=True):
+def get_motion_fn(task, context, teleport=False, collisions=True):
+    robot = task.robot
     gripper = task.gripper
+    joints = get_movable_joints(task.mbp, robot)
+    initial_conf = get_joint_positions(joints, context) # Return to initial conf first?
+
+    box_from_geom = get_box_from_geom(task.scene_graph)
+    table_index = task.mbp.GetModelInstanceByName('amazon_table')
+    table_aabb = get_model_aabb(task.mbp, context, box_from_geom, table_index)
 
     def fn(robot_name, conf1, conf2, fluents=[]):
-        robot = task.mbp.GetModelInstanceByName(robot_name)
-        joints = get_movable_joints(task.mbp, robot)
+        #robot = task.mbp.GetModelInstanceByName(robot_name)
+        #joints = get_movable_joints(task.mbp, robot)
+        if teleport:
+            traj = Trajectory([conf1, conf2])
+            return (traj,)
 
         moving = bodies_from_models(task.mbp, [robot, gripper])
         obstacles = set(task.fixed_bodies())
@@ -270,26 +315,49 @@ def get_motion_fn(task, context, collisions=True):
             moving.update(grasp.bodies)
         obstacles -= moving
 
-        #print(sorted(body.name() for body in moving))
-        #print(sorted(body.name() for body in obstacles))
-        #print(attachments)
         # Can make separate predicate for the frame something is in at a particular time
         collision_pairs = set(product(moving, obstacles)) if collisions else set()
         collision_fn = get_collision_fn(task.diagram, task.diagram_context, task.mbp, task.scene_graph,
                                         joints, collision_pairs=collision_pairs, attachments=attachments)
+        #distance_fn = get_ee_distance_fn(task.mbp, context, joints)
         weights = np.ones(len(joints))
-        distance_fn = get_ee_distance_fn(task.mbp, context, joints)
+        weights = np.array([sum(weights[i:]) for i in range(len(weights))])
+        distance_fn = None
+
+        #sample_fn = get_aabb_sample_fn(joints, context, get_base_body(task.mbp, gripper),
+        #                               table_aabb, get_sample_fn(joints, collision_fn))
+        sample_fn = None
+        #while True:
+        #    conf = sample_fn()
+        #    set_joint_positions(joints, context, conf)
+        #    task.diagram.Publish(task.diagram_context)
+        #    raw_input('Continue?')
 
         open_wsg50_gripper(task.mbp, context, gripper)
-        set_joint_positions(joints, context, conf1.positions)
+        # path1 = plan_joint_motion(joints, conf1.positions, initial_conf,
+        #                           weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
+        #                           restarts=25, iterations=50, smooth=0)
+        # if path1 is None:
+        #     return None
+        # path2 = plan_joint_motion(joints, path1[-1], conf2.positions,
+        #                           weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
+        #                           restarts=25, iterations=50, smooth=0)
+        # if path2 is None:
+        #     return None
+        # path = path1 + path2 # TODO: smooth
         path = plan_joint_motion(joints, conf1.positions, conf2.positions,
-                                 weights=weights, distance_fn=distance_fn, collision_fn=collision_fn,
-                                 restarts=7, iterations=75, smooth=100)
+                                 weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
+                                 restarts=15, iterations=75, smooth=100)
         if path is None:
+            print('Failure!')
+            for conf in [conf1, conf2]:
+                conf.assign(context)
+                task.diagram.Publish(task.diagram_context)
+
+                raw_input('Continue?')
             return None
-        #path = refine_joint_path(joints, path)
         traj = Trajectory(Conf(joints, q) for q in path)
-        return traj,
+        return (traj,)
     return fn
 
 

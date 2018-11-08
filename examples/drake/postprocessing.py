@@ -61,7 +61,7 @@ def compute_duration(splines):
     return sim_duration
 
 
-RADIANS_PER_SECOND = np.pi / 2
+RADIANS_PER_SECOND = np.pi / 4
 
 
 def convert_splines(mbp, robot, gripper, context, trajectories):
@@ -71,7 +71,7 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
     for i, traj in enumerate(trajectories):
         traj.path[-1].assign(context)
         joints = traj.path[0].joints
-        if len(joints) == 8: # TODO: fix this
+        if len(joints) == 8: # TODO: remove inclusion of door joints
             joints = joints[:7]
 
         if len(joints) == 2:
@@ -79,14 +79,13 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
             q_knots_kuka[0] = get_configuration(mbp, context, robot) # Second is velocity
             splines.append(PiecewisePolynomial.ZeroOrderHold([0, 1], q_knots_kuka.T))
         elif len(joints) == 7:
-            # TODO: adjust timing based on distance & velocities
-            # TODO: adjust number of waypoints
             distance_fn = get_distance_fn(joints)
-            #path = [traj.path[0].positions, traj.path[-1].positions]
             path = [q.positions[:len(joints)] for q in traj.path]
-            path = waypoints_from_path(joints, path) # TODO: increase time for pick/place & hold
+            # Need to be careful that we follow the path well
+            #path = waypoints_from_path(joints, path)
             q_knots_kuka = np.vstack(path).T
             distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
+            # TODO: increase time for pick/place & hold
             t_knots = np.cumsum(distances) / RADIANS_PER_SECOND # TODO: this should be a max
             d, n = q_knots_kuka.shape
             print('{}) d={}, n={}, duration={:.3f}'.format(i, d, n, t_knots[-1]))
@@ -95,7 +94,6 @@ def convert_splines(mbp, robot, gripper, context, trajectories):
                 knots=q_knots_kuka,
                 knot_dot_start=np.zeros(d),
                 knot_dot_end=np.zeros(d)))
-            # RuntimeError: times must be in increasing order.
         else:
             raise ValueError(joints)
         _, gripper_setpoint = get_configuration(mbp, context, gripper)

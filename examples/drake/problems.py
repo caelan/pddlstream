@@ -137,6 +137,7 @@ def load_manipulation(time_step=0.0, new_models=True):
         FOAM_BRICK_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
         goal_shelf = 'shelf_lower'
+        #goal_shelf = 'shelf_upper'
     else:
         AMAZON_TABLE_PATH = FindResourceOrThrow(
             "drake/external/models_robotlocomotion/manipulation_station/amazon_table_simplified.sdf")
@@ -171,8 +172,6 @@ def load_manipulation(time_step=0.0, new_models=True):
     brick = AddModelFromSdfFile(file_name=FOAM_BRICK_PATH, model_name='brick',
                                  scene_graph=scene_graph, plant=plant)
 
-    # left_door, left_door_hinge, cylinder
-
     weld_gripper(plant, robot, gripper)
     weld_to_world(plant, robot, create_transform())
     weld_to_world(plant, amazon_table, create_transform(
@@ -184,7 +183,7 @@ def load_manipulation(time_step=0.0, new_models=True):
     shelves = [
         'bottom',
         'shelf_lower',
-        'shelf_upper'
+        'shelf_upper',
         'top',
     ]
 
@@ -199,6 +198,7 @@ def load_manipulation(time_step=0.0, new_models=True):
 
     door_position = DOOR_CLOSED  # ~np.pi/2
     #door_position = DOOR_OPEN
+    #door_position = np.pi
     #door_position = np.pi/2
     #door_position = np.pi/8
     initial_positions = {
@@ -213,7 +213,7 @@ def load_manipulation(time_step=0.0, new_models=True):
     initial_poses = {
         #brick: create_transform(translation=[0.6, 0, 0]),
         brick: create_transform(translation=[0.3, 0, 0]),
-        #brick: create_transform(translation=[0.4, 0.05, 0], rotation=[0, 0, np.pi/8]),
+        #brick: create_transform(translation=[0.2, -0.3, 0], rotation=[0, 0, np.pi/8]),
     }
 
     goal_holding = [

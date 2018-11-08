@@ -4,6 +4,8 @@ import math
 from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, exists_colliding_pair, \
     create_transform, solve_inverse_kinematics, get_unit_vector, get_body_pose
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
+from examples.pybullet.utils.motion.motion_planners.smoothing import smooth_path
+from examples.pybullet.utils.motion.motion_planners.prm import DegreePRM
 from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
 
 DEFAULT_WEIGHT = 1.0
@@ -12,9 +14,13 @@ DEFAULT_RESOLUTION = 0.01*np.pi
 ##################################################
 
 
-def get_sample_fn(joints):
-    # TODO: reject colliding?
-    return lambda: get_random_positions(joints)
+def get_sample_fn(joints, collision_fn=lambda q: False):
+    def fn():
+        while True:
+            q = get_random_positions(joints)
+            if not collision_fn(q):
+                return q
+    return fn
 
 
 def get_difference_fn(joints):
@@ -159,7 +165,7 @@ def plan_waypoints_joint_motion(joints, waypoints, resolutions=None,
 
 def plan_joint_motion(joints, start_positions, end_positions,
                       weights=None, resolutions=None,
-                      distance_fn=None,
+                      sample_fn=None, distance_fn=None,
                       collision_fn=lambda q: False,
                       **kwargs):
     assert len(joints) == len(start_positions)
@@ -172,11 +178,16 @@ def plan_joint_motion(joints, start_positions, end_positions,
         return None
     if distance_fn is None:
         distance_fn = get_distance_fn(joints, weights=weights)
-    return birrt(start_positions, end_positions,
-                 distance=distance_fn,
-                 sample=get_sample_fn(joints),
-                 extend=get_extend_fn(joints, resolutions=resolutions),
-                 collision=collision_fn, **kwargs)
+    if sample_fn is None:
+        sample_fn = get_sample_fn(joints) #, collision_fn=collision_fn)
+    extend_fn = get_extend_fn(joints, resolutions=resolutions)
+    return birrt(start_positions, end_positions, distance=distance_fn, sample=sample_fn,
+                 extend=extend_fn, collision=collision_fn, **kwargs)
+
+
+def smooth_joint_motion(joints, path, resolutions=None, collision_fn=lambda q: False, **kwargs):
+    return smooth_path(path, extend=get_extend_fn(joints, resolutions=resolutions),
+                       collision=collision_fn, **kwargs)
 
 ##################################################
 
