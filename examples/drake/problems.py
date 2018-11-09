@@ -54,7 +54,7 @@ class Task(object):
     def __init__(self, mbp, scene_graph, robot, gripper,
                  movable=[], surfaces=[], doors=[],
                  initial_positions={}, initial_poses={},
-                 goal_holding=[], goal_on=[], goal_cooked=[],
+                 goal_poses={}, goal_holding=[], goal_on=[], goal_cooked=[],
                  reset_robot=True, reset_doors=True):
         self.mbp = mbp
         self.scene_graph = scene_graph
@@ -65,6 +65,7 @@ class Task(object):
         self.doors = doors
         self.initial_positions = initial_positions
         self.initial_poses = initial_poses
+        self.goal_poses = goal_poses
         self.goal_holding = goal_holding
         self.goal_on = goal_on
         self.goal_cooked = goal_cooked
@@ -186,12 +187,12 @@ def load_manipulation(time_step=0.0, new_models=True):
         'shelf_upper',
         'top',
     ]
-
     goal_surface = Surface(plant, cupboard, 'top_and_bottom', shelves.index(goal_shelf))
     surfaces = [
         #Surface(plant, amazon_table, 'amazon_table', 0),
-        goal_surface,
+        #goal_surface,
     ]
+
     door_names = ['left_door', 'right_door']
     #door_names = []
     doors = [plant.GetBodyByName(name).index() for name in door_names]
@@ -212,20 +213,24 @@ def load_manipulation(time_step=0.0, new_models=True):
 
     initial_poses = {
         #brick: create_transform(translation=[0.6, 0, 0]),
-        brick: create_transform(translation=[0.3, 0, 0]),
+        brick: create_transform(translation=[0.3, 0, 0], rotation=[0, 0, np.pi/2]),
         #brick: create_transform(translation=[0.2, -0.3, 0], rotation=[0, 0, np.pi/8]),
     }
 
+    goal_poses = {
+        brick: create_transform(translation=[0.8, 0.2, 0.2927], rotation=[0, 0, np.pi/8]),
+    }
     goal_holding = [
         #brick,
     ]
     goal_on = [
-        (brick, goal_surface),
+        #(brick, goal_surface),
     ]
 
     task = Task(plant, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors,
                 initial_positions=initial_positions, initial_poses=initial_poses,
-                goal_holding=goal_holding, goal_on=goal_on, reset_doors=False)
+                goal_poses=goal_poses, goal_holding=goal_holding, goal_on=goal_on,
+                reset_robot=True, reset_doors=False)
 
     return plant, scene_graph, task
 

@@ -14,18 +14,18 @@
   )
   (:stream plan-ik
     :inputs (?r ?o ?p ?g)
-    :domain (and (Robot ?r) (InitPose ?o ?p) (Grasp ?o ?g))
+    :domain (and (Robot ?r) (Grasp ?o ?g) (Pose ?o ?p)) ; (InitPose ?o ?p))
     :outputs (?q ?t)
     :certified (and (Conf ?r ?q) (Traj ?t)
                     (Kin ?r ?o ?p ?g ?q ?t))
   )
-  (:stream sample-reachable-pose
-    :inputs (?r ?o ?g ?s)
-    :domain (and (Robot ?r) (Grasp ?o ?g) (Stackable ?o ?s))
-    :outputs (?p ?q ?t)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?s) (Conf ?r ?q) (Traj ?t)
-                    (Kin ?r ?o ?p ?g ?q ?t))
-  )
+  ;(:stream sample-reachable-pose
+  ;  :inputs (?r ?o ?g ?s)
+  ;  :domain (and (Robot ?r) (Grasp ?o ?g) (Stackable ?o ?s))
+  ;  :outputs (?p ?q ?t)
+  ;  :certified (and (Pose ?o ?p) (Supported ?o ?p ?s) (Conf ?r ?q) (Traj ?t)
+  ;                  (Kin ?r ?o ?p ?g ?q ?t))
+  ;)
   (:stream plan-pull
     :inputs (?r ?d ?dq1 ?dq2)
     :domain (and (Robot ?r) (Conf ?d ?dq1) (Conf ?d ?dq2) (Door ?d))

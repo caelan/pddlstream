@@ -159,13 +159,14 @@ def get_grasp_gen(task):
     return gen
 
 
-def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.2, step_size=0.035):
+def get_ik_fn(task, context, collisions=True, max_failures=10, distance=0.2, step_size=0.035):
     approach_vector = distance*np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
     initial_guess = None
     #joints = get_movable_joints(task.mbp, task.robot)
     #initial_guess = get_joint_positions(joints, context)
+    # TODO: generate a larger set
 
     def fn(robot_name, obj_name, pose, grasp):
         # TODO: if gripper/block in collision, return
@@ -192,6 +193,7 @@ def get_ik_fn(task, context, collisions=True, max_failures=5, distance=0.2, step
                 continue
             traj = Trajectory(Conf(joints, q) for q in path)
             #last_success = attempts
+            print('IK attampts: {}'.format(attempts))
             return traj.path[-1], traj
     return fn
 
@@ -347,13 +349,12 @@ def get_motion_fn(task, context, teleport=False, collisions=True):
         # path = path1 + path2 # TODO: smooth
         path = plan_joint_motion(joints, conf1.positions, conf2.positions,
                                  weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
-                                 restarts=15, iterations=75, smooth=100)
+                                 restarts=10, iterations=75, smooth=50)
         if path is None:
             print('Failure!')
             for conf in [conf1, conf2]:
                 conf.assign(context)
                 task.diagram.Publish(task.diagram_context)
-
                 raw_input('Continue?')
             return None
         traj = Trajectory(Conf(joints, q) for q in path)

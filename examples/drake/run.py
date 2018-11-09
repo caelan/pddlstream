@@ -149,7 +149,7 @@ def get_pddlstream_problem(task, context, collisions=True):
         obj_pose = Pose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
-                 ('InitPose', obj_name, obj_pose),
+                 #('InitPose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
         for surface in task.surfaces:
             init += [('Stackable', obj_name, surface)]
@@ -180,6 +180,11 @@ def get_pddlstream_problem(task, context, collisions=True):
         if task.reset_doors:
             goal_literals += [('AtConf', door_name, door_conf)]
 
+    for obj, transform in task.goal_poses.items():
+        obj_name = get_model_name(mbp, obj)
+        obj_pose = Pose(mbp, world, obj, transform)
+        init += [('Pose', obj_name, obj_pose)]
+        goal_literals.append(('AtPose', obj_name, obj_pose))
     for obj in task.goal_holding:
         goal_literals.append(('Holding', robot_name, get_model_name(mbp, obj)))
     for obj, surface in task.goal_on:
