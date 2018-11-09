@@ -4,19 +4,19 @@ import argparse
 import cProfile
 import pstats
 import random
-import time
 
 import numpy as np
-from pydrake.systems.analysis import Simulator
 
 from examples.drake.generators import Pose, Conf, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen
-from examples.drake.iiwa_utils import get_door_open_positions
-from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines
+from examples.drake.iiwa_utils import get_door_positions, DOOR_OPEN
+from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines, step_trajectories, \
+    simulate_splines
 from examples.drake.problems import PROBLEMS
-from examples.drake.utils import get_model_joints, get_world_pose, prune_fixed_joints, get_configuration, \
-    get_model_name, user_input, get_joint_positions, get_parent_joints, \
-    get_state, set_state, RenderSystemWithGraphviz
+from examples.drake.systems import RenderSystemWithGraphviz
+from examples.drake.utils import get_world_pose, get_configuration, \
+    get_model_name, get_joint_positions, get_parent_joints, \
+    get_state, set_state, get_movable_joints
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
 from pddlstream.language.function import FunctionInfo
@@ -41,13 +41,13 @@ def get_pddlstream_problem(task, context, collisions=True):
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
-    mbp = task.mbp
+    plant = task.mbp
     robot = task.robot
-    robot_name = get_model_name(mbp, robot)
+    robot_name = get_model_name(plant, robot)
 
-    world = mbp.world_frame() # mbp.world_body()
-    robot_joints = prune_fixed_joints(get_model_joints(mbp, robot))
-    robot_conf = Conf(robot_joints, get_configuration(mbp, context, robot))
+    world = plant.world_frame() # mbp.world_body()
+    robot_joints = get_movable_joints(plant, robot)
+    robot_conf = Conf(robot_joints, get_configuration(plant, context, robot))
     init = [
         ('Robot', robot_name),
         ('CanMove', robot_name),
@@ -60,53 +60,51 @@ def get_pddlstream_problem(task, context, collisions=True):
         goal_literals.append(('AtConf', robot_name, robot_conf),)
 
     for obj in task.movable:
-        obj_name = get_model_name(mbp, obj)
+        obj_name = get_model_name(plant, obj)
         #obj_frame = get_base_body(mbp, obj).body_frame()
-        obj_pose = Pose(mbp, world, obj, get_world_pose(mbp, context, obj)) # get_relative_transform
+        obj_pose = Pose(plant, world, obj, get_world_pose(plant, context, obj)) # get_relative_transform
         init += [('Graspable', obj_name),
                  ('Pose', obj_name, obj_pose),
                  #('InitPose', obj_name, obj_pose),
                  ('AtPose', obj_name, obj_pose)]
         for surface in task.surfaces:
             init += [('Stackable', obj_name, surface)]
-            #if is_placement(body, surface):
-            #    init += [('Supported', body, pose, surface)]
+            # TODO: detect already stacked
 
     for surface in task.surfaces:
-        surface_name = get_model_name(mbp, surface.model_index)
+        surface_name = get_model_name(plant, surface.model_index)
         if 'sink' in surface_name:
             init += [('Sink', surface)]
         if 'stove' in surface_name:
             init += [('Stove', surface)]
 
     for door in task.doors:
-        door_body = mbp.tree().get_body(door)
+        door_body = plant.tree().get_body(door)
         door_name = door_body.name()
-        door_joints = get_parent_joints(mbp, door_body)
+        door_joints = get_parent_joints(plant, door_body)
         door_conf = Conf(door_joints, get_joint_positions(door_joints, context))
         init += [
             ('Door', door_name),
             ('Conf', door_name, door_conf),
             ('AtConf', door_name, door_conf),
         ]
-        for positions in [get_door_open_positions(door_body)]: #, get_closed_positions(door_body)]:
+        for positions in [get_door_positions(door_body, DOOR_OPEN)]:
             conf = Conf(door_joints, positions)
             init += [('Conf', door_name, conf)]
-            #goal_literals += [('AtConf', door_name, conf)]
         if task.reset_doors:
             goal_literals += [('AtConf', door_name, door_conf)]
 
     for obj, transform in task.goal_poses.items():
-        obj_name = get_model_name(mbp, obj)
-        obj_pose = Pose(mbp, world, obj, transform)
+        obj_name = get_model_name(plant, obj)
+        obj_pose = Pose(plant, world, obj, transform)
         init += [('Pose', obj_name, obj_pose)]
         goal_literals.append(('AtPose', obj_name, obj_pose))
     for obj in task.goal_holding:
-        goal_literals.append(('Holding', robot_name, get_model_name(mbp, obj)))
+        goal_literals.append(('Holding', robot_name, get_model_name(plant, obj)))
     for obj, surface in task.goal_on:
-        goal_literals.append(('On', get_model_name(mbp, obj), surface))
+        goal_literals.append(('On', get_model_name(plant, obj), surface))
     for obj in task.goal_cooked:
-        goal_literals.append(('Cooked', get_model_name(mbp, obj)))
+        goal_literals.append(('Cooked', get_model_name(plant, obj)))
 
     goal = And(*goal_literals)
     print('Initial:', init)
@@ -126,7 +124,7 @@ def get_pddlstream_problem(task, context, collisions=True):
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def plan_trajectories(task, context, collisions=True):
+def plan_trajectories(task, context, collisions=True, max_time=180):
     stream_info = {
         'TrajPoseCollision': FunctionInfo(p_success=1e-3, eager=False),
         'TrajConfCollision': FunctionInfo(p_success=1e-3, eager=False),
@@ -135,43 +133,16 @@ def plan_trajectories(task, context, collisions=True):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(problem, stream_info=stream_info, planner='ff-wastar2',
-                             max_cost=INF, max_time=180, debug=False,
+                             max_cost=INF, max_time=max_time, debug=False,
                              unit_efforts=True, effort_weight=1, search_sampling_ratio=0)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
+        print('Unable to find a solution in under {} seconds'.format(max_time))
         return None
     return postprocess_plan(task.mbp, task.gripper, plan)
-
-##################################################
-
-def step_trajectories(diagram, diagram_context, context, trajectories, time_step=0.001, teleport=False):
-    diagram.Publish(diagram_context)
-    user_input('Step?')
-    for traj in trajectories:
-        if teleport:
-            traj.path = traj.path[::len(traj.path)-1]
-        for _ in traj.iterate(context):
-            diagram.Publish(diagram_context)
-            if time_step is None:
-                user_input('Continue?')
-            else:
-                time.sleep(time_step)
-    user_input('Finish?')
-
-def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0):
-    simulator = Simulator(diagram, diagram_context)
-    simulator.set_publish_every_time_step(False)
-    simulator.set_target_realtime_rate(real_time_rate)
-    simulator.Initialize()
-
-    diagram.Publish(diagram_context)
-    user_input('Simulate?')
-    simulator.StepTo(sim_duration)
-    user_input('Finish?')
-
 
 ##################################################
 

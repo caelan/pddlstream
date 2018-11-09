@@ -68,6 +68,9 @@ class Trajectory(object):
             joint_bodies.update(attachment.bodies)
         return joint_bodies
 
+    def reverse(self):
+        return self.__class__(self.path[::-1], self.attachments, self.force_control)
+
     def iterate(self, context):
         for conf in self.path[1:]:
             conf.assign(context)

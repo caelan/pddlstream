@@ -1,22 +1,20 @@
 from __future__ import print_function
 
 import random
+from collections import namedtuple
 from itertools import product
 
 import numpy as np
-
-from collections import namedtuple
-
-from pydrake.geometry import DispatchLoadMessage
-from pydrake.multibody.multibody_tree import (ModelInstanceIndex, UniformGravityFieldElement,
-    WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex, JointIndex, JointActuatorIndex, FrameIndex)
-from pydrake.multibody.inverse_kinematics import InverseKinematics
-from pydrake.solvers.mathematicalprogram import SolutionResult
-from pydrake.math import RollPitchYaw, RotationMatrix
-from pydrake.util.eigen_geometry import Isometry3
 from drake import lcmt_viewer_load_robot
-from pydrake.lcm import DrakeMockLcm
 from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
+from pydrake.geometry import DispatchLoadMessage
+from pydrake.lcm import DrakeMockLcm
+from pydrake.math import RollPitchYaw
+from pydrake.multibody.inverse_kinematics import InverseKinematics
+from pydrake.multibody.multibody_tree import (ModelInstanceIndex, WeldJoint, RevoluteJoint, PrismaticJoint, BodyIndex,
+                                              JointIndex, JointActuatorIndex, FrameIndex)
+from pydrake.solvers.mathematicalprogram import SolutionResult
+from pydrake.util.eigen_geometry import Isometry3
 
 user_input = raw_input
 
@@ -307,16 +305,6 @@ def weld_to_world(mbp, model_index, world_pose):
                   child_frame_C=get_base_body(mbp, model_index).body_frame(),
                   X_PC=world_pose))
 
-
-def RenderSystemWithGraphviz(system, output_file="system_view.gz"):
-    ''' Renders the Drake system (presumably a diagram,
-    otherwise this graph will be fairly trivial) using
-    graphviz to a specified file. '''
-    from graphviz import Source
-    string = system.GetGraphvizString()
-    src = Source(string)
-    src.render(output_file, view=False)
-    
 
 #def fix_input_ports(mbp, context):
 #    for i in range(mbp.get_num_input_ports()):

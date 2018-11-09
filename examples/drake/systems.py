@@ -154,3 +154,13 @@ def build_diagram(mbp, scene_graph, robot, gripper, meshcat=False, controllers=F
         state_machine = connect_controllers(builder, mbp, robot, gripper)
 
     return builder.Build(), state_machine
+
+
+def RenderSystemWithGraphviz(system, output_file="system_view.gz"):
+    ''' Renders the Drake system (presumably a diagram,
+    otherwise this graph will be fairly trivial) using
+    graphviz to a specified file. '''
+    from graphviz import Source
+    string = system.GetGraphvizString()
+    src = Source(string)
+    src.render(output_file, view=False)

@@ -101,14 +101,10 @@ DOOR_OPEN = 0.45 * np.pi
 #DOOR_OPEN = 0.25 * np.pi  # Seems to be the limit for the door itself
 # np.pi/2 is the physical max
 
-def get_door_open_positions(door_body):
+def get_door_positions(door_body, abs_position):
     name = door_body.name()
     if name == 'left_door':
-        return [-DOOR_OPEN]
+        return [-abs(abs_position)]
     elif name == 'right_door':
-        return [DOOR_OPEN]
+        return [abs(abs_position)]
     raise ValueError(name)
-
-
-def get_door_closed_positions(door_body):
-    return [DOOR_CLOSED]
