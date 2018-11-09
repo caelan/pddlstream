@@ -4,15 +4,11 @@ import numpy as np
 
 from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps
 from examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
-    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_ee_distance_fn, get_sample_fn
+    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
-    get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, get_joint_positions, \
-    set_joint_positions, get_box_from_geom, get_parent_joints, exists_colliding_pair, get_model_bodies, \
-    vertices_from_aabb, aabb_from_points, aabb_contains_point
-
-
-def bodies_from_models(mbp, models):
-    return {body for model in models for body in get_model_bodies(mbp, model)}
+    get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, set_joint_positions, get_box_from_geom, \
+    exists_colliding_pair, get_model_bodies, \
+    aabb_contains_point, bodies_from_models
 
 
 class Pose(object):
@@ -55,10 +51,11 @@ class Conf(object):
 
 
 class Trajectory(object):
-    def __init__(self, path, attachments=[]):
+    def __init__(self, path, attachments=[], force_control=False):
         self.path = tuple(path)
         self.attachments = attachments
-        # TODO: store a common set of joints instead
+        self.force_control = force_control
+        # TODO: store a common set of joints instead (take in joints and path and convert to confs)
 
     @property
     def joints(self):
@@ -83,32 +80,6 @@ class Trajectory(object):
 
 ##################################################
 
-
-def get_model_aabb(mbp, context, box_from_geom, model_index):
-    points = []
-    body_names = {body.name() for body in get_model_bodies(mbp, model_index)}
-    for (model_int, body_name, _), (aabb, body_from_geom, _) in box_from_geom.items():
-        if (int(model_index) == model_int) and (body_name in body_names):
-            body = mbp.GetBodyByName(body_name, model_index)
-            world_from_body = get_body_pose(context, body)
-            points.extend(world_from_body.multiply(body_from_geom).multiply(vertex)
-                          for vertex in vertices_from_aabb(aabb))
-    return aabb_from_points(points)
-
-
-def get_aabb_sample_fn(joints, context, body, aabb, sample_fn):
-    #sample_fn = get_sample_fn(joints)
-    def fn():
-        while True:
-            q = sample_fn()
-            set_joint_positions(joints, context, q)
-            world_from_body = get_body_pose(context, body)
-            point_world = world_from_body.translation()
-            if aabb_contains_point(point_world, aabb):
-                return q
-    return fn
-
-##################################################
 
 def get_pose_gen(task, context, collisions=True, shrink=0.025):
     mbp = task.mbp
@@ -158,6 +129,7 @@ def get_grasp_gen(task):
             yield grasp,
     return gen
 
+##################################################
 
 def get_ik_fn(task, context, collisions=True, max_failures=10, distance=0.2, step_size=0.035):
     approach_vector = distance*np.array([0, -1, 0])
@@ -207,6 +179,8 @@ def get_reachable_pose_gen(task, context, collisions=True, **kwargs):
                 q, t = result
                 yield (p, q, t)
     return gen
+
+##################################################
 
 def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi / 16):
     box_from_geom = get_box_from_geom(task.scene_graph)
@@ -272,6 +246,18 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
     return fn
 
 ##################################################
+
+def get_aabb_sample_fn(joints, context, body, aabb, sample_fn):
+    #sample_fn = get_sample_fn(joints)
+    def fn():
+        while True:
+            q = sample_fn()
+            set_joint_positions(joints, context, q)
+            world_from_body = get_body_pose(context, body)
+            point_world = world_from_body.translation()
+            if aabb_contains_point(point_world, aabb):
+                return q
+    return fn
 
 def parse_fluents(fluents, context, obstacles):
     attachments = []
@@ -361,6 +347,7 @@ def get_motion_fn(task, context, teleport=False, collisions=True):
         return (traj,)
     return fn
 
+##################################################
 
 def get_collision_test(task, context, collisions=True):
     # TODO: precompute and hash?

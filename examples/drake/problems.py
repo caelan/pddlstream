@@ -8,9 +8,10 @@ from pydrake.geometry import (SceneGraph)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 
-from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED, DOOR_OPEN
+from examples.drake.systems import build_manipulation_station, build_diagram
+from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED, DOOR_OPEN, open_wsg50_gripper
 from examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
-    get_model_bodies, get_bodies
+    get_model_bodies, get_bodies, set_joint_position, set_world_pose
 
 IIWA14_SDF_PATH = os.path.join(pydrake.getDrakePath(),
                                "manipulation", "models", "iiwa_description", "sdf",
@@ -51,18 +52,23 @@ class Surface(object):
                                      self.body_name, self.visual_index)
 
 class Task(object):
-    def __init__(self, mbp, scene_graph, robot, gripper,
+    def __init__(self, diagram, mbp, scene_graph, robot, gripper,
                  movable=[], surfaces=[], doors=[],
                  initial_positions={}, initial_poses={},
                  goal_poses={}, goal_holding=[], goal_on=[], goal_cooked=[],
                  reset_robot=True, reset_doors=True):
+        self.diagram = diagram
         self.mbp = mbp
         self.scene_graph = scene_graph
+        self.diagram_context = diagram.CreateDefaultContext()
+        self.plant_context = diagram.GetMutableSubsystemContext(mbp, self.diagram_context)
+
         self.robot = robot
         self.gripper = gripper
         self.movable = movable
         self.surfaces = surfaces
         self.doors = doors
+
         self.initial_positions = initial_positions
         self.initial_poses = initial_poses
         self.goal_poses = goal_poses
@@ -71,6 +77,9 @@ class Task(object):
         self.goal_cooked = goal_cooked
         self.reset_robot = reset_robot
         self.reset_doors = reset_doors
+    @property
+    def plant(self):
+        return self.mbp
     def movable_bodies(self):
         movable = {self.mbp.tree().get_body(index) for index in self.doors}
         for model in [self.robot, self.gripper] + list(self.movable):
@@ -82,6 +91,14 @@ class Task(object):
         return movable
     def fixed_bodies(self):
         return set(get_bodies(self.mbp)) - self.movable_bodies()
+    def set_initial(self):
+        for joint, position in self.initial_positions.items():
+            set_joint_position(joint, self.plant_context, position)
+        for model, pose in self.initial_poses.items():
+            set_world_pose(self.plant, self.plant_context, model, pose)
+        open_wsg50_gripper(self.plant, self.plant_context, self.gripper)
+    def publish(self):
+        self.diagram.Publish(self.diagram_context)
     def __repr__(self):
         return '{}(robot={}, gripper={}, movable={}, surfaces={})'.format(
             self.__class__.__name__,
@@ -92,7 +109,7 @@ class Task(object):
 
 ##################################################
 
-def load_station(time_step=0.0):
+def load_station(time_step=0.0, **kwargs):
     # https://github.com/RobotLocomotion/drake/blob/master/bindings/pydrake/examples/manipulation_station_py.cc
     #object_file_path = FindResourceOrThrow(
     #    "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
@@ -128,17 +145,20 @@ def load_station(time_step=0.0):
     goal_poses = {
         brick: create_transform(translation=[0.8, 0.2, 0.2927], rotation=[0, 0, 5*np.pi/4]),
     }
-    task = Task(plant, scene_graph, robot, gripper, movable=[brick], doors=doors,
+
+    diagram, state_machine = build_manipulation_station(station)
+
+    task = Task(diagram, plant, scene_graph, robot, gripper, movable=[brick], doors=doors,
                 initial_positions=initial_positions, initial_poses=initial_poses,
                 goal_poses=goal_poses, reset_robot=True, reset_doors=False)
     task.station = station
 
-    return plant, scene_graph, task
+    return task, diagram, state_machine
 
 ##################################################
 
-def load_manipulation(time_step=0.0, new_models=True):
-    if new_models:
+def load_manipulation(time_step=0.0, use_meshcat=True, use_controllers=True, use_external=False):
+    if not use_external:
         AMAZON_TABLE_PATH = FindResourceOrThrow(
            "drake/examples/manipulation_station/models/amazon_table_simplified.sdf")
         CUPBOARD_PATH = FindResourceOrThrow(
@@ -237,16 +257,19 @@ def load_manipulation(time_step=0.0, new_models=True):
         #(brick, goal_surface),
     ]
 
-    task = Task(plant, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors,
+    diagram, state_machine = build_diagram(plant, scene_graph, robot, gripper,
+                                           meshcat=use_meshcat, controllers=use_controllers)
+
+    task = Task(diagram, plant, scene_graph, robot, gripper, movable=[brick], surfaces=surfaces, doors=doors,
                 initial_positions=initial_positions, initial_poses=initial_poses,
                 goal_poses=goal_poses, goal_holding=goal_holding, goal_on=goal_on,
                 reset_robot=True, reset_doors=False)
 
-    return plant, scene_graph, task
+    return task, diagram, state_machine
 
 ##################################################
 
-def load_tables(time_step=0.0):
+def load_tables(time_step=0.0, use_meshcat=True, use_controllers=True):
     plant = MultibodyPlant(time_step=time_step)
     scene_graph = SceneGraph()
 
@@ -291,9 +314,20 @@ def load_tables(time_step=0.0):
         broccoli: create_transform(translation=[table2_x, 0, table_top_z]),
     }
 
-    task = Task(plant, scene_graph, robot, gripper,
+    diagram, state_machine = build_diagram(plant, scene_graph, robot, gripper,
+                                           meshcat=use_meshcat, controllers=use_controllers)
+
+    task = Task(diagram, plant, scene_graph, robot, gripper,
                 movable=movable, surfaces=surfaces,
                 initial_poses=initial_poses,
                 goal_cooked=[broccoli])
 
-    return plant, scene_graph, task
+    return task, diagram, state_machine
+
+##################################################
+
+PROBLEMS = [
+    load_tables,
+    load_manipulation,
+    load_station,
+]

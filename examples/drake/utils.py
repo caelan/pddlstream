@@ -456,3 +456,19 @@ def get_box_from_geom(scene_graph, visual_only=True):
             box_from_geom[model_index, frame_name, visual_index-1] = \
                 (BoundingBox(np.zeros(3), extent), link_from_box, get_geom_name(geom))
     return box_from_geom
+
+
+def get_model_aabb(mbp, context, box_from_geom, model_index):
+    points = []
+    body_names = {body.name() for body in get_model_bodies(mbp, model_index)}
+    for (model_int, body_name, _), (aabb, body_from_geom, _) in box_from_geom.items():
+        if (int(model_index) == model_int) and (body_name in body_names):
+            body = mbp.GetBodyByName(body_name, model_index)
+            world_from_body = get_body_pose(context, body)
+            points.extend(world_from_body.multiply(body_from_geom).multiply(vertex)
+                          for vertex in vertices_from_aabb(aabb))
+    return aabb_from_points(points)
+
+
+def bodies_from_models(plant, models):
+    return {body for model in models for body in get_model_bodies(plant, model)}

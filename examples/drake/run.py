@@ -7,23 +7,20 @@ import random
 import time
 
 import numpy as np
-from pydrake.lcm import DrakeLcm  # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
 from pydrake.systems.analysis import Simulator
 
-from examples.drake.generators import Pose, Conf, get_pose_gen, get_grasp_gen, get_ik_fn, \
+from examples.drake.generators import Pose, Conf, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen
-from examples.drake.iiwa_utils import open_wsg50_gripper, get_door_open_positions
+from examples.drake.iiwa_utils import get_door_open_positions
 from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines
-from examples.drake.problems import load_manipulation, load_tables, load_station
-from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
-    prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
-    get_state, set_state, RenderSystemWithGraphviz, dump_models
-from examples.drake.systems import build_manipulation_station, build_diagram
-
+from examples.drake.problems import PROBLEMS
+from examples.drake.utils import get_model_joints, get_world_pose, prune_fixed_joints, get_configuration, \
+    get_model_name, user_input, get_joint_positions, get_parent_joints, \
+    get_state, set_state, RenderSystemWithGraphviz
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
-from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.language.function import FunctionInfo
+from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import print_solution, read, INF, get_file_path
 
 
@@ -178,12 +175,6 @@ def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0)
 
 ##################################################
 
-PROBLEMS = [
-    load_tables,
-    load_manipulation,
-    load_station,
-]
-
 def main(deterministic=False):
     # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
@@ -217,51 +208,37 @@ def main(deterministic=False):
         meshcat_vis = meshcat.Visualizer()  # vis.set_object
         # http://127.0.0.1:7000/static/
 
-    mbp, scene_graph, task = problem_fn(time_step=time_step)
-    #dump_plant(mbp)
-    #dump_models(mbp)
+    task, diagram, state_machine = problem_fn(time_step=time_step, use_meshcat=not args.visualizer,
+                                              use_controllers=args.simulate)
     print(task)
-    #print(sorted(body.name() for body in task.movable_bodies()))
-    #print(sorted(body.name() for body in task.fixed_bodies()))
 
     ##################################################
 
-    if hasattr(task, 'station'):
-        diagram, state_machine = build_manipulation_station(task.station)
-    else:
-        diagram, state_machine = build_diagram(mbp, scene_graph, task.robot, task.gripper,
-                                               meshcat=not args.visualizer, controllers=args.simulate)
-
+    plant = task.mbp
+    #dump_plant(plant)
+    #dump_models(plant)
+    diagram_context = task.diagram_context
     RenderSystemWithGraphviz(diagram) # Useful for getting port names
-    diagram_context = diagram.CreateDefaultContext()
-    context = diagram.GetMutableSubsystemContext(mbp, diagram_context)
-    task.diagram = diagram
-    task.diagram_context = diagram_context
-    task.meshcat_vis = meshcat_vis
+    context = diagram.GetMutableSubsystemContext(plant, diagram_context)
 
-    #context = mbp.CreateDefaultContext()
-    for joint, position in task.initial_positions.items():
-        set_joint_position(joint, context, position)
-    for model, pose in task.initial_poses.items():
-        set_world_pose(mbp, context, model, pose)
-    open_wsg50_gripper(mbp, context, task.gripper)
-
-    diagram.Publish(diagram_context)
-    initial_state = get_state(mbp, context)
-    trajectories = plan_trajectories(task, context, not args.cfree)
+    #context = plant.CreateDefaultContext()
+    task.set_initial()
+    task.publish()
+    initial_state = get_state(plant, context)
+    trajectories = plan_trajectories(task, context, collisions=not args.cfree)
     if trajectories is None:
         return
 
     ##################################################
 
-    set_state(mbp, context, initial_state)
+    set_state(plant, context, initial_state)
     if args.simulate:
         from .manipulation_station.robot_plans import JointSpacePlan
-        splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
+        splines, gripper_setpoints = convert_splines(plant, task.robot, task.gripper, context, trajectories)
         sim_duration = compute_duration(splines)
         plan_list = [JointSpacePlan(spline) for spline in splines]
         print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
-        set_state(mbp, context, initial_state)
+        set_state(plant, context, initial_state)
         #state_machine.Load(splines, gripper_setpoints)
         state_machine.Load(plan_list, gripper_setpoints)
         simulate_splines(diagram, diagram_context, sim_duration)
