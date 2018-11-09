@@ -250,7 +250,7 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
     box_from_geom = get_box_from_geom(task.scene_graph)
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
-    approach_vector = approach_distance*np.array([0, -1, 0])
+    #approach_vector = approach_distance*np.array([0, -1, 0])
 
     def fn(robot_name, door_name, door_conf1, door_conf2):
         robot = task.mbp.GetModelInstanceByName(robot_name)
@@ -283,6 +283,7 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
                                                           collision_fn=lambda q: False)
             if pull_joint_path is None:
                 continue
+            # TODO: approach & retreat path?
             robot_conf1 = Conf(robot_joints, pull_joint_waypoints[0])
             robot_conf2 = Conf(robot_joints, pull_joint_waypoints[-1])
             traj = Trajectory(Conf(combined_joints, combined_conf) for combined_conf in pull_joint_path)
