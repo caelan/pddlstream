@@ -259,40 +259,16 @@ def simulate_splines(diagram, diagram_context, sim_duration, real_time_rate=1.0)
 
 ##################################################
 
-def test_manipulation(plan_list, gripper_setpoint_list, is_hardware=False):
-    from pydrake.common import FindResourceOrThrow
-    from .lab_1.manipulation_station_simulator import ManipulationStationSimulator
-
-    object_file_path = FindResourceOrThrow(
-            "drake/examples/manipulation_station/models/061_foam_brick.sdf")
-
-    manip_station_sim = ManipulationStationSimulator(
-        time_step=1e-3,
-        object_file_path=object_file_path,
-        object_base_link_name="base_link",
-        is_hardware=is_hardware)
-
-    if is_hardware:
-        iiwa_position_command_log = manip_station_sim.RunRealRobot(plan_list, gripper_setpoint_list)
-    else:
-        q0 = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
-        #q0[1] += np.pi/6
-        iiwa_position_command_log = manip_station_sim.RunSimulation(plan_list, gripper_setpoint_list,
-                                                                    extra_time=2.0, q0_kuka=q0)
-    return iiwa_position_command_log
 
 def load_new(station, plans_list=[], gripper_setpoint_list=[]):
     from underactuated.meshcat_visualizer import MeshcatVisualizer
-    from .lab_1.manipulation_station_plan_runner import ManipStationPlanRunner
+    from .manipulation_station.manipulation_station_plan_runner import ManipStationPlanRunner
 
     builder = DiagramBuilder()
     builder.AddSystem(station)
 
     # Add plan runner.
-    plan_runner = ManipStationPlanRunner(
-        station=station,
-        kuka_plans=plans_list,
-        gripper_setpoint_list=gripper_setpoint_list)
+    plan_runner = ManipStationPlanRunner(station=station)
 
     builder.AddSystem(plan_runner)
     builder.Connect(plan_runner.hand_setpoint_output_port,
@@ -352,7 +328,7 @@ def load_new(station, plans_list=[], gripper_setpoint_list=[]):
     viz.load()
     #time.sleep(2.0)
     #RenderSystemWithGraphviz(diagram)
-    return diagram
+    return diagram, plan_runner
 
 ##################################################
 
@@ -368,7 +344,8 @@ def main(deterministic=False):
     # TODO: get_contact_results_output_port
     # TODO: gripper closing via collision information
 
-    time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
+    #time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
+    time_step = 2e-3
     if deterministic:
         # TODO: still not fully deterministic
         random.seed(0)
@@ -395,7 +372,6 @@ def main(deterministic=False):
         # http://127.0.0.1:7000/static/
 
     mbp, scene_graph, task = problem_fn(time_step=time_step)
-    #station, mbp, scene_graph = load_station(time_step=time_step)
     #builder.AddSystem(station)
     #dump_plant(mbp)
     #dump_models(mbp)
@@ -406,7 +382,7 @@ def main(deterministic=False):
     ##################################################
 
     if hasattr(task, 'station'):
-        diagram = load_new(task.station)
+        diagram, state_machine = load_new(task.station)
     else:
         builder = build_diagram(mbp, scene_graph, not args.visualizer)
         if args.simulate:
@@ -439,21 +415,15 @@ def main(deterministic=False):
 
     set_state(mbp, context, initial_state)
     if args.simulate:
+        from .manipulation_station.robot_plans import JointSpacePlan
         splines, gripper_setpoints = convert_splines(mbp, task.robot, task.gripper, context, trajectories)
         sim_duration = compute_duration(splines)
+        plan_list = [JointSpacePlan(spline) for spline in splines]
         print('Splines: {}\nDuration: {:.3f} seconds'.format(len(splines), sim_duration))
         set_state(mbp, context, initial_state)
-
-        if True:
-            state_machine.Load(splines, gripper_setpoints)
-            simulate_splines(diagram, diagram_context, sim_duration)
-        else:
-            # NOTE: there is a plan that moves home initially for 15 seconds
-            from .lab_1.robot_plans import JointSpacePlan
-            plan_list = [JointSpacePlan(spline) for spline in splines]
-            #meshcat_vis.delete()
-            user_input('Simulate?')
-            test_manipulation(plan_list, gripper_setpoints)
+        #state_machine.Load(splines, gripper_setpoints)
+        state_machine.Load(plan_list, gripper_setpoints)
+        simulate_splines(diagram, diagram_context, sim_duration)
     else:
         #time_step = None
         time_step = 0.001 if meshcat else 0.02

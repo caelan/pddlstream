@@ -53,11 +53,15 @@ def postprocess_plan(mbp, gripper, plan):
 ##################################################
 
 
-def compute_duration(splines):
+def compute_duration(splines, extra_time=5.0):
+    from .manipulation_station.robot_plans import PlanBase
     sim_duration = 0.
     for spline in splines:
-        sim_duration += spline.end_time() + 0.5
-    sim_duration += 5.0
+        if isinstance(spline, PlanBase):
+            sim_duration += spline.get_duration() * 1.1
+        else:
+            sim_duration += spline.end_time() + 0.5
+    sim_duration += extra_time
     return sim_duration
 
 

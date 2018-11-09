@@ -27,37 +27,12 @@ class ManipStationPlanRunner(LeafSystem):
 
     Two
     '''
-    def __init__(self, station, kuka_plans, gripper_setpoint_list,
-                 control_period=0.005, print_period=0.5):
+    def __init__(self, station, control_period=0.005, print_period=0.5):
         LeafSystem.__init__(self)
         self.set_name("Manipulation Plan Runner")
-        # Append plan_list with a plan that moves the robot from its current position to
-        # plan_list[0].traj.value(0)
-        kuka_plans.insert(0, JointSpacePlan())
-        gripper_setpoint_list.insert(0, 0.055)
-        self.move_to_home_duration_sec = 3.0
-        kuka_plans[0].duration = self.move_to_home_duration_sec
-
-        # Add a five-second zero order hold to hold the current position of the robot
-        kuka_plans.insert(0, JointSpacePlan())
-        gripper_setpoint_list.insert(0, 0.055)
-        self.zero_order_hold_duration_sec = 1.0
-        kuka_plans[0].duration = self.zero_order_hold_duration_sec
-
-        assert len(kuka_plans) == len(gripper_setpoint_list)
-        self.gripper_setpoint_list = gripper_setpoint_list
-        self.kuka_plans_list = kuka_plans
-
-        # calculate starting time for all plans
-        self.num_plans = len(kuka_plans)
-        self.t_plan = np.zeros(self.num_plans + 1)
-        self.t_plan[1] = self.zero_order_hold_duration_sec
-        self.t_plan[2] = self.move_to_home_duration_sec + self.t_plan[1]
-        for i in range(2, self.num_plans):
-            self.t_plan[i + 1] = \
-                self.t_plan[i] + kuka_plans[i].get_duration() * 1.1
-        print "Plan starting time\n", self.t_plan
-
+        self.gripper_setpoint_list = []
+        self.kuka_plans_list = []
+        self.current_plan = None
 
         # Stuff for iiwa control
         self.nu = 7
@@ -113,9 +88,39 @@ class ManipStationPlanRunner(LeafSystem):
             self._DeclareVectorOutputPort(
                 "force_limit", BasicVector(1), self.CalcForceLimitOutput)
 
+    def Load(self, kuka_plans, gripper_setpoint_list):
+        # Append plan_list with a plan that moves the robot from its current position to
+        # plan_list[0].traj.value(0)
+        kuka_plans.insert(0, JointSpacePlan())
+        gripper_setpoint_list.insert(0, 0.055)
+        self.move_to_home_duration_sec = 3.0
+        kuka_plans[0].duration = self.move_to_home_duration_sec
+
+        # Add a five-second zero order hold to hold the current position of the robot
+        kuka_plans.insert(0, JointSpacePlan())
+        gripper_setpoint_list.insert(0, 0.055)
+        self.zero_order_hold_duration_sec = 1.0
+        kuka_plans[0].duration = self.zero_order_hold_duration_sec
+
+        assert len(kuka_plans) == len(gripper_setpoint_list)
+        self.gripper_setpoint_list = gripper_setpoint_list
+        self.kuka_plans_list = kuka_plans
+
+        # calculate starting time for all plans
+        self.num_plans = len(kuka_plans)
+        self.t_plan = np.zeros(self.num_plans + 1)
+        self.t_plan[1] = self.zero_order_hold_duration_sec
+        self.t_plan[2] = self.move_to_home_duration_sec + self.t_plan[1]
+        for i in range(2, self.num_plans):
+            self.t_plan[i + 1] = \
+                self.t_plan[i] + kuka_plans[i].get_duration() * 1.1
+        print "Plan starting time\n", self.t_plan
+
 
     def CalcIiwaCommand(self, context, y_data):
-        t= context.get_time()
+        if self.current_plan is None:
+            return
+        t = context.get_time()
         self.GetCurrentPlan(context)
 
         t_plan = t - self.current_plan.start_time
@@ -165,6 +170,8 @@ class ManipStationPlanRunner(LeafSystem):
 
 
     def GetCurrentPlan(self, context):
+        if not self.kuka_plans_list:
+            return
         t = context.get_time()
         if self.kuka_plans_list[0].traj is None:
             q_current = self.EvalVectorInput(

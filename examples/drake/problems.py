@@ -99,6 +99,7 @@ def load_station(time_step=0.0):
     object_file_path = FindResourceOrThrow(
         "drake/examples/manipulation_station/models/061_foam_brick.sdf")
 
+    # RuntimeError: Error control wants to select step smaller than minimum allowed (1e-14)
     station = ManipulationStation(time_step, IiwaCollisionModel.kBoxCollision)
     plant = station.get_mutable_multibody_plant()
     scene_graph = station.get_mutable_scene_graph()
@@ -116,7 +117,7 @@ def load_station(time_step=0.0):
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
     #initial_conf[1] += np.pi / 6
     initial_positions = {
-        plant.GetJointByName('left_door_hinge'): -np.pi/2, #-DOOR_CLOSED,
+        plant.GetJointByName('left_door_hinge'): -DOOR_CLOSED,
         plant.GetJointByName('right_door_hinge'): np.pi/2,
     }
     initial_positions.update(zip(get_movable_joints(plant, robot), initial_conf))
