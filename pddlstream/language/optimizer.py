@@ -315,7 +315,7 @@ def combine_optimizers(evaluations, external_plan):
         return external_plan
     stream_plan, function_plan = partition_external_plan(external_plan)
     optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
-    if not optimizers:
+    if len(optimizers) <= 1: # Just None
         return external_plan
 
     print('Original stream plan: {}'.format(external_plan))
