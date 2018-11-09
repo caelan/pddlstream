@@ -96,7 +96,8 @@ def add_drake_visualizer(scene_graph, builder):
 
 
 def connect_controllers(builder, mbp, robot, gripper, print_period=1.0):
-    from examples.drake.manipulation_station.kuka_multibody_controllers import (KukaMultibodyController, HandController, ManipStateMachine)
+    from examples.drake.manipulation_station.kuka_multibody_controllers import \
+        (KukaMultibodyController, HandController, ManipStateMachine)
 
     iiwa_controller = KukaMultibodyController(plant=mbp,
                                               kuka_model_instance=robot,

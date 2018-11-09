@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 import random
+import numpy as np
 from collections import namedtuple
 from itertools import product
 
-import numpy as np
 from drake import lcmt_viewer_load_robot
 from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
 from pydrake.geometry import DispatchLoadMessage
@@ -48,6 +48,19 @@ def aabb_contains_point(point, aabb):
     upper = get_aabb_upper(aabb)
     return np.greater_equal(point, lower).all() and \
            np.greater_equal(upper, point).all()
+
+
+def get_model_aabb(mbp, context, box_from_geom, model_index):
+    # TODO: world frame or wrt base?
+    points = []
+    body_names = {body.name() for body in get_model_bodies(mbp, model_index)}
+    for (model_int, body_name, _), (aabb, body_from_geom, _) in box_from_geom.items():
+        if (int(model_index) == model_int) and (body_name in body_names):
+            body = mbp.GetBodyByName(body_name, model_index)
+            world_from_body = get_body_pose(context, body)
+            points.extend(world_from_body.multiply(body_from_geom).multiply(vertex)
+                          for vertex in vertices_from_aabb(aabb))
+    return aabb_from_points(points)
 
 ##################################################
 
@@ -154,6 +167,10 @@ def get_parent_joints(mbp, body):
     # Really should just be none or one
     return [joint for joint in get_movable_joints(mbp, body.model_instance())
             if joint.child_body() == body]
+
+
+def bodies_from_models(plant, models):
+    return {body for model in models for body in get_model_bodies(plant, model)}
 
 ##################################################
 
@@ -323,6 +340,7 @@ def solve_inverse_kinematics(mbp, target_frame, target_pose,
             lower, upper = get_joint_limits(joint)
             if -np.inf < lower < upper < np.inf:
                 initial_guess[joint.position_start()] = random.uniform(lower, upper)
+    assert mbp.num_positions() == len(initial_guess)
 
     ik_scene = InverseKinematics(mbp)
     world_frame = mbp.world_frame()
@@ -388,6 +406,8 @@ def get_geom_name(geom):
     return name_from_type[geom.type]
 
 def get_box_from_geom(scene_graph, visual_only=True):
+    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
+    # TODO: get_contact_results_output_port
     # https://github.com/RussTedrake/underactuated/blob/master/src/underactuated/meshcat_visualizer.py
     # https://github.com/RobotLocomotion/drake/blob/master/lcmtypes/lcmt_viewer_draw.lcm
     mock_lcm = DrakeMockLcm()
@@ -444,19 +464,3 @@ def get_box_from_geom(scene_graph, visual_only=True):
             box_from_geom[model_index, frame_name, visual_index-1] = \
                 (BoundingBox(np.zeros(3), extent), link_from_box, get_geom_name(geom))
     return box_from_geom
-
-
-def get_model_aabb(mbp, context, box_from_geom, model_index):
-    points = []
-    body_names = {body.name() for body in get_model_bodies(mbp, model_index)}
-    for (model_int, body_name, _), (aabb, body_from_geom, _) in box_from_geom.items():
-        if (int(model_index) == model_int) and (body_name in body_names):
-            body = mbp.GetBodyByName(body_name, model_index)
-            world_from_body = get_body_pose(context, body)
-            points.extend(world_from_body.multiply(body_from_geom).multiply(vertex)
-                          for vertex in vertices_from_aabb(aabb))
-    return aabb_from_points(points)
-
-
-def bodies_from_models(plant, models):
-    return {body for model in models for body in get_model_bodies(plant, model)}

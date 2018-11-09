@@ -46,6 +46,7 @@ def open_wsg50_gripper(mbp, context, model_index):
 ##################################################
 
 # TODO: compute from WSG50 fingers
+# TODO: gripper closing via collision information
 TOOL_Z = 0.025 + 0.075/2 - (-0.049133) # Difference between WSG50 finger tip and body link
 DEFAULT_LENGTH = 0.03
 #DEFAULT_LENGTH = 0.0
@@ -66,12 +67,11 @@ def get_top_cylinder_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFA
         rotate_z = create_transform(rotation=[0, 0, theta])
         yield reflect_z.multiply(translate_z).multiply(rotate_z).multiply(aabb_from_body)
 
-# TODO: cylinder grasps
-# TODO: detect geometry type from the dictionary
 
 def get_box_grasps(aabb, max_width=DEFAULT_MAX_WIDTH, grasp_length=DEFAULT_LENGTH,
                    orientations=list(range(4)), pitch_range=(-np.pi/2, np.pi/2)): # y is out of gripper initially
     # TODO: different positions
+    # TODO: cylinder grasps
     center, extent = aabb
     dx, dy, dz = extent
     reflect_z = create_transform(rotation=[np.pi / 2, 0, 0])

@@ -62,6 +62,7 @@ class Task(object):
         self.scene_graph = scene_graph
         self.diagram_context = diagram.CreateDefaultContext()
         self.plant_context = diagram.GetMutableSubsystemContext(mbp, self.diagram_context)
+        # context = plant.CreateDefaultContext()
 
         self.robot = robot
         self.gripper = gripper
@@ -135,6 +136,7 @@ def load_station(time_step=0.0, **kwargs):
     #initial_conf[1] += np.pi / 6
     initial_positions = {
         plant.GetJointByName('left_door_hinge'): -DOOR_CLOSED,
+        #plant.GetJointByName('left_door_hinge'): -np.pi / 2,
         plant.GetJointByName('right_door_hinge'): np.pi/2,
     }
     initial_positions.update(zip(get_movable_joints(plant, robot), initial_conf))

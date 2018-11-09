@@ -7,10 +7,10 @@ import random
 
 import numpy as np
 
-from examples.drake.generators import Pose, Conf, get_grasp_gen, get_ik_fn, \
-    get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen
+from examples.drake.generators import Pose, Conf, get_grasp_gen_fn, get_ik_gen_fn, \
+    get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen_fn, get_open_trajectory, Trajectory
 from examples.drake.iiwa_utils import get_door_positions, DOOR_OPEN
-from examples.drake.postprocessing import postprocess_plan, compute_duration, convert_splines, step_trajectories, \
+from examples.drake.simulation import compute_duration, convert_splines, step_trajectories, \
     simulate_splines
 from examples.drake.problems import PROBLEMS
 from examples.drake.systems import RenderSystemWithGraphviz
@@ -112,9 +112,9 @@ def get_pddlstream_problem(task, context, collisions=True):
 
     stream_map = {
         #'sample-pose': from_gen_fn(get_stable_gen(task, context, collisions=collisions)),
-        'sample-reachable-pose': from_gen_fn(get_reachable_pose_gen(task, context, collisions=collisions)),
-        'sample-grasp': from_gen_fn(get_grasp_gen(task)),
-        'plan-ik': from_fn(get_ik_fn(task, context, collisions=collisions)),
+        'sample-reachable-pose': from_gen_fn(get_reachable_pose_gen_fn(task, context, collisions=collisions)),
+        'sample-grasp': from_gen_fn(get_grasp_gen_fn(task)),
+        'plan-ik': from_gen_fn(get_ik_gen_fn(task, context, collisions=collisions)),
         'plan-motion': from_fn(get_motion_fn(task, context, collisions=collisions)),
         'plan-pull': from_fn(get_pull_fn(task, context, collisions=collisions)),
         'TrajPoseCollision': get_collision_test(task, context, collisions=collisions),
@@ -123,6 +123,31 @@ def get_pddlstream_problem(task, context, collisions=True):
     #stream_map = 'debug' # Runs PDDLStream with "placeholder streams" for debugging
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+
+
+def postprocess_plan(mbp, gripper, plan):
+    trajectories = []
+    if plan is None:
+        return trajectories
+    open_traj = get_open_trajectory(mbp, gripper)
+    close_traj = open_traj.reverse()
+
+    for name, args in plan:
+        if name in ['clean', 'cook']:
+            continue
+        traj = args[-1]
+        if name == 'pick':
+            trajectories.extend([Trajectory(reversed(traj.path)), close_traj, traj])
+        elif name == 'place':
+            trajectories.extend([traj.reverse(), open_traj, Trajectory(traj.path)])
+        elif name == 'pull':
+            trajectories.extend([close_traj, traj, open_traj])
+        elif name == 'move':
+            trajectories.append(traj)
+        else:
+            raise NotImplementedError(name)
+    return trajectories
+
 
 def plan_trajectories(task, context, collisions=True, max_time=180):
     stream_info = {
@@ -136,7 +161,7 @@ def plan_trajectories(task, context, collisions=True, max_time=180):
                              max_cost=INF, max_time=max_time, debug=False,
                              unit_efforts=True, effort_weight=1, search_sampling_ratio=0)
     pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    pstats.Stats(pr).sort_stats('tottime').print_stats(5)
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
@@ -147,10 +172,7 @@ def plan_trajectories(task, context, collisions=True, max_time=180):
 ##################################################
 
 def main(deterministic=False):
-    # TODO: GeometryInstance, InternalGeometry, & GeometryContext to get the shape of objects
     # TODO: cost-sensitive planning to avoid large kuka moves
-    # TODO: get_contact_results_output_port
-    # TODO: gripper closing via collision information
 
     #time_step = 0.0002 # TODO: context.get_continuous_state_vector() fails
     time_step = 2e-3
@@ -192,7 +214,6 @@ def main(deterministic=False):
     RenderSystemWithGraphviz(diagram) # Useful for getting port names
     context = diagram.GetMutableSubsystemContext(plant, diagram_context)
 
-    #context = plant.CreateDefaultContext()
     task.set_initial()
     task.publish()
     initial_state = get_state(plant, context)

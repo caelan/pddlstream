@@ -1,4 +1,4 @@
-from examples.drake.generators import get_grasp_gen, get_pose_gen
+from examples.drake.generators import get_grasp_gen_fn, get_pose_gen
 from examples.drake.utils import get_base_body, get_body_pose, user_input, get_model_name
 
 
@@ -12,7 +12,7 @@ def test_generators(task, diagram, diagram_context):
           get_body_pose(context, get_base_body(mbp, task.gripper)).matrix())
     user_input('Start')
     model = task.movable[0]
-    grasp_gen_fn = get_grasp_gen(task)
+    grasp_gen_fn = get_grasp_gen_fn(task)
     for grasp, in grasp_gen_fn(get_model_name(mbp, model)):
         grasp.assign(context)
         diagram.Publish(diagram_context)

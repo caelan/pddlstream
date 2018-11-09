@@ -2,14 +2,17 @@ from itertools import product
 
 import numpy as np
 
-from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps
+from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps, get_top_cylinder_grasps, \
+    get_close_wsg50_positions, get_open_wsg50_positions
 from examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
-    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn
+    get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_distance_fn
 from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
     get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, set_joint_positions, get_box_from_geom, \
-    exists_colliding_pair, get_model_bodies, \
-    aabb_contains_point, bodies_from_models
+    exists_colliding_pair, get_model_bodies, aabb_contains_point, bodies_from_models, get_model_aabb
 
+from pydrake.trajectories import PiecewisePolynomial
+
+RADIANS_PER_SECOND = np.pi / 4
 
 class Pose(object):
     # TODO: unify Pose & Conf?
@@ -78,8 +81,31 @@ class Trajectory(object):
                 attach.assign(context)
             yield
 
+    def spline(self):
+        distance_fn = get_distance_fn(self.joints)
+        path = [q.positions[:len(self.joints)] for q in self.path]
+        q_knots_kuka = np.vstack(path).T
+        distances = [0.] + [distance_fn(q1, q2) for q1, q2 in zip(path, path[1:])]
+        # TODO: increase time for pick/place & hold
+        t_knots = np.cumsum(distances) / RADIANS_PER_SECOND  # TODO: this should be a max
+        d, n = q_knots_kuka.shape
+        return PiecewisePolynomial.Cubic(
+            breaks=t_knots,
+            knots=q_knots_kuka,
+            knot_dot_start=np.zeros(d),
+            knot_dot_end=np.zeros(d))
+
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, len(self.joints), len(self.path))
+
+
+def get_open_trajectory(plant, gripper):
+    gripper_joints = get_movable_joints(plant, gripper)
+    gripper_extend_fn = get_extend_fn(gripper_joints)
+    gripper_closed_conf = get_close_wsg50_positions(plant, gripper)
+    gripper_path = list(gripper_extend_fn(gripper_closed_conf, get_open_wsg50_positions(plant, gripper)))
+    gripper_path.insert(0, gripper_closed_conf)
+    return Trajectory(Conf(gripper_joints, q) for q in gripper_path)
 
 ##################################################
 
@@ -92,58 +118,69 @@ def get_pose_gen(task, context, collisions=True, shrink=0.025):
 
     def gen(obj_name, surface):
         obj = mbp.GetModelInstanceByName(obj_name)
+        obj_aabb, obj_from_box, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        collision_pairs = set(product(get_model_bodies(mbp, obj), fixed))
+        #object_radius = min(object_aabb[:2])
+
         surface_body = mbp.GetBodyByName(surface.body_name, surface.model_index)
         surface_pose = get_body_pose(context, surface_body)
-        collision_pairs = set(product(get_model_bodies(mbp, obj), fixed)) # + [surface]
+        surface_aabb, surface_from_box, _ = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
 
-        object_aabb, object_local, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
-        surface_aabb, surface_local, _ = box_from_geom[int(surface.model_index), surface.body_name, surface.visual_index]
-        #object_radius = min(object_aabb[:2])
-        for surface_from_object in sample_aabb_placement(object_aabb, surface_aabb, shrink=shrink):
-            world_pose = surface_pose.multiply(surface_local).multiply(
-                surface_from_object).multiply(object_local.inverse())
+        for surface_box_from_obj_box in sample_aabb_placement(obj_aabb, surface_aabb, shrink=shrink):
+            world_pose = surface_pose.multiply(surface_from_box).multiply(
+                surface_box_from_obj_box).multiply(obj_from_box.inverse())
             pose = Pose(mbp, world, obj, world_pose)
             pose.assign(context)
             if not exists_colliding_pair(task.diagram, task.diagram_context, task.mbp, task.scene_graph, collision_pairs):
-                yield pose,
+                yield (pose,)
     return gen
 
 
-def get_grasp_gen(task):
+def get_grasp_gen_fn(task):
     mbp = task.mbp
     gripper_frame = get_base_body(mbp, task.gripper).body_frame()
     box_from_geom = get_box_from_geom(task.scene_graph)
-    #pitch_range = (0, 0) # Top grasps
-    #pitch_range = (np.pi/3, np.pi/3)
-    pitch_range = (2*np.pi/5, 2*np.pi/5)
-    #pitch_range = (-np.pi/2, np.pi/2)
 
     def gen(obj_name):
         obj = mbp.GetModelInstanceByName(obj_name)
-        #obj_aabb, obj_from_box = AABBs[obj_name], Isometry3.Identity()
-        obj_aabb, obj_from_box, _ = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
-        #finger_aabb, finger_from_box = box_from_geom[int(task.gripper), 'left_finger', 0]
+        obj_aabb, obj_from_box, obj_shape = box_from_geom[int(obj), get_base_body(mbp, obj).name(), 0]
+        #finger_aabb, finger_from_box, _ = box_from_geom[int(task.gripper), 'left_finger', 0]
         # TODO: union of bounding boxes
 
-        #for gripper_from_box in get_top_cylinder_grasps(obj_aabb):
-        for gripper_from_box in get_box_grasps(obj_aabb, pitch_range=pitch_range):
+        if obj_shape == 'cylinder':
+            grasp_gen = get_top_cylinder_grasps(obj_aabb)
+        elif obj_shape == 'box':
+            pitch = 2 * np.pi / 5 # 0 | np.pi/3 | 2 * np.pi / 5
+            grasp_gen = get_box_grasps(obj_aabb, pitch_range=(pitch, pitch))
+        else:
+            raise NotImplementedError(obj_shape)
+
+        for gripper_from_box in grasp_gen:
             gripper_from_obj = gripper_from_box.multiply(obj_from_box.inverse())
             grasp = Pose(mbp, gripper_frame, obj, gripper_from_obj)
-            yield grasp,
+            yield (grasp,)
     return gen
 
 ##################################################
 
-def get_ik_fn(task, context, collisions=True, max_failures=10, distance=0.2, step_size=0.035):
-    approach_vector = distance*np.array([0, -1, 0])
+
+def plan_frame_motion(plant, joints, frame, frame_path,
+                      initial_guess=None, resolutions=None, collision_fn=lambda q: False):
+    waypoints = plan_workspace_motion(plant, joints, frame, frame_path,
+                                      initial_guess=initial_guess, collision_fn=collision_fn)
+    if waypoints is None:
+        return None
+    return plan_waypoints_joint_motion(joints, waypoints, resolutions=resolutions, collision_fn=collision_fn)
+
+
+def get_ik_gen_fn(task, context, collisions=True, max_failures=10, approach_distance=0.25, step_size=0.035):
+    approach_vector = approach_distance * np.array([0, -1, 0])
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
     initial_guess = None
-    #joints = get_movable_joints(task.mbp, task.robot)
-    #initial_guess = get_joint_positions(joints, context)
-    # TODO: generate a larger set
+    #initial_guess = get_joint_positions(get_movable_joints(task.mbp, task.robot), context)
 
-    def fn(robot_name, obj_name, pose, grasp):
+    def fn(robot_name, obj_name, obj_pose, obj_grasp):
         # TODO: if gripper/block in collision, return
         robot = task.mbp.GetModelInstanceByName(robot_name)
         joints = get_movable_joints(task.mbp, robot)
@@ -151,55 +188,71 @@ def get_ik_fn(task, context, collisions=True, max_failures=10, distance=0.2, ste
         collision_fn = get_collision_fn(task.diagram, task.diagram_context, task.mbp, task.scene_graph,
                                         joints, collision_pairs=collision_pairs) # TODO: while holding
 
-        grasp_pose = pose.transform.multiply(grasp.transform.inverse())
-        gripper_path = list(interpolate_translation(grasp_pose, approach_vector, step_size=step_size))
+        gripper_pose = obj_pose.transform.multiply(obj_grasp.transform.inverse())
+        gripper_path = list(interpolate_translation(gripper_pose, approach_vector, step_size=step_size))
 
         attempts = 0
         last_success = 0
         while (attempts - last_success) < max_failures:
             attempts += 1
-            pose.assign(context)
-            waypoints = plan_workspace_motion(task.mbp, joints, gripper_frame, gripper_path,
-                                              initial_guess=initial_guess, collision_fn=collision_fn)
-            if waypoints is None:
-                continue
-            path = plan_waypoints_joint_motion(joints, waypoints, collision_fn=collision_fn)
+            obj_pose.assign(context)
+            path = plan_frame_motion(task.plant, joints, gripper_frame, gripper_path,
+                                     initial_guess=initial_guess, collision_fn=collision_fn)
             if path is None:
                 continue
-            traj = Trajectory(Conf(joints, q) for q in path)
-            #last_success = attempts
-            print('IK attampts: {}'.format(attempts))
-            return traj.path[-1], traj
+            print('IK attempts: {}'.format(attempts))
+            traj = Trajectory([Conf(joints, q) for q in path], attachments=[obj_grasp])
+            conf = traj.path[-1]
+            yield (conf, traj)
+            last_success = attempts
     return fn
 
-def get_reachable_pose_gen(task, context, collisions=True, **kwargs):
-    pose_gen = get_pose_gen(task, context, collisions=collisions)
-    ik_fn = get_ik_fn(task, context, collisions=collisions, max_failures=1, **kwargs)
+
+def get_reachable_pose_gen_fn(task, context, collisions=True, **kwargs):
+    pose_gen_fn = get_pose_gen(task, context, collisions=collisions)
+    ik_gen_fn = get_ik_gen_fn(task, context, collisions=collisions, max_failures=1, **kwargs)
     def gen(r, o, g, s):
-        for p, in pose_gen(o, s):
-            result = ik_fn(r, o, p, g)
-            if result is not None:
-                q, t = result
+        for p, in pose_gen_fn(o, s):
+            for (q, t) in ik_gen_fn(r, o, p, g):
                 yield (p, q, t)
     return gen
 
 ##################################################
 
-def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi / 16):
+def get_body_path(body, context, joints, joint_path):
+    body_path = []
+    for conf in joint_path:
+        set_joint_positions(joints, context, conf)
+        body_path.append(get_body_pose(context, body))
+    return body_path
+
+
+def get_door_grasp(door_body, box_from_geom):
+    pitch = np.pi/3 # np.pi/2
+    grasp_length = 0.02
+    target_shape, target_ori = 'cylinder', 1  # Second grasp is np.pi/2, corresponding to +y
+    # target_shape, target_ori = 'box', 0 # left_door TODO: right_door
+    for i in range(2):
+        handle_aabb, handle_from_box, handle_shape = box_from_geom[int(door_body.model_instance()), door_body.name(), i]
+        if handle_shape == target_shape:
+            break
+    else:
+        raise RuntimeError(target_shape)
+    [gripper_from_box] = list(get_box_grasps(handle_aabb, orientations=[target_ori],
+                                             pitch_range=(pitch, pitch), grasp_length=grasp_length))
+    return gripper_from_box.multiply(handle_from_box.inverse())
+
+
+def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi / 16, approach_distance=0.05):
+    # TODO: could also push the door either perpendicular or parallel
+    # TODO: allow small rotation error perpendicular to handle
+    # DoDifferentialInverseKinematics
     box_from_geom = get_box_from_geom(task.scene_graph)
     gripper_frame = get_base_body(task.mbp, task.gripper).body_frame()
     fixed = task.fixed_bodies() if collisions else []
-    #pitch = np.pi/2
-    pitch = np.pi/3
-    grasp_length = 0.02
+    approach_vector = approach_distance*np.array([0, -1, 0])
 
-    #approach_vector = 0.01*np.array([0, -1, 0])
-    # TODO: could also push the door either perpendicular or parallel
-    # TODO: could solve for kinematic solution of robot and doors
-    # DoDifferentialInverseKinematics
-    # TODO: allow small rotation error perpendicular to handle
-
-    def fn(robot_name, door_name, dq1, dq2):
+    def fn(robot_name, door_name, door_conf1, door_conf2):
         robot = task.mbp.GetModelInstanceByName(robot_name)
         robot_joints = get_movable_joints(task.mbp, robot)
         collision_pairs = set(product(bodies_from_models(task.mbp, [robot, task.gripper]), fixed))
@@ -207,45 +260,33 @@ def get_pull_fn(task, context, collisions=True, max_attempts=25, step_size=np.pi
                                         robot_joints, collision_pairs=collision_pairs)
 
         door_body = task.mbp.GetBodyByName(door_name)
-        door_joints = dq1.joints
+        door_joints = door_conf1.joints
+        gripper_from_door = get_door_grasp(door_body, box_from_geom)
 
         extend_fn = get_extend_fn(door_joints, resolutions=step_size*np.ones(len(door_joints)))
-        door_joint_path = [dq1.positions] + list(extend_fn(dq1.positions, dq2.positions)) # TODO: check for collisions
-        door_cartesian_path = []
-        for robot_conf in door_joint_path:
-            set_joint_positions(door_joints, context, robot_conf)
-            door_cartesian_path.append(get_body_pose(context, door_body))
-
-        shape, index = 'cylinder', 1 # Second grasp is np.pi/2, corresponding to +y
-        #shape, index = 'box', 0 # left_door TODO: right_door
-        for i in range(2):
-            handle_aabb, handle_from_box, handle_shape = box_from_geom[int(door_body.model_instance()), door_name, i]
-            if handle_shape == shape:
-                break
-        else:
-            raise RuntimeError(shape)
-        [gripper_from_box] = list(get_box_grasps(handle_aabb, orientations=[index], pitch_range=(pitch, pitch), grasp_length=grasp_length))
-        gripper_from_obj = gripper_from_box.multiply(handle_from_box.inverse())
-        pull_cartesian_path = [body_pose.multiply(gripper_from_obj.inverse()) for body_pose in door_cartesian_path]
+        door_joint_path = [door_conf1.positions] + list(extend_fn(door_conf1.positions, door_conf2.positions)) # TODO: check for collisions
+        door_body_path = get_body_path(door_body, context, door_joints, door_joint_path)
+        pull_cartesian_path = [door_pose.multiply(gripper_from_door.inverse()) for door_pose in door_body_path]
 
         #start_path = list(interpolate_translation(pull_cartesian_path[0], approach_vector))
         #end_path = list(interpolate_translation(pull_cartesian_path[-1], approach_vector))
         for _ in range(max_attempts):
-            pull_joint_waypoints = plan_workspace_motion(task.mbp, robot_joints, gripper_frame, reversed(pull_cartesian_path),
-                                                         collision_fn=collision_fn)
+            # TODO: could solve for kinematic solution of robot and door together
+            pull_joint_waypoints = plan_workspace_motion(task.mbp, robot_joints, gripper_frame,
+                                                         reversed(pull_cartesian_path), collision_fn=collision_fn)
             if pull_joint_waypoints is None:
                 continue
             pull_joint_waypoints = pull_joint_waypoints[::-1]
-            rq1 = Conf(robot_joints, pull_joint_waypoints[0])
-            rq2 = Conf(robot_joints, pull_joint_waypoints[-1])
             combined_joints = robot_joints + door_joints
             combined_waypoints = [list(rq) + list(dq) for rq, dq in zip(pull_joint_waypoints, door_joint_path)]
             pull_joint_path = plan_waypoints_joint_motion(combined_joints, combined_waypoints,
                                                           collision_fn=lambda q: False)
             if pull_joint_path is None:
                 continue
+            robot_conf1 = Conf(robot_joints, pull_joint_waypoints[0])
+            robot_conf2 = Conf(robot_joints, pull_joint_waypoints[-1])
             traj = Trajectory(Conf(combined_joints, combined_conf) for combined_conf in pull_joint_path)
-            return rq1, rq2, traj
+            return (robot_conf1, robot_conf2, traj)
     return fn
 
 ##################################################
@@ -282,18 +323,11 @@ def parse_fluents(fluents, context, obstacles):
     return attachments
 
 
-def get_motion_fn(task, context, teleport=False, collisions=True):
-    robot = task.robot
+def get_motion_fn(task, context, collisions=True, teleport=False):
     gripper = task.gripper
 
-    #joints = get_movable_joints(task.mbp, robot)
-    #initial_conf = get_joint_positions(joints, context) # Return to initial conf first?
-    #box_from_geom = get_box_from_geom(task.scene_graph)
-    #table_index = task.mbp.GetModelInstanceByName('amazon_table') # TODO: renamed table in manipulation station
-    #table_aabb = get_model_aabb(task.mbp, context, box_from_geom, table_index)
-
     def fn(robot_name, conf1, conf2, fluents=[]):
-        #robot = task.mbp.GetModelInstanceByName(robot_name)
+        robot = task.mbp.GetModelInstanceByName(robot_name)
         joints = get_movable_joints(task.mbp, robot)
         if teleport:
             traj = Trajectory([conf1, conf2])
@@ -306,47 +340,20 @@ def get_motion_fn(task, context, teleport=False, collisions=True):
             moving.update(grasp.bodies)
         obstacles -= moving
 
-        # Can make separate predicate for the frame something is in at a particular time
         collision_pairs = set(product(moving, obstacles)) if collisions else set()
         collision_fn = get_collision_fn(task.diagram, task.diagram_context, task.mbp, task.scene_graph,
                                         joints, collision_pairs=collision_pairs, attachments=attachments)
-        #distance_fn = get_ee_distance_fn(task.mbp, context, joints)
-        weights = np.ones(len(joints))
-        weights = np.array([sum(weights[i:]) for i in range(len(weights))])
-        distance_fn = None
-
-        #sample_fn = get_aabb_sample_fn(joints, context, get_base_body(task.mbp, gripper),
-        #                               table_aabb, get_sample_fn(joints, collision_fn))
-        sample_fn = None
-        #while True:
-        #    conf = sample_fn()
-        #    set_joint_positions(joints, context, conf)
-        #    task.diagram.Publish(task.diagram_context)
-        #    raw_input('Continue?')
+        #weights = np.ones(len(joints))
+        #weights = np.array([sum(weights[i:]) for i in range(len(weights))])
+        distance_fn = None # TODO: adjust the resolutions
 
         open_wsg50_gripper(task.mbp, context, gripper)
-        # path1 = plan_joint_motion(joints, conf1.positions, initial_conf,
-        #                           weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
-        #                           restarts=25, iterations=50, smooth=0)
-        # if path1 is None:
-        #     return None
-        # path2 = plan_joint_motion(joints, path1[-1], conf2.positions,
-        #                           weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
-        #                           restarts=25, iterations=50, smooth=0)
-        # if path2 is None:
-        #     return None
-        # path = path1 + path2 # TODO: smooth
         path = plan_joint_motion(joints, conf1.positions, conf2.positions,
-                                 weights=weights, sample_fn=sample_fn, distance_fn=distance_fn, collision_fn=collision_fn,
+                                 distance_fn=distance_fn, collision_fn=collision_fn,
                                  restarts=10, iterations=75, smooth=50)
         if path is None:
-            print('Failure!')
-            for conf in [conf1, conf2]:
-                conf.assign(context)
-                task.diagram.Publish(task.diagram_context)
-                raw_input('Continue?')
             return None
-        traj = Trajectory(Conf(joints, q) for q in path)
+        traj = Trajectory([Conf(joints, q) for q in path], attachments=attachments)
         return (traj,)
     return fn
 

@@ -5,8 +5,6 @@ from examples.drake.utils import get_random_positions, get_joint_limits, set_joi
     create_transform, solve_inverse_kinematics, get_unit_vector, get_body_pose
 from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
 from examples.pybullet.utils.motion.motion_planners.smoothing import smooth_path
-from examples.pybullet.utils.motion.motion_planners.prm import DegreePRM
-from pydrake.all import (Quaternion, RigidTransform, RotationMatrix)
 
 DEFAULT_WEIGHT = 1.0
 DEFAULT_RESOLUTION = 0.01*np.pi
@@ -45,36 +43,6 @@ def get_distance_fn(joints, weights=None):
     return fn
 
 
-def quaternion_distance(quat1, quat2):
-    #return 2*(1 - np.dot(quat1.wxyz(), quat2.wxyz()))
-    x = 2 * math.pow(np.dot(quat1.wxyz(), quat2.wxyz()), 2) - 1
-    if abs(x - 1.) < 1e-6:
-        return 0.
-    return math.acos(x) # [0, np.pi]
-
-
-def get_ee_distance_fn(plant, context, joints):
-    cache = {}
-    body = joints[-1].child_body()
-
-    def get_value(q):
-        key = id(q)
-        if key not in cache:
-            set_joint_positions(joints, context, q)
-            cache[key] = get_body_pose(context, body)
-        return cache[key]
-
-    def fn(q1, q2):
-        #diff = get_value(q2).inverse().multiply(get_value(q1))
-        pose1 = get_value(q1)
-        pose2 = get_value(q2)
-        dtranslation = np.linalg.norm(pose2.translation() - pose1.translation())
-        dquaternion = quaternion_distance(pose1.quaternion(), pose2.quaternion())
-        #print(body.name(), dtranslation, dquaternion)
-        return dtranslation + 0.1*(dquaternion / np.pi)
-    return fn
-
-
 def get_extend_fn(joints, resolutions=None):
     if resolutions is None:
         resolutions = DEFAULT_RESOLUTION*np.ones(len(joints))
@@ -99,7 +67,6 @@ def within_limits(joint, position):
 def get_collision_fn(diagram, diagram_context, plant, scene_graph,
                      joints, collision_pairs=set(), attachments=[]):
     # TODO: self-collisions
-    # TODO: enforce that the arm remains within the station?
     plant_context = diagram.GetMutableSubsystemContext(plant, diagram_context)
 
     def fn(q):
@@ -110,9 +77,6 @@ def get_collision_fn(diagram, diagram_context, plant, scene_graph,
         set_joint_positions(joints, plant_context, q)
         for attachment in attachments:
             attachment.assign(plant_context)
-        #if attachments:
-        #    diagram.Publish(diagram_context)
-        #    raw_input('Continue?')
         return exists_colliding_pair(diagram, diagram_context, plant, scene_graph, collision_pairs)
     return fn
 
@@ -220,3 +184,35 @@ def interpolate_translation(transform, translation, step_size=0.01):
     direction = np.array(translation) / distance
     for t in list(np.arange(0, distance, step_size)) + [distance]:
         yield transform.multiply(create_transform(translation=t * direction))
+
+##################################################
+
+
+def quaternion_distance(quat1, quat2):
+    #return 2*(1 - np.dot(quat1.wxyz(), quat2.wxyz()))
+    x = 2 * math.pow(np.dot(quat1.wxyz(), quat2.wxyz()), 2) - 1
+    if abs(x - 1.) < 1e-6:
+        return 0.
+    return math.acos(x) # [0, np.pi]
+
+
+def get_ee_distance_fn(joints, context):
+    cache = {}
+    body = joints[-1].child_body()
+
+    def get_value(q):
+        key = id(q)
+        if key not in cache:
+            set_joint_positions(joints, context, q)
+            cache[key] = get_body_pose(context, body)
+        return cache[key]
+
+    def fn(q1, q2):
+        #diff = get_value(q2).inverse().multiply(get_value(q1))
+        pose1 = get_value(q1)
+        pose2 = get_value(q2)
+        dtranslation = np.linalg.norm(pose2.translation() - pose1.translation())
+        dquaternion = quaternion_distance(pose1.quaternion(), pose2.quaternion())
+        #print(body.name(), dtranslation, dquaternion)
+        return dtranslation + 0.1*(dquaternion / np.pi)
+    return fn
