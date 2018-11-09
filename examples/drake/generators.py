@@ -296,16 +296,16 @@ def parse_fluents(fluents, context, obstacles):
 def get_motion_fn(task, context, teleport=False, collisions=True):
     robot = task.robot
     gripper = task.gripper
-    joints = get_movable_joints(task.mbp, robot)
-    initial_conf = get_joint_positions(joints, context) # Return to initial conf first?
 
-    box_from_geom = get_box_from_geom(task.scene_graph)
-    table_index = task.mbp.GetModelInstanceByName('amazon_table')
-    table_aabb = get_model_aabb(task.mbp, context, box_from_geom, table_index)
+    #joints = get_movable_joints(task.mbp, robot)
+    #initial_conf = get_joint_positions(joints, context) # Return to initial conf first?
+    #box_from_geom = get_box_from_geom(task.scene_graph)
+    #table_index = task.mbp.GetModelInstanceByName('amazon_table') # TODO: renamed table in manipulation station
+    #table_aabb = get_model_aabb(task.mbp, context, box_from_geom, table_index)
 
     def fn(robot_name, conf1, conf2, fluents=[]):
         #robot = task.mbp.GetModelInstanceByName(robot_name)
-        #joints = get_movable_joints(task.mbp, robot)
+        joints = get_movable_joints(task.mbp, robot)
         if teleport:
             traj = Trajectory([conf1, conf2])
             return (traj,)

@@ -11,7 +11,7 @@ from pydrake.geometry import (ConnectDrakeVisualizer, DispatchLoadMessage)
 from pydrake.lcm import DrakeLcm  # Required else "ConnectDrakeVisualizer(): incompatible function arguments."
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
-from pydrake.systems.primitives import SignalLogger
+from pydrake.systems.primitives import SignalLogger, Demultiplexer
 
 from examples.drake.generators import Pose, Conf, get_pose_gen, get_grasp_gen, get_ik_fn, \
     get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen
@@ -20,7 +20,7 @@ from examples.drake.postprocessing import postprocess_plan, compute_duration, co
 from examples.drake.problems import load_manipulation, load_tables, load_station
 from examples.drake.utils import get_model_joints, get_world_pose, set_world_pose, set_joint_position, \
     prune_fixed_joints, get_configuration, get_model_name, user_input, get_joint_positions, get_parent_joints, \
-    get_state, set_state, RenderSystemWithGraphviz
+    get_state, set_state, RenderSystemWithGraphviz, dump_models
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
@@ -281,6 +281,86 @@ def test_manipulation(plan_list, gripper_setpoint_list, is_hardware=False):
                                                                     extra_time=2.0, q0_kuka=q0)
     return iiwa_position_command_log
 
+def load_new(station, plans_list=[], gripper_setpoint_list=[]):
+    from underactuated.meshcat_visualizer import MeshcatVisualizer
+    from .lab_1.manipulation_station_plan_runner import KukaPlanRunner
+    from .lab_1.manipulation_station_simulator import ManipStateMachine
+
+    plant = station.get_mutable_multibody_plant()
+    builder = DiagramBuilder()
+    builder.AddSystem(station)
+
+    '''
+    # Add plan runner
+    plan_runner = builder.AddSystem(KukaPlanRunner(station))
+    demux = builder.AddSystem(Demultiplexer(14, 7))
+    builder.Connect(
+        plan_runner.GetOutputPort("iiwa_position_and_torque_command"),
+        demux.get_input_port(0))
+    builder.Connect(demux.get_output_port(0),
+                    station.GetInputPort("iiwa_position"))
+    builder.Connect(demux.get_output_port(1),
+                    station.GetInputPort("iiwa_feedforward_torque"))
+    builder.Connect(station.GetOutputPort("iiwa_position_measured"),
+                    plan_runner.iiwa_position_input_port)
+    builder.Connect(station.GetOutputPort("iiwa_velocity_estimated"),
+                    plan_runner.iiwa_velocity_input_port)
+
+    # cheating port
+    builder.Connect(station.GetOutputPort("plant_continuous_state"),
+                    plan_runner.plant_state_input_port)
+
+    # Add state machine.
+    state_machine = ManipStateMachine(
+        plant=plant,
+        kuka_plans=plans_list,
+        gripper_setpoint_list=gripper_setpoint_list)
+
+    builder.AddSystem(state_machine)
+    builder.Connect(state_machine.kuka_plan_output_port,
+                    plan_runner.plan_input_port)
+    builder.Connect(state_machine.hand_setpoint_output_port,
+                    station.GetInputPort("wsg_position"))
+    builder.Connect(state_machine.gripper_force_limit_output_port,
+                    station.GetInputPort("wsg_force_limit"))
+    builder.Connect(station.GetOutputPort("iiwa_position_measured"),
+                    state_machine.iiwa_position_input_port)
+    '''
+
+    # Add meshcat visualizer
+    scene_graph = station.get_mutable_scene_graph()
+    viz = MeshcatVisualizer(scene_graph,
+                            is_drawing_contact_force=True,
+                            plant=plant)
+    builder.AddSystem(viz)
+    builder.Connect(station.GetOutputPort("pose_bundle"),
+                    viz.get_input_port(0))
+    builder.Connect(station.GetOutputPort("contact_results"),
+                    viz.GetInputPort("contact_results"))
+
+    '''
+    # Add logger
+    iiwa_position_command_log = builder.AddSystem(
+        SignalLogger(station.GetInputPort("iiwa_position").size()))
+    iiwa_position_command_log._DeclarePeriodicPublish(0.005)
+    builder.Connect(
+        demux.get_output_port(0), iiwa_position_command_log.get_input_port(0))
+
+    iiwa_external_torque_log = builder.AddSystem(
+        SignalLogger(station.GetOutputPort("iiwa_torque_external").size()))
+    iiwa_external_torque_log._DeclarePeriodicPublish(0.005)
+    builder.Connect(
+        station.GetOutputPort(
+            "iiwa_torque_external"), iiwa_external_torque_log.get_input_port(0))
+    '''
+
+    # build diagram
+    diagram = builder.Build()
+    viz.load()
+    time.sleep(2.0)
+    RenderSystemWithGraphviz(diagram)
+    return diagram
+
 ##################################################
 
 PROBLEMS = [
@@ -332,12 +412,16 @@ def main(deterministic=False):
 
     ##################################################
 
-    builder = build_diagram(mbp, scene_graph, not args.visualizer)
-    if args.simulate:
-        state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
+    if hasattr(task, 'station'):
+        diagram = load_new(task.station)
     else:
-        state_machine = None
-    diagram = builder.Build()
+        builder = build_diagram(mbp, scene_graph, not args.visualizer)
+        if args.simulate:
+           state_machine = connect_controllers(builder, mbp, task.robot, task.gripper)
+        else:
+           state_machine = None
+        diagram = builder.Build()
+
     RenderSystemWithGraphviz(diagram) # Useful for getting port names
     diagram_context = diagram.CreateDefaultContext()
     context = diagram.GetMutableSubsystemContext(mbp, diagram_context)

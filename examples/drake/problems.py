@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pydrake
 from pydrake.common import FindResourceOrThrow
-from pydrake.examples.manipulation_station import ManipulationStation
+from pydrake.examples.manipulation_station import ManipulationStation, IiwaCollisionModel
 from pydrake.geometry import (SceneGraph)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
@@ -94,36 +94,45 @@ class Task(object):
 
 def load_station(time_step=0.0):
     # https://github.com/RobotLocomotion/drake/blob/master/bindings/pydrake/examples/manipulation_station_py.cc
+    #object_file_path = FindResourceOrThrow(
+    #    "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
     object_file_path = FindResourceOrThrow(
-            "drake/external/models_robotlocomotion/ycb_objects/061_foam_brick.sdf")
-    #object_file_path = FOAM_BRICK_PATH
-    station = ManipulationStation(time_step)
-    station.AddCupboard()
-    mbp = station.get_mutable_multibody_plant()
+        "drake/examples/manipulation_station/models/061_foam_brick.sdf")
+
+    station = ManipulationStation(time_step, IiwaCollisionModel.kBoxCollision)
+    plant = station.get_mutable_multibody_plant()
     scene_graph = station.get_mutable_scene_graph()
-    object = AddModelFromSdfFile(
-        file_name=object_file_path,
-        model_name="object",
-        plant=mbp,
-        scene_graph=scene_graph)
+
+    robot = plant.GetModelInstanceByName('iiwa')
+    gripper = plant.GetModelInstanceByName('gripper')
+    station.AddCupboard()
+    brick = AddModelFromSdfFile(file_name=object_file_path, model_name="brick",
+                                plant=plant, scene_graph=scene_graph)
     station.Finalize()
 
-    robot = mbp.GetModelInstanceByName('iiwa')
-    gripper = mbp.GetModelInstanceByName('gripper')
+    door_names = ['left_door', 'right_door']
+    doors = [plant.GetBodyByName(name).index() for name in door_names]
 
     initial_conf = [0, 0.6 - np.pi / 6, 0, -1.75, 0, 1.0, 0]
     #initial_conf[1] += np.pi / 6
-    initial_positions = dict(zip(get_movable_joints(mbp, robot), initial_conf))
+    initial_positions = {
+        plant.GetJointByName('left_door_hinge'): -np.pi/2, #-DOOR_CLOSED,
+        plant.GetJointByName('right_door_hinge'): np.pi/2,
+    }
+    initial_positions.update(zip(get_movable_joints(plant, robot), initial_conf))
 
     initial_poses = {
-        object: create_transform(translation=[.6, 0, 0]),
+        brick: create_transform(translation=[0.3, 0, 0], rotation=[0, 0, np.pi/2]),
     }
-
-    task = Task(mbp, scene_graph, robot, gripper, movable=[object], surfaces=[],
+    goal_poses = {
+        brick: create_transform(translation=[0.8, 0.2, 0.2927], rotation=[0, 0, 5*np.pi/4]),
+    }
+    task = Task(plant, scene_graph, robot, gripper, movable=[brick], doors=doors,
                 initial_positions=initial_positions, initial_poses=initial_poses,
-                goal_on=[])
+                goal_poses=goal_poses, reset_robot=True, reset_doors=False)
+    task.station = station
 
-    return mbp, scene_graph, task
+    return plant, scene_graph, task
 
 ##################################################
 
@@ -166,7 +175,7 @@ def load_manipulation(time_step=0.0, new_models=True):
                                 scene_graph=scene_graph, plant=plant)
     gripper = AddModelFromSdfFile(file_name=WSG50_SDF_PATH, model_name='gripper',
                                   scene_graph=scene_graph, plant=plant)  # TODO: sdf frame/link error
-    amazon_table = AddModelFromSdfFile(file_name=AMAZON_TABLE_PATH, model_name='amazon_table',
+    table = AddModelFromSdfFile(file_name=AMAZON_TABLE_PATH, model_name='table',
                                 scene_graph=scene_graph, plant=plant)
     cupboard = AddModelFromSdfFile(file_name=CUPBOARD_PATH, model_name='cupboard',
                                  scene_graph=scene_graph, plant=plant)
@@ -175,7 +184,7 @@ def load_manipulation(time_step=0.0, new_models=True):
 
     weld_gripper(plant, robot, gripper)
     weld_to_world(plant, robot, create_transform())
-    weld_to_world(plant, amazon_table, create_transform(
+    weld_to_world(plant, table, create_transform(
         translation=[dx_table_center_to_robot_base, 0, -dz_table_top_robot_base]))
     weld_to_world(plant, cupboard, create_transform(
         translation=[cupboard_x, 0, cupboard_z], rotation=[0, 0, np.pi]))
@@ -189,7 +198,7 @@ def load_manipulation(time_step=0.0, new_models=True):
     ]
     goal_surface = Surface(plant, cupboard, 'top_and_bottom', shelves.index(goal_shelf))
     surfaces = [
-        #Surface(plant, amazon_table, 'amazon_table', 0),
+        #Surface(plant, table, 'amazon_table', 0),
         #goal_surface,
     ]
 
