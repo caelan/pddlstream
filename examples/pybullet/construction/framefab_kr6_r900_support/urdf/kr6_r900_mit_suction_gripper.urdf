@@ -217,7 +217,7 @@
   </joint>
   <!-- end of joint list -->
   <link name="workspace_base_link"/>
-  <link name="workspace_objects">
+  <!--link name="workspace_objects">
     <visual>
       <geometry>
         <mesh filename="package://framefab_kr6_r900_support/meshes/visual/MIT_3-412_workspace_full.stl"/>
@@ -236,7 +236,7 @@
     <parent link="workspace_base_link"/>
     <child link="workspace_objects"/>
     <origin rpy="0 0 0" xyz="0 0 0"/>
-  </joint>
+  </joint-->
   <link name="base_link"/>
   <!-- Attach the end effector to the end of the robot arm (tool0) -->
   <joint name="ee_to_robot" type="fixed">

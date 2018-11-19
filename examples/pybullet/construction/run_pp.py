@@ -29,6 +29,7 @@ PICKNPLACE_FILENAMES = {
 }
 GRASP_NAMES = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retreat_plane']
 TOOL_NAME = 'eef_tcp_frame' # robot_tool0 | eef_base_link | eef_tcp_frame
+SELF_COLLISIONS = False
 
 
 ##################################################
@@ -140,7 +141,7 @@ def get_grasp_gen_fn(brick_from_index):
     return gen_fn
 
 
-def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=10):
+def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
     movable_joints = get_movable_joints(robot)
     tool_link = link_from_name(robot, TOOL_NAME)
     disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
@@ -169,7 +170,7 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=10):
             # TODO: retreat
             path = plan_waypoints_joint_motion(robot, movable_joints, [approach_conf, attach_conf],
                                                obstacles=obstacle_from_name.values(),
-                                               self_collisions=True, disabled_collisions=disabled_collisions)
+                                               self_collisions=SELF_COLLISIONS, disabled_collisions=disabled_collisions)
             if path is None:
                 continue
             #path = [approach_conf, attach_conf]
@@ -340,9 +341,11 @@ def simulate_plan(plan, time_step=0.0, real_time=False): #time_step=np.inf
 
 ##################################################
 
-def main(viewer=True):
+def main(viewer=True, collisions=False):
     connect(use_gui=viewer)
     robot, brick_from_index, obstacle_from_name = load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
+    if not collisions:
+        obstacle_from_name = {}
 
     np.set_printoptions(precision=2)
     pr = cProfile.Profile()
