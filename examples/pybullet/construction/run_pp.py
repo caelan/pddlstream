@@ -68,8 +68,8 @@ def load_pick_and_place(extrusion_name, scale=0.001, max_bricks=6):
     with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
         json_data = json.loads(f.read())
 
-    #kuka_urdf = 'framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
-    kuka_urdf = 'framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
+    #kuka_urdf = 'models/framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
+    kuka_urdf = 'models/framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))

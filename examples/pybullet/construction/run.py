@@ -469,7 +469,7 @@ def display_trajectories(ground_nodes, trajectories, time_step=0.05):
 
 ##################################################
 
-def main(viewer=False):
+def main(viewer=True):
     # TODO: setCollisionFilterGroupMask
     # TODO: only produce collisions rather than collision-free
     # TODO: return collisions using wild-stream functionality
