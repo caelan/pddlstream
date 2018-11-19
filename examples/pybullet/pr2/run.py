@@ -5,6 +5,7 @@ from __future__ import print_function
 import cProfile
 import pstats
 import math
+import argparse
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
@@ -87,7 +88,7 @@ def opt_move_cost_fn(t):
 
 #######################################################
 
-def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
+def pddlstream_from_problem(problem, teleport=False):
     robot = problem.robot
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -188,15 +189,13 @@ def post_process(problem, plan):
 
 #######################################################
 
-def main(viewer=False, display=True, simulate=False, teleport=False):
-    # TODO: fix argparse & FastDownward
-    #parser = argparse.ArgumentParser()  # Automatically includes help
-    #parser.add_argument('-viewer', action='store_true', help='enable viewer.')
-    #parser.add_argument('-display', action='store_true', help='enable viewer.')
-    #args = parser.parse_args()
-    # TODO: getopt
+def main(display=True, simulate=False, teleport=False):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    #parser.add_argument('-display', action='store_true', help='displays the solution')
+    args = parser.parse_args()
 
-    connect(use_gui=viewer)
+    connect(use_gui=args.viewer)
     problem_fn = cooking_problem
     # holding_problem | stacking_problem | cleaning_problem | cooking_problem
     # cleaning_button_problem | cooking_button_problem
@@ -216,11 +215,12 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     }
 
     synthesizers = [
-        StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
-                                               'TrajPoseCollision': 0,
-                                               'TrajGraspCollision': 0,
-                                               'TrajArmCollision': 0},
-                          from_fn(get_base_motion_synth(problem, teleport))),
+        StreamSynthesizer('safe-base-motion', {
+            'plan-base-motion': 1,
+            'TrajPoseCollision': 0,
+            'TrajGraspCollision': 0,
+            'TrajArmCollision': 0,
+        }, from_fn(get_base_motion_synth(problem, teleport))),
     ] if USE_SYNTHESIZERS else []
 
     _, _, _, stream_map, init, goal = pddlstream_problem
@@ -245,7 +245,7 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         return
 
     commands = post_process(problem, plan)
-    if viewer:
+    if args.viewer:
         restore_state(state_id)
     else:
         disconnect()
