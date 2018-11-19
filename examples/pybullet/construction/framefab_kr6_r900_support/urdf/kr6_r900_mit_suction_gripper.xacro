@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<robot name="kr6_r900_mit_suction_gripper" xmlns:xacro="http://wiki.ros.org/xacro">
+
+	<xacro:property name="link3_mount_base_x" value="0.06762"/>
+	<xacro:property name="link3_mount_base_y" value="0.0"/>
+	<xacro:property name="link3_mount_base_z" value="0.0925"/>
+
+ 	<xacro:include filename="$(find kuka_kr6_support)/urdf/kr6r900sixx_macro.xacro"/>
+	<xacro:include filename="$(find mit_arch_suction_gripper)/urdf/mit_arch_suction_gripper_macro.xacro"/>
+	<xacro:include filename="$(find framefab_kr6_r900_support)/urdf/mit_3-412_workspace_micro.xacro"/>
+
+	<!-- instantiating arm  --> 
+	<xacro:kuka_kr6r900sixx prefix="robot_"/>
+	<!-- instantiating end effector  -->
+	<xacro:suction_gripper prefix="eef_"/>
+	<!-- instantiating workspace  -->
+	<xacro:mit_workspace prefix="workspace_"/>
+
+	<link name="base_link"/>
+
+	<!-- Attach the end effector to the end of the robot arm (tool0) -->
+	<joint name="ee_to_robot" type="fixed">
+		<parent link="robot_tool0"/>
+		<child link="eef_base_link"/>
+		<origin xyz="0 0 0" rpy="0 0 0"/>
+	</joint>
+
+	<!-- start of arm-workcell joint definitions -->
+	<joint name="world_to_base" type="fixed">
+		<parent link="base_link"/>
+		<child link="robot_base_link"/>
+		<origin xyz="0 0 0" rpy="0 0 0"/>
+	</joint>
+
+	<joint name="world_to_workspace" type="fixed">
+		<parent link="base_link"/>
+		<child link="workspace_base_link"/>
+		<origin xyz="0 0 0" rpy="0 0 0"/>
+	</joint>
+  
+</robot>

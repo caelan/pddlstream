@@ -14,7 +14,7 @@ from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, lin
     plan_joint_motion, get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, set_point, \
     draw_pose, unit_quat, create_obj, add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn, \
     wait_for_duration, enable_gravity, enable_real_time, trajectory_controller, simulate_controller, \
-    add_fixed_constraint, remove_fixed_constraint, elapsed_time
+    add_fixed_constraint, remove_fixed_constraint, elapsed_time, dump_body
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import read, get_file_path, print_solution
@@ -28,7 +28,7 @@ PICKNPLACE_FILENAMES = {
     'choreo_eth-trees_demo': 'choreo_eth-trees_demo.json',
 }
 GRASP_NAMES = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retreat_plane']
-TOOL_NAME = 'robot_tool0'
+TOOL_NAME = 'eef_tcp_frame' # robot_tool0 | eef_base_link | eef_tcp_frame
 
 
 ##################################################
@@ -67,11 +67,14 @@ def load_pick_and_place(extrusion_name, scale=0.001, max_bricks=6):
     with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
         json_data = json.loads(f.read())
 
+    #kuka_urdf = 'framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
+    kuka_urdf = 'framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
-        robot = load_pybullet(os.path.join(root_directory, 'framefab_kr6_r900_support/urdf/kr6_r900_2.urdf'), fixed_base=True)
-    set_point(robot, (0.14, 0, 0))
+        robot = load_pybullet(os.path.join(root_directory, kuka_urdf), fixed_base=True)
+    #set_point(robot, (0.14, 0, 0))
+    dump_body(robot)
 
     pick_base_point = parse_point(json_data['pick_base_center_point'])
     draw_pose((pick_base_point, unit_quat()))

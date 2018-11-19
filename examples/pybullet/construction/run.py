@@ -194,8 +194,9 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     stream_info = {
         #'sample-print': StreamInfo(PartialInputs(unique=True)),
     }
-    planner = 'ff-ehc'
+    #planner = 'ff-ehc'
     #planner = 'ff-wastar1000' # Branching factor becomes large. Rely on preferred. Preferred should also be cheaper
+    planner = 'ff-lazy-tiebreak'
     #planner = 'ff-eager-wastar1000'
     #planner = 'ff-wastar5'
     solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=600,
@@ -468,7 +469,7 @@ def display_trajectories(ground_nodes, trajectories, time_step=0.05):
 
 ##################################################
 
-def main(viewer=True):
+def main(viewer=False):
     # TODO: setCollisionFilterGroupMask
     # TODO: only produce collisions rather than collision-free
     # TODO: return collisions using wild-stream functionality
@@ -476,6 +477,7 @@ def main(viewer=True):
     # TODO: fail if wild stream produces unexpected facts
     # TODO: try search at different cost levels (i.e. w/ and w/o abstract)
 
+    # TODO: submodule in assembly-instances
     # https://github.mit.edu/yijiangh/assembly-instances
     #read_minizinc_data(os.path.join(root_directory, 'print_data.txt'))
     #return

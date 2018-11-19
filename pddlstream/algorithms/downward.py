@@ -71,7 +71,18 @@ SEARCH_OPTIONS = {
                  '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
     'add-random-lazy': '--heuristic "h=add(transform=adapt_costs(cost_type=PLUSONE))" '
                        '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
+
+    'ff-lazy-tiebreak': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
+                  '--search "lazy(tiebreaking([h, g()]),preferred=[h],reopen_closed=false,'
+                  'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    
+    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
+              '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
+              'cost_type=NORMAL,max_time=%s,bound=%s)"',
+    # The key difference is that ehc resets the open list upon finding an improvement
 }
+# TODO: do I want to sort operators in FD hill-climbing search?
+# Greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
 
 for w in range(1, 1+5):
     SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
@@ -80,14 +91,6 @@ for w in range(1, 1+5):
     SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
                    '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
-
-# TODO: enforced hill climbing
-SEARCH_OPTIONS['ff-eager-wastar{}'.format(1000)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
-              '--search "eager(single(sum([g(),weight(h,{})])),preferred=[h],reopen_closed=false,' \
-              'cost_type=NORMAL,max_time=%s,bound=%s)"'.format(1000)
-SEARCH_OPTIONS['ff-ehc'] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
-              '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,' \
-              'cost_type=NORMAL,max_time=%s,bound=%s)"'
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
