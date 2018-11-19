@@ -16,7 +16,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wa
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test
-from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.language.stream import StreamInfo, PartialInputs, NEGATIVE_SUFFIX
 from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
@@ -152,9 +152,9 @@ def get_pddlstream(robot, obstacles, node_points, element_bodies, ground_nodes, 
 def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, trajectories=[]):
     if trajectories is None:
         return None
-    # TODO: Iterated search
-    # http://www.fast-downward.org/Doc/Heuristic#h.5Em_heuristic
-    # randomize_successors=True
+    # TODO: iterated search using random restarts
+    # TODO: most of the time seems to be spent extracting the stream plan
+    # TODO: NEGATIVE_SUFFIX to make axioms easier
     pr = cProfile.Profile()
     pr.enable()
     pddlstream_problem = get_pddlstream(robot, obstacles, node_points, element_bodies,
@@ -167,12 +167,11 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes, t
     }
     #planner = 'ff-ehc'
     planner = 'ff-lazy-tiebreak' # Branching factor becomes large. Rely on preferred. Preferred should also be cheaper
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=600,
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=30,
                              effort_weight=1, unit_efforts=True, use_skeleton=False, #unit_costs=True,
-                             planner=planner, max_planner_time=15, debug=False)
+                             planner=planner, max_planner_time=15, reorder=False, debug=True)
     # Reachability heuristics good for detecting dead-ends
     # Infeasibility from the start means disconnected or collision
-    # Random restart based strategy here
     print_solution(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
@@ -499,7 +498,7 @@ def main(viewer=False, precompute=False, motions=False):
     #    wait_for_interrupt('Continue?')
 
     #joint_weights = compute_joint_weights(robot, num=1000)
-    elements = elements[:50] # 10 | 50 | 100 | 150
+    #elements = elements[:50] # 10 | 50 | 100 | 150
     #debug_elements(robot, node_points, node_order, elements)
     element_bodies = dict(zip(elements, create_elements(node_points, elements)))
 

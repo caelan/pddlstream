@@ -3,7 +3,7 @@ from collections import Counter, deque
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, NEGATIVE_SUFFIX
 from pddlstream.language.generator import empty_gen
 from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import get_mapping, INF, neighbors_from_orders
@@ -96,7 +96,7 @@ class ConstraintStream(Stream):
 
 ##################################################
 
-UNSATISFIABLE = 'unsatisfiable-negative'
+UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
 
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
