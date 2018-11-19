@@ -4,8 +4,8 @@ import cProfile
 import pstats
 import numpy as np
 
-from examples.pybullet.construction.debug import get_test_cfree
-from examples.pybullet.construction.utils import create_elements, \
+from examples.pybullet.construction.spatial_extrusion.debug import get_test_cfree
+from examples.pybullet.construction.spatial_extrusion.utils import create_elements, \
     load_extrusion, TOOL_NAME, DISABLED_COLLISIONS, check_trajectory_collision, get_grasp_pose, load_world, \
     get_node_neighbors, sample_direction, draw_element
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wait_for_interrupt, \

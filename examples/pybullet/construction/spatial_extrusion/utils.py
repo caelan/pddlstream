@@ -11,7 +11,8 @@ from examples.pybullet.utils.pybullet_tools.utils import add_line, create_cylind
     set_quat, get_movable_joints, set_joint_positions, pairwise_collision, Pose, multiply, Point, load_model, \
     HideOutput, load_pybullet
 
-EXTRUSION_DIRECTORY = 'spatial_extrusion/'
+#EXTRUSION_DIRECTORY = 'spatial_extrusion/'
+EXTRUSION_DIRECTORY = 'json/'
 EXTRUSION_FILENAMES = {
     'djmm_test_block': 'djmm_test_block_S1.0_09-17-2018.json',
     'mars_bubble': 'mars_bubble_S1.0_09-17-2018.json',
@@ -22,8 +23,8 @@ EXTRUSION_FILENAMES = {
     'voronoi': 'voronoi_S1.0_09-05-2018.json',
 }
 
-KUKA_PATH = 'models/framefab_kr6_r900_support/urdf/kr6_r900.urdf'
-#KUKA_PATH = 'models/framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
+KUKA_PATH = '../models/framefab_kr6_r900_support/urdf/kr6_r900.urdf'
+#KUKA_PATH = '../models/framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
 TOOL_NAME = 'eef_tcp_frame'
 DISABLED_COLLISIONS = [
     # ('robot_link_1', 'workspace_objects'),

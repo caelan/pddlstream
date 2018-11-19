@@ -7,8 +7,8 @@ import time
 
 from collections import namedtuple
 
-from examples.pybullet.construction.run import MotionTrajectory
-from examples.pybullet.construction.utils import DISABLED_COLLISIONS, parse_point, parse_transform
+from examples.pybullet.construction.spatial_extrusion.run import MotionTrajectory
+from examples.pybullet.construction.spatial_extrusion.utils import DISABLED_COLLISIONS, parse_point, parse_transform
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, has_link, set_pose, \
     multiply, invert, inverse_kinematics, plan_waypoints_joint_motion, Attachment, set_joint_positions, unit_quat, \
     plan_joint_motion, get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, set_point, \
@@ -21,7 +21,8 @@ from pddlstream.utils import read, get_file_path, print_solution
 from pddlstream.algorithms.focused import solve_focused
 
 
-PICKNPLACE_DIRECTORY = 'picknplace/'
+#PICKNPLACE_DIRECTORY = 'picknplace/'
+PICKNPLACE_DIRECTORY = ''
 PICKNPLACE_FILENAMES = {
     #'choreo_brick_demo': 'choreo_brick_demo.json',
     'choreo_brick_demo': 'json/brick_demo.json',
@@ -68,8 +69,8 @@ def load_pick_and_place(extrusion_name, scale=0.001, max_bricks=6):
     with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
         json_data = json.loads(f.read())
 
-    #kuka_urdf = 'models/framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
-    kuka_urdf = 'models/framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
+    #kuka_urdf = '../models/framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
+    kuka_urdf = '../models/framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
