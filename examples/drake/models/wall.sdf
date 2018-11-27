@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<sdf version='1.6'>
+<model name="wall">
+  <link name="base_link">
+    <visual name='wall_visual'>
+      <pose frame=''>0 0 0.3 0 0 0</pose>
+      <geometry>
+        <box> 
+          <size>0.05 0.6 0.6</size>
+        </box>
+      </geometry>
+      <material>
+        <diffuse>0.5 0.5 0.5 1</diffuse>
+      </material>
+    </visual>
+
+    <collision name='wall_collision'>
+      <pose frame=''>0 0 0.3 0 0 0</pose>
+      <geometry>
+        <box> 
+          <size>0.049 0.599 0.599</size>
+        </box>
+      </geometry>
+      <!--material>
+        <diffuse>0.5 0.5 0.5 0</diffuse>
+      </material-->
+    </collision>
+
+   </link>
+</model>
+</sdf>
