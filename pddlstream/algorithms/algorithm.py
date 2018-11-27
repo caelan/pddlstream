@@ -63,6 +63,9 @@ def check_problem(domain, streams, obj_from_constant):
                 raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
     print('Warning! Undeclared predicates: {}'.format(sorted(undeclared_predicates))) # Undeclared predicate: {}
 
+def evaluations_from_init(init):
+    return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
+
 def parse_problem(problem, stream_info={}):
     # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
@@ -71,11 +74,13 @@ def parse_problem(problem, stream_info={}):
         raise NotImplementedError('Types are not currently supported')
     obj_from_constant = parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    evaluations = OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
-    goal_expression = obj_from_value_expression(goal)
     check_problem(domain, streams, obj_from_constant)
+
+    evaluations = evaluations_from_init(init)
+    goal_expression = obj_from_value_expression(goal)
     parse_goal(goal_expression, domain) # Just to check that it parses
     #normalize_domain_goal(domain, goal_expression)
+
     # TODO: refactor the following?
     compile_to_exogenous(evaluations, domain, streams)
     compile_fluent_streams(domain, streams)

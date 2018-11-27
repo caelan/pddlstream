@@ -147,6 +147,11 @@ def get_blocked_problem(n_blocks=2, deterministic=True):
 
     return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
+PROBLEMS = {
+    'tight': get_tight_problem,
+    'blocked': get_blocked_problem,
+}
+
 ##################################################
 
 def draw_state(viewer, state, colors):

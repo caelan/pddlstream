@@ -77,6 +77,7 @@ class OptimisticObject(object):
             self.repr_name = '#{}{}'.format(prefix, var_index) #self.index)
     @staticmethod
     def from_opt(value, param):
+        # TODO: make param have a default value?
         key = (value, param)
         if key not in OptimisticObject._obj_from_inputs:
             return OptimisticObject(value, param)
@@ -88,3 +89,4 @@ class OptimisticObject(object):
         return self.index < other.index
     def __repr__(self):
         return self.repr_name
+        #return repr(self.repr_name) # Prints in quotations

@@ -18,7 +18,7 @@ from pddlstream.algorithms.visualization import reset_visualizations, create_vis
     has_pygraphviz, log_plans
 from pddlstream.language.conversion import revert_solution
 from pddlstream.language.execution import get_action_info
-from pddlstream.language.optimizer import combine_optimizers
+from pddlstream.language.optimizer import combine_optimizers, replan_with_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.utils import INF, elapsed_time

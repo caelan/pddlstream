@@ -258,6 +258,7 @@ def sas_from_pddl(task, debug=False):
     #sas_task = translate.pddl_to_sas(task)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiate_task(task))
+        sas_task.metric = task.use_min_cost_metric # TODO: are these sometimes not equal?
     return sas_task
 
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):

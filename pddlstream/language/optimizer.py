@@ -1,13 +1,12 @@
 from collections import Counter, deque
 
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
-from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
+from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact, fact_from_evaluation
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, NEGATIVE_SUFFIX
 from pddlstream.language.generator import empty_gen
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import get_mapping, INF, neighbors_from_orders
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, HeapElement
+from pddlstream.utils import get_mapping, INF, neighbors_from_orders, elapsed_time, INF, get_mapping, str_from_object
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.downward import fd_from_fact, make_parameters, make_preconditions
 from pddlstream.language.function import FunctionResult
@@ -337,6 +336,7 @@ def retrace_instantiation(fact, streams, evaluations, visited_facts, planned_res
                 mapping = get_mapping(get_args(cert), get_args(fact))  # Should be same anyways
                 if not all(p in mapping for p in (stream.inputs + stream.outputs)):
                     # TODO: assumes another effect is sufficient for binding
+                    # Create arbitrary objects for inputs/outputs that aren't mentioned
                     # Can lead to incorrect ordering
                     continue
                 input_objects = tuple(mapping[p] for p in stream.inputs)
@@ -377,6 +377,8 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     for optimizer in {get_optimizer(r) for r in new_results}: # None is like a unique optimizer:
         relevant_results = [r for r in new_results if get_optimizer(r) == optimizer]
         optimizer_results.extend(combine_optimizer_plan(relevant_results, function_plan))
+    #print(str_from_object(set(map(fact_from_evaluation, evaluations))))
+    #print(str_from_object(set(goal_facts)))
 
     # TODO: can do the flexibly sized optimizers search
     from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan

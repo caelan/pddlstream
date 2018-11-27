@@ -218,7 +218,7 @@ def str_from_object(obj):  # str_object
     if type(obj) == dict:
         return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key), str_from_object(obj[key])) \
                                   for key in sorted(obj.keys(), key=lambda k: str_from_object(k))))
-    if type(obj) in (set, frozenset):
+    if type(obj) in [set, frozenset]:
         return '{{{}}}'.format(', '.join(sorted(str_from_object(item) for item in obj)))
     #if type(obj) in (float, np.float64):
     #    obj = round(obj, 3)
@@ -227,6 +227,7 @@ def str_from_object(obj):  # str_object
     #if isinstance(obj, types.FunctionType):
     #    return obj.__name__
     return str(obj)
+    #return repr(obj)
 
 def str_from_tuple(tup):
     return str_from_object(tup)

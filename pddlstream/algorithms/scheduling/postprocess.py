@@ -1,4 +1,4 @@
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, sas_from_pddl
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import get_stream_actions
 from pddlstream.algorithms.search import solve_from_task
@@ -17,7 +17,8 @@ def reschedule_stream_plan(evaluations, preimage_facts, domain, stream_results, 
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     reschedule_task.actions, stream_result_from_name = get_stream_actions(stream_results, unique_binding=unique_binding)
     #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the even that axioms are needed?
-    new_plan, _ = solve_from_task(reschedule_task, planner=RESCHEDULE_PLANNER, max_planner_time=10, debug=False)
+    sas_task = sas_from_pddl(reschedule_task)
+    new_plan, _ = solve_from_task(sas_task, planner=RESCHEDULE_PLANNER, max_planner_time=10, debug=False)
     return [stream_result_from_name[name] for name, _ in new_plan]
 
 ##################################################
