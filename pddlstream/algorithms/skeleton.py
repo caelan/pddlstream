@@ -248,3 +248,16 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
                 disabled.add(instance)
     # TODO: indicate whether should resolve w/o disabled
     return not failures
+
+def process_skeleton_queue(store, queue, stream_plan, action_plan, cost, max_sample_time):
+    start_time = time.time()
+    if stream_plan is None:
+        if not queue:
+            return False
+        queue.process_until_success()
+    elif not stream_plan:
+        store.add_plan(action_plan, cost)
+    else:
+        queue.new_skeleton(stream_plan, action_plan, cost)
+    queue.timed_process(max_sample_time - elapsed_time(start_time))
+    return True

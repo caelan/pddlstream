@@ -14,7 +14,7 @@ from pddlstream.utils import INF
 # TODO: lazily expand the shared objects in some cases to prevent increase in size
 
 RECURSIVE = True
-ONLY_LOCAL = False
+DOUBLE_BOUND = False
 
 def get_stream_plan_index(stream_plan):
     if not stream_plan:
@@ -131,7 +131,9 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 #     return preimage
 
 def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
-    # TODO: check empty plan first?
+    # TODO: check empty stream plan first?
+    if not RECURSIVE and (depth != 0):
+        return None, INF, depth
     combined_plan, cost = solve_stream_plan(stream_results)
     stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
     #dump_plans(stream_plan, action_plan, cost)
@@ -141,12 +143,10 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     plan_index = get_stream_plan_index(stream_plan)
     if plan_index == 0:
         return combined_plan, cost, depth
-    if not RECURSIVE: # TODO: not quite right
-        return None, cost, depth
+
     # TODO: should I just plan using all original plus expanded
     # TODO: might need new actions here (such as a move)
     stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
-
     # TODO: plan up to first action that only has one
     # Only use actions in the states between the two
     # planned_instances = []
@@ -160,15 +160,13 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     # print(action_plan)
     # print(planned_instances)
 
-    if not ONLY_LOCAL:
+    if DOUBLE_BOUND:
         # I don't think the double bound thing really makes entire sense here
         double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
         stream_results.extend(optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
                                                          streams, double_bindings=double_bindings))
-    stream_results += optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results),
-                                                 functions)
-    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
-                                       solve_stream_plan, depth + 1)
+        stream_results.extend(optimistic_process_streams(evaluations_from_stream_plan(evaluations, stream_results), functions))
+    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth + 1)
 
 
 def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan):

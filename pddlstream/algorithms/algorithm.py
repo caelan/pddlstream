@@ -46,6 +46,7 @@ def check_problem(domain, streams, obj_from_constant):
                 raise ValueError('Parameter [{}] for action [{}] is not unique'.format(p.name, action.name))
         # TODO: check that no undeclared parameters & constants
         #action.dump()
+    undeclared_predicates = set()
     for stream in streams:
         # TODO: domain.functions
         facts = list(stream.domain)
@@ -53,13 +54,14 @@ def check_problem(domain, streams, obj_from_constant):
             facts.extend(stream.certified)
         for fact in facts:
             name = get_prefix(fact)
-            if name not in domain.predicate_dict: # Undeclared predicate: {}
-                print('Warning! Undeclared predicate used in stream [{}]: {}'.format(stream.name, name))
+            if name not in domain.predicate_dict:
+                undeclared_predicates.add(name)
             elif len(get_args(fact)) != domain.predicate_dict[name].get_arity(): # predicate used with wrong arity: {}
                 print('Warning! predicate used with wrong arity in stream [{}]: {}'.format(stream.name, fact))
         for constant in stream.constants:
             if constant not in obj_from_constant:
                 raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
+    print('Warning! Undeclared predicates: {}'.format(sorted(undeclared_predicates))) # Undeclared predicate: {}
 
 def parse_problem(problem, stream_info={}):
     # TODO: just return the problem if already written programmatically

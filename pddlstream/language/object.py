@@ -6,21 +6,17 @@ from pddlstream.utils import str_from_object, is_hashable
 USE_HASH = True
 USE_OBJ_STR = True
 USE_OPT_STR = True
-#USE_STRING = False
 
 class Object(object):
-    _prefix = 'v' # o
+    _prefix = 'v'
     _obj_from_id = {}
     _obj_from_value = {}
     _obj_from_name = {}
     def __init__(self, value, stream_instance=None, name=None):
-        # TODO: unique vs hash
         self.value = value
         self.index = len(Object._obj_from_name)
         if name is None:
             name = '{}{}'.format(self._prefix, self.index)
-        #if USE_STRING and isinstance(value, str):
-        #    name = value
         self.pddl = name
         self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self
@@ -74,6 +70,7 @@ class OptimisticObject(object):
         OptimisticObject._obj_from_name[self.pddl] = self
         self.repr_name = self.pddl
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
+            # TODO: instead just endow UniqueOptValue with a string function
             parameter = self.param.instance.external.outputs[self.param.output_index]
             prefix = get_parameter_name(parameter)[:1]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))

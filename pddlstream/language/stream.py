@@ -16,6 +16,7 @@ VERBOSE_FAILURES = True
 INTERNAL = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
+NEGATIVE_SUFFIX = '-negative'
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
@@ -32,26 +33,28 @@ def get_identity_fn(indices):
 
 ##################################################
 
-OptValue = namedtuple('OptValue', ['stream', 'inputs', 'values', 'output'])
+class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
+    @property
+    def values(self):
+        return values_from_objects(self.input_objects)
 
 class PartialInputs(object):
-    def __init__(self, inputs='', unique=False): #, num=1):
+    def __init__(self, inputs='', unique=DEFAULT_UNIQUE): #, num=1):
         self.inputs = tuple(inputs.split())
         self.unique = unique
         #self.num = num
-    def get_opt_gen_fn(self, stream):
+    def get_opt_gen_fn(self, stream_instance):
+        stream = stream_instance.external
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
         # TODO: ensure no scoping error with inputs
         def gen_fn(*input_values):
-            input_objects = tuple(map(Object.from_value, input_values))
-            instance = stream.get_instance(input_objects)
+            input_objects = stream_instance.input_objects
             mapping = get_mapping(stream.inputs, input_objects)
-            values = tuple(mapping[inp] for inp in inputs)
-            assert(len(inputs) == len(values))
+            selected_objects = tuple(mapping[inp] for inp in inputs)
             #for _ in irange(self.num):
-            for _ in irange(instance.num_optimistic):
-                yield [tuple(OptValue(stream.name, inputs, values, out)
+            for _ in irange(stream_instance.num_optimistic):
+                yield [tuple(OptValue(stream.name, inputs, selected_objects, out)
                              for out in stream.outputs)]
         return gen_fn
 
@@ -74,8 +77,7 @@ def get_constant_gen_fn(stream, constant):
 #     return fn
 
 def get_debug_gen_fn(stream):
-    return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o)
-                                       for o in stream.outputs))
+    return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
 class DebugValue(object): # TODO: could just do an object
     _output_counts = defaultdict(count)
@@ -92,7 +94,7 @@ class DebugValue(object): # TODO: could just do an object
 ##################################################
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), eager=False,
+    def __init__(self, opt_gen_fn=PartialInputs(), eager=False,
                  p_success=None, overhead=None, negate=False, effort_fn=None, simultaneous=False):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead, effort_fn)
@@ -139,6 +141,8 @@ class StreamInstance(Instance):
         self.axiom_predicate = None
         self.disabled_axiom = None
         self.num_optimistic = 1
+        opt_gen_fn = self.external.info.opt_gen_fn
+        self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
 
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
@@ -228,7 +232,7 @@ class StreamInstance(Instance):
         # TODO: resue these?
         self.opt_results = []
         output_set = set()
-        for output_list in self.external.opt_gen_fn(*self.get_input_values()):
+        for output_list in self.opt_gen_fn(*self.get_input_values()):
             self._check_output_values(output_list)
             for i, output_values in enumerate(output_list):
                 output_objects = []
@@ -308,18 +312,14 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
-        if isinstance(self.info.opt_gen_fn, PartialInputs):
-            if self.info.opt_gen_fn.unique:
-                self.num_opt_fns = 0
-            self.opt_gen_fn = self.info.opt_gen_fn.get_opt_gen_fn(self)
-        else:
-            self.opt_gen_fn = self.info.opt_gen_fn
+        if isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique:
+            self.num_opt_fns = 0
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
         self.fluents = [] if gen_fn == DEBUG else fluents
         if NEGATIVE_BLOCKED:
-            self.blocked_predicate = '~{}-negative'.format(self.name) # Args are self.inputs
+            self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
         else:
             self.blocked_predicate = '~{}'.format(self.name)
         self.disabled_instances = []
@@ -340,6 +340,7 @@ class Stream(External):
         return self.info.negate
 
     def get_instance(self, input_objects, fluent_facts=frozenset()):
+        assert all(isinstance(obj, Object) or isinstance(obj, OptimisticObject) for obj in input_objects)
         key = (tuple(input_objects), frozenset(fluent_facts))
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)

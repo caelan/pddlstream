@@ -149,8 +149,7 @@ def obj_from_pddl(pddl):
         return Object.from_name(pddl)
     elif pddl in OptimisticObject._obj_from_name:
         return OptimisticObject.from_name(pddl)
-    else:
-        raise ValueError(pddl)
+    raise ValueError(pddl)
 
 
 def values_from_objects(objects):
