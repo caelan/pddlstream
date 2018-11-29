@@ -339,11 +339,15 @@ def retrace_instantiation(fact, streams, evaluations, visited_facts, planned_res
                     # Create arbitrary objects for inputs/outputs that aren't mentioned
                     # Can lead to incorrect ordering
                     continue
+
                 input_objects = tuple(mapping[p] for p in stream.inputs)
+                output_objects = tuple(mapping[p] for p in stream.outputs)
+                if not all(isinstance(out, OptimisticObject) for out in output_objects):
+                    # Can only bind if free
+                    continue
                 instance = stream.get_instance(input_objects)
                 for new_fact in instance.get_domain():
                     retrace_instantiation(new_fact, streams, evaluations, visited_facts, planned_results)
-                output_objects = tuple(mapping[p] for p in stream.outputs)
                 result = instance.get_result(output_objects)
                 planned_results.append(result)
 
@@ -384,7 +388,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
     combined_plan = reschedule_stream_plan(evaluations, goal_facts, copy.copy(domain),
                                            (stream_plan + optimizer_results),
-                                           unique_binding=True, unit_costs=True)
+                                           unique_binding=True, unit_efforts=True)
     if combined_plan is None:
         return external_plan
     return combined_plan + function_plan

@@ -2,18 +2,16 @@
 
 from __future__ import print_function
 
+import argparse
 import cProfile
 import pstats
+
 import numpy as np
-import argparse
+from numpy import array
 
 from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem
 from examples.continuous_tamp.run import pddlstream_from_tamp
-
-from pddlstream.utils import str_from_object
-from pddlstream.algorithms.satisfaction import constraint_satisfaction
-
-from numpy import array
+from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
 
 # Be careful about uniqueness here
 conf0 = array([-7.5,  5. ])
@@ -71,6 +69,7 @@ constraints = [
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
+    parser.add_argument('-o', '--optimizer', action='store_true', help='Uses the optimizers')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -82,19 +81,13 @@ def main():
     tamp_problem = get_tight_problem()
     print(tamp_problem)
 
-    pddlstream_problem = pddlstream_from_tamp(tamp_problem)
+    pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.optimizer,
+                                              use_optimizer=args.optimizer)
     stream_pddl, stream_map = pddlstream_problem[2:4]
     pr = cProfile.Profile()
     pr.enable()
-
-    bindings, cost, evaluations = constraint_satisfaction(stream_pddl, stream_map, init, constraints)
-    print()
-    print('Solved: {}'.format(bindings is not False))
-    print('Cost: {}'.format(cost))
-    print('Evaluations: {}'.format(len(evaluations)))
-    print('Assignments:')
-    for param in sorted(bindings):
-        print('{} = {}'.format(param, str_from_object(bindings[param])))
+    solution = constraint_satisfaction(stream_pddl, stream_map, init, constraints)
+    dump_assignment(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     #if plan is not None:

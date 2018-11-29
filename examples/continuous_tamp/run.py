@@ -28,15 +28,18 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.optimizer import OptimizerInfo
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path, str_from_object
 
-def pddlstream_from_tamp(tamp_problem):
+def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    external_pddl = [
-        read(get_file_path(__file__, 'stream.pddl')),
-        #read(get_file_path(__file__, 'optimizer.pddl')),
-    ]
+    external_paths = []
+    if use_stream:
+        external_paths.append(get_file_path(__file__, 'stream.pddl'))
+    if use_optimizer:
+        external_paths.append(get_file_path(__file__, 'optimizer.pddl'))
+    external_pddl = [read(path) for path in external_paths]
+
     constant_map = {}
 
     init = [

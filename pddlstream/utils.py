@@ -287,3 +287,10 @@ def hash_or_id(value):
         return value
     except TypeError:
         return id(value)
+
+
+def is_64bits():
+    #return sys.maxsize > 2**32
+    import platform
+    bit, _ = platform.architecture()
+    return bit == '64bit'
