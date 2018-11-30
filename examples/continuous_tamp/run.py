@@ -71,11 +71,12 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):
         't-cfree': from_test(lambda *args: not collision_test(*args)),
         'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
-        'gurobi': from_fn(get_optimize_fn(tamp_problem.regions)),
-        'rrt': from_fn(cfree_motion_fn),
-        #'reachable': from_test(reachable_test),
-        #'Valid': valid_state_fn,
     }
+    if use_optimizer:
+        stream_map.update({
+            'gurobi': from_fn(get_optimize_fn(tamp_problem.regions)),
+            'rrt': from_fn(cfree_motion_fn),
+        })
     #stream_map = 'debug'
 
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)

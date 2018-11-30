@@ -61,7 +61,9 @@ def check_problem(domain, streams, obj_from_constant):
         for constant in stream.constants:
             if constant not in obj_from_constant:
                 raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
-    print('Warning! Undeclared predicates: {}'.format(sorted(undeclared_predicates))) # Undeclared predicate: {}
+    if undeclared_predicates:
+        print('Warning! Undeclared predicates: {}'.format(
+            sorted(undeclared_predicates))) # Undeclared predicate: {}
 
 def evaluations_from_init(init):
     return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)

@@ -4,11 +4,12 @@ from __future__ import print_function
 
 import os
 import numpy as np
+import argparse
 from collections import namedtuple
 
 from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_exhaustive
+from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 #from pddlstream.algorithms.execution import solve_execution
 from pddlstream.language.constants import And, Equal
 from pddlstream.language.stream import StreamInfo
@@ -171,7 +172,13 @@ def apply_plan(tamp_problem, plan):
 
 ##################################################
 
-def main(focused=True, unit_costs=False):
+def main(unit_costs=False):
+    parser = argparse.ArgumentParser()
+    #parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
+    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    args = parser.parse_args()
+    print('Arguments:', args)
+
     problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
@@ -181,11 +188,16 @@ def main(focused=True, unit_costs=False):
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    if focused:
+    if args.algorithm == 'focused':
         #solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
         solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info, debug=False)
-    else:
+    elif args.algorithm == 'exhaustive':
         solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
+    elif args.algorithm == 'incremental':
+        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
+    else:
+        raise ValueError(args.algorithm)
+
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
