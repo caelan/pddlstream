@@ -12,9 +12,14 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
 from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 # TODO: possible bug when path has a space or period
-# TODO: toggle between different FD versions
-RELEASE = 'release32' # release32 | release64
-FD_PATH = get_file_path(__file__, '../../FastDownward/builds/{}/'.format(RELEASE))
+FD_PATH = None
+for release in ['release64', 'release32']:
+    path = get_file_path(__file__, '../../FastDownward/builds/{}/'.format(release))
+    if os.path.exists(path):
+        FD_PATH = path
+        break
+if FD_PATH is None:
+    raise RuntimeError('.../pddlstream$ ./FastDownward/build.py')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
