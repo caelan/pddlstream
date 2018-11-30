@@ -13,14 +13,14 @@ from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path
 
 # TODO: possible bug when path has a space or period
 # TODO: toggle between different FD versions
-FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release32/')
-#FD_PATH = get_file_path(__file__, '../../FastDownward/builds/release64/')
+RELEASE = 'release32' # release32 | release64
+FD_PATH = get_file_path(__file__, '../../FastDownward/builds/{}/'.format(RELEASE))
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
-TRANSLATE_FLAGS = ['--negative-axioms'] # '--negative-axioms'
+TRANSLATE_FLAGS = ['--negative-axioms']
 original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
@@ -133,10 +133,12 @@ def parse_domain(domain_pddl):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
     return domain
 
-Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements', 'objects', 'init',
-                               'goal', 'use_metric'])
+Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
+                                 'objects', 'init', 'goal', 'use_metric'])
 
 def parse_problem(domain, problem_pddl):
+    if isinstance(problem_pddl, Problem):
+        return problem_pddl
     return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
 
 #def parse_action(lisp_list):
@@ -199,6 +201,10 @@ def fd_from_evaluation(evaluation):
 ##################################################
 
 def parse_goal(goal_expression, domain):
+    #try:
+    #    pass
+    #except SystemExit as e:
+    #    return False
     return parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict).simplified()
 
@@ -460,6 +466,10 @@ def make_parameters(parameters, type=OBJECT):
     return tuple(pddl.TypedObject(p, type) for p in parameters)
 
 
+def make_predicate(name, parameters):
+    return pddl.Predicate(name, make_parameters(parameters))
+
+
 def make_preconditions(preconditions):
     return pddl.Conjunction(list(map(fd_from_fact, preconditions)))
 
@@ -495,6 +505,17 @@ def make_axiom(parameters, preconditions, derived):
                       parameters=make_parameters(parameters),
                       num_external_parameters=len(external_parameters),
                       condition=make_preconditions(preconditions))
+
+
+
+def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]):
+    import pddl_parser
+    types = [pddl.Type(OBJECT)]
+    pddl_parser.parsing_functions.set_supertypes(types)
+    return Domain(name='', requirements=pddl.Requirements([]),
+             types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
+             predicates=predicates, predicate_dict={p.name: p for p in predicates},
+             functions=functions, actions=actions, axioms=axioms)
 
 ##################################################
 

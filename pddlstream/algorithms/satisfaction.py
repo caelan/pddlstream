@@ -4,20 +4,20 @@ from collections import namedtuple
 
 from pddlstream.algorithms.algorithm import SolutionStore
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
-from pddlstream.algorithms.downward import Domain, OBJECT, make_parameters, make_action
+from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
-from pddlstream.language.constants import is_parameter, get_args, Not, PDDLProblem
+from pddlstream.language.constants import is_parameter, Not, PDDLProblem
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
 from pddlstream.language.external import get_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import retrace_instantiation
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, get_mapping, str_from_object, str_from_plan, get_length, safe_zip
+from pddlstream.utils import INF, get_mapping, str_from_object, get_length, safe_zip
 
 
 # TODO: version of this where I pass in a plan skeleton instead
@@ -45,21 +45,15 @@ def obj_from_parameterized_expression(parent): # obj_from_value_expression
     return replace_expression(parent, lambda o: OptimisticObject
                               .from_opt(o, o) if is_parameter(o) else Object.from_value(o))
 
+
 def create_domain(constraints_list):
-    import pddl
-    import pddl_parser
     predicate_dict = {}
     for fact in constraints_list: # TODO: consider removing this annoying check
         name = get_prefix(fact)
         if name not in predicate_dict:
             parameters = ['?x{}'.format(i) for i in range(len(get_args(fact)))]
-            predicate_dict[name] = pddl.Predicate(name, make_parameters(parameters))
-    types = [pddl.Type(OBJECT)]
-    pddl_parser.parsing_functions.set_supertypes(types)
-    return Domain(name='', requirements=pddl.Requirements([]),
-                  types=types, type_dict={ty.name: ty for ty in types}, constants=[],
-                  predicates=list(predicate_dict.values()), predicate_dict=predicate_dict,
-                  functions=[], actions=[], axioms=[])
+            predicate_dict[name] = make_predicate(name, parameters)
+    return make_domain(predicates=list(predicate_dict.values()))
 
 def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_info={},
                             max_sample_time=INF, **kwargs):
@@ -146,12 +140,10 @@ def cluster_constraints(constraints):
 
 
 def planning_from_satisfaction(constraints):
-    import pddl
-    import pddl_parser
     clusters = cluster_constraints(constraints)
-    order_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters))]
-    goal_expression = order_facts[-1]
-    order_obj_facts = list(map(obj_from_value_expression, order_facts))
+    order_value_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters))]
+    goal_expression = order_value_facts[-1]
+    order_facts = list(map(obj_from_value_expression, order_value_facts))
     bound_parameters = set()
     actions = []
     #constants = {}
@@ -168,20 +160,15 @@ def planning_from_satisfaction(constraints):
         # [Not(UNBOUND_PREDICATE, constant_from_parameter(p)) for p in free_parameters]
         effects = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in parameters] + \
                   [(BOUND_PREDICATE, to_constant(p)) for p in parameters] + \
-                  [order_obj_facts[i]]
+                  [order_facts[i]]
         if i != 0:
-            preconditions.append(order_obj_facts[i-1])
-            effects.append(Not(order_obj_facts[i-1]))
+            preconditions.append(order_facts[i-1])
+            effects.append(Not(order_facts[i-1]))
         actions.append(make_action(name, parameters, preconditions, effects))
         bound_parameters.update(cluster.parameters)
 
-    types = [pddl.Type(OBJECT)]
-    pddl_parser.parsing_functions.set_supertypes(types)
-    predicates = [pddl.Predicate(ORDER_PREDICATE, make_parameters(['?x']))]
-    domain = Domain(name='', requirements=pddl.Requirements([]),
-                    types=types, type_dict={ty.name: ty for ty in types}, constants=[],
-                    predicates=predicates, predicate_dict={p.name: p for p in predicates},
-                    functions=[], actions=actions, axioms=[])
+    predicates = [make_predicate(ORDER_PREDICATE, ['?x'])]
+    domain = make_domain(predicates=predicates, actions=actions)
     return domain, goal_expression
 
 

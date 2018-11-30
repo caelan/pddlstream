@@ -12,7 +12,7 @@ from numpy import array
 from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem
 from examples.continuous_tamp.run import pddlstream_from_tamp
 from pddlstream.language.stream import StreamInfo
-from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
+from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction, constraint_satisfaction
 
 # Be careful about uniqueness here
 CONF0 = array([-7.5, 5.])
@@ -96,7 +96,8 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
     #solution = constraint_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS)
-    solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS, stream_info=stream_info)
+    solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS,
+                                             stream_info=stream_info)
     dump_assignment(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
