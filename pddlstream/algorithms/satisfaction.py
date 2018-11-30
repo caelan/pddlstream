@@ -1,19 +1,23 @@
 from __future__ import print_function
 
+from collections import namedtuple
+
 from pddlstream.algorithms.algorithm import SolutionStore
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
-from pddlstream.algorithms.downward import Domain, OBJECT
+from pddlstream.algorithms.downward import Domain, OBJECT, make_parameters, make_action
+from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
-from pddlstream.language.constants import is_parameter
+from pddlstream.language.constants import is_parameter, get_args, Not, PDDLProblem
 from pddlstream.language.conversion import revert_solution, \
-    evaluation_from_fact, replace_expression, get_prefix, get_args
+    evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
 from pddlstream.language.external import get_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import retrace_instantiation
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, get_mapping, str_from_object, str_from_plan, get_length
+from pddlstream.utils import INF, get_mapping, str_from_object, str_from_plan, get_length, safe_zip
 
 
 # TODO: version of this where I pass in a plan skeleton instead
@@ -22,8 +26,24 @@ from pddlstream.utils import INF, get_mapping, str_from_object, str_from_plan, g
 
 # TODO: investigate constraint satisfaction techniques for binding instead
 
+def dump_assignment(solution):
+    # TODO: version of incremetal algorithm focused on constraint satisfaction
+    bindings, cost, evaluations = solution
+    print()
+    print('Solved: {}'.format(bindings is not False))
+    print('Cost: {}'.format(cost))
+    print('Evaluations: {}'.format(len(evaluations)))
+    if bindings is None:
+        return
+    print('Assignments:')
+    for param in sorted(bindings):
+        print('{} = {}'.format(param, str_from_object(bindings[param])))
+
+##################################################
+
 def obj_from_parameterized_expression(parent): # obj_from_value_expression
-    return replace_expression(parent, lambda o: OptimisticObject.from_opt(o, o) if is_parameter(o) else Object.from_value(o))
+    return replace_expression(parent, lambda o: OptimisticObject
+                              .from_opt(o, o) if is_parameter(o) else Object.from_value(o))
 
 def create_domain(constraints_list):
     import pddl
@@ -32,8 +52,8 @@ def create_domain(constraints_list):
     for fact in constraints_list: # TODO: consider removing this annoying check
         name = get_prefix(fact)
         if name not in predicate_dict:
-            args = [pddl.TypedObject('?x{}'.format(i), OBJECT) for i in range(len(get_args(fact)))]
-            predicate_dict[name] = pddl.Predicate(name, args)
+            parameters = ['?x{}'.format(i) for i in range(len(get_args(fact)))]
+            predicate_dict[name] = pddl.Predicate(name, make_parameters(parameters))
     types = [pddl.Type(OBJECT)]
     pddl_parser.parsing_functions.set_supertypes(types)
     return Domain(name='', requirements=pddl.Requirements([]),
@@ -94,16 +114,97 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
     bindings = get_mapping(parameter_names, parameter_values)
     return bindings, cost, init
 
+##################################################
 
-def dump_assignment(solution):
-    # TODO: version of incremetal algorithm focused on constraint satisfaction
-    bindings, cost, evaluations = solution
-    print()
-    print('Solved: {}'.format(bindings is not False))
-    print('Cost: {}'.format(cost))
-    print('Evaluations: {}'.format(len(evaluations)))
-    if bindings is None:
-        return
-    print('Assignments:')
-    for param in sorted(bindings):
-        print('{} = {}'.format(param, str_from_object(bindings[param])))
+ASSIGNED_PREDICATE = 'assigned'
+BOUND_PREDICATE = 'bound'
+#UNBOUND_PREDICATE = 'unbound'
+ORDER_PREDICATE = 'order'
+
+Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
+
+def to_constant(parameter):
+    name = parameter[1:]
+    return '@{}'.format(name)
+
+def cluster_constraints(constraints):
+    # Can always combine clusters but leads to inefficient grounding
+    # The extreme case of this making a single goal
+    # Alternatively, can just keep each cluster separate (shouldn't slow down search much)
+    # Can apply constants either as actual
+    clusters = [Cluster([constraint], set(filter(is_parameter, get_args(constraint))))
+                for constraint in constraints]
+    clusters = sorted(clusters, key=lambda pair: len(pair[1]), reverse=True)
+    for i in reversed(range(len(clusters))):
+        for j in reversed(range(i)):
+            if clusters[i].parameters <= clusters[j].parameters:
+                clusters[j].constraints.extend(clusters[i].constraints)
+                clusters[j].parameters.update(clusters[i].parameters)
+                clusters.pop(i)
+                break
+    return clusters
+
+
+def planning_from_satisfaction(constraints):
+    import pddl
+    import pddl_parser
+    clusters = cluster_constraints(constraints)
+    order_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters))]
+    goal_expression = order_facts[-1]
+    order_obj_facts = list(map(obj_from_value_expression, order_facts))
+    bound_parameters = set()
+    actions = []
+    #constants = {}
+    for i, cluster in enumerate(clusters):
+        constraints = list(map(obj_from_value_expression, cluster.constraints))
+        free_parameters = cluster.parameters - bound_parameters
+        existing_parameters = cluster.parameters & bound_parameters
+        # TODO: handle cost here. Can combine multiple costs after instantiation as well
+        name = 'cluster-{}'.format(i)
+        parameters = list(sorted(cluster.parameters))
+        preconditions = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in sorted(existing_parameters)] + \
+                        [Not((BOUND_PREDICATE, to_constant(p))) for p in free_parameters] + \
+                        constraints
+        # [Not(UNBOUND_PREDICATE, constant_from_parameter(p)) for p in free_parameters]
+        effects = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in parameters] + \
+                  [(BOUND_PREDICATE, to_constant(p)) for p in parameters] + \
+                  [order_obj_facts[i]]
+        if i != 0:
+            preconditions.append(order_obj_facts[i-1])
+            effects.append(Not(order_obj_facts[i-1]))
+        actions.append(make_action(name, parameters, preconditions, effects))
+        bound_parameters.update(cluster.parameters)
+
+    types = [pddl.Type(OBJECT)]
+    pddl_parser.parsing_functions.set_supertypes(types)
+    predicates = [pddl.Predicate(ORDER_PREDICATE, make_parameters(['?x']))]
+    domain = Domain(name='', requirements=pddl.Requirements([]),
+                    types=types, type_dict={ty.name: ty for ty in types}, constants=[],
+                    predicates=predicates, predicate_dict={p.name: p for p in predicates},
+                    functions=[], actions=actions, axioms=[])
+    return domain, goal_expression
+
+
+def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
+    # TODO: support predicates and functions
+    # I should be able to just add these to the end of the produced stream plan
+    domain, goal = planning_from_satisfaction(constraints)
+    constant_map = {}
+    problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)
+
+    if incremental:
+        plan, cost, facts = solve_incremental(problem, **kwargs)
+    else:
+        plan, cost, facts = solve_focused(problem, **kwargs)
+    if plan is None:
+        return None, cost, facts
+    assert len(plan) == len(domain.actions)
+
+    bindings = {}
+    for action, (name, args) in safe_zip(domain.actions, plan):
+        assert action.name == name
+        for param, arg in safe_zip(action.parameters, args):
+            name = param.name
+            assert bindings.get(name, arg) is arg
+            bindings[name] = arg
+    return bindings, cost, facts

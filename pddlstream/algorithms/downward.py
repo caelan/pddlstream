@@ -125,6 +125,8 @@ Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'co
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
 def parse_domain(domain_pddl):
+    if isinstance(domain_pddl, Domain):
+        return domain_pddl
     domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
     #for action in domain.actions:
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
@@ -454,8 +456,8 @@ def plan_preimage(combined_plan, goal):
 
 ##################################################
 
-def make_parameters(parameters):
-    return tuple(pddl.TypedObject(p, OBJECT) for p in parameters)
+def make_parameters(parameters, type=OBJECT):
+    return tuple(pddl.TypedObject(p, type) for p in parameters)
 
 
 def make_preconditions(preconditions):
@@ -463,13 +465,36 @@ def make_preconditions(preconditions):
 
 
 def make_effects(effects):
-    return [pddl.Effect(parameters=[], condition=pddl.Truth(), literal=fd_from_fact(fact)) for fact in effects]
+    return [pddl.Effect(parameters=[], condition=pddl.Truth(),
+                        literal=fd_from_fact(fact)) for fact in effects]
 
 
 def make_cost(cost):
+    if cost is None:
+        return cost
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
     expression = pddl.NumericConstant(cost)
     return pddl.Increase(fluent=fluent, expression=expression)
+
+
+def make_action(name, parameters, preconditions, effects, cost=None):
+    return pddl.Action(name=name,
+                       parameters=make_parameters(parameters),
+                       num_external_parameters=len(parameters),
+                       precondition=make_preconditions(preconditions),
+                       effects=make_effects(effects),
+                       cost=make_cost(cost))
+
+
+def make_axiom(parameters, preconditions, derived):
+    predicate = get_prefix(derived)
+    external_parameters = get_args(derived)
+    internal_parameters = [p for p in parameters if p not in external_parameters]
+    parameters = external_parameters + internal_parameters
+    return pddl.Axiom(name=predicate,
+                      parameters=make_parameters(parameters),
+                      num_external_parameters=len(external_parameters),
+                      condition=make_preconditions(preconditions))
 
 ##################################################
 
