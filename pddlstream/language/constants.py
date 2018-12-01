@@ -10,11 +10,16 @@ WHEN = 'when'
 IMPLY = 'imply'
 MINIMIZE = 'minimize'
 MAXIMIZE = 'maximize'
+INCREASE = 'increase'
 PARAMETER = '?'
 TYPE = '-'
+OBJECT = 'object'
+TOTAL_COST = 'total-cost' # TotalCost
+
 CONNECTIVES = (AND, OR, NOT, IMPLY)
 QUANTIFIERS = (FORALL, EXISTS)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
+
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
 PDDLAction = namedtuple('PDDLAction', ['name', 'args'])

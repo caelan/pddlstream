@@ -7,11 +7,10 @@ import numpy as np
 import argparse
 from collections import namedtuple
 
-from pddlstream.algorithms.downward import TOTAL_COST
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
 #from pddlstream.algorithms.execution import solve_execution
-from pddlstream.language.constants import And, Equal
+from pddlstream.language.constants import And, Equal, TOTAL_COST
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn, outputs_from_boolean
 from pddlstream.utils import print_solution, user_input, read

@@ -182,7 +182,7 @@ def get_stream_instances(stream_plan):
     for result in stream_plan:
         name = result.instance.external.name
         precondition = list(map(fd_from_fact, result.instance.get_domain()))
-        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if not get_prefix(fact) == EQ]
+        effects = [([], fd_from_fact(fact)) for fact in result.get_certified() if get_prefix(fact) != EQ]
         cost = None # TODO: effort?
         instance = pddl.PropositionalAction(name, precondition, effects, cost)
         stream_instances.append(instance)

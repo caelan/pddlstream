@@ -88,7 +88,7 @@ def layered_process_stream_queue(instantiator, evaluations, store, num_layers):
             num_calls += 1
     return num_calls
 
-def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=True, **search_kwargs):
+def solve_incremental(problem, constraints=None, max_time=INF, max_cost=INF, layers=1, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
@@ -102,7 +102,7 @@ def solve_incremental(problem, max_time=INF, max_cost=INF, layers=1, verbose=Tru
         using stream applications
     """
     store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem, constraints=constraints)
     ensure_no_fluent_streams(externals)
     #load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)

@@ -1,6 +1,7 @@
 import time
 from collections import OrderedDict, deque, namedtuple, Counter
 
+from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp, sas_from_pddl, parse_goal
 from pddlstream.algorithms.search import abstrips_solve_from_task
@@ -8,13 +9,13 @@ from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
-from pddlstream.language.external import External, DEBUG, get_plan_effort
+from pddlstream.language.external import DEBUG, get_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
+from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.object import Object
 from pddlstream.language.rule import parse_rule
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
-from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 
 # TODO: way of programmatically specifying streams/actions
 
@@ -68,13 +69,15 @@ def check_problem(domain, streams, obj_from_constant):
 def evaluations_from_init(init):
     return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
 
-def parse_problem(problem, stream_info={}):
+def parse_problem(problem, stream_info={}, constraints=None):
     # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     obj_from_constant = parse_constants(domain, constant_map)
+    if constraints is not None:
+       goal = add_plan_constraints(constraints, domain, init, goal)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     check_problem(domain, streams, obj_from_constant)
 

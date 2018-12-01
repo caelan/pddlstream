@@ -6,7 +6,7 @@ import sys
 from collections import namedtuple
 from time import time
 
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
@@ -46,13 +46,10 @@ TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
 SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
+INFINITY = 'infinity'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: modify parsing_functions to support multiple costs
-
-OBJECT = 'object'
-TOTAL_COST = 'total-cost' # TotalCost
-INFINITY = 'infinity'
 
 SEARCH_OPTIONS = {
     # Optimal
@@ -168,13 +165,13 @@ def fd_from_fact(fact):
     prefix = get_prefix(fact)
     if prefix == NOT:
         return fd_from_fact(fact[1]).negate()
-    if prefix == EQ:
-        _, head, value = fact
-        predicate = get_prefix(head)
-        args = list(map(pddl_from_object, get_args(head)))
-        fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=predicate, args=args)
-        expression = pddl.f_expression.NumericConstant(value)
-        return pddl.f_expression.Assign(fluent, expression)
+    #if prefix == EQ:
+    #    _, head, value = fact
+    #    predicate = get_prefix(head)
+    #    args = list(map(pddl_from_object, get_args(head)))
+    #    fluent = pddl.f_expression.PrimitiveNumericExpression(symbol=predicate, args=args)
+    #    expression = pddl.f_expression.NumericConstant(value)
+    #    return pddl.f_expression.Assign(fluent, expression)
     args = list(map(pddl_from_object, get_args(fact)))
     return pddl.Atom(prefix, args)
 
@@ -289,8 +286,13 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 
 ##################################################
 
+def convert_cost(cost):
+    if cost == INF:
+        return INFINITY
+    return int(cost)
+
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
-    max_time = INFINITY if max_planner_time == INF else int(max_planner_time)
+    max_time = convert_cost(max_planner_time)
     max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)

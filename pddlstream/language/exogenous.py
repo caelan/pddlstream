@@ -1,10 +1,10 @@
 from collections import defaultdict
 from itertools import count
 
-from pddlstream.algorithms.downward import fd_from_fact, OBJECT, make_preconditions, make_effects, make_cost
+from pddlstream.algorithms.downward import fd_from_fact, make_preconditions, make_effects, make_cost
 from pddlstream.language.conversion import evaluation_from_fact, \
     is_atom
-from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
+from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args, OBJECT
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream

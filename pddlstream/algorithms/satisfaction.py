@@ -30,7 +30,7 @@ def dump_assignment(solution):
     # TODO: version of incremetal algorithm focused on constraint satisfaction
     bindings, cost, evaluations = solution
     print()
-    print('Solved: {}'.format(bindings is not False))
+    print('Solved: {}'.format(bindings is not None))
     print('Cost: {}'.format(cost))
     print('Evaluations: {}'.format(len(evaluations)))
     if bindings is None:
@@ -152,6 +152,7 @@ def planning_from_satisfaction(constraints):
         free_parameters = cluster.parameters - bound_parameters
         existing_parameters = cluster.parameters & bound_parameters
         # TODO: handle cost here. Can combine multiple costs after instantiation as well
+        # I use BOUND_PREDICATE to avoid mutating the initial state
         name = 'cluster-{}'.format(i)
         parameters = list(sorted(cluster.parameters))
         preconditions = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in sorted(existing_parameters)] + \

@@ -1,8 +1,8 @@
 from pddlstream.algorithms.algorithm import solve_finite
-from pddlstream.algorithms.downward import OBJECT, Domain, \
+from pddlstream.algorithms.downward import Domain, \
     make_preconditions, make_effects, make_cost, get_cost_scale
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
-from pddlstream.language.constants import Head, And, Not
+from pddlstream.language.constants import Head, And, Not, OBJECT
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
