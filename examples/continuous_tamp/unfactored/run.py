@@ -149,8 +149,8 @@ def main(focused=False, deterministic=False, unit_costs=True):
                                  effort_weight=None, unit_costs=unit_costs, postprocess=False,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem,
-                                     layers=1, unit_costs=unit_costs, verbose=False)
+        solution = solve_incremental(pddlstream_problem, layers_per_iteration=1,
+                                     unit_costs=unit_costs, verbose=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

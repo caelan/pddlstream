@@ -291,7 +291,7 @@ def main(deterministic=False, observable=False, collisions=True, focused=True, f
                                  max_cost=0, unit_costs=False, max_time=30)
     else:
         solution = solve_incremental(pddlstream_problem, planner=planner, debug=True,
-                                     max_cost=MAX_COST, unit_costs=False, max_time=30)
+                                     success_cost=MAX_COST, unit_costs=False, max_time=30)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 

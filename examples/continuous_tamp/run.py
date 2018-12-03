@@ -16,7 +16,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.algorithms.constraints import PlanConstraints
+from pddlstream.algorithms.constraints import PlanConstraints, ANY
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.stream import StreamInfo
@@ -182,12 +182,15 @@ def main(unit_costs=False, use_synthesizers=False):
 
 
     skeleton = [
-        ('move', ['?q0', '?t0', '?q1']),
+        ('move', ['?q0', ANY, '?q1']),
         ('pick', ['b0', '?p0', '?q1']),
-        ('move', ['?q1', '?t1', '?q2']),
+        ('move', ['?q1', ANY, '?q2']),
         ('place', ['b0', '?p1', '?q2']),
     ]
-    constraints = PlanConstraints(skeletons=[skeleton], exact=True, hint=False)
+    constraints = PlanConstraints(#skeletons=[],
+                                  #skeletons=[skeleton],
+                                  skeletons=[skeleton, []],
+                                  exact=True, hint=False)
     #constraints = None
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
@@ -203,7 +206,7 @@ def main(unit_costs=False, use_synthesizers=False):
                                  unit_costs=unit_costs, postprocess=False, visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
-                                     layers=1, hierarchy=hierarchy,
+                                     layers_per_iteration=1, hierarchy=hierarchy,
                                      unit_costs=unit_costs, verbose=False)
     else:
         raise ValueError(args.algorithm)

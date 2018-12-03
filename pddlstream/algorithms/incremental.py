@@ -1,6 +1,6 @@
 import time
 
-#from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
+from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_facts, add_certified, solve_finite
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.conversion import revert_solution
@@ -8,6 +8,8 @@ from pddlstream.language.function import FunctionInstance
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF
 from pddlstream.utils import elapsed_time
+
+UPDATE_STATISTICS = False
 
 def ensure_no_fluent_streams(streams):
     for stream in streams:
@@ -31,27 +33,30 @@ def process_stream_queue(instantiator, evaluations, verbose=True):
 
 ##################################################
 
-def solve_current(problem, **search_kwargs):
+def solve_current(problem, constraints=None, **search_kwargs):
     """
     Solves a PDDLStream problem without applying any streams
     Will fail if the problem requires stream applications
     :param problem: a PDDLStream problem
+    :param constraints: PlanConstraints on the available solutions
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem, constraints=constraints)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
     return revert_solution(plan, cost, evaluations)
 
 ##################################################
 
-def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
+def solve_exhaustive(problem, constraints=None,
+                     max_time=300, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by applying all possible streams and searching once
     Requires a finite max_time when infinitely many stream instances
     :param problem: a PDDLStream problem
+    :param constraints: PlanConstraints on the available solutions
     :param max_time: the maximum amount of time to apply streams
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
@@ -60,12 +65,16 @@ def solve_exhaustive(problem, max_time=300, verbose=True, **search_kwargs):
         using stream applications
     """
     start_time = time.time()
-    evaluations, goal_expression, domain, externals = parse_problem(problem)
+    evaluations, goal_expression, domain, externals = parse_problem(problem, constraints=constraints)
     ensure_no_fluent_streams(externals)
+    if UPDATE_STATISTICS:
+        load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain, **search_kwargs)
+    if UPDATE_STATISTICS:
+        write_stream_statistics(externals, verbose)
     return revert_solution(plan, cost, evaluations)
 
 ##################################################
@@ -88,23 +97,28 @@ def layered_process_stream_queue(instantiator, evaluations, store, num_layers):
             num_calls += 1
     return num_calls
 
-def solve_incremental(problem, constraints=None, max_time=INF, max_cost=INF, layers=1, verbose=True, **search_kwargs):
+def solve_incremental(problem, constraints=None, layers_per_iteration=1,
+                      max_time=INF, success_cost=INF,
+                      verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
+    :param constraints: PlanConstraints on the available solutions
+    :param layers_per_iteration: the number of stream application layers per iteration
     :param max_time: the maximum amount of time to apply streams
-    :param max_cost: a strict upper bound on plan cost
-    :param layers: the number of stream application layers per iteration
+    :param success_cost: a strict upper bound on plan cost
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    store = SolutionStore(max_time, max_cost, verbose) # TODO: include other info here?
+    # success_cost = terminate_cost = decision_cost
+    store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(problem, constraints=constraints)
     ensure_no_fluent_streams(externals)
-    #load_stream_statistics(externals)
+    if UPDATE_STATISTICS:
+        load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
     num_calls = 0
@@ -117,6 +131,7 @@ def solve_incremental(problem, constraints=None, max_time=INF, max_cost=INF, lay
         store.add_plan(plan, cost)
         if store.is_terminated() or not instantiator.stream_queue:
             break
-        num_calls += layered_process_stream_queue(instantiator, evaluations, store, layers)
-    #write_stream_statistics(externals, verbose)
+        num_calls += layered_process_stream_queue(instantiator, evaluations, store, layers_per_iteration)
+    if UPDATE_STATISTICS:
+        write_stream_statistics(externals, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

@@ -103,8 +103,8 @@ def main(max_time=20):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_incremental(problem, unit_costs=False, max_cost=0,
-        max_time=max_time, verbose=False)
+    solution = solve_incremental(problem, unit_costs=False, success_cost=0,
+                                 max_time=max_time, verbose=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
