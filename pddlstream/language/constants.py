@@ -18,7 +18,8 @@ TOTAL_COST = 'total-cost' # TotalCost
 
 CONNECTIVES = (AND, OR, NOT, IMPLY)
 QUANTIFIERS = (FORALL, EXISTS)
-OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,)
+OBJECTIVES = (MINIMIZE, MAXIMIZE, INCREASE)
+OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,) # + OBJECTIVES
 
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])

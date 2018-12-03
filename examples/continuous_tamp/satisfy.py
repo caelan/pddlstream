@@ -12,6 +12,7 @@ from numpy import array
 from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem
 from examples.continuous_tamp.run import pddlstream_from_tamp
 from pddlstream.language.stream import StreamInfo
+from pddlstream.language.constants import Not, Minimize
 from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction, constraint_satisfaction
 
 # Be careful about uniqueness here
@@ -42,6 +43,7 @@ INIT = [
     ('region', 'red'),
 ]
 
+# TODO: predicate (Not) constraints as well
 CONSTRAINTS = [
     ('cfree', 'b0', '?p0', 'b1', POSE1),
     ('cfree', 'b1', '?p1', 'b0', '?p0'),
@@ -65,10 +67,12 @@ CONSTRAINTS = [
     ('traj', '?t1'),
     ('traj', '?t2'),
     ('traj', '?t3'),
+    Minimize(('distance', CONF0, '?q0')),
+    Minimize(('distance', '?q0', '?q1')),
+    Minimize(('distance', '?q1', '?q3')),
+    Minimize(('distance', '?q3', '?q2')),
 ]
 
-
-# TODO: plan skeleton suggestion of what to do
 
 def main():
     parser = argparse.ArgumentParser()
@@ -97,7 +101,10 @@ def main():
     pr.enable()
     #solution = constraint_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS)
     solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS,
-                                             stream_info=stream_info)
+                                             incremental=True, verbose=False, max_cost=0, max_time=20)
+    #solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, CONSTRAINTS,
+    #                                         #search_sampling_ratio=1,
+    #                                         stream_info=stream_info)
     dump_assignment(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

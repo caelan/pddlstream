@@ -3,8 +3,8 @@ from __future__ import print_function
 import collections
 from itertools import product
 
-from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, Head, Evaluation, \
-    get_prefix, get_args, is_parameter
+from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
+    Head, Evaluation, get_prefix, get_args, is_parameter
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object
 
@@ -16,7 +16,7 @@ def replace_expression(parent, fn):
         if isinstance(parent[2], collections.Sequence):
             value = replace_expression(value, fn)
         return prefix, replace_expression(parent[1], fn), value
-    elif prefix in CONNECTIVES:
+    elif prefix in (CONNECTIVES + OBJECTIVES):
         children = parent[1:]
         return (prefix,) + tuple(replace_expression(child, fn) for child in children)
     elif prefix in QUANTIFIERS:
@@ -51,7 +51,7 @@ def dnf_from_positive_formula(parent):
     if parent is None:
         return []
     prefix = get_prefix(parent)
-    assert(prefix not in (QUANTIFIERS + (NOT, EQ)))
+    assert(prefix not in (QUANTIFIERS + (NOT, EQ))) # also check if atom?
     children = []
     if prefix == AND:
         for combo in product(*(dnf_from_positive_formula(child) for child in parent[1:])):

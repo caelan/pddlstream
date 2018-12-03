@@ -10,7 +10,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
-from pddlstream.language.constants import is_parameter, Not, PDDLProblem
+from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
 from pddlstream.language.external import get_plan_effort
@@ -18,7 +18,7 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import retrace_instantiation
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, get_mapping, str_from_object, get_length, safe_zip
-
+from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE
 
 # TODO: version of this where I pass in a plan skeleton instead
 # Might be easiest to do this by performing the search normally but constraining the actions used
@@ -55,6 +55,7 @@ def create_domain(constraints_list):
             predicate_dict[name] = make_predicate(name, parameters)
     return make_domain(predicates=list(predicate_dict.values()))
 
+
 def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_info={},
                             max_sample_time=INF, **kwargs):
     # Approaches
@@ -63,8 +64,8 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
     # 3) Construct all useful streams and then associate outputs with bindings
     #    Useful stream must satisfy at least one fact. How should these assignments be propagated though?
     #    Make an action that maps each stream result to unbound values?
-    # TODO: connect with the focused/incremental algorithms themselves
     # TODO: include functions again for cost-sensitive satisfaction
+    # TODO: deprecate this in favor of solve_pddlstream_satisfaction
     if not constraints:
         return {}, 0, init
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
@@ -110,62 +111,95 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
 
 ##################################################
 
-ASSIGNED_PREDICATE = 'assigned'
-BOUND_PREDICATE = 'bound'
-#UNBOUND_PREDICATE = 'unbound'
-ORDER_PREDICATE = 'order'
-
 Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
 
-def to_constant(parameter):
-    name = parameter[1:]
-    return '@{}'.format(name)
+
+def get_parameters(expression):
+    head = get_prefix(expression)
+    if head in [NOT, MINIMIZE]:
+        return get_parameters(get_args(expression)[0])
+    return list(filter(is_parameter, get_args(expression)))
+
+
+def get_costs(objectives):
+    return [o for o in objectives if get_prefix(o) == MINIMIZE]
+
+
+def get_constraints(objectives):
+    return [o for o in objectives if get_prefix(o) != MINIMIZE]
+
+
+def update_cluster(cluster1, cluster2):
+    assert cluster2.parameters <= cluster1.parameters
+    cluster1.constraints.extend(cluster2.constraints)
+    cluster1.parameters.update(cluster2.parameters)
+
 
 def cluster_constraints(constraints):
     # Can always combine clusters but leads to inefficient grounding
     # The extreme case of this making a single goal
     # Alternatively, can just keep each cluster separate (shouldn't slow down search much)
-    # Can apply constants either as actual
-    clusters = [Cluster([constraint], set(filter(is_parameter, get_args(constraint))))
-                for constraint in constraints]
-    clusters = sorted(clusters, key=lambda pair: len(pair[1]), reverse=True)
+    clusters = sorted([Cluster([constraint], set(get_parameters(constraint)))
+                       for constraint in get_constraints(constraints)],
+                      key=lambda c: len(c.parameters), reverse=True)
+    cost_clusters = sorted([Cluster([cost], set(get_parameters(cost)))
+                       for cost in get_costs(constraints)],
+                      key=lambda c: len(c.parameters))
+    for c1 in cost_clusters:
+        for c2 in reversed(clusters):
+            if 1 < len(get_costs(c1.constraints)) + len(get_costs(c2.constraints)):
+                continue
+            if c1.parameters <= c2.parameters:
+                update_cluster(c2, c1)
+                break
+        else:
+            # TODO: extend this to allow the intersection to cover the cluster
+            raise RuntimeError('Unable to find a cluster for cost term:', c1.constraints[0])
+
     for i in reversed(range(len(clusters))):
+        c1 = clusters[i]
         for j in reversed(range(i)):
-            if clusters[i].parameters <= clusters[j].parameters:
-                clusters[j].constraints.extend(clusters[i].constraints)
-                clusters[j].parameters.update(clusters[i].parameters)
+            c2 = clusters[j]
+            if 1 < len(get_costs(c1.constraints)) + len(get_costs(c2.constraints)):
+                continue
+            if c1.parameters <= c2.parameters:
+                update_cluster(c2, c1)
                 clusters.pop(i)
                 break
+    #for cluster in clusters:
+    #    print(cluster)
     return clusters
 
 
-def planning_from_satisfaction(constraints):
+def planning_from_satisfaction(init, constraints):
     clusters = cluster_constraints(constraints)
-    order_value_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters))]
+    order_value_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters)+1)]
+    init.append(order_value_facts[0])
     goal_expression = order_value_facts[-1]
     order_facts = list(map(obj_from_value_expression, order_value_facts))
     bound_parameters = set()
     actions = []
     #constants = {}
     for i, cluster in enumerate(clusters):
-        constraints = list(map(obj_from_value_expression, cluster.constraints))
-        free_parameters = cluster.parameters - bound_parameters
+        objectives = list(map(obj_from_value_expression, cluster.constraints))
+        #free_parameters = cluster.parameters - bound_parameters
         existing_parameters = cluster.parameters & bound_parameters
-        # TODO: handle cost here. Can combine multiple costs after instantiation as well
-        # I use BOUND_PREDICATE to avoid mutating the initial state
+        # TODO: confirm that negated predicates work as intended
+
         name = 'cluster-{}'.format(i)
         parameters = list(sorted(cluster.parameters))
         preconditions = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in sorted(existing_parameters)] + \
-                        [Not((BOUND_PREDICATE, to_constant(p))) for p in free_parameters] + \
-                        constraints
-        # [Not(UNBOUND_PREDICATE, constant_from_parameter(p)) for p in free_parameters]
+                        get_constraints(objectives) + [order_facts[i]]
         effects = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in parameters] + \
-                  [(BOUND_PREDICATE, to_constant(p)) for p in parameters] + \
-                  [order_facts[i]]
-        if i != 0:
-            preconditions.append(order_facts[i-1])
-            effects.append(Not(order_facts[i-1]))
-        actions.append(make_action(name, parameters, preconditions, effects))
+                  [order_facts[i+1], Not(order_facts[i])]
+
+        costs = get_costs(objectives)
+        cost = None
+        if costs:
+            assert len(costs) == 1
+            cost = get_args(costs[0])[0]
+        actions.append(make_action(name, parameters, preconditions, effects, cost))
+        actions[-1].dump()
         bound_parameters.update(cluster.parameters)
 
     predicates = [make_predicate(ORDER_PREDICATE, ['?x'])]
@@ -174,9 +208,8 @@ def planning_from_satisfaction(constraints):
 
 
 def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
-    # TODO: support predicates and functions
-    # I should be able to just add these to the end of the produced stream plan
-    domain, goal = planning_from_satisfaction(constraints)
+    # TODO: prune set of streams based on constraints
+    domain, goal = planning_from_satisfaction(init, constraints)
     constant_map = {}
     problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)
 

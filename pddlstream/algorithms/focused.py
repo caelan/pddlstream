@@ -30,7 +30,7 @@ from pddlstream.utils import INF, elapsed_time
 def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, max_cost=INF, unit_costs=False,
                   unit_efforts=False, effort_weight=None, eager_layers=1,
-                  search_sampling_ratio=1, use_skeleton=True,
+                  search_sampling_ratio=0, use_skeleton=True,
                   visualize=False, verbose=True,
                   reorder=True, postprocess=False, **search_kwargs):
     """

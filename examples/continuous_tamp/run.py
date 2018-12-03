@@ -2,31 +2,28 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
-import os
-import numpy as np
 import argparse
+import cProfile
+import os
+import pstats
 
-from pddlstream.algorithms.downward import TOTAL_COST
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.utils import clear_dir, ensure_dir
+import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn, has_gurobi
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, PROBLEMS, \
     draw_state, get_random_seed, TAMPState, GROUND_NAME, SUCTION_HEIGHT
-
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem
+from pddlstream.algorithms.constraints import PlanConstraints
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.optimizer import OptimizerInfo
+from pddlstream.language.synthesizer import StreamSynthesizer
+from pddlstream.utils import ensure_dir
 from pddlstream.utils import print_solution, user_input, read, INF, get_file_path, str_from_object
+
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):
     initial = tamp_problem.initial
@@ -183,6 +180,16 @@ def main(unit_costs=False, use_synthesizers=False):
                           gen_fn=from_fn(get_optimize_fn(tamp_problem.regions))),
     ] if use_synthesizers else []
 
+
+    skeleton = [
+        ('move', ['?q0', '?t0', '?q1']),
+        ('pick', ['b0', '?p0', '?q1']),
+        ('move', ['?q1', '?t1', '?q2']),
+        ('place', ['b0', '?p1', '?q2']),
+    ]
+    constraints = PlanConstraints(skeletons=[skeleton], exact=True, hint=False)
+    #constraints = None
+
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     print('Initial:', str_from_object(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
@@ -195,7 +202,8 @@ def main(unit_costs=False, use_synthesizers=False):
                                  effort_weight=1, search_sampling_ratio=0, # TODO: run with search_sampling_ratio=1
                                  unit_costs=unit_costs, postprocess=False, visualize=False)
     elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, layers=1, hierarchy=hierarchy,
+        solution = solve_incremental(pddlstream_problem, constraints=constraints,
+                                     layers=1, hierarchy=hierarchy,
                                      unit_costs=unit_costs, verbose=False)
     else:
         raise ValueError(args.algorithm)

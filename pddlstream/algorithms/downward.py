@@ -485,12 +485,15 @@ def make_effects(effects):
     return [pddl.Effect(parameters=[], condition=pddl.Truth(),
                         literal=fd_from_fact(fact)) for fact in effects]
 
-
 def make_cost(cost):
     if cost is None:
         return cost
     fluent = pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[])
-    expression = pddl.NumericConstant(cost)
+    try:
+        expression = pddl.NumericConstant(cost)
+    except TypeError:
+        expression = pddl.PrimitiveNumericExpression(
+            symbol=get_prefix(cost), args=list(map(pddl_from_object, get_args(cost))))
     return pddl.Increase(fluent=fluent, expression=expression)
 
 
