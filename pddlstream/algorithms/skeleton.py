@@ -71,7 +71,8 @@ def process_skeleton(skeleton, queue, accelerate=1):
         index = 0
         instance = stream_plan[index].instance
         #assert(instance.opt_index == 0)
-        assert (not any(evaluation_from_fact(f) not in queue.evaluations for f in instance.get_domain()))
+        if not all(evaluation_from_fact(f) in queue.evaluations for f in instance.get_domain()):
+            raise RuntimeError(instance)
         new_results, new_facts = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
         instance.disable(queue.evaluations, queue.domain) # Disable only if actively sampled
         if new_results and isinstance(instance, StreamInstance):

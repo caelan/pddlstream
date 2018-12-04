@@ -24,26 +24,25 @@ import copy
 
 DO_RESCHEDULE = False
 
-def instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan):
-    action_instances = []
-    for name, args in action_plan: # TODO: negative atoms in actions
-        candidates = []
-        for action in opt_task.actions:
-            if action.name != name:
-                continue
-            if len(action.parameters) != len(args):
-                raise NotImplementedError('Existential quantifiers are not currently '
-                                          'supported in preconditions: {}'.format(name))
-            variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-            action_instance = action.instantiate(variable_mapping, set(), MockSet(), type_to_objects,
-                                          opt_task.use_min_cost_metric, function_assignments)
-            assert (action_instance is not None)
-            candidates.append(((action, args), action_instance))
-        if not candidates:
-            raise RuntimeError('Could not find an applicable action {}'.format(name))
-        action_instances.append(candidates)
-    action_instances.append([(None, get_goal_instance(opt_task.goal))])
-    return action_instances
+def reinstantiate_instances(task, old_instances):
+    import pddl
+    import instantiate
+    # Recomputes the instances with without any pruned preconditions
+    function_assignments = {fact.fluent: fact.expression for fact in task.init
+                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+    init_facts = set()
+    fluent_facts = MockSet()
+    new_instances = []
+    for old_instance in old_instances: # TODO: negative results used in actions
+        action = old_instance.action
+        var_mapping = old_instance.var_mapping
+        new_instance = action.instantiate(var_mapping, init_facts, fluent_facts, type_to_objects,
+                                          task.use_min_cost_metric, function_assignments)
+        assert (new_instance is not None)
+        new_instances.append(new_instance)
+    new_instances.append(get_goal_instance(task.goal))
+    return new_instances
 
 def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_from_name):
     # TODO: compute required stream facts in a forward way and allow opt facts that are already known required
@@ -61,46 +60,56 @@ def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_
                 # TODO: handle more general case where can choose to achieve particular conditional effects
                 raise NotImplementedError('Conditional effects cannot currently involve certified predicates')
 
+##################################################
+
 def get_negative_predicates(negative):
     negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
     negative_from_name.update({external.blocked_predicate: external for external in negative
                                if isinstance(external, Stream) and external.is_negated()})
     return negative_from_name
 
+def convert_negative_predicate(negative, literal, negative_plan):
+    predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
+    value = not literal.negated
+    if predicate_instance.enumerated:
+        assert (predicate_instance.value == value)
+    else:
+        negative_plan.add(PredicateResult(predicate_instance, value,
+                                          opt_index=predicate_instance.opt_index))
+
+def convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan):
+    import pddl
+    # assert not negative.is_fluent()
+    fluent_facts_list = []
+    if negative.is_fluent():
+        # TODO: ensure that only used once?
+        for state_index in step_from_atom[literal]:
+            fluent_facts_list.append(list(map(fact_from_fd, filter(
+                lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents), real_states[state_index]))))
+    else:
+        fluent_facts_list.append(frozenset())
+
+    object_from_input = get_mapping(negative.inputs, map(obj_from_pddl, literal.args))
+    input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
+    for fluent_facts in fluent_facts_list:
+        negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
+        if not negative_instance.successes:
+            negative_plan.add(StreamResult(negative_instance, tuple(),
+                                           opt_index=negative_instance.opt_index))
+
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()
     for literal in negative_preimage:
         negative = negative_from_name[literal.predicate]
         if isinstance(negative, Predicate):
-            predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
-            value = not literal.negated
-            if predicate_instance.enumerated:
-                assert (predicate_instance.value == value)
-            else:
-                negative_plan.add(PredicateResult(predicate_instance, value,
-                                                  opt_index=predicate_instance.opt_index))
+            convert_negative_predicate(negative, literal, negative_plan)
         elif isinstance(negative, Stream):
-            #assert not negative.is_fluent()
-            object_from_input = dict(zip(negative.inputs, map(obj_from_pddl, literal.args)))
-            input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
-
-            fluent_facts_list = []
-            if negative.is_fluent():
-                for state_index in step_from_atom[literal]:
-                    fluent_facts_list.append(list(map(fact_from_fd,
-                        filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents),
-                               real_states[state_index]))))
-            else:
-                fluent_facts_list.append(frozenset())
-
-            for fluent_facts in fluent_facts_list:
-                negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
-                if not negative_instance.successes:
-                    negative_plan.add(StreamResult(negative_instance, tuple(),
-                                                   opt_index=negative_instance.opt_index))
+            convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan)
         else:
             raise ValueError(negative)
     return negative_plan
+
+##################################################
 
 def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_atom):
     import pddl
@@ -113,6 +122,7 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
         for fact in result.instance.get_domain():
             step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
 
+    # TODO: move the fluent streams to the end
     new_stream_plan = []
     for result in stream_plan:
         external = result.instance.external
@@ -123,7 +133,8 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
             raise NotImplementedError() # Pass all fluents and make two axioms
         # TODO: can handle case where no outputs easily
         [state_index] = steps_from_stream[result]
-        fluent_facts = list(map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
+        fluent_facts = list(map(fact_from_fd, filter(
+            lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
         new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
         result = new_instance.get_result(result.output_objects, opt_index=result.opt_index)
         new_stream_plan.append(result)
@@ -131,16 +142,7 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
 
 ##################################################
 
-def action_instances_from_plan(opt_task, action_plan):
-    import pddl
-    import instantiate
-    function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
-                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
-    return instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
-
-#def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_instances, negative, unit_costs):
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_instances, negative, unit_costs):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
@@ -150,33 +152,32 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     opt_evaluations = apply_streams(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    action_instances = action_instances_from_plan(opt_task, action_plan)
+    action_instances = reinstantiate_instances(opt_task, action_instances)
     results_from_head = get_results_from_head(opt_evaluations)
     negative_from_name = get_negative_predicates(negative)
     axioms_from_name = get_derived_predicates(opt_task.axioms)
+    # TODO: only reinstantiate actions
 
     opt_task.init = set(opt_task.init)
     real_states = [set(real_task.init)] # TODO: had old way of doing this (~July 2018)
     preimage_plan = []
     function_plan = set()
-    for layer in action_instances:
-        for pair, action_instance in layer:
-            axiom_plan = extract_axiom_plan(opt_task, action_instance, negative_from_name,
-                                            static_state=real_states[-1])
-            if axiom_plan is None:
-                continue
-            simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
-            preimage_plan.extend(axiom_plan + [action_instance])
-            apply_action(opt_task.init, action_instance)
-            real_states.append(set(real_states[-1]))
-            apply_action(real_states[-1], action_instance)
-            if not unit_costs and (pair is not None):
-                function_result = extract_function_results(results_from_head, *pair)
-                if function_result is not None:
-                    function_plan.add(function_result)
-            break
-        else:
-            raise RuntimeError('No action instances are applicable')
+    for action_instance in action_instances:
+        axiom_plan = extract_axiom_plan(opt_task, action_instance, negative_from_name,
+                                        static_state=real_states[-1])
+        if axiom_plan is None:
+            continue
+        simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
+        preimage_plan.extend(axiom_plan + [action_instance])
+        apply_action(opt_task.init, action_instance)
+        real_states.append(set(real_states[-1]))
+        apply_action(real_states[-1], action_instance)
+        if not unit_costs and (action_instance.action is not None):
+            action = action_instance.action
+            args = [action_instance.var_mapping[p.name] for p in action.parameters]
+            function_result = extract_function_results(results_from_head, action, args)
+            if function_result is not None:
+                function_plan.add(function_result)
 
     # TODO: could instead just accumulate difference between real and opt
     full_preimage = plan_preimage(preimage_plan, [])
@@ -332,10 +333,10 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
-    action_plan = [parse_action(instance.name) for instance in action_instances]
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
-        evaluations, goal_expression, stream_domain, applied_results, action_plan, negative, unit_costs))
+        evaluations, goal_expression, stream_domain, applied_results, action_instances, negative, unit_costs))
+    action_plan = [parse_action(instance.name) for instance in action_instances]
     deferred_plan, action_plan = partition_plan(action_plan, result_from_name)
     stream_plan = applied_plan + deferred_plan + function_plan
     action_plan = obj_from_pddl_plan(action_plan)
