@@ -349,8 +349,12 @@ def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
 
 ##################################################
 
+def literal_holds(state, literal):
+    #return (literal in state) != literal.negated
+    return (literal.positive() in state) != literal.negated
+
 def conditions_hold(state, conditions):
-    return all((cond in state) != cond.negated for cond in conditions)
+    return all(literal_holds(state, cond) for cond in conditions)
 
 def is_applicable(state, action):
     if isinstance(action, pddl.PropositionalAction):
@@ -393,7 +397,7 @@ def plan_cost(plan):
     return cost
 
 def substitute_derived(axiom_plan, action_instance):
-    # TODO: what the propositional axiom has conditional derived
+    # TODO: what if the propositional axiom has conditional derived
     axiom_pre = {p for ax in axiom_plan for p in ax.condition}
     axiom_eff = {ax.effect for ax in axiom_plan}
     action_instance.precondition = list((set(action_instance.precondition) | axiom_pre) - axiom_eff)

@@ -1,8 +1,7 @@
 from pddlstream.algorithms.algorithm import solve_finite
-from pddlstream.algorithms.downward import Domain, \
-    make_preconditions, make_effects, make_cost, get_cost_scale
+from pddlstream.algorithms.downward import Domain, make_action, make_predicate, make_parameters, make_domain, get_cost_scale
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
-from pddlstream.language.constants import Head, And, Not, OBJECT
+from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
@@ -12,24 +11,6 @@ from pddlstream.algorithms.scheduling.recover_streams import get_instance_effort
 
 BOUND_PREDICATE = '_bound'
 
-# ORDER_OUTPUT = False
-# CALLED_PREDICATE = '_called_{}'
-# CALL_PREFIX = '_{}' # '_call_{}'
-#
-# def enforce_output_order(result, preconditions, effects):
-#     instance_name = '{}_{}'.format(result.external.name,  # No spaces & parens
-#                                    ','.join(map(pddl_from_object, result.instance.input_objects)))
-#     predicate_name = CALLED_PREDICATE.format(instance_name)
-#     if 1 <= result.call_index:
-#         preconditions.extend([
-#             (predicate_name, CALL_PREFIX.format(result.call_index - 1)),
-#             # Not((predicate_name, CALL_PREFIX.format(result.call_index))), # Not needed
-#         ])
-#     if 1 < len(result.instance.opt_results):
-#         effects.extend([
-#             (predicate_name, CALL_PREFIX.format(result.call_index)),
-#             Not((predicate_name, CALL_PREFIX.format(result.call_index - 1))),
-#         ])
 
 def enforce_single_binding(result, preconditions, effects):
     binding_facts = [(BOUND_PREDICATE, pddl_from_object(out)) for out in result.output_objects]
@@ -37,9 +18,7 @@ def enforce_single_binding(result, preconditions, effects):
     effects.extend(fact for fact in binding_facts)
 
 def get_stream_actions(results, unique_binding=False, unit_efforts=True, effort_scale=1):
-    #from pddl_parser.parsing_functions import parse_action
-    import pddl
-    stream_result_from_name = {}
+    result_from_name = {}
     stream_actions = []
     for i, result in enumerate(results):
         #if not isinstance(stream_result, StreamResult):
@@ -54,39 +33,30 @@ def get_stream_actions(results, unique_binding=False, unit_efforts=True, effort_
         #result_name = '{}_{}_{}'.format(result.external.name, # No spaces & parens
         #                        ','.join(map(pddl_from_object, result.instance.input_objects)),
         #                        ','.join(map(pddl_from_object, result.output_objects)))
-        assert result_name not in stream_result_from_name
-        stream_result_from_name[result_name] = result
+        assert result_name not in result_from_name
+        result_from_name[result_name] = result
 
         preconditions = list(result.instance.get_domain())
         effects = list(result.get_certified())
-        #if ORDER_OUTPUT:
-        #    enforce_output_order(result, preconditions, effects)
         if unique_binding:
             enforce_single_binding(result, preconditions, effects)
         if is_optimizer_result(result): # These effects don't seem to be pruned
             effects.append(substitute_expression(result.external.stream_fact, result.get_mapping()))
-        parameters = []  # Usually all parameters are external
-        stream_actions.append(pddl.Action(name=result_name, parameters=parameters,
-                                          num_external_parameters=len(parameters),
-                                          precondition=make_preconditions(preconditions),
-                                          effects=make_effects(effects),
-                                          cost=make_cost(effort_scale * effort))) # Can also be None
-    return stream_actions, stream_result_from_name
+        stream_actions.append(make_action(result_name, [], preconditions, effects, effort_scale * effort))
+    return stream_actions, result_from_name
 
 
-def add_stream_actions(domain, stream_results, **kwargs):
-    import pddl
-    stream_actions, stream_result_from_name = get_stream_actions(stream_results, **kwargs)
+def add_stream_actions(domain, results, **kwargs):
+    stream_actions, result_from_name = get_stream_actions(results, **kwargs)
     output_objects = []
-    for stream_result in stream_result_from_name.values():
-        if isinstance(stream_result, StreamResult):
-            output_objects.extend(map(pddl_from_object, stream_result.output_objects))
-    new_constants = list({pddl.TypedObject(obj, OBJECT) for obj in output_objects} | set(domain.constants))
-    # to_untyped_strips
-    # free_variables
-    new_domain = Domain(domain.name, domain.requirements, domain.types, domain.type_dict, new_constants,
-                        domain.predicates, domain.predicate_dict, domain.functions,
-                        domain.actions[:] + stream_actions, domain.axioms)
+    for result in result_from_name.values():
+        if isinstance(result, StreamResult):
+            output_objects.extend(map(pddl_from_object, result.output_objects))
+    new_constants = list(make_parameters(set(output_objects) | set(domain.constants)))
+    # to_untyped_strips, free_variables
+    new_domain = make_domain(constants=new_constants, predicates=domain.predicates,
+                             actions=domain.actions[:] + stream_actions, axioms=domain.axioms)
+    #new_domain = copy.copy(domain)
     """
     optimizer_results = list(filter(is_optimizer_result, stream_results))
     optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
@@ -100,7 +70,7 @@ def add_stream_actions(domain, stream_results, **kwargs):
     #print(optimizer_results)
     #print(optimizer_facts)
     """
-    return new_domain, stream_result_from_name
+    return new_domain, result_from_name
 
 ##################################################
 
@@ -108,9 +78,9 @@ def get_action_cost(domain, results_from_head, name, args):
     import pddl
     action = find_unique(lambda a: a.name == name, domain.actions)
     if action.cost is None:
-        return 0
+        return 0.
     if isinstance(action.cost.expression, pddl.NumericConstant):
-        return action.cost.expression.value # / get_cost_scale()
+        return action.cost.expression.value / get_cost_scale()
     var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
     args = tuple(var_mapping[p] for p in action.cost.expression.args)
     head = Head(action.cost.expression.symbol, args)
@@ -122,11 +92,9 @@ def get_plan_cost(function_evaluations, action_plan, domain, unit_costs):
         return INF
     if unit_costs:
         return len(action_plan)
-    action_cost = 0.
     results_from_head = get_results_from_head(function_evaluations)
-    for name, args in action_plan:
-        action_cost += get_action_cost(domain, results_from_head, name, args)
-    return action_cost
+    return sum([0.] + [get_action_cost(domain, results_from_head, name, args)
+                       for name, args in action_plan])
 
 ##################################################
 
@@ -161,7 +129,7 @@ def augment_goal(domain, goal_expression, negate_actions=False):
     # TODO: only do this if optimizers are present
     #return goal_expression
     import pddl
-    predicate = pddl.predicates.Predicate(UNSATISFIABLE, tuple())
+    predicate = make_predicate(UNSATISFIABLE, [])
     if predicate.name not in domain.predicate_dict:
         domain.predicates.append(predicate)
         domain.predicate_dict[predicate.name] = predicate
