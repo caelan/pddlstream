@@ -5,6 +5,7 @@ from itertools import product
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, get_literals, instantiate_task, \
     sas_from_instantiated, scale_cost, fd_from_fact, parse_action, literal_holds
+from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, recover_negative_axioms
 from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extraction_helper
@@ -18,7 +19,7 @@ from pddlstream.language.constants import get_args, Not
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression
 from pddlstream.language.object import UniqueOptValue
 from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
-from pddlstream.utils import Verbose, INF, get_mapping
+from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders
 
 def compute_function_plan(opt_evaluations, action_plan, unit_costs):
     function_plan = set()
@@ -45,24 +46,31 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
                 steps_from_stream[result].update(step_from_fact[fact])
         for fact in result.instance.get_domain():
             step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
+            # TODO: apply this recursively
 
-    # TODO: move the fluent streams to the end
-    new_stream_plan = []
+    _, outgoing_edges = neighbors_from_orders(get_partial_orders(
+        stream_plan, init_facts=map(fact_from_fd, real_states[0])))
+    static_plan = []
+    fluent_plan = []
     for result in stream_plan:
-        external = result.instance.external
+        external = result.external
         if (result.opt_index != 0) or (not external.is_fluent()):
-            new_stream_plan.append(result)
+            static_plan.append(result)
             continue
+        if outgoing_edges[result]:
+            # No way of taking into account the binding of fluent inputs when preventing cycles
+            raise NotImplementedError('Fluent stream is required for another stream: {}'.format(result))
         if len(steps_from_stream[result]) != 1:
-            raise NotImplementedError() # Pass all fluents and make two axioms
-        # TODO: can handle case where no outputs easily
-        [state_index] = steps_from_stream[result]
-        fluent_facts = list(map(fact_from_fd, filter(
-            lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
-        new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
-        result = new_instance.get_result(result.output_objects, opt_index=result.opt_index)
-        new_stream_plan.append(result)
-    return new_stream_plan
+            # TODO: can handle case where no outputs easily
+            #       handling inputs requires modifying the action plan
+            raise NotImplementedError('Fluent stream required in multiple states: {}'.format(result))
+        for state_index in steps_from_stream[result]:
+            fluent_facts = list(map(fact_from_fd, filter(
+                lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
+            new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
+            result = new_instance.get_result(result.output_objects, opt_index=result.opt_index)
+            fluent_plan.append(result)
+    return static_plan + fluent_plan
 
 ##################################################
 

@@ -23,6 +23,12 @@ def feasibility_fn(o, fluents=set()):
     return (t,)
 
 def get_pddlstream_problem():
+    # TODO: example that requires using two separate trajectories from different states
+    # TODO: bug where a trajectory sample could be used in a different state than anticipated (don't return the sample)
+    # TODO: enforce positive axiom preconditions requiring the state to be exactly some given value
+    #       then, the can outputs can be used in other streams only present at that state
+    # TODO: explicitly don't let the outputs of one fluent stream be the input to another on a different state
+
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
