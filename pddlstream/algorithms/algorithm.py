@@ -17,7 +17,6 @@ from pddlstream.language.rule import parse_rule
 from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
 
-# TODO: way of programmatically specifying streams/actions
 
 INITIAL_EVALUATION = None
 
@@ -133,8 +132,9 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=None, debug=Fa
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)
-    plan_pddl, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
-    return obj_from_pddl_plan(plan_pddl), cost
+    pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
+    plan = obj_from_pddl_plan(pddl_plan)
+    return plan, cost
 
 ##################################################
 
@@ -166,6 +166,8 @@ class SolutionStore(object):
         return self.max_time <= self.elapsed_time()
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
+    #def __repr__(self):
+    #    raise NotImplementedError()
 
 def add_facts(evaluations, fact, result=None):
     new_evaluations = []

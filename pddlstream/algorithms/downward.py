@@ -11,15 +11,18 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
-# TODO: possible bug when path has a space or period
+filepath = os.path.abspath(__file__)
+if ' ' in filepath:
+    raise RuntimeError('The path to pddlstream cannot include spaces')
 FD_PATH = None
-for release in ['release64', 'release32']:
+for release in ['release64', 'release32']: # TODO: list the directory
     path = get_file_path(__file__, '../../FastDownward/builds/{}/'.format(release))
     if os.path.exists(path):
         FD_PATH = path
         break
 if FD_PATH is None:
-    raise RuntimeError('.../pddlstream$ ./FastDownward/build.py')
+    # TODO: could also just automatically compile
+    raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
 FD_BIN = os.path.join(FD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
@@ -45,11 +48,14 @@ sys.argv = original_argv
 TEMP_DIR = 'temp/'
 TRANSLATE_OUTPUT = 'output.sas'
 SEARCH_OUTPUT = 'sas_plan'
-SEARCH_COMMAND = 'downward --internal-plan-file %s %s < %s'
+SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'
 INFINITY = 'infinity'
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: modify parsing_functions to support multiple costs
+
+# bound (int): exclusive depth bound on g-values. Cutoffs are always performed according to the real cost.
+# (i.e. solutions must be strictly better than the bound)
 
 SEARCH_OPTIONS = {
     # Optimal
@@ -297,7 +303,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
-    command = search % (temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+    command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if debug:
         print('Search command:', command)
     p = os.popen(command)  # NOTE - cannot pipe input easily with subprocess
@@ -311,6 +317,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
 
 ##################################################
 
+def parse_action(line):
+    entries = line.strip('( )').split(' ')
+    name = entries[0]
+    args = tuple(entries[1:])
+    return (name, args)
+
 def parse_solution(solution):
     #action_regex = r'\((\w+(\s+\w+)\)' # TODO: regex
     cost = INF
@@ -322,12 +334,8 @@ def parse_solution(solution):
         cost = float(matches[0]) / get_cost_scale()
     # TODO: recover the actual cost of the plan from the evaluations
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
-    plan = []
-    for line in lines:
-        entries = line.strip('( )').split(' ')
-        plan.append((entries[0], tuple(entries[1:])))
+    plan = list(map(parse_action, lines))
     return plan, cost
-
 
 def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     clear_dir(temp_dir)

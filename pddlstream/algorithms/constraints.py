@@ -11,7 +11,7 @@ ASSIGNED_PREDICATE = 'assigned'
 ORDER_PREDICATE = 'order'
 
 class PlanConstraints(object):
-    def __init__(self, skeletons=[], exact=True, hint=False, max_cost=INF):
+    def __init__(self, skeletons=None, exact=True, hint=False, max_cost=INF):
         self.skeletons = skeletons
         self.exact = exact
         self.hint = hint # Search over skeletons first and then fall back

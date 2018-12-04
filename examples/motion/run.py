@@ -10,13 +10,14 @@ from examples.motion.viewer import sample_box, get_distance, is_collision_free, 
     create_box, draw_solution, draw_roadmap, draw_environment
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_test
-from pddlstream.utils import read, print_solution, user_input, str_from_object
+from pddlstream.utils import read, print_solution, user_input, str_from_object, INF
 from pddlstream.language.constants import PDDLProblem
+from pddlstream.algorithms.constraints import PlanConstraints
 
 
-array = np.array # No hashing
-#array = list # No hashing
-#array = tuple # Hashing
+ARRAY = np.array # No hashing
+#ARRAY = list # No hashing
+#ARRAY = tuple # Hashing
 
 def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     directory = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +25,7 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     stream_pddl = read(os.path.join(directory, 'stream.pddl'))
     constant_map = {}
 
-    q0 = array([0, 0])
+    q0 = ARRAY([0, 0])
     init = [
         ('Conf', q0),
         ('AtConf', q0),
@@ -43,7 +44,7 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
         area = np.product(upper - lower)
         # TODO: sample proportional to area
         while True:
-            q = array(sample_box(regions[region]))
+            q = ARRAY(sample_box(regions[region]))
             samples.append(q)
             yield (q,)
 
@@ -77,7 +78,7 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
 
 ##################################################
 
-# TODO - algorithms that take advantage of metric space (RRT)
+# TODO: algorithms that take advantage of metric space (RRT)
 
 def main(max_time=20):
     """
@@ -94,23 +95,23 @@ def main(max_time=20):
 
     goal = 'green'
     if goal not in regions:
-        goal = array([1, 1])
+        goal = ARRAY([1, 1])
 
     max_distance = 0.25 # 0.2 | 0.25 | 0.5 | 1.0
     problem, samples, roadmap = create_problem(goal, obstacles, regions, max_distance=max_distance)
     print('Initial:', str_from_object(problem.init))
     print('Goal:', str_from_object(problem.goal))
+    constraints = PlanConstraints(max_cost=1.25) # max_cost=INF)
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_incremental(problem, unit_costs=False, success_cost=0,
+    solution = solve_incremental(problem, constraints=constraints, unit_costs=False, success_cost=0,
                                  max_time=max_time, verbose=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
     print_solution(solution)
     plan, cost, evaluations = solution
-
     #viewer = draw_environment(obstacles, regions)
     #for sample in samples:
     #    viewer.draw_point(sample)

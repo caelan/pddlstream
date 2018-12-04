@@ -1,6 +1,6 @@
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     conditions_hold, get_goal_instance, plan_preimage, get_literals, instantiate_task, \
-    sas_from_instantiated, scale_cost, fd_from_fact
+    sas_from_instantiated, scale_cost, fd_from_fact, parse_action
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan, \
@@ -9,7 +9,7 @@ from pddlstream.algorithms.scheduling.simultaneous import extract_function_resul
     add_stream_actions, partition_plan, get_plan_cost, augment_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams
-from pddlstream.algorithms.search import abstrips_solve_from_task
+from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
 from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, substitute_expression
 from pddlstream.language.function import PredicateResult, Predicate
 from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
@@ -20,6 +20,7 @@ from pddlstream.utils import Verbose, MockSet, INF, get_mapping
 
 from collections import defaultdict
 from itertools import product
+import copy
 
 DO_RESCHEDULE = False
 
@@ -130,9 +131,16 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
 
 ##################################################
 
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
+def action_instances_from_plan(opt_task, action_plan):
     import pddl
     import instantiate
+    function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
+                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
+    return instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
+
+#def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_instances, negative, unit_costs):
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, negative, unit_costs):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
@@ -142,11 +150,8 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     opt_evaluations = apply_streams(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    function_assignments = {fact.fluent: fact.expression for fact in opt_task.init  # init_facts
-                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(opt_task.objects, opt_task.types)
+    action_instances = action_instances_from_plan(opt_task, action_plan)
     results_from_head = get_results_from_head(opt_evaluations)
-    action_instances = instantiate_actions(opt_task, type_to_objects, function_assignments, action_plan)
     negative_from_name = get_negative_predicates(negative)
     axioms_from_name = get_derived_predicates(opt_task.axioms)
 
@@ -281,6 +286,20 @@ def add_optimizer_axioms(results, instantiated):
 
 ##################################################
 
+# TODO: change name of actions to directly recover which instance was used by the planner
+
+def rename_instantiated_actions(instantiated):
+    actions = instantiated.actions[:]
+    renamed_actions = []
+    action_from_name = {}
+    for i, action in enumerate(actions):
+        renamed_actions.append(copy.copy(action))
+        renamed_name = 'a{}'.format(i)
+        renamed_actions[-1].name = '({})'.format(renamed_name)
+        action_from_name[renamed_name] = action # Change reachable_action_params?
+    instantiated.actions[:] = renamed_actions
+    return action_from_name
+
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
                         unit_efforts, effort_weight, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
@@ -301,15 +320,19 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     if (effort_weight is not None) or any(map(is_optimizer_result, applied_results)):
         add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
     add_optimizer_axioms(stream_results, instantiated)
+    action_from_name = rename_instantiated_actions(instantiated)
+
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
-    #sas_task = sas_from_pddl(task)
-    #action_plan, _ = serialized_solve_from_task(sas_task, debug=debug, **kwargs)
-    action_plan, _ = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
-    #action_plan, _ = abstrips_solve_from_task_sequential(sas_task, debug=debug, **kwargs)
+
+    # TODO: apply remapping to hierarchy as well
+    # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
+    action_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if action_plan is None:
         return None, INF
+    action_instances = [action_from_name[name] for name, _ in action_plan]
+    action_plan = [parse_action(instance.name) for instance in action_instances]
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
         evaluations, goal_expression, stream_domain, applied_results, action_plan, negative, unit_costs))
