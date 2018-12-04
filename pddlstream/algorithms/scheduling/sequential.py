@@ -8,8 +8,6 @@ from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, INF, MockSet
 
 
-# TODO: interpolate between all the scheduling options
-
 def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
     # TODO: add ordering constraints to simplify the optimization
     import pddl
@@ -23,6 +21,7 @@ def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
     action_from_name = {}
     function_plan = set()
     for i, (name, args) in enumerate(action_plan):
+        # TODO: recover the action and var_mapping from the instance
         action = find_unique(lambda a: a.name == name, actions)
         assert (len(action.parameters) == len(args))
         # parameters = action.parameters[:action.num_external_parameters]
@@ -38,9 +37,9 @@ def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
                        for conditions, effect in new_effects]
         cost = pddl.Increase(fluent=pddl.PrimitiveNumericExpression(symbol=TOTAL_COST, args=[]),
                              expression=pddl.NumericConstant(1))
-        # cost = None
         task.actions.append(pddl.Action(new_name, new_parameters, len(new_parameters),
                                         pddl.Conjunction(new_preconditions), new_effects, cost))
+        # TODO: simplify action creation
         action_from_name[new_name] = (name, map(obj_from_pddl, args))
         if not unit_costs:
             function_result = extract_function_results(results_from_head, action, args)
@@ -69,13 +68,12 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     domain.actions[:] = []
     stream_domain, stream_result_from_name = add_stream_actions(domain, stream_results) # TODO: effort_weight
     domain.actions.extend(actions)
-    stream_task = task_from_domain_problem(stream_domain, get_problem(evaluations, goal_expression, stream_domain, unit_costs))
+    stream_task = task_from_domain_problem(stream_domain, get_problem(
+        evaluations, goal_expression, stream_domain, unit_costs))
     action_from_name, function_plan = simplify_actions(opt_evaluations, action_plan, stream_task, actions, unit_costs)
 
-    # TODO: lmcut?
     combined_plan, _ = solve_from_task(sas_from_pddl(opt_task, debug=debug),
-                                       planner=kwargs.get('planner', 'ff-astar'),
-                                       debug=debug, **kwargs)
+                                       planner=kwargs.get('planner', 'ff-astar'), debug=debug, **kwargs)
     if combined_plan is None:
         return None, INF
 

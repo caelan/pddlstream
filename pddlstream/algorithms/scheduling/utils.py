@@ -6,28 +6,6 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
 from pddlstream.utils import INF
 
-"""
-def evaluations_from_stream_plan(evaluations, stream_plan):
-    result_from_evaluation = {e: None for e in evaluations}
-    opt_evaluations = set(evaluations)
-    for result in stream_plan:
-        if isinstance(result, StreamResult):
-            effort = result.instance.get_effort()
-            if effort == INF:
-                continue
-        assert(not result.instance.disabled)
-        assert(not result.instance.enumerated)
-        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
-        if not (domain <= opt_evaluations):
-            continue
-        for fact in result.get_certified():
-            evaluation = evaluation_from_fact(fact)
-            if evaluation not in result_from_evaluation:
-                result_from_evaluation[evaluation] = result
-                opt_evaluations.add(evaluation)
-    return result_from_evaluation
-"""
-
 def partition_results(evaluations, results, apply_now):
     applied_results = []
     deferred_results = []

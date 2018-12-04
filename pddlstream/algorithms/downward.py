@@ -506,6 +506,7 @@ def make_cost(cost):
 
 
 def make_action(name, parameters, preconditions, effects, cost=None):
+    # Usually all parameters are external
     return pddl.Action(name=name,
                        parameters=make_parameters(parameters),
                        num_external_parameters=len(parameters),

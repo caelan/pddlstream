@@ -156,10 +156,9 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     results_from_head = get_results_from_head(opt_evaluations)
     negative_from_name = get_negative_predicates(negative)
     axioms_from_name = get_derived_predicates(opt_task.axioms)
-    # TODO: only reinstantiate actions
 
     opt_task.init = set(opt_task.init)
-    real_states = [set(real_task.init)] # TODO: had old way of doing this (~July 2018)
+    real_states = [set(real_task.init)]
     preimage_plan = []
     function_plan = set()
     for action_instance in action_instances:
@@ -336,10 +335,9 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
         evaluations, goal_expression, stream_domain, applied_results, action_instances, negative, unit_costs))
-    action_plan = [parse_action(instance.name) for instance in action_instances]
+    action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
     deferred_plan, action_plan = partition_plan(action_plan, result_from_name)
     stream_plan = applied_plan + deferred_plan + function_plan
-    action_plan = obj_from_pddl_plan(action_plan)
     cost = get_plan_cost(opt_evaluations, action_plan, domain, unit_costs)
     combined_plan = stream_plan + action_plan
     return combined_plan, cost

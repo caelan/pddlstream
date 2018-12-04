@@ -16,6 +16,7 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 
 def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: can solve using another planner and then still translate using FastDownward
+    # Can apply plan constraints (skeleton constraints) here as well
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
