@@ -50,6 +50,7 @@ TRANSLATE_OUTPUT = 'output.sas'
 SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'
 INFINITY = 'infinity'
+GOAL_NAME = '@goal' # @goal-reachable
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: modify parsing_functions to support multiple costs
@@ -427,11 +428,9 @@ def get_action_instances(task, action_plan):
 
 
 def get_goal_instance(goal):
-    #name = '@goal-reachable'
-    name = '@goal'
     precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
     #precondition = get_literals(goal)
-    return pddl.PropositionalAction(name, precondition, [], None)
+    return pddl.PropositionalAction(GOAL_NAME, precondition, [], None)
 
 ##################################################
 

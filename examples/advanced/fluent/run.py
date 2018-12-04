@@ -9,6 +9,8 @@ from pddlstream.language.stream import StreamInfo
 from pddlstream.language.constants import And
 from pddlstream.utils import print_solution, read, get_file_path
 
+TRAJ = [0, 1]
+
 def feasibility_test(o, fluents=set()):
     for fact in fluents:
         if fact[0] == 'ontable':
@@ -20,11 +22,9 @@ def feasibility_test(o, fluents=set()):
 def feasibility_fn(o, fluents=set()):
     if not feasibility_test(o, fluents=fluents):
         return None
-    t = [0, 1]
-    return (t,)
+    return (TRAJ,)
 
 def get_pddlstream_problem():
-    # TODO: example that requires using two separate trajectories from different states
     # TODO: bug where a trajectory sample could be used in a different state than anticipated (don't return the sample)
     # TODO: enforce positive axiom preconditions requiring the state to be exactly some given value
     #       then, the can outputs can be used in other streams only present at that state
@@ -34,10 +34,9 @@ def get_pddlstream_problem():
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
-        #'test-feasible': from_test(test_feasible),
-        'test-feasible': from_fn(feasibility_fn),
-        'test-cleanable': from_test(lambda o, fluents=set(): True),
-        #'test-cleanable': from_test(lambda o, fluents=set(): not fluents),
+        'sample-pickable': from_fn(feasibility_fn),
+        'test-cleanable': from_fn(lambda o, fluents=set(): (TRAJ,)),
+        #'test-cleanable': from_fn(lambda o, fluents=set(): None if fluents else (TRAJ,)),
     }
 
     init = [

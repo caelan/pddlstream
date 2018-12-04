@@ -1,4 +1,5 @@
-from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, conditions_hold, apply_action, get_goal_instance
+from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, conditions_hold, apply_action, \
+    get_goal_instance, GOAL_NAME
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
 from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.language.function import Predicate, PredicateResult
@@ -136,7 +137,8 @@ def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negat
         new_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name, static_state=real_states[-1])
         assert new_axiom_plan is not None
         preimage_plan.extend(new_axiom_plan + axiom_plan + [action_instance])
-        apply_action(opt_task.init, action_instance)
-        real_states.append(set(real_states[-1]))
-        apply_action(real_states[-1], action_instance)
+        if action_instance.name != GOAL_NAME:
+            apply_action(opt_task.init, action_instance)
+            real_states.append(set(real_states[-1]))
+            apply_action(real_states[-1], action_instance)
     return real_states, preimage_plan
