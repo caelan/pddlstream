@@ -170,8 +170,6 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
     # TODO: only reinstantiate the negative axioms
     axioms_from_name = get_derived_predicates(task.axioms)
     derived_goals = {l for l in goals if l.predicate in axioms_from_name}
-    if not conditions_hold(task.init, (l for l in goals if l not in derived_goals)):
-        return None # TODO: move this outside
     axiom_from_action = get_necessary_axioms(derived_goals, task.axioms, negative_from_name)
     if not axiom_from_action:
         return []
