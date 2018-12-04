@@ -2,8 +2,7 @@ from collections import namedtuple, deque
 
 from pddlstream.algorithms.downward import fd_from_evaluation, task_from_domain_problem, get_problem, fd_from_fact, \
     is_applicable, apply_action, get_action_instances, substitute_derived
-from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, \
-    extract_axiom_plan, instantiate_axioms
+from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms, instantiate_axioms
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.language.constants import EQ, And, get_prefix
 from pddlstream.language.conversion import evaluation_from_fact

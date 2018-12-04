@@ -1,27 +1,25 @@
+import copy
+from collections import defaultdict
+from itertools import product
+
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     conditions_hold, get_goal_instance, plan_preimage, get_literals, instantiate_task, \
     sas_from_instantiated, scale_cost, fd_from_fact, parse_action, literal_holds
+from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan, prune_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan, \
     extraction_helper
-from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan, \
-    get_instance_effort
+from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
     add_stream_actions, partition_plan, get_plan_cost, augment_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams
-from pddlstream.algorithms.search import abstrips_solve_from_task, solve_from_task
-from pddlstream.language.conversion import obj_from_pddl_plan, obj_from_pddl, substitute_expression
-from pddlstream.language.function import PredicateResult, Predicate
-from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
-from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.language.object import UniqueOptValue
+from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not
-from pddlstream.utils import Verbose, MockSet, INF, get_mapping
-
-from collections import defaultdict
-from itertools import product
-import copy
+from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression
+from pddlstream.language.object import UniqueOptValue
+from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
+from pddlstream.utils import Verbose, MockSet, INF, get_mapping, safe_zip
 
 DO_RESCHEDULE = False
 
@@ -79,55 +77,6 @@ def simplify_conditional_effects(real_state, opt_state, action_instance, axioms_
 
 ##################################################
 
-def get_negative_predicates(negative):
-    negative_from_name = {external.name: external for external in negative if isinstance(external, Predicate)}
-    negative_from_name.update({external.blocked_predicate: external for external in negative
-                               if isinstance(external, Stream) and external.is_negated()})
-    return negative_from_name
-
-def convert_negative_predicate(negative, literal, negative_plan):
-    predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
-    value = not literal.negated
-    if predicate_instance.enumerated:
-        assert (predicate_instance.value == value)
-    else:
-        negative_plan.add(PredicateResult(predicate_instance, value,
-                                          opt_index=predicate_instance.opt_index))
-
-def convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan):
-    import pddl
-    # assert not negative.is_fluent()
-    fluent_facts_list = []
-    if negative.is_fluent():
-        # TODO: ensure that only used once?
-        for state_index in step_from_atom[literal]:
-            fluent_facts_list.append(list(map(fact_from_fd, filter(
-                lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents), real_states[state_index]))))
-    else:
-        fluent_facts_list.append(frozenset())
-
-    object_from_input = get_mapping(negative.inputs, map(obj_from_pddl, literal.args))
-    input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
-    for fluent_facts in fluent_facts_list:
-        negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
-        if not negative_instance.successes:
-            negative_plan.add(StreamResult(negative_instance, tuple(),
-                                           opt_index=negative_instance.opt_index))
-
-def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
-    negative_plan = set()
-    for literal in negative_preimage:
-        negative = negative_from_name[literal.predicate]
-        if isinstance(negative, Predicate):
-            convert_negative_predicate(negative, literal, negative_plan)
-        elif isinstance(negative, Stream):
-            convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan)
-        else:
-            raise ValueError(negative)
-    return negative_plan
-
-##################################################
-
 def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_atom):
     import pddl
     steps_from_stream = {}
@@ -159,7 +108,47 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
 
 ##################################################
 
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_instances, axiom_plans,
+def compute_function_plan(opt_evaluations, action_plan, unit_costs):
+    function_plan = set()
+    if unit_costs:
+        return function_plan
+    results_from_head = get_results_from_head(opt_evaluations)
+    for action_instance in action_plan:
+        action = action_instance.action
+        if action is None:
+            continue
+        args = [action_instance.var_mapping[p.name] for p in action.parameters]
+        function_result = extract_function_results(results_from_head, action, args)
+        if function_result is not None:
+            function_plan.add(function_result)
+    return function_plan
+
+def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name):
+    action_plan = reinstantiate_action_instances(opt_task, action_plan)
+    axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
+    axioms_from_name = get_derived_predicates(opt_task.axioms)
+
+    # TODO: could instead just accumulate difference between real and opt
+    opt_task.init = set(opt_task.init)
+    real_states = [set(real_task.init)]
+    preimage_plan = []
+    for axiom_plan, action_instance in safe_zip(axiom_plans, action_plan):
+        for literal in action_instance.precondition:
+            # TODO: check conditional effects
+            if literal.predicate in negative_from_name:
+                raise NotImplementedError('Negated predicates not currently supported within actions: {}'
+                                          .format(literal.predicate))
+        simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
+        preimage = list(plan_preimage(axiom_plan + [action_instance], []))
+        new_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name, static_state=real_states[-1])
+        assert new_axiom_plan is not None
+        preimage_plan.extend(new_axiom_plan + axiom_plan + [action_instance])
+        apply_action(opt_task.init, action_instance)
+        real_states.append(set(real_states[-1]))
+        apply_action(real_states[-1], action_instance)
+    return real_states, preimage_plan
+
+def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, axiom_plans,
                         negative, unit_costs):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
@@ -170,39 +159,12 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     opt_evaluations = apply_streams(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
-    action_instances = reinstantiate_action_instances(opt_task, action_instances)
-    axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
-    results_from_head = get_results_from_head(opt_evaluations)
     negative_from_name = get_negative_predicates(negative)
-    axioms_from_name = get_derived_predicates(opt_task.axioms)
 
-    opt_task.init = set(opt_task.init)
-    real_states = [set(real_task.init)]
-    preimage_plan = []
-    function_plan = set()
-    for action_instance in action_instances:
-        for literal in action_instance.precondition:
-            # TODO: check conditional effects
-            if literal.predicate in negative_from_name:
-                raise NotImplementedError('Negated predicates not currently supported within actions: {}'
-                                          .format(literal.predicate))
-        simplify_conditional_effects(real_states[-1], opt_task.init, action_instance, axioms_from_name)
-        axiom_plan = extract_axiom_plan(opt_task, action_instance, negative_from_name,
-                                        static_state=real_states[-1])
-        assert axiom_plan is not None
-        preimage_plan.extend(axiom_plan + [action_instance])
-        apply_action(opt_task.init, action_instance)
-        real_states.append(set(real_states[-1]))
-        apply_action(real_states[-1], action_instance)
-        if not unit_costs and (action_instance.action is not None):
-            action = action_instance.action
-            args = [action_instance.var_mapping[p.name] for p in action.parameters]
-            function_result = extract_function_results(results_from_head, action, args)
-            if function_result is not None:
-                function_plan.add(function_result)
+    real_states, combined_plan = recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name)
+    function_plan = compute_function_plan(opt_evaluations, action_plan, unit_costs)
 
-    # TODO: could instead just accumulate difference between real and opt
-    full_preimage = plan_preimage(preimage_plan, [])
+    full_preimage = plan_preimage(combined_plan, [])
     stream_preimage = set(full_preimage) - real_states[0]
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
     positive_preimage = stream_preimage - negative_preimage
@@ -309,8 +271,6 @@ def add_optimizer_axioms(results, instantiated):
 
 ##################################################
 
-# TODO: change name of actions to directly recover which instance was used by the planner
-
 def rename_instantiated_actions(instantiated):
     actions = instantiated.actions[:]
     renamed_actions = []
@@ -329,11 +289,17 @@ def recover_axioms_plans(instantiated, action_instances):
     state = set(task.init)
     axiom_plans = []
     for action_instance in action_instances + [get_goal_instance(task.goal)]:
+        # TODO: apply all axiom_instances unaffected by negative conditions
         axiom_instances = filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
                                                 for l in ax.condition), instantiated.axioms)
-        axiom_plans.append(extraction_helper(state, axiom_instances, action_instance))
+        preimage = list(plan_preimage([action_instance], []))
+        axiom_plan = extraction_helper(state, axiom_instances, preimage)
+        assert axiom_plan is not None
+        axiom_plans.append(axiom_plan)
         apply_action(state, action_instance)
     return axiom_plans
+
+##################################################
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
                         unit_efforts, effort_weight, debug=False, **kwargs):
@@ -356,12 +322,11 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
     add_optimizer_axioms(stream_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
-
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
 
-    # TODO: apply remapping to hierarchy as well
+    # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
     action_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if action_plan is None:

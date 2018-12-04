@@ -8,31 +8,31 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult, StreamInstance
 from pddlstream.language.synthesizer import SynthStreamResult
 from pddlstream.utils import elapsed_time, HeapElement, INF
-from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, get_action_instances, \
-    get_goal_instance, plan_preimage, is_valid_plan, substitute_derived, is_applicable, apply_action
-from pddlstream.algorithms.reorder import replace_derived
-from pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
+#from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, get_action_instances, \
+#    get_goal_instance, plan_preimage, is_valid_plan, substitute_derived, is_applicable, apply_action
+#from pddlstream.algorithms.reorder import replace_derived
+#from pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
 
 # TODO: handle this in a partially ordered way
 # TODO: alternatively store just preimage and reachieve
 
-def is_solution(domain, evaluations, action_plan, goal_expression):
-    task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
-    action_instances = get_action_instances(task, action_plan) + [get_goal_instance(task.goal)]
-    #original_init = task.init
-    task.init = set(task.init)
-    for instance in action_instances:
-        axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}, static_state=task.init)
-        if axiom_plan is None:
-            return False
-        #substitute_derived(axiom_plan, instance)
-        #if not is_applicable(task.init, instance):
-        #    return False
-        apply_action(task.init, instance)
-    return True
-    #replace_derived(task, set(), plan_instances)
-    #preimage = plan_preimage(plan_instances, [])
-    #return is_valid_plan(original_init, action_instances) #, task.goal)
+# def is_solution(domain, evaluations, action_plan, goal_expression):
+#     task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))
+#     action_instances = get_action_instances(task, action_plan) + [get_goal_instance(task.goal)]
+#     #original_init = task.init
+#     task.init = set(task.init)
+#     for instance in action_instances:
+#         axiom_plan = extract_axiom_plan(task, instance, negative_from_name={}, static_state=task.init)
+#         if axiom_plan is None:
+#             return False
+#         #substitute_derived(axiom_plan, instance)
+#         #if not is_applicable(task.init, instance):
+#         #    return False
+#         apply_action(task.init, instance)
+#     return True
+#     #replace_derived(task, set(), plan_instances)
+#     #preimage = plan_preimage(plan_instances, [])
+#     #return is_valid_plan(original_init, action_instances) #, task.goal)
 
 ##################################################
 

@@ -139,44 +139,40 @@ def is_useful_atom(atom, conditions_from_predicate):
             return True
     return False
 
-def extraction_helper(init, instantiated_axioms, action_instance, negative_from_name={}):
+def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
     import axiom_rules
     # TODO: filter instantiated_axioms that aren't applicable?
     derived_predicates = {instance.effect.predicate for instance in instantiated_axioms}
-    derived_preconditions = {l for l in action_instance.precondition if l.predicate in derived_predicates}
-    goal_list = []
+    derived_goals = {l for l in goals if l.predicate in derived_predicates}
+    if not derived_goals:
+        return []
     with Verbose(False):
         helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
-            [action_instance], instantiated_axioms, goal_list) # TODO: just use goal_list
+            [], instantiated_axioms, derived_goals)
     axiom_init = set(axiom_init)
     axiom_effects = {axiom.effect for axiom in helpful_axioms}
     #assert len(axiom_effects) == len(axiom_init)
-    for pre in list(derived_preconditions) + list(axiom_effects):
+    for pre in list(derived_goals) + list(axiom_effects):
         if pre.positive() not in axiom_init:
             axiom_init.add(pre.positive().negate())
     axiom_from_atom = get_achieving_axioms(init | axiom_init, helpful_axioms, negative_from_name)
     axiom_plan = []  # Could always add all conditions
-    success = extract_axioms(axiom_from_atom, derived_preconditions, axiom_plan, negative_from_name)
+    success = extract_axioms(axiom_from_atom, derived_goals, axiom_plan, negative_from_name)
     if not success:
         print('Warning! Could extract an axiom plan')
         #return None
     return axiom_plan
 
-def extract_axiom_plan(task, action_instance, negative_from_name, static_state=set()):
+def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
     import pddl_to_prolog
     import build_model
     import instantiate
     # TODO: only reinstantiate the negative axioms
-    # TODO: should be able to apply the known axioms as preimage conditions and then deduce the rest later
     axioms_from_name = get_derived_predicates(task.axioms)
-    preconditions = list(action_instance.precondition)
-    for (cond, _) in (action_instance.add_effects + action_instance.del_effects):
-        preconditions.extend(cond)
-    nonderived_preconditions = {l for l in preconditions if l.predicate not in axioms_from_name}
-    if not conditions_hold(task.init, nonderived_preconditions):
-        return None
-    derived_preconditions = {l for l in preconditions if l not in nonderived_preconditions}
-    axiom_from_action = get_necessary_axioms(derived_preconditions, task.axioms, negative_from_name)
+    derived_goals = {l for l in goals if l.predicate in axioms_from_name}
+    if not conditions_hold(task.init, (l for l in goals if l not in derived_goals)):
+        return None # TODO: move this outside
+    axiom_from_action = get_necessary_axioms(derived_goals, task.axioms, negative_from_name)
     if not axiom_from_action:
         return []
     conditions_from_predicate = defaultdict(set)
@@ -201,6 +197,6 @@ def extract_axiom_plan(task, action_instance, negative_from_name, static_state=s
     opt_facts = instantiate.get_fluent_facts(task, model) | (task.init - static_state)
     mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
     instantiated_axioms = instantiate_necessary_axioms(model, static_state, mock_fluent, axiom_from_action)
-    axiom_plan = extraction_helper(task.init, instantiated_axioms, action_instance, negative_from_name)
+    axiom_plan = extraction_helper(task.init, instantiated_axioms, derived_goals, negative_from_name)
     task.init = original_init
     return axiom_plan
