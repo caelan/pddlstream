@@ -60,9 +60,8 @@ def convert_fluent_streams(stream_plan, real_states, step_from_fact, node_from_a
         if outgoing_edges[result]:
             # No way of taking into account the binding of fluent inputs when preventing cycles
             raise NotImplementedError('Fluent stream is required for another stream: {}'.format(result))
-        if len(steps_from_stream[result]) != 1:
-            # TODO: can handle case where no outputs easily
-            #       handling inputs requires modifying the action plan
+        if (len(steps_from_stream[result]) != 1) and result.output_objects:
+            # TODO: handling inputs requires modifying the action plan
             raise NotImplementedError('Fluent stream required in multiple states: {}'.format(result))
         for state_index in steps_from_stream[result]:
             fluent_facts = list(map(fact_from_fd, filter(

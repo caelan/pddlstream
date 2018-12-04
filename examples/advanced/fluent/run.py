@@ -6,6 +6,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_test, from_fn
 from pddlstream.language.stream import StreamInfo
+from pddlstream.language.constants import And
 from pddlstream.utils import print_solution, read, get_file_path
 
 def feasibility_test(o, fluents=set()):
@@ -35,6 +36,8 @@ def get_pddlstream_problem():
     stream_map = {
         #'test-feasible': from_test(test_feasible),
         'test-feasible': from_fn(feasibility_fn),
+        'test-cleanable': from_test(lambda o, fluents=set(): True),
+        #'test-cleanable': from_test(lambda o, fluents=set(): not fluents),
     }
 
     init = [
@@ -44,7 +47,8 @@ def get_pddlstream_problem():
         ('OnTable', 'b2'),
     ]
 
-    goal = ('Holding', 'b1')
+    #goal = ('Holding', 'b1')
+    goal = And(('Clean', 'b1'), ('Cooked', 'b1'))
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
