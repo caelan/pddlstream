@@ -68,7 +68,7 @@ def check_problem(domain, streams, obj_from_constant):
 def evaluations_from_init(init):
     return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
 
-def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False):
+def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
@@ -80,7 +80,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False):
     obj_from_constant = parse_constants(domain, constant_map)
     if constraints is not None:
        goal = add_plan_constraints(constraints, domain, init, goal)
-    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info)
+    streams = parse_stream_pddl(stream_pddl, stream_map,
+                                stream_info=stream_info, unit_efforts=unit_efforts)
     check_problem(domain, streams, obj_from_constant)
 
     evaluations = evaluations_from_init(init)
@@ -258,22 +259,25 @@ def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
             external.pddl_name = pddl_name # TODO: move within constructors
             streams.append(external)
 
-def parse_stream_pddl(pddl_list, procedures, infos):
-    streams = []
+def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts=False):
+    externals = []
     if pddl_list is None:
-        return streams
+        return externals
     if isinstance(pddl_list, str):
         pddl_list = [pddl_list]
     #if all(isinstance(e, External) for e in stream_pddl):
     #    return stream_pddl
-    if procedures != DEBUG:
-        procedures = {k.lower(): v for k, v in procedures.items()}
-    infos = {k.lower(): v for k, v in infos.items()}
+    if stream_procedures != DEBUG:
+        stream_procedures = {k.lower(): v for k, v in stream_procedures.items()}
+    stream_info = {k.lower(): v for k, v in stream_info.items()}
     rules = []
     for pddl in pddl_list:
-        parse_streams(streams, rules, pddl, procedures, infos)
-    apply_rules_to_streams(rules, streams)
-    return streams
+        parse_streams(externals, rules, pddl, stream_procedures, stream_info)
+    apply_rules_to_streams(rules, externals)
+    if unit_efforts:
+        for external in externals:
+            external.info.effort_fn = lambda *args: 1
+    return externals
 
 ##################################################
 

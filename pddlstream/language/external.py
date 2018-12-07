@@ -3,19 +3,17 @@ from collections import Counter
 from pddlstream.language.conversion import substitute_expression, values_from_objects
 from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.object import Object
-from pddlstream.language.statistics import geometric_cost, Performance
+from pddlstream.language.statistics import geometric_cost, Performance, PerformanceInfo
 from pddlstream.utils import elapsed_time, get_mapping, INF
 
 DEBUG = 'debug'
 
-class ExternalInfo(object):
+class ExternalInfo(PerformanceInfo):
     def __init__(self, eager, p_success, overhead, effort_fn):
+        super(ExternalInfo, self).__init__(p_success, overhead)
         # TODO: enable eager=True for inexpensive test streams by default
         self.eager = eager
-        self.p_success = p_success
-        self.overhead = overhead
         self.effort_fn = effort_fn
-        # TODO: allow specification of p_success & overhead as effort
 
 ##################################################
 

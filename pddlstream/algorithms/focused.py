@@ -71,7 +71,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
     num_iterations = search_time = sample_time = eager_calls = 0
     store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
     evaluations, goal_exp, domain, externals = parse_problem(
-        problem, stream_info=stream_info, constraints=constraints, unit_costs=unit_costs)
+        problem, stream_info=stream_info, constraints=constraints,
+        unit_costs=unit_costs, unit_efforts=unit_efforts)
     #initial_evaluations = copy.copy(evaluations)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)
@@ -92,10 +93,10 @@ def solve_focused(problem, constraints=PlanConstraints(),
         num_iterations += 1
         eager_calls += layered_process_stream_queue(Instantiator(evaluations, eager_externals), evaluations,
                                                     store, eager_layers, verbose=False)
-        print('\nIteration: {} | Queue: {} | Evaluations: {} | Eager calls: {} | Cost: {} '
+        print('\nIteration: {} | Skeletons: {} | Queue: {} | Evaluations: {} | Eager calls: {} | Cost: {:.3f} '
               '| Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, len(queue), len(evaluations), eager_calls, store.best_cost,
-            search_time, sample_time, store.elapsed_time()))
+            num_iterations, len(queue.skeleton_plans), len(queue), len(evaluations), eager_calls,
+            store.best_cost, search_time, sample_time, store.elapsed_time()))
         max_cost = min(store.best_cost, constraints.max_cost)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_exp, domain, sr, negative,
                                                             unit_efforts=unit_efforts, effort_weight=effort_weight,

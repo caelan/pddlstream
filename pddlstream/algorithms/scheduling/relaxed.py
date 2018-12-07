@@ -135,11 +135,24 @@ def get_instance_facts(instance, node_from_atom):
             facts.append(fact)
     return facts
 
-def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
+def add_optimizer_effects(instantiated, instance, stream_plan):
     # TODO: instantiate axioms with negative on effects for blocking
     # TODO: fluent streams using conditional effects. Special fluent predicate for inputs to constraint
     # This strategy will only work for relaxed to ensure that the current state is applied
+    # TODO: bug! The FD instantiator prunes the result.external.stream_fact
+    for result in stream_plan:
+        if not is_optimizer_result(result):
+            continue
+        # TODO: need to make multiple versions if several ways of achieving the action
+        atom = fd_from_fact(substitute_expression(result.external.stream_fact, result.get_mapping()))
+        instantiated.atoms.add(atom)
+        effect = (tuple(), atom)
+        instance.add_effects.append(effect)
+        # domain = {fact for result in stream_plan if result.external.info.simultaneous
+        #          for fact in result.instance.get_domain()}
+        # TODO: can streams depending on these to be used if the dependent preconditions are added to the action
 
+def add_stream_efforts(node_from_atom, instantiated, unit_efforts, effort_weight):
     # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
     for instance in instantiated.actions:
         # TODO: prune stream actions here?
@@ -147,23 +160,13 @@ def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
         #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
         stream_plan = []
         extract_stream_plan(node_from_atom, facts, stream_plan)
-        # TODO: maybe just change costs & efforts at the start to avoid passing around unit_cost
+        # TODO: maybe just change efforts at the start to avoid passing around unit_efforts
         # TODO: larger effort for results using shared objects
+        # TODO: round each effort individually to penalize multiple streams
         effort = scale_cost(get_plan_effort(stream_plan, unit_efforts))
         if effort_weight is not None:
             instance.cost += effort_weight*effort
-
-        # TODO: bug! The FD instantiator prunes the result.external.stream_fact
-        for result in stream_plan:
-            # TODO: need to make multiple versions if several ways of achieving the action
-            if is_optimizer_result(result):
-                atom = fd_from_fact(substitute_expression(result.external.stream_fact, result.get_mapping()))
-                instantiated.atoms.add(atom)
-                effect = (tuple(), atom)
-                instance.add_effects.append(effect)
-        #domain = {fact for result in stream_plan if result.external.info.simultaneous
-        #          for fact in result.instance.get_domain()}
-        # TODO: can streams depending on these to be used if the dependent preconditions are added to the action
+        add_optimizer_effects(instantiated, instance, stream_plan)
 
 ##################################################
 
@@ -251,9 +254,11 @@ def get_plan_cost(action_plan, cost_from_action, unit_costs):
     if action_plan is None:
         return INF
     if unit_costs:
+        # TODO: no longer need to pass around unit_costs
         return len(action_plan)
     #return sum([0.] + [instance.cost for instance in action_plan])
-    return sum([0.] + [cost_from_action[instance] for instance in action_plan]) / get_cost_scale()
+    scaled_cost = sum([0.] + [cost_from_action[instance] for instance in action_plan])
+    return scaled_cost / get_cost_scale()
 
 def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
@@ -262,6 +267,11 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
                         unit_efforts, effort_weight, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
+    #efforts = [result.instance.get_effort() for result in stream_results]
+    #min_effort = min(efforts) # TODO: regularize & normalize across the problem?
+    #print(min_effort, [e/min_effort for e in efforts])
+    # TODO: add some effort for replanning
+
     applied_results, deferred_results = partition_results(evaluations, stream_results,
                                                           apply_now=lambda r: not r.external.info.simultaneous)
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
@@ -277,7 +287,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         return None, INF
     cost_from_action = {action: action.cost for action in instantiated.actions}
     if (effort_weight is not None) or using_optimizers(applied_results):
-        add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
+        add_stream_efforts(node_from_atom, instantiated, unit_efforts, effort_weight)
     add_optimizer_axioms(stream_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
     with Verbose(debug):

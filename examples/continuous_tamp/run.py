@@ -137,6 +137,8 @@ def main(use_synthesizers=False):
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
+    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-t', '--max_time', default=20, type=int, help='The max time')
     args = parser.parse_args()
     print('Arguments:', args)
     print('Synthesizers: {}'.format(use_synthesizers))
@@ -192,24 +194,28 @@ def main(use_synthesizers=False):
                                   #skeletons=[skeleton],
                                   skeletons=[skeleton, []],
                                   exact=True, hint=False)
-    #constraints = None
+    constraints = PlanConstraints() # None
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     print('Initial:', str_from_object(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()
     pr.enable()
+    success_cost = 0 if args.optimal else INF
     if args.algorithm == 'focused':
         solution = solve_focused(pddlstream_problem, constraints=constraints,
-                                 action_info=action_info, stream_info=stream_info,
-                                 planner='ff-wastar1', max_planner_time=10, synthesizers=synthesizers, verbose=True,
-                                 max_time=300, success_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=1, search_sampling_ratio=0,  # TODO: run with search_sampling_ratio=1
-                                 unit_costs=args.unit, postprocess=False, visualize=False)
+                                 action_info=action_info, stream_info=stream_info, synthesizers=synthesizers,
+                                 planner='ff-wastar1', max_planner_time=10, hierarchy=hierarchy, debug=False,
+                                 max_time=args.max_time, verbose=True,
+                                 unit_costs=args.unit, success_cost=success_cost,
+                                 # TODO: run with search_sampling_ratio=1
+                                 unit_efforts=False, effort_weight=1, search_sampling_ratio=0,
+                                 postprocess=False, visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      layers_per_iteration=1, hierarchy=hierarchy,
-                                     unit_costs=args.unit, verbose=False)
+                                     unit_costs=args.unit, success_cost=success_cost,
+                                     max_time=args.max_time, verbose=False)
     else:
         raise ValueError(args.algorithm)
 
