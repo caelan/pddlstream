@@ -13,6 +13,7 @@ from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
+from pddlstream.algorithms.constraints import PlanConstraints
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
@@ -28,7 +29,8 @@ from pddlstream.utils import INF, elapsed_time
 # TODO: make stream_info just a dict
 # TODO: implement the holdout of evaluations strategy
 
-def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
+def solve_focused(problem, constraints=PlanConstraints(),
+                  stream_info={}, action_info={}, synthesizers=[],
                   max_time=INF, success_cost=INF, unit_costs=False,
                   unit_efforts=False, effort_weight=None, eager_layers=1,
                   search_sampling_ratio=0, use_skeleton=True,
@@ -37,11 +39,12 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
+    :param constraints: PlanConstraints on the set of legal solutions
     :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
-    :param success_cost: a strict upper bound on plan cost
+    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_costs: use unit action costs rather than numeric costs
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
     :param effort_weight: a multiplier for stream effort compared to action costs
@@ -50,6 +53,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     :param use_skeleton: maintains a set of plan skeletons to sample from
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
+    :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
     :param postprocess: postprocess the stream plan to find a better solution
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
@@ -66,7 +70,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = search_time = sample_time = eager_calls = 0
     store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
-    evaluations, goal_expression, domain, externals = parse_problem(problem, stream_info)
+    evaluations, goal_exp, domain, externals = parse_problem(problem, stream_info=stream_info, constraints=constraints)
     #initial_evaluations = copy.copy(evaluations)
     unit_costs |= not has_costs(domain)
     full_action_info = get_action_info(action_info)
@@ -80,7 +84,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
     streams, functions, negative = partition_externals(externals)
     if verbose:
         print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
-    queue = SkeletonQueue(store, evaluations, goal_expression, domain)
+    queue = SkeletonQueue(store, evaluations, goal_exp, domain)
     disabled = set()
     while not store.is_terminated():
         # TODO: check empty stream plan first?
@@ -92,8 +96,8 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
               '| Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue), len(evaluations), eager_calls, store.best_cost,
             search_time, sample_time, store.elapsed_time()))
-        max_cost = min(store.best_cost, INF) # TODO: use constraints.max_cost
-        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_expression, domain, sr, negative,
+        max_cost = min(store.best_cost, constraints.max_cost)
+        solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_exp, domain, sr, negative,
                                                             max_cost=max_cost, unit_costs=unit_costs,
                                                             unit_efforts=unit_efforts, effort_weight=effort_weight,
                                                             **search_kwargs)
@@ -131,7 +135,7 @@ def solve_focused(problem, stream_info={}, action_info={}, synthesizers=[],
 
     if postprocess and (not unit_costs): # and synthesizers
         # TODO: solve one last time in a cost-sensitive configuration
-        locally_optimize(evaluations, store, goal_expression, domain,
+        locally_optimize(evaluations, store, goal_exp, domain,
                          functions, negative, synthesizers, visualize)
     write_stream_statistics(externals + synthesizers, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

@@ -107,11 +107,11 @@ def solve_incremental(problem, constraints=PlanConstraints(), layers_per_iterati
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
-    :param constraints: PlanConstraints on the available solutions
+    :param constraints: PlanConstraints on the set of legal solutions
     :param layers_per_iteration: the number of stream application layers per iteration
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum amount of search iterations
-    :param success_cost: a strict upper bound on plan cost
+    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions

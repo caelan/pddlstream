@@ -480,6 +480,13 @@ def plan_preimage(combined_plan, goal):
 
 ##################################################
 
+def add_predicate(domain, predicate):
+    if predicate.name in domain.predicate_dict:
+        return False
+    domain.predicates.append(predicate)
+    domain.predicate_dict[predicate.name] = predicate
+    return True
+
 def make_parameters(parameters, type=OBJECT):
     return tuple(pddl.TypedObject(p, type) for p in parameters)
 

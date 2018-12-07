@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects
+from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate
 from pddlstream.language.constants import Or, And, is_parameter, Equal, Not
 from pddlstream.language.conversion import obj_from_value_expression
 from pddlstream.language.object import Object
@@ -59,21 +59,21 @@ def add_plan_constraints(constraints, domain, init, goal):
             existing_parameters = [p for p in skeleton_parameters if p in bound_parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
-            new_preconditions = [(ASSIGNED_PREDICATE, to_constant(p), local_from_global[p])
+            new_preconditions = [(ASSIGNED_PREDICATE, Object.from_value(to_constant(p)), local_from_global[p])
                                  for p in existing_parameters] + [order_facts[step]] + \
                                 [Equal(p, Object.from_value(arg_from_parameter[p])) for p in constants]
             new_action.precondition = pddl.Conjunction(
                 [new_action.precondition, make_preconditions(new_preconditions)]).simplified()
 
-            new_effects = [(ASSIGNED_PREDICATE, to_constant(p), local_from_global[p])
+            new_effects = [(ASSIGNED_PREDICATE, Object.from_value(to_constant(p)), local_from_global[p])
                            for p in skeleton_parameters] + [Not(order_facts[step]), order_facts[step + 1]]
             new_action.effects.extend(make_effects(new_effects))
             # TODO: should negate the effects of all other sequences here
 
             new_actions.append(new_action)
             bound_parameters.update(skeleton_parameters)
+    add_predicate(domain, make_predicate(ORDER_PREDICATE, ['?num', '?step']))
     if constraints.exact:
         domain.actions[:] = []
-    domain.predicate_dict[ORDER_PREDICATE] = make_predicate(ORDER_PREDICATE, ['?num', '?step'])
     domain.actions.extend(new_actions)
     return And(goal, Or(*new_goals))

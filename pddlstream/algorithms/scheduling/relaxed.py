@@ -11,13 +11,14 @@ from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extraction_helper
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
-    add_stream_actions, partition_plan, get_plan_cost, augment_goal
+    add_stream_actions, partition_plan, add_unsatisfiable_to_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
+from pddlstream.language.external import get_plan_effort
 from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
 from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders
 
@@ -121,37 +122,42 @@ def recover_stream_plan(evaluations, goal_expression, domain, stream_results, ac
 
 ##################################################
 
+def get_instance_facts(instance, node_from_atom):
+    # TODO: ignores conditional effect conditions
+    facts = []
+    for precondition in get_literals(instance.action.precondition):
+        if precondition.negated:
+            continue
+        args = [instance.var_mapping.get(arg, arg) for arg in precondition.args]
+        literal = precondition.__class__(precondition.predicate, args)
+        fact = fact_from_fd(literal)
+        if fact in node_from_atom:
+            facts.append(fact)
+    return facts
+
 def add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight):
     # TODO: instantiate axioms with negative on effects for blocking
     # TODO: fluent streams using conditional effects. Special fluent predicate for inputs to constraint
     # This strategy will only work for relaxed to ensure that the current state is applied
+
+    # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
     for instance in instantiated.actions:
         # TODO: prune stream actions here?
-        # Ignores conditional effect costs
-        facts = []
-        for precondition in get_literals(instance.action.precondition):
-            if precondition.negated:
-                continue
-            args = [instance.var_mapping.get(arg, arg) for arg in precondition.args]
-            literal = precondition.__class__(precondition.predicate, args)
-            fact = fact_from_fd(literal)
-            if fact in node_from_atom:
-                facts.append(fact)
+        facts = get_instance_facts(instance, node_from_atom)
         #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
         stream_plan = []
         extract_stream_plan(node_from_atom, facts, stream_plan)
-        if unit_efforts:
-            effort = len(stream_plan)
-        else:
-            effort = scale_cost(sum([0] + [r.instance.get_effort() for r in stream_plan]))
+        # TODO: maybe just change costs & efforts at the start to avoid passing around unit_cost
+        # TODO: larger effort for results using shared objects
+        effort = scale_cost(get_plan_effort(stream_plan, unit_efforts))
         if effort_weight is not None:
             instance.cost += effort_weight*effort
+
         # TODO: bug! The FD instantiator prunes the result.external.stream_fact
         for result in stream_plan:
             # TODO: need to make multiple versions if several ways of achieving the action
             if is_optimizer_result(result):
-                fact = substitute_expression(result.external.stream_fact, result.get_mapping())
-                atom = fd_from_fact(fact)
+                atom = fd_from_fact(substitute_expression(result.external.stream_fact, result.get_mapping()))
                 instantiated.atoms.add(atom)
                 effect = (tuple(), atom)
                 instance.add_effects.append(effect)
@@ -241,6 +247,17 @@ def pddl_from_instance(instance):
 
 ##################################################
 
+def get_plan_cost(action_plan, cost_from_action, unit_costs):
+    if action_plan is None:
+        return INF
+    if unit_costs:
+        return len(action_plan)
+    #return sum([0.] + [instance.cost for instance in action_plan])
+    return sum([0.] + [cost_from_action[instance] for instance in action_plan])
+
+def using_optimizers(stream_results):
+    return any(map(is_optimizer_result, stream_results))
+
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
                         unit_efforts, effort_weight, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
@@ -250,15 +267,16 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
     node_from_atom = get_achieving_streams(evaluations, applied_results)
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
-    if any(map(is_optimizer_result, stream_results)):
-        goal_expression = augment_goal(stream_domain, goal_expression)
+    if using_optimizers(stream_results):
+        goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric
 
     with Verbose(debug):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return None, INF
-    if (effort_weight is not None) or any(map(is_optimizer_result, applied_results)):
+    cost_from_action = {action: action.cost for action in instantiated.actions}
+    if (effort_weight is not None) or using_optimizers(applied_results):
         add_stream_costs(node_from_atom, instantiated, unit_efforts, effort_weight)
     add_optimizer_axioms(stream_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
@@ -272,6 +290,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
+    cost = get_plan_cost(action_instances, cost_from_action, unit_costs)
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
@@ -281,6 +300,5 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
 
     deferred_plan, action_plan = partition_plan(action_plan, result_from_name)
     stream_plan = applied_plan + deferred_plan + function_plan
-    cost = get_plan_cost(opt_evaluations, action_plan, domain, unit_costs)
     combined_plan = stream_plan + action_plan
     return combined_plan, cost

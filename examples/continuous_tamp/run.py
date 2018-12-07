@@ -200,10 +200,11 @@ def main(use_synthesizers=False):
     pr = cProfile.Profile()
     pr.enable()
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
+        solution = solve_focused(pddlstream_problem, constraints=constraints,
+                                 action_info=action_info, stream_info=stream_info,
                                  planner='ff-wastar1', max_planner_time=10, synthesizers=synthesizers, verbose=True,
                                  max_time=300, success_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=1, search_sampling_ratio=1,  # TODO: run with search_sampling_ratio=1
+                                 effort_weight=1, search_sampling_ratio=0,  # TODO: run with search_sampling_ratio=1
                                  unit_costs=args.unit, postprocess=False, visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,

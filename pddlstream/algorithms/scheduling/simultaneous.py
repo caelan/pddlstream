@@ -1,5 +1,6 @@
 from pddlstream.algorithms.algorithm import solve_finite
-from pddlstream.algorithms.downward import Domain, make_action, make_predicate, make_parameters, make_domain, get_cost_scale
+from pddlstream.algorithms.downward import Domain, make_action, make_predicate, make_parameters, make_domain, \
+    get_cost_scale, add_predicate
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
 from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
@@ -88,6 +89,7 @@ def get_action_cost(domain, results_from_head, name, args):
     return value
 
 def get_plan_cost(function_evaluations, action_plan, domain, unit_costs):
+    # TODO: deprecate in favor of using the raw action instances
     if action_plan is None:
         return INF
     if unit_costs:
@@ -125,14 +127,9 @@ def extract_function_plan(function_evaluations, action_plan, domain, unit_costs)
 
 ##################################################
 
-def augment_goal(domain, goal_expression, negate_actions=False):
-    # TODO: only do this if optimizers are present
-    #return goal_expression
+def add_unsatisfiable_to_goal(domain, goal_expression, negate_actions=False):
     import pddl
-    predicate = make_predicate(UNSATISFIABLE, [])
-    if predicate.name not in domain.predicate_dict:
-        domain.predicates.append(predicate)
-        domain.predicate_dict[predicate.name] = predicate
+    add_predicate(domain, make_predicate(UNSATISFIABLE, []))
     if negate_actions:
         negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
         for action in domain.actions:
@@ -161,7 +158,7 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
     opt_evaluations = apply_streams(evaluations, applied_streams)
     stream_domain, stream_result_from_name = add_stream_actions(domain, deferred_streams)
     if any(map(is_optimizer_result, stream_results)):
-        goal_expression = augment_goal(stream_domain, goal_expression)
+        goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     combined_plan, _ = solve_finite(opt_evaluations, goal_expression,
                                     stream_domain, unit_costs=unit_costs, **kwargs)
     if combined_plan is None:
