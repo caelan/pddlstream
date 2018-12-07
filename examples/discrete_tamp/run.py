@@ -8,7 +8,7 @@ import argparse
 from collections import namedtuple
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_exhaustive, solve_incremental
+from pddlstream.algorithms.incremental import solve_current, solve_exhaustive, solve_incremental
 #from pddlstream.algorithms.execution import solve_execution
 from pddlstream.language.constants import And, Equal, TOTAL_COST
 from pddlstream.language.stream import StreamInfo
@@ -171,10 +171,11 @@ def apply_plan(tamp_problem, plan):
 
 ##################################################
 
-def main(unit_costs=False):
+def main():
     parser = argparse.ArgumentParser()
     #parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -189,11 +190,14 @@ def main(unit_costs=False):
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if args.algorithm == 'focused':
         #solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info, debug=False)
+        solution = solve_focused(pddlstream_problem, unit_costs=args.unit, stream_info=stream_info, debug=False)
+    elif args.algorithm == 'current':
+        # Should fail to find a solution
+        solution = solve_current(pddlstream_problem, unit_costs=args.unit)
     elif args.algorithm == 'exhaustive':
-        solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_exhaustive(pddlstream_problem, unit_costs=args.unit)
     elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_incremental(pddlstream_problem, unit_costs=args.unit)
     else:
         raise ValueError(args.algorithm)
 

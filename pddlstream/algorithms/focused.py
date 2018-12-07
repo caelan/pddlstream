@@ -70,9 +70,9 @@ def solve_focused(problem, constraints=PlanConstraints(),
     # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = search_time = sample_time = eager_calls = 0
     store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
-    evaluations, goal_exp, domain, externals = parse_problem(problem, stream_info=stream_info, constraints=constraints)
+    evaluations, goal_exp, domain, externals = parse_problem(
+        problem, stream_info=stream_info, constraints=constraints, unit_costs=unit_costs)
     #initial_evaluations = copy.copy(evaluations)
-    unit_costs |= not has_costs(domain)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)
     if visualize and not has_pygraphviz():
@@ -98,9 +98,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
             search_time, sample_time, store.elapsed_time()))
         max_cost = min(store.best_cost, constraints.max_cost)
         solve_stream_plan = lambda sr: solve_stream_plan_fn(evaluations, goal_exp, domain, sr, negative,
-                                                            max_cost=max_cost, unit_costs=unit_costs,
                                                             unit_efforts=unit_efforts, effort_weight=effort_weight,
-                                                            **search_kwargs)
+                                                            max_cost=max_cost, **search_kwargs)
         #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
         combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
         if action_info:

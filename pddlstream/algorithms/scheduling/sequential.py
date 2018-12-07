@@ -49,7 +49,7 @@ def simplify_actions(opt_evaluations, action_plan, task, actions, unit_costs):
 
 
 def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
-                           negated, effort_weight, unit_costs=True, debug=False, **kwargs):
+                           negated, effort_weight, unit_costs=False, debug=False, **kwargs):
     # Intuitively, actions have infinitely more weight than streams
     if negated:
         raise NotImplementedError(negated)

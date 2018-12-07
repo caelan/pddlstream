@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import product
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    get_goal_instance, plan_preimage, get_literals, instantiate_task, \
+    get_goal_instance, plan_preimage, get_literals, instantiate_task, get_cost_scale, \
     sas_from_instantiated, scale_cost, fd_from_fact, parse_action, literal_holds
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, recover_negative_axioms
@@ -253,13 +253,13 @@ def get_plan_cost(action_plan, cost_from_action, unit_costs):
     if unit_costs:
         return len(action_plan)
     #return sum([0.] + [instance.cost for instance in action_plan])
-    return sum([0.] + [cost_from_action[instance] for instance in action_plan])
+    return sum([0.] + [cost_from_action[instance] for instance in action_plan]) / get_cost_scale()
 
 def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative, unit_costs,
-                        unit_efforts, effort_weight, debug=False, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative,
+                        unit_efforts, effort_weight, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(evaluations, stream_results,

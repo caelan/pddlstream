@@ -3,7 +3,7 @@ from collections import OrderedDict, deque, namedtuple, Counter
 
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    parse_lisp, sas_from_pddl, parse_goal
+    parse_lisp, sas_from_pddl, parse_goal, make_cost
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
@@ -68,12 +68,15 @@ def check_problem(domain, streams, obj_from_constant):
 def evaluations_from_init(init):
     return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)), INITIAL_EVALUATION) for f in init)
 
-def parse_problem(problem, stream_info={}, constraints=None):
+def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False):
     # TODO: just return the problem if already written programmatically
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
+    if unit_costs: # set the cost scale to be one here?
+        for action in domain.actions:
+            action.cost = make_cost(1)
     obj_from_constant = parse_constants(domain, constant_map)
     if constraints is not None:
        goal = add_plan_constraints(constraints, domain, init, goal)
@@ -126,9 +129,9 @@ def has_costs(domain):
             return True
     return False
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=None, debug=False, **kwargs):
-    if unit_costs is None:
-        unit_costs = not has_costs(domain)
+def solve_finite(evaluations, goal_expression, domain, unit_costs=False, debug=False, **kwargs):
+    #if unit_costs is None:
+    #    unit_costs = not has_costs(domain)
     problem = get_problem(evaluations, goal_expression, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)
