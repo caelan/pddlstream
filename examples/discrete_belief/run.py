@@ -288,7 +288,7 @@ def main(deterministic=False, observable=False, collisions=True, focused=True, f
             'LookCost': FunctionInfo(get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
         }
         solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner=planner, debug=False,
-                                 max_cost=0, unit_costs=False, max_time=30)
+                                 success_cost=0, unit_costs=False, max_time=30)
     else:
         solution = solve_incremental(pddlstream_problem, planner=planner, debug=True,
                                      success_cost=MAX_COST, unit_costs=False, max_time=30)

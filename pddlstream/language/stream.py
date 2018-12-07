@@ -33,6 +33,9 @@ def get_identity_fn(indices):
 
 ##################################################
 
+# TODO: make wild the default output
+Wild = namedtuple('Wild', ['outputs', 'facts'])
+
 class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
     def values(self):
@@ -47,7 +50,7 @@ class PartialInputs(object):
         stream = stream_instance.external
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
-        # TODO: ensure no scoping error with inputs
+        # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
             input_objects = stream_instance.input_objects
             mapping = get_mapping(stream.inputs, input_objects)
@@ -98,7 +101,7 @@ class StreamInfo(ExternalInfo):
                  p_success=None, overhead=None, negate=False, effort_fn=None, simultaneous=False):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(eager, p_success, overhead, effort_fn)
-        self.opt_gen_fn = opt_gen_fn
+        self.opt_gen_fn = opt_gen_fn # TODO: call this an abstraction instead
         self.negate = negate
         self.simultaneous = simultaneous
         #self.order = 0
@@ -229,7 +232,7 @@ class StreamInstance(Instance):
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real and not real verifications of things?
-        # TODO: resue these?
+        # TODO: reuse these?
         self.opt_results = []
         output_set = set()
         for output_list in self.opt_gen_fn(*self.get_input_values()):

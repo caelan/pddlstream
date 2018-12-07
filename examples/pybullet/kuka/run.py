@@ -184,7 +184,7 @@ def main(display=True, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, max_cost=INF)
+    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

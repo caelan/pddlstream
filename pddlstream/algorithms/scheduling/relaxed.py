@@ -52,7 +52,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
     # TODO: ensure that derived facts aren't in fluents?
     # TODO: handle case where costs depend on the outputs
     _, outgoing_edges = neighbors_from_orders(get_partial_orders(
-        stream_plan, init_facts=map(fact_from_fd, real_states[0])))
+        stream_plan, init_facts=map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom), real_states[0]))))
     static_plan = []
     fluent_plan = []
     for result in stream_plan:
@@ -70,6 +70,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
                 OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), i))
                 for i, out in enumerate(result.output_objects)]
             if new_output_objects and (state_index < len(action_plan)):
+                # TODO: check that the objects aren't used in any effects
                 instance = copy.copy(action_plan[state_index])
                 action_plan[state_index] = instance
                 output_mapping = get_mapping(map(pddl_from_object, result.output_objects),
@@ -222,9 +223,10 @@ def recover_axioms_plans(instantiated, action_instances):
     axiom_plans = []
     for action_instance in action_instances + [get_goal_instance(task.goal)]:
         # TODO: apply all axiom_instances unaffected by negative conditions
+        preimage = list(plan_preimage([action_instance], []))
         axiom_instances = filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
                                                 for l in ax.condition), instantiated.axioms)
-        preimage = list(plan_preimage([action_instance], []))
+        # Only instantiate if preimage has goal
         axiom_plan = extraction_helper(state, axiom_instances, preimage)
         assert axiom_plan is not None
         axiom_plans.append(axiom_plan)

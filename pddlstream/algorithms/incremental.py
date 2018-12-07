@@ -90,14 +90,14 @@ def function_process_stream_queue(instantiator, evaluations, **kwargs):
         else:
             instantiator.stream_queue.rotate(-1)
 
-def layered_process_stream_queue(instantiator, evaluations, store, num_layers):
+def layered_process_stream_queue(instantiator, evaluations, store, num_layers, **kwargs):
     # TODO: priority queue and iteratively increase max stream max or add effort
     num_calls = 0
     for _ in range(num_layers):
         for _ in range(len(instantiator.stream_queue)):
             if store.is_terminated():
                 return num_calls
-            process_stream_queue(instantiator, evaluations, verbose=store.verbose)
+            process_stream_queue(instantiator, evaluations, **kwargs)
             num_calls += 1
     return num_calls
 
@@ -138,7 +138,8 @@ def solve_incremental(problem, constraints=PlanConstraints(), layers_per_iterati
             store.add_plan(plan, cost)
         if store.is_terminated() or not instantiator.stream_queue:
             break
-        num_calls += layered_process_stream_queue(instantiator, evaluations, store, layers_per_iteration)
+        num_calls += layered_process_stream_queue(instantiator, evaluations, store,
+                                                  layers_per_iteration, verbose=verbose)
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return revert_solution(store.best_plan, store.best_cost, evaluations)

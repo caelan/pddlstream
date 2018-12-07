@@ -135,7 +135,7 @@ def is_useful_atom(atom, conditions_from_predicate):
     if not isinstance(atom, pddl.Atom):
         return False
     for atom2 in conditions_from_predicate[atom.predicate]:
-        if all(is_parameter(a2) or (a1 == a2) for a1, a2 in zip(atom.args, atom2.args)):
+        if all(is_parameter(a2) or (a1 == a2) for a1, a2 in safe_zip(atom.args, atom2.args)):
             return True
     return False
 

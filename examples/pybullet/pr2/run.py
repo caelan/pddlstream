@@ -232,7 +232,7 @@ def main(display=True, simulate=False, teleport=False):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                             synthesizers=synthesizers, max_cost=INF)
+                             synthesizers=synthesizers, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     print('Real cost:', float(cost)/SCALE_COST)

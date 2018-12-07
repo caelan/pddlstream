@@ -131,14 +131,15 @@ def display_plan(tamp_problem, plan, display=True):
         user_input('Finish?')
 
 
-def main(unit_costs=False, use_synthesizers=False):
+def main(use_synthesizers=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     args = parser.parse_args()
     print('Arguments:', args)
-    print('Costs: {} | Synthesizers: {}'.format(not unit_costs, use_synthesizers))
+    print('Synthesizers: {}'.format(use_synthesizers))
 
     np.set_printoptions(precision=2)
     if args.deterministic:
@@ -201,13 +202,13 @@ def main(unit_costs=False, use_synthesizers=False):
     if args.algorithm == 'focused':
         solution = solve_focused(pddlstream_problem, action_info=action_info, stream_info=stream_info,
                                  planner='ff-wastar1', max_planner_time=10, synthesizers=synthesizers, verbose=True,
-                                 max_time=300, max_cost=INF, debug=False, hierarchy=hierarchy,
-                                 effort_weight=1, search_sampling_ratio=0, # TODO: run with search_sampling_ratio=1
-                                 unit_costs=unit_costs, postprocess=False, visualize=False)
+                                 max_time=300, success_cost=INF, debug=False, hierarchy=hierarchy,
+                                 effort_weight=1, search_sampling_ratio=1,  # TODO: run with search_sampling_ratio=1
+                                 unit_costs=args.unit, postprocess=False, visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      layers_per_iteration=1, hierarchy=hierarchy,
-                                     unit_costs=unit_costs, verbose=False)
+                                     unit_costs=args.unit, verbose=False)
     else:
         raise ValueError(args.algorithm)
 

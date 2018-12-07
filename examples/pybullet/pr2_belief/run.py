@@ -241,7 +241,7 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
     pr = cProfile.Profile()
     pr.enable()
     solution = solve_focused(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
-                             max_cost=MAX_COST, verbose=verbose)
+                             success_cost=MAX_COST, verbose=verbose)
     pr.disable()
     plan, cost, evaluations = solution
     if MAX_COST <= cost:

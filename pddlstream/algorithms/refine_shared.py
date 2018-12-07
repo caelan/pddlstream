@@ -12,6 +12,10 @@ from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import INF
 
 # TODO: lazily expand the shared objects in some cases to prevent increase in size
+# TODO: constrain to using the previous plan skeleton
+# TODO: only use samples in the preimage and plan as well as initial state
+# TODO: control the complexity of both real and optimistic samples based on effort/depth (or holdout)
+# TODO: can iteratively increase bound when instantiating until finite heuristic
 
 RECURSIVE = True
 DOUBLE_BOUND = False
@@ -131,7 +135,6 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 #     return preimage
 
 def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan, depth):
-    # TODO: check empty stream plan first?
     if not RECURSIVE and (depth != 0):
         return None, INF, depth
     combined_plan, cost = solve_stream_plan(stream_results)

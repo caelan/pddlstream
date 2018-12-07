@@ -199,7 +199,7 @@ def planning_from_satisfaction(init, constraints):
             assert len(costs) == 1
             cost = get_args(costs[0])[0]
         actions.append(make_action(name, parameters, preconditions, effects, cost))
-        actions[-1].dump()
+        #actions[-1].dump()
         bound_parameters.update(cluster.parameters)
 
     predicates = [make_predicate(ORDER_PREDICATE, ['?x'])]
