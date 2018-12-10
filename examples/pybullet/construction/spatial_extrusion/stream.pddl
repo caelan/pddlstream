@@ -12,4 +12,8 @@
     :outputs (?t)
     :certified (and (PrintAction ?n ?e ?t) (Traj ?t))
   )
+  (:stream test-stiffness
+   :fluents (Printed)
+   :certified (Stiff)
+  )
 )

@@ -21,6 +21,7 @@ EXTRUSION_FILENAMES = {
     'topopt-205': 'topopt-205_S0.7_09-17-2018.json',
     'topopt-310': 'topopt-310_S1.0_09-17-2018.json',
     'voronoi': 'voronoi_S1.0_09-05-2018.json',
+    'simple_frame': 'simple_frame.json',
 }
 
 KUKA_PATH = '../models/framefab_kr6_r900_support/urdf/kr6_r900.urdf'
@@ -35,9 +36,13 @@ DISABLED_COLLISIONS = [
 ]
 # [u'base_frame_in_rob_base', u'element_list', u'node_list', u'assembly_type', u'model_type', u'unit']
 
+DEFAULT_SCALE = 1e-3 # TODO: load different scales
+
 ##################################################
 
 def load_extrusion(extrusion_name):
+    if extrusion_name not in EXTRUSION_FILENAMES:
+        raise ValueError(extrusion_name)
     root_directory = os.path.dirname(os.path.abspath(__file__))
     extrusion_path = os.path.join(root_directory, EXTRUSION_DIRECTORY, EXTRUSION_FILENAMES[extrusion_name])
     print('Name: {}'.format(extrusion_name))
@@ -54,7 +59,7 @@ def load_extrusion(extrusion_name):
         len(node_points), len(ground_nodes), len(elements)))
     return elements, node_points, ground_nodes
 
-def parse_point(json_point, scale=1e-3):
+def parse_point(json_point, scale=DEFAULT_SCALE):
     return scale * np.array([json_point['X'], json_point['Y'], json_point['Z']])
 
 def parse_transform(json_transform):
@@ -99,7 +104,9 @@ def create_elements(node_points, elements, radius=0.0005, color=(1, 0, 0, 1)):
     radius = 1e-6
     # TODO: seems to be a min radius
 
-    shrink = 0.01
+    #shrink = 0.01
+    shrink = 0.005
+    #shrink = 0.002
     #shrink = 0.
     element_bodies = []
     for (n1, n2) in elements:

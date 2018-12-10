@@ -1,16 +1,19 @@
+from __future__ import print_function
+
 import json
 import os
 import cProfile
 import pstats
 import numpy as np
 import time
+import argparse
 
 from collections import namedtuple
 
 from examples.pybullet.construction.spatial_extrusion.run import MotionTrajectory
 from examples.pybullet.construction.spatial_extrusion.utils import DISABLED_COLLISIONS, parse_point, parse_transform
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, has_link, set_pose, \
-    multiply, invert, inverse_kinematics, plan_waypoints_joint_motion, Attachment, set_joint_positions, unit_quat, \
+    multiply, invert, inverse_kinematics, plan_direct_joint_motion, Attachment, set_joint_positions, unit_quat, \
     plan_joint_motion, get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, set_point, \
     draw_pose, unit_quat, create_obj, add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn, \
     wait_for_duration, enable_gravity, enable_real_time, trajectory_controller, simulate_controller, \
@@ -76,7 +79,7 @@ def load_pick_and_place(extrusion_name, scale=0.001, max_bricks=6):
         #world = load_pybullet(os.path.join(bricks_directory, 'urdf', 'brick_demo.urdf'))
         robot = load_pybullet(os.path.join(root_directory, kuka_urdf), fixed_base=True)
     #set_point(robot, (0.14, 0, 0))
-    dump_body(robot)
+    #dump_body(robot)
 
     pick_base_point = parse_point(json_data['pick_base_center_point'])
     draw_pose((pick_base_point, unit_quat()))
@@ -169,9 +172,10 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
             if approach_conf is None:
                 continue
             # TODO: retreat
-            path = plan_waypoints_joint_motion(robot, movable_joints, [approach_conf, attach_conf],
-                                               obstacles=obstacle_from_name.values(),
-                                               self_collisions=SELF_COLLISIONS, disabled_collisions=disabled_collisions)
+            path = plan_direct_joint_motion(robot, movable_joints, attach_conf,
+                                            obstacles=obstacle_from_name.values(),
+                                            self_collisions=SELF_COLLISIONS,
+                                            disabled_collisions=disabled_collisions)
             if path is None:
                 continue
             #path = [approach_conf, attach_conf]
@@ -342,10 +346,19 @@ def simulate_plan(plan, time_step=0.0, real_time=False): #time_step=np.inf
 
 ##################################################
 
-def main(viewer=True, collisions=False):
-    connect(use_gui=viewer)
-    robot, brick_from_index, obstacle_from_name = load_pick_and_place('choreo_brick_demo') # choreo_brick_demo | choreo_eth-trees_demo
-    if not collisions:
+def main():
+    # TODO: restrict joint limits for base link using custom_joint_limits
+    parser = argparse.ArgumentParser()
+    # choreo_brick_demo | choreo_eth-trees_demo
+    parser.add_argument('-p', '--problem', default='choreo_brick_demo', help='The name of the problem to solve')
+    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions with obstacles')
+    parser.add_argument('-v', '--viewer', action='store_true', help='Enables the viewer during planning (slow!)')
+    args = parser.parse_args()
+    print('Arguments:', args)
+
+    connect(use_gui=args.viewer)
+    robot, brick_from_index, obstacle_from_name = load_pick_and_place(args.problem)
+    if args.cfree:
         obstacle_from_name = {}
 
     np.set_printoptions(precision=2)

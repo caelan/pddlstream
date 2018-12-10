@@ -17,6 +17,7 @@
     (Supported ?e)
     (Supports ?e ?n)
     ; (Grounded ?e)
+    (Stiff)
   )
   ; Most constrained -> least constrained
   ; TODO: could implement as a state constraint. At each timestep, all nodes are supported or connected
@@ -25,6 +26,7 @@
   (:action print
     :parameters (?n ?e ?t)
     :precondition (and (PrintAction ?n ?e ?t) (Printed ?e)
+                       ; (Stiff)
                        (forall (?e2) (imply (Supports ?e2 ?n) (Printed ?e2)))
                        ; (Connected ?n)
                        ; (Supported ?n)
