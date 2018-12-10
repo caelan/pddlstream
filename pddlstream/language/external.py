@@ -70,51 +70,6 @@ class Instance(object):
     def num_calls(self):
         return len(self.results_history)
 
-    # def get_belief(self):
-    #     #return 1.
-    #     #prior = self.external.prior
-    #     prior = 1. - 1e-2
-    #     n = self.num_calls
-    #     p_obs_given_state = self.external.get_p_success()
-    #     p_state = prior
-    #     for i in range(n):
-    #         p_nobs_and_state = (1-p_obs_given_state)*p_state
-    #         p_nobs_and_nstate = (1-p_state)
-    #         p_nobs = p_nobs_and_state + p_nobs_and_nstate
-    #         p_state = p_nobs_and_state/p_nobs
-    #     return p_state
-
-    # def update_belief(self, success):
-    #     # Belief that remaining sequence is non-empty
-    #     # Belief only degrades in this case
-    #     nonempty = 0.9
-    #     p_success_nonempty = 0.5
-    #     if success:
-    #         p_success = p_success_nonempty*nonempty
-    #     else:
-    #         p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
-
-    #def get_p_success(self):
-        #p_success_belief = self.external.get_p_success()
-        #belief = self.get_belief()
-        #return p_success_belief*belief
-        # TODO: use the external as a prior
-        # TODO: Bayesian estimation of likelihood that has result
-        # Model hidden state of whether has values or if will produce values?
-        # TODO: direct estimation of different buckets in which it will finish
-        # TODO: we have samples from the CDF or something
-
-    #def get_p_success(self):
-    #    return self.external.get_p_success()
-    #
-    #def get_overhead(self):
-    #    return self.external.get_overhead()
-
-    def get_effort(self):
-        if self.external.info.effort_fn is not None:
-            return self.external.info.effort_fn(*self.get_input_values())
-        return geometric_cost(self.external.get_overhead(), self.external.get_p_success())
-
     def get_input_values(self):
         return values_from_objects(self.input_objects)
 
@@ -169,14 +124,30 @@ class External(Performance):
 
 ##################################################
 
-def get_plan_effort(stream_plan, unit_efforts=False):
+DEFAULT_SEARCH_OVERHEAD = 1e-2
+
+def compute_effort(instance, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+    # TODO: handle case where resampled several times before the next search (search every ith time)
+    external = instance.external
+    info = external.info
+    if info.effort_fn is not None:
+        return info.effort_fn(*instance.get_input_values())
+    # Can also include the overhead to process skeletons
+    # By linearity of expectation
+    p_success = external.get_p_success()
+    return geometric_cost(external.get_overhead(), p_success) \
+           + (1-p_success)*geometric_cost(search_overhead, p_success) \
+           + instance.opt_index * search_overhead
+
+def get_plan_effort(stream_plan, unit_efforts=False, **kwargs):
     if stream_plan is None:
         return INF
     if unit_efforts:
         return len(stream_plan)
     if not stream_plan:
         return 0
-    return sum(result.instance.get_effort() for result in stream_plan)
+    return sum(compute_effort(result.instance, **kwargs)
+               for result in stream_plan)
 
 def get_procedure_fn(stream_map, name):
     if stream_map == DEBUG:

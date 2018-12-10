@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import count
 
-from pddlstream.algorithms.downward import fd_from_fact, make_preconditions, make_effects, make_cost
+from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom
 from pddlstream.language.conversion import evaluation_from_fact, \
     is_atom
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args, OBJECT
@@ -88,7 +88,6 @@ def create_static_stream(stream, evaluations, fluent_predicates, get_future):
     return static_stream
 
 def compile_to_exogenous_actions(evaluations, domain, streams):
-    import pddl
     # TODO: automatically derive fluents
     # TODO: version of this that operates on fluents of length one?
     # TODO: better instantiation when have full parameters
@@ -105,20 +104,18 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
         streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
         stream_atom = streams[-1].certified[0]
-        parameters = [pddl.TypedObject(p, OBJECT) for p in get_args(stream_atom)]
-        # TODO: add to predicates as well?
-        domain.predicate_dict[get_prefix(stream_atom)] = pddl.Predicate(get_prefix(stream_atom), parameters)
+        add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(stream.domain)
         effort = 1 # TODO: use stream info
         #effort = 1 if unit_cost else result.instance.get_effort()
         #if effort == INF:
         #    continue
-        domain.actions.append(pddl.Action(name='call-{}'.format(stream.name),
-                                          parameters=parameters,
-                                          num_external_parameters=len(parameters),
-                                          precondition=make_preconditions(preconditions),
-                                          effects=make_effects(stream.certified),
-                                          cost=make_cost(effort)))
+        domain.actions.append(make_action(
+            name='call-{}'.format(stream.name),
+            parameters=get_args(stream_atom),
+            preconditions=preconditions,
+            effects=stream.certified,
+            cost=effort))
         stream.certified = tuple(set(stream.certified) |
                                  set(map(rename_future, stream.certified)))
 
@@ -169,27 +166,22 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
             raise NotImplementedError(stream)
         streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
         stream_atom = streams[-1].certified[0]
-        domain.predicate_dict[get_prefix(stream_atom)] = pddl.Predicate(get_prefix(stream_atom), get_args(stream_atom))
+        add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(map(rename_derived, stream.domain))
-        for fact in stream.certified:
-            derived_fact = fd_from_fact(rename_derived(fact))
-            external_params = derived_fact.args
+        for certified_fact in stream.certified:
+            derived_fact = rename_derived(certified_fact)
+            external_params = get_args(derived_fact)
             internal_params = tuple(p for p in (stream.inputs + stream.outputs)
-                                        if p not in derived_fact.args)
-            parameters = tuple(pddl.TypedObject(p, OBJECT)
-                               for p in (external_params + internal_params))
-            #precondition = pddl.Conjunction(tuple(map(fd_from_fact, [stream_atom] +
-            #                                        list(map(rename_derived, stream.domain)))))
-            #precondition = pddl.Disjunction([fd_from_fact(fact), precondition]) # TODO: quantifier
+                                    if p not in get_args(derived_fact))
             domain.axioms.extend([
-                pddl.Axiom(name=derived_fact.predicate,
-                           parameters=parameters,
-                           num_external_parameters=len(external_params),
-                           condition=make_preconditions(preconditions)),
-                pddl.Axiom(name=derived_fact.predicate,
-                           parameters=parameters[:len(external_params)],
-                           num_external_parameters=len(external_params),
-                           condition=fd_from_fact(fact)),
+                make_axiom(
+                    parameters=external_params,
+                    preconditions=[certified_fact],
+                    derived=derived_fact),
+                make_axiom(
+                    parameters=external_params+internal_params,
+                    preconditions=preconditions,
+                    derived=derived_fact),
             ])
         stream.certified = tuple(set(stream.certified) |
                                  set(map(rename_future, stream.certified)))
@@ -209,5 +201,6 @@ def compile_to_exogenous(evaluations, domain, streams, use_axioms=True):
           'and stream domain conditions: {}'.format(exogenous_predicates))
     if use_axioms:
         compile_to_exogenous_axioms(evaluations, domain, streams)
-    compile_to_exogenous_actions(evaluations, domain, streams)
+    else:
+        compile_to_exogenous_actions(evaluations, domain, streams)
     return True

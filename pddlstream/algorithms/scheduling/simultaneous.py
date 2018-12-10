@@ -7,8 +7,8 @@ from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, subs
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
 from pddlstream.language.stream import Stream, StreamResult
+from pddlstream.language.external import compute_effort
 from pddlstream.utils import INF, find_unique
-from pddlstream.algorithms.scheduling.recover_streams import get_instance_effort
 
 BOUND_PREDICATE = '_bound'
 
@@ -18,14 +18,14 @@ def enforce_single_binding(result, preconditions, effects):
     preconditions.extend(Not(fact) for fact in binding_facts)
     effects.extend(fact for fact in binding_facts)
 
-def get_stream_actions(results, unique_binding=False, unit_efforts=True, effort_scale=1):
+def get_stream_actions(results, unique_binding=False, effort_scale=1, **kwargs):
     result_from_name = {}
     stream_actions = []
     for i, result in enumerate(results):
         #if not isinstance(stream_result, StreamResult):
         if type(result) == FunctionResult:
             continue
-        effort = get_instance_effort(result.instance, unit_efforts)
+        effort = compute_effort(result.instance, **kwargs)
         if effort == INF:
             continue
         # TODO: state constraints

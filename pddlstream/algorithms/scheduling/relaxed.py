@@ -152,8 +152,9 @@ def add_optimizer_effects(instantiated, instance, stream_plan):
         #          for fact in result.instance.get_domain()}
         # TODO: can streams depending on these to be used if the dependent preconditions are added to the action
 
-def add_stream_efforts(node_from_atom, instantiated, unit_efforts, effort_weight):
+def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
     # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
+    efforts = [] # TODO: regularize & normalize across the problem?
     for instance in instantiated.actions:
         # TODO: prune stream actions here?
         facts = get_instance_facts(instance, node_from_atom)
@@ -163,10 +164,12 @@ def add_stream_efforts(node_from_atom, instantiated, unit_efforts, effort_weight
         # TODO: maybe just change efforts at the start to avoid passing around unit_efforts
         # TODO: larger effort for results using shared objects
         # TODO: round each effort individually to penalize multiple streams
-        effort = scale_cost(get_plan_effort(stream_plan, unit_efforts))
         if effort_weight is not None:
-            instance.cost += effort_weight*effort
+            effort = get_plan_effort(stream_plan, **kwargs)
+            instance.cost += scale_cost(effort_weight*effort)
+            efforts.append(effort)
         add_optimizer_effects(instantiated, instance, stream_plan)
+    #print(min(efforts), efforts)
 
 ##################################################
 
@@ -267,11 +270,6 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
                         unit_efforts, effort_weight, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
-    #efforts = [result.instance.get_effort() for result in stream_results]
-    #min_effort = min(efforts) # TODO: regularize & normalize across the problem?
-    #print(min_effort, [e/min_effort for e in efforts])
-    # TODO: add some effort for replanning
-
     applied_results, deferred_results = partition_results(evaluations, stream_results,
                                                           apply_now=lambda r: not r.external.info.simultaneous)
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
@@ -287,7 +285,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         return None, INF
     cost_from_action = {action: action.cost for action in instantiated.actions}
     if (effort_weight is not None) or using_optimizers(applied_results):
-        add_stream_efforts(node_from_atom, instantiated, unit_efforts, effort_weight)
+        add_stream_efforts(node_from_atom, instantiated, effort_weight, unit_efforts=unit_efforts)
     add_optimizer_axioms(stream_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
     with Verbose(debug):

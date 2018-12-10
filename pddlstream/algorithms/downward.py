@@ -527,7 +527,7 @@ def make_action(name, parameters, preconditions, effects, cost=None):
 
 def make_axiom(parameters, preconditions, derived):
     predicate = get_prefix(derived)
-    external_parameters = get_args(derived)
+    external_parameters = list(get_args(derived))
     internal_parameters = [p for p in parameters if p not in external_parameters]
     parameters = external_parameters + internal_parameters
     return pddl.Axiom(name=predicate,

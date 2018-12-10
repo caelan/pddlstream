@@ -124,7 +124,17 @@ def write_stream_statistics(externals, verbose):
 
 ##################################################
 
-# TODO: cannot easily do Bayesian hypothesis testing because might never receive groundtruth when empty
+def hash_object(evaluations, obj):
+    # TODO: hash an object by the DAG of streams that produced it
+    # Use this to more finely estimate the parameters of a stream
+    # Can marginalize over conditional information to recover the same overall statistics
+    # Can also apply this directly to domain facts
+    raise NotImplementedError()
+
+##################################################
+
+# TODO: cannot easily do Bayesian hypothesis testing because might never receive ground truth when empty
+# In some cases, the stream does finish though
 
 # Estimate probability that will generate result
 # Need to produce belief that has additional samples
@@ -197,9 +207,6 @@ class Performance(object):
             return self._estimate_overhead()
         return self.info.overhead
 
-    #def get_effort(self):
-    #    return geometric_cost(self.get_overhead(), self.get_p_success())
-
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.total_calls, self.get_p_success(), self.get_overhead()))
@@ -212,3 +219,46 @@ class Performance(object):
             safe_ratio(self.online_success, self.online_calls),
             safe_ratio(self.online_overhead, self.online_calls),
             self.online_overhead))
+
+##################################################
+
+# Previously in Instance
+# def get_belief(self):
+#     #return 1.
+#     #prior = self.external.prior
+#     prior = 1. - 1e-2
+#     n = self.num_calls
+#     p_obs_given_state = self.external.get_p_success()
+#     p_state = prior
+#     for i in range(n):
+#         p_nobs_and_state = (1-p_obs_given_state)*p_state
+#         p_nobs_and_nstate = (1-p_state)
+#         p_nobs = p_nobs_and_state + p_nobs_and_nstate
+#         p_state = p_nobs_and_state/p_nobs
+#     return p_state
+
+# def update_belief(self, success):
+#     # Belief that remaining sequence is non-empty
+#     # Belief only degrades in this case
+#     nonempty = 0.9
+#     p_success_nonempty = 0.5
+#     if success:
+#         p_success = p_success_nonempty*nonempty
+#     else:
+#         p_success = (1-p_success_nonempty)*nonempty + (1-nonempty)
+
+#def get_p_success(self):
+    #p_success_belief = self.external.get_p_success()
+    #belief = self.get_belief()
+    #return p_success_belief*belief
+    # TODO: use the external as a prior
+    # TODO: Bayesian estimation of likelihood that has result
+    # Model hidden state of whether has values or if will produce values?
+    # TODO: direct estimation of different buckets in which it will finish
+    # TODO: we have samples from the CDF or something
+
+#def get_p_success(self):
+#    return self.external.get_p_success()
+#
+#def get_overhead(self):
+#    return self.external.get_overhead()

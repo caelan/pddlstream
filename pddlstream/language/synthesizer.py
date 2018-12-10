@@ -62,8 +62,6 @@ class SynthStream(Stream):
         return self.synthesizer.get_p_success()
     def get_overhead(self):
         return self.synthesizer.get_overhead()
-    def get_effort(self):
-        return self.synthesizer.get_effort()
     #def decompose(self):
     #    return self.streams
 

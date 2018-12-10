@@ -3,11 +3,11 @@ from itertools import product
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
-from pddlstream.algorithms.scheduling.recover_streams import get_instance_effort
 from pddlstream.algorithms.algorithm import dump_plans
 from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.external import compute_effort
 from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import INF
 
@@ -49,7 +49,7 @@ def is_double_bound(stream_instance, double_bindings):
     return len(set(bindings)) != len(bindings)
 
 
-def optimistic_process_streams(evaluations, streams, double_bindings=None, unit_efforts=False, max_effort=INF):
+def optimistic_process_streams(evaluations, streams, double_bindings=None, max_effort=INF, **kwargs):
     # TODO: iteratively increase max_effort to bias towards easier streams to start
     # TODO: cut off instantiation using max_effort
     # TODO: make each repeated optimistic object have ordinal more effort
@@ -63,7 +63,7 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None, unit_
         instance = instantiator.stream_queue.popleft()
         if not is_double_bound(instance, double_bindings):
             continue
-        effort = get_instance_effort(instance, unit_efforts)
+        effort = compute_effort(instance, **kwargs)
         #op = sum # max | sum
         #total_effort = effort + op(effort_from_fact[fact] for fact in instance.get_domain())
         if max_effort <= effort:
