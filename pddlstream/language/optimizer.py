@@ -1,18 +1,16 @@
+import copy
 from collections import Counter, deque
 
-from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
-from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact, fact_from_evaluation
-from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, NEGATIVE_SUFFIX
-from pddlstream.language.generator import empty_gen
-from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import get_mapping, INF, neighbors_from_orders, elapsed_time, INF, get_mapping, str_from_object
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.algorithms.downward import fd_from_fact, make_parameters, make_preconditions
+from pddlstream.algorithms.scheduling.utils import partition_external_plan
+from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
+from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
+from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import FunctionResult
+from pddlstream.language.object import OptimisticObject
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, NEGATIVE_SUFFIX
 from pddlstream.language.synthesizer import get_cluster_values
-
-import copy
+from pddlstream.utils import neighbors_from_orders, INF, get_mapping
 
 # TODO: could also just block a skeleton itself by adding it as a state variable
 
@@ -303,11 +301,6 @@ def sequence_results(evaluations, combined_results):
         else: # TODO: can also just try one cluster and return
             return None
     return combined_plan
-
-def partition_external_plan(external_plan):
-    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
-    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
-    return stream_plan, function_plan
 
 def combine_optimizers(evaluations, external_plan):
     if external_plan is None:

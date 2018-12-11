@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.language.stream import StreamResult
 from pddlstream.language.function import FunctionResult
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
 from pddlstream.utils import INF
@@ -50,3 +49,9 @@ def apply_streams(evaluations, stream_results):
         for fact in result.get_certified():
             function_evaluations[evaluation_from_fact(fact)] = result
     return function_evaluations
+
+
+def partition_external_plan(external_plan):
+    function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
+    stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
+    return stream_plan, function_plan

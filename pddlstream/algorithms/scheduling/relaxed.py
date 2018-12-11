@@ -13,13 +13,13 @@ from pddlstream.algorithms.scheduling.recover_streams import get_achieving_strea
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
     add_stream_actions, partition_plan, add_unsatisfiable_to_goal
 from pddlstream.algorithms.scheduling.utils import partition_results, \
-    get_results_from_head, apply_streams
+    get_results_from_head, apply_streams, partition_external_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
-from pddlstream.language.external import get_plan_effort
-from pddlstream.language.optimizer import partition_external_plan, is_optimizer_result, UNSATISFIABLE
+from pddlstream.language.external import get_plan_effort, Result
+from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE
 from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders
 
 def compute_function_plan(opt_evaluations, action_plan, unit_costs):
@@ -87,16 +87,14 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
 
 ##################################################
 
-def recover_stream_plan(evaluations, goal_expression, domain, stream_results, action_plan, axiom_plans,
-                        negative, unit_costs):
+def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, node_from_atom,
+                        action_plan, axiom_plans, negative, unit_costs):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
     # Added effects cancel out removed effects
-
+    # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
     real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
-    node_from_atom = get_achieving_streams(evaluations, stream_results)
-    opt_evaluations = apply_streams(evaluations, stream_results)
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
     negative_from_name = get_negative_predicates(negative)
 
@@ -267,14 +265,20 @@ def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative,
-                        unit_efforts, effort_weight, unit_costs=False, debug=False, **kwargs):
+                        unit_efforts, effort_weight, reachieve=False, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(evaluations, stream_results,
                                                           apply_now=lambda r: not r.external.info.simultaneous)
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
-    node_from_atom = get_achieving_streams(evaluations, applied_results)
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
+
+    if reachieve:
+        achieved_results = {r for r in evaluations.values() if isinstance(r, Result)}
+        init_evaluations = {e for e, r in evaluations.items() if r not in achieved_results}
+        applied_results = achieved_results | set(applied_results)
+        evaluations = init_evaluations # For clarity
+    node_from_atom = get_achieving_streams(evaluations, applied_results)
     if using_optimizers(stream_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric
@@ -302,7 +306,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
-        evaluations, goal_expression, stream_domain, applied_results, action_instances, axiom_plans, negative, unit_costs))
+        evaluations, opt_evaluations, goal_expression, stream_domain, node_from_atom,
+        action_instances, axiom_plans, negative, unit_costs))
     #action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
     action_plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
 
