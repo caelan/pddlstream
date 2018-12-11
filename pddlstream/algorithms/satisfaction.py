@@ -97,8 +97,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
     action_plan = [('bindings', free_parameters)]
 
     queue = SkeletonQueue(store, evaluations, None, None)
-    terminate = not process_skeleton_queue(store, queue, stream_plan, action_plan,
-                                           cost=0, max_sample_time=max_sample_time)
+    terminate = not queue.process(stream_plan, action_plan, cost=0, max_time=max_sample_time)
 
     #write_stream_statistics(externals + synthesizers, verbose)
     plan, cost, init = revert_solution(store.best_plan, store.best_cost, evaluations)

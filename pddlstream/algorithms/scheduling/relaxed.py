@@ -268,8 +268,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
                         unit_efforts, effort_weight, reachieve=False, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
-    applied_results, deferred_results = partition_results(evaluations, stream_results,
-                                                          apply_now=lambda r: not r.external.info.simultaneous)
+    applied_results, deferred_results = partition_results(
+        evaluations, stream_results, apply_now=lambda r: not r.external.info.simultaneous)
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
 
