@@ -18,7 +18,7 @@ from pddlstream.language.stream import parse_stream, Stream
 from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
 
 
-DEFAULT_EVALUATION = None
+INIT_EVALUATION = None
 
 def parse_constants(domain, constant_map):
     obj_from_constant = {}
@@ -67,7 +67,7 @@ def check_problem(domain, streams, obj_from_constant):
 
 def evaluations_from_init(init):
     return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)),
-                        DEFAULT_EVALUATION) for f in init)
+                        INIT_EVALUATION) for f in init)
 
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
@@ -174,7 +174,7 @@ class SolutionStore(object):
     #def __repr__(self):
     #    raise NotImplementedError()
 
-def add_facts(evaluations, fact, result=DEFAULT_EVALUATION):
+def add_facts(evaluations, fact, result=INIT_EVALUATION):
     new_evaluations = []
     for fact in fact:
         evaluation = evaluation_from_fact(fact)

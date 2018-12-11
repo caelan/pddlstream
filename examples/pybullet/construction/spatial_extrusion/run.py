@@ -11,8 +11,7 @@ from examples.pybullet.construction.spatial_extrusion.utils import create_elemen
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, add_text, angle_between, plan_joint_motion, \
-    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, \
-    get_collision_fn
+    get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, And
 from pddlstream.language.generator import from_test
@@ -156,7 +155,7 @@ def get_pddlstream(robot, obstacles, node_points, element_bodies, ground_nodes,
 
 def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes,
                   trajectories=[], collisions=True,
-                  debug=False):
+                  debug=False, max_time=30):
     if trajectories is None:
         return None
     # TODO: iterated search using random restarts
@@ -174,7 +173,7 @@ def plan_sequence(robot, obstacles, node_points, element_bodies, ground_nodes,
     }
     #planner = 'ff-ehc'
     planner = 'ff-lazy-tiebreak' # Branching factor becomes large. Rely on preferred. Preferred should also be cheaper
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=30,
+    solution = solve_focused(pddlstream_problem, stream_info=stream_info, max_time=max_time,
                              effort_weight=1, unit_efforts=True, use_skeleton=False, unit_costs=True,
                              planner=planner, max_planner_time=15, debug=debug, reorder=False)
     # Reachability heuristics good for detecting dead-ends
@@ -245,8 +244,8 @@ def compute_direction_path(robot, length, reverse, element_body, direction, coll
     for translation in steps[1:]:
         #set_joint_positions(robot, movable_joints, current_conf)
         initial_angles = [wrap_angle(current_angle + delta) for delta in angle_deltas]
-        current_angle, current_conf = optimize_angle(robot, link, element_pose,
-                                                     translation, direction, reverse, initial_angles, collision_fn)
+        current_angle, current_conf = optimize_angle(
+            robot, link, element_pose, translation, direction, reverse, initial_angles, collision_fn)
         if current_conf is None:
             return None
         trajectory.append(current_conf)
@@ -270,7 +269,7 @@ def sample_print_path(robot, length, reverse, element_body, collision_fn):
 ##################################################
 
 def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
-    max_attempts = 150
+    max_attempts = 300 # 150 | 300
     max_trajectories = 10
     check_collisions = True
     # 50 doesn't seem to be enough
@@ -284,7 +283,7 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
     # TODO: can slide a component of the element down
     # TODO: prioritize choices that don't collide with too many edges
 
-    def gen_fn(node1, element, fluents=[]):
+    def gen_fn(node1, element): # fluents=[]):
         reverse = (node1 != element[0])
         element_body = element_bodies[element]
         n1, n2 = reversed(element) if reverse else element
@@ -316,22 +315,26 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
                     continue
                 print_traj = PrintTrajectory(robot, movable_joints, path, element, reverse, colliding)
                 trajectories.append(print_traj)
+                # TODO: need to prune dominated trajectories
                 if print_traj not in trajectories:
                     continue
-                print('{}) {}->{} ({}) | {} | {} | {}'.format(num, n1, n2, len(supporters), attempt, len(trajectories),
-                                                              sorted(len(t.colliding) for t in trajectories)))
-                yield print_traj,
+                print('{}) {}->{} ({}) | {} | {} | {}'.format(
+                    num, n1, n2, len(supporters), attempt, len(trajectories),
+                    sorted(len(t.colliding) for t in trajectories)))
+                yield (print_traj,)
                 if not colliding:
                     return
             else:
-                print('{}) {}->{} ({}) | {} | Failure!'.format(num, len(supporters), n1, n2, max_attempts))
-                break
+                print('{}) {}->{} ({}) | {} | Max attempts exceeded!'.format(
+                    num, len(supporters), n1, n2, max_attempts))
+                user_input('Continue?')
+                return
     return gen_fn
 
 def get_wild_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes, collisions=True):
     gen_fn = get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes)
-    def wild_gen_fn(node1, element, fluents=[]):
-        for t, in gen_fn(node1, element, fluents=fluents):
+    def wild_gen_fn(node1, element):
+        for t, in gen_fn(node1, element):
             outputs = [(t,)]
             facts = [('Collision', t, e2) for e2 in t.colliding] if collisions else []
             #outputs = []
@@ -343,6 +346,7 @@ def test_stiffness(fluents=[]):
     assert all(fact[0] == 'printed' for fact in fluents)
     elements = {fact[1] for fact in fluents}
     # https://github.com/yijiangh/conmech
+    # TODO: to use the non-skeleton focused algorithm, need to remove the negative axiom upon success
     #import conmech_py
     #print(elements)
     return True
@@ -397,7 +401,7 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
                                  weights=weights, resolutions=resolutions,
                                  restarts=5, iterations=50, smooth=100)
         if path is None:
-            print('Failed to find a path!')
+            print('Failed to find a motion plan!')
             return None
         motion_traj = MotionTrajectory(robot, movable_joints, path)
         print('{}) {}'.format(i, motion_traj))

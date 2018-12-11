@@ -100,7 +100,7 @@ UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
-        self.disabled_axiom = None
+        #self.disabled_axiom = None
     def disable(self, evaluations, domain):
         #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain) # StreamInstance instead of OptimizerInstance

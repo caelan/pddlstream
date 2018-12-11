@@ -2,8 +2,8 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
-from pddlstream.algorithms.downward import make_preconditions, make_parameters
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter
+from pddlstream.algorithms.downward import make_axiom
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, make_fact
 from pddlstream.language.conversion import list_from_conjunction, remap_objects, \
     substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
@@ -13,7 +13,7 @@ from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
 from pddlstream.utils import str_from_object, get_mapping, irange
 
 VERBOSE_FAILURES = True
-INTERNAL = False
+INTERNAL_EVALUATION = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
 NEGATIVE_SUFFIX = '-negative'
@@ -123,7 +123,7 @@ class StreamResult(Result):
         return self.external.name, self.instance.input_objects, self.output_objects
     def remap_inputs(self, bindings):
         input_objects = remap_objects(self.instance.input_objects, bindings)
-        fluent_facts = [(get_prefix(f),) + remap_objects(get_args(f), bindings)
+        fluent_facts = [make_fact(get_prefix(f), remap_objects(get_args(f), bindings))
                         for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
         new_instance.opt_index = self.instance.opt_index
@@ -141,11 +141,11 @@ class StreamInstance(Instance):
         self._generator = None
         self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
-        self.axiom_predicate = None
-        self.disabled_axiom = None
-        self.num_optimistic = 1
         opt_gen_fn = self.external.info.opt_gen_fn
         self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+        self.num_optimistic = 1
+        self._axiom_predicate = None
+        self._disabled_axiom = None
 
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
@@ -171,7 +171,7 @@ class StreamInstance(Instance):
         return self.opt_index == 0
 
     def get_fluent_values(self):
-        return [(get_prefix(f),) + values_from_objects(get_args(f)) for f in self.fluent_facts]
+        return [make_fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
 
     def _create_generator(self):
         if self._generator is None:
@@ -253,38 +253,38 @@ class StreamInstance(Instance):
 
     def get_blocked_fact(self):
         if self.external.is_fluent():
-            assert self.axiom_predicate is not None
-            return (self.axiom_predicate,) + self.input_objects
-        return (self.external.blocked_predicate,) + self.input_objects
+            assert self._axiom_predicate is not None
+            return make_fact(self._axiom_predicate, self.input_objects)
+        return make_fact(self.external.blocked_predicate, self.input_objects)
 
     def disable(self, evaluations, domain):
         #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain)
         if not self.external.is_fluent(): # self.fluent_facts:
             if self.external.is_negated() and not self.successes:
-                evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
+                evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL_EVALUATION
             return
 
-        if self.axiom_predicate is not None:
+        if self._axiom_predicate is not None:
             return
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
-        self.axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
-        evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL
+        self._axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
+        evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL_EVALUATION
         # TODO: allow reporting back which components lead to failure
 
-        import pddl
-        static_fact = (self.axiom_predicate,) + self.external.inputs
+        static_fact = make_fact(self._axiom_predicate, self.external.inputs)
         preconditions = [static_fact] + list(self.fluent_facts)
-        self.disabled_axiom = pddl.Axiom(name=self.external.blocked_predicate,
-                                         parameters=make_parameters(self.external.inputs),
-                                         num_external_parameters=len(self.external.inputs),
-                                         condition=make_preconditions(preconditions))
-        domain.axioms.append(self.disabled_axiom)
+        derived_fact = make_fact(self._axiom_predicate, self.external.inputs)
+        self._disabled_axiom = make_axiom(
+            parameters=self.external.inputs,
+            preconditions=preconditions,
+            derived=derived_fact)
+        domain.axioms.append(self._disabled_axiom)
 
     def enable(self, evaluations, domain):
         super(StreamInstance, self).enable(evaluations, domain)
-        if self.axiom_predicate is not None: # TODO: re-enable?
+        if self._axiom_predicate is not None: # TODO: re-enable?
             raise NotImplementedError(self)
 
     def __repr__(self):

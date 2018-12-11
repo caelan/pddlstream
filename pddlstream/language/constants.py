@@ -73,22 +73,32 @@ def get_prefix(expression):
 def get_args(head):
     return head[1:]
 
+
 def concatenate(*args):
     output = []
     for arg in args:
         output.extend(arg)
     return tuple(output)
 
+
 def Fact(predicate, args):
     return (predicate,) + tuple(args)
 
+
 def is_parameter(expression):
     return isinstance(expression, str) and expression.startswith(PARAMETER)
+
 
 def get_parameter_name(expression):
     if is_parameter(expression):
         return expression[len(PARAMETER):]
     return expression
 
+
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
+
+
+def make_fact(predicate, args):
+    # TODO: unify with Fact
+    return (predicate,) + tuple(args)

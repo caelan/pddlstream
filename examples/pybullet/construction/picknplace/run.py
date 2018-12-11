@@ -23,6 +23,7 @@ from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import read, get_file_path, print_solution
 from pddlstream.algorithms.focused import solve_focused
 
+from examples.pybullet.utils.pybullet_tools.ikfast.kuka_kr6r900.ik import sample_tool_ik
 
 #PICKNPLACE_DIRECTORY = 'picknplace/'
 PICKNPLACE_DIRECTORY = ''
@@ -34,7 +35,7 @@ PICKNPLACE_FILENAMES = {
 GRASP_NAMES = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retreat_plane']
 TOOL_NAME = 'eef_tcp_frame' # robot_tool0 | eef_base_link | eef_tcp_frame
 SELF_COLLISIONS = False
-
+MILLIMETER = 0.001
 
 ##################################################
 
@@ -64,7 +65,7 @@ def strip_extension(path):
 
 ##################################################
 
-def load_pick_and_place(extrusion_name, scale=0.001, max_bricks=6):
+def load_pick_and_place(extrusion_name, scale=MILLIMETER, max_bricks=6):
     assert extrusion_name == 'choreo_brick_demo'
     root_directory = os.path.dirname(os.path.abspath(__file__))
     bricks_directory = os.path.join(root_directory, PICKNPLACE_DIRECTORY, 'bricks')
@@ -141,6 +142,7 @@ def get_grasp_gen_fn(brick_from_index):
     def gen_fn(index):
         brick = brick_from_index[index]
         for grasp in brick.grasps:
+            # TODO: can always rotate grasps around the tool frame x axis
             yield grasp,
     return gen_fn
 
@@ -151,6 +153,9 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
     disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
                            for pair in DISABLED_COLLISIONS}
     sample_fn = get_sample_fn(robot, movable_joints)
+    approach_distance = 0.1
+    #approach_distance = 0.0
+    approach_vector = approach_distance*np.array([0, 0, -1])
 
     def gen_fn(index, pose, grasp):
         body = brick_from_index[index].body
@@ -163,14 +168,19 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
         for _ in range(max_attempts):
             set_joint_positions(robot, movable_joints, sample_fn()) # Random seed
             attach_pose = multiply(pose.value, invert(grasp.attach))
-            attach_conf = inverse_kinematics(robot, tool_link, attach_pose)
+            #attach_conf = inverse_kinematics(robot, tool_link, attach_pose)
+            attach_conf = sample_tool_ik(robot, attach_pose)
             if attach_conf is None:
                 continue
-            approach_pose = multiply(attach_pose, ([0, 0, -0.1], unit_quat()))
+            set_joint_positions(robot, movable_joints, attach_conf)
+            #wait_for_interrupt()
+            approach_pose = multiply(attach_pose, (approach_vector, unit_quat()))
             #approach_pose = multiply(pose.value, invert(grasp.approach))
-            approach_conf = inverse_kinematics(robot, tool_link, approach_pose)
+            #approach_conf = inverse_kinematics(robot, tool_link, approach_pose)
+            approach_conf = sample_tool_ik(robot, approach_pose, nearby_conf=attach_conf)
             if approach_conf is None:
                 continue
+            set_joint_positions(robot, movable_joints, approach_conf)
             # TODO: retreat
             path = plan_direct_joint_motion(robot, movable_joints, attach_conf,
                                             obstacles=obstacle_from_name.values(),
@@ -186,14 +196,17 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
     return gen_fn
 
 
-def get_motion_fn(robot, brick_from_index, obstacle_from_name):
+def get_motion_fn(robot, brick_from_index, obstacle_from_name, teleport=False):
     movable_joints = get_movable_joints(robot)
     tool_link = link_from_name(robot, TOOL_NAME)
     disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
                            for pair in DISABLED_COLLISIONS}
 
     def fn(conf1, conf2, fluents=[]):
-        #path = [conf1, conf2]
+        if teleport is True:
+            path = [conf1, conf2]
+            traj = MotionTrajectory(robot, movable_joints, path)
+            return traj,
         obstacles = list(obstacle_from_name.values())
         attachments = []
         for fact in fluents:
@@ -221,14 +234,17 @@ def get_motion_fn(robot, brick_from_index, obstacle_from_name):
     return fn
 
 
-def get_collision_test(robot, brick_from_index):
+def get_collision_test(robot, brick_from_index, collisions=True):
     def test(*args):
+        if not collisions:
+            return False
+        # TODO: finish this
         return False
     return test
 
 ##################################################
 
-def get_pddlstream(robot, brick_from_index, obstacle_from_name):
+def get_pddlstream(robot, brick_from_index, obstacle_from_name, collisions=True, teleport=False):
     domain_pddl = read(get_file_path(__file__, os.path.join(PICKNPLACE_DIRECTORY, 'domain.pddl')))
     stream_pddl = read(get_file_path(__file__, os.path.join(PICKNPLACE_DIRECTORY, 'stream.pddl')))
     constant_map = {}
@@ -247,7 +263,8 @@ def get_pddlstream(robot, brick_from_index, obstacle_from_name):
     ]
 
     #indices = brick_from_index.keys()
-    indices = range(2, 5)
+    #indices = range(2, 5)
+    indices = [4]
     for index in list(indices):
         indices.append(index+6)
 
@@ -270,11 +287,13 @@ def get_pddlstream(robot, brick_from_index, obstacle_from_name):
             ]
     goal = And(*goal_literals)
 
+    if not collisions:
+        obstacle_from_name = {}
     stream_map = {
         'sample-grasp': from_gen_fn(get_grasp_gen_fn(brick_from_index)),
         'inverse-kinematics': from_gen_fn(get_ik_gen_fn(robot, brick_from_index, obstacle_from_name)),
-        'plan-motion': from_fn(get_motion_fn(robot, brick_from_index, obstacle_from_name)),
-        'TrajCollision': get_collision_test(robot, brick_from_index),
+        'plan-motion': from_fn(get_motion_fn(robot, brick_from_index, obstacle_from_name, teleport=teleport)),
+        'TrajCollision': get_collision_test(robot, brick_from_index, collisions=collisions),
     }
     #stream_map = 'debug'
 
@@ -291,23 +310,23 @@ def step_trajectory(trajectory, attachments={}, time_step=np.inf):
         else:
             wait_for_duration(time_step)
 
-def step_plan(plan, time_step=0.02): #time_step=np.inf
+def step_plan(plan, **kwargs):
     wait_for_interrupt()
     attachments = {}
     for action, args in plan:
         trajectory = args[-1]
         if action == 'move':
-            step_trajectory(trajectory, attachments, time_step)
+            step_trajectory(trajectory, attachments, **kwargs)
         elif action == 'pick':
             attachment = trajectory.attachments.pop()
-            step_trajectory(trajectory, attachments, time_step)
+            step_trajectory(trajectory, attachments, **kwargs)
             attachments[attachment.child] = attachment
-            step_trajectory(trajectory.reverse(), attachments, time_step)
+            step_trajectory(trajectory.reverse(), attachments, **kwargs)
         elif action == 'place':
             attachment = trajectory.attachments.pop()
-            step_trajectory(trajectory, attachments, time_step)
+            step_trajectory(trajectory, attachments, **kwargs)
             del attachments[attachment.child]
-            step_trajectory(trajectory.reverse(), attachments, time_step)
+            step_trajectory(trajectory.reverse(), attachments, **kwargs)
         else:
             raise NotImplementedError(action)
     wait_for_interrupt()
@@ -352,20 +371,20 @@ def main():
     # choreo_brick_demo | choreo_eth-trees_demo
     parser.add_argument('-p', '--problem', default='choreo_brick_demo', help='The name of the problem to solve')
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions with obstacles')
+    parser.add_argument('-t', '--teleport', action='store_true', help='Teleports instead of computing motions')
     parser.add_argument('-v', '--viewer', action='store_true', help='Enables the viewer during planning (slow!)')
     args = parser.parse_args()
     print('Arguments:', args)
 
     connect(use_gui=args.viewer)
     robot, brick_from_index, obstacle_from_name = load_pick_and_place(args.problem)
-    if args.cfree:
-        obstacle_from_name = {}
 
     np.set_printoptions(precision=2)
     pr = cProfile.Profile()
     pr.enable()
     with WorldSaver():
-        pddlstream_problem = get_pddlstream(robot, brick_from_index, obstacle_from_name)
+        pddlstream_problem = get_pddlstream(robot, brick_from_index, obstacle_from_name,
+                                            collisions=not args.cfree, teleport=args.teleport)
         solution = solve_focused(pddlstream_problem, planner='ff-wastar1', max_time=30)
     pr.disable()
     pstats.Stats(pr).sort_stats('cumtime').print_stats(10)
@@ -373,7 +392,7 @@ def main():
     plan, _, _ = solution
     if plan is None:
         return
-    step_plan(plan)
+    step_plan(plan, time_step=(np.inf if args.teleport else 0.2))
     #simulate_plan(plan)
 
 
