@@ -127,8 +127,10 @@ class External(Performance):
 
 DEFAULT_SEARCH_OVERHEAD = 1e-2
 
-def compute_instance_effort(instance, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
     # TODO: handle case where resampled several times before the next search (search every ith time)
+    if unit_efforts:
+        return 1
     external = instance.external
     info = external.info
     if info.effort_fn is not None:

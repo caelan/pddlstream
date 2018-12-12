@@ -9,7 +9,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
+from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
@@ -68,13 +68,13 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
     # TODO: deprecate this in favor of solve_pddlstream_satisfaction
     if not constraints:
         return {}, 0, init
+    constraints = get_constraints(constraints)
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     streams = list(filter(lambda e: isinstance(e, Stream), externals))
     #print('Streams:', streams)
     evaluations = evaluations_from_init(init)
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations,
                             map(obj_from_parameterized_expression, constraints)))
-    store = SolutionStore(max_time=INF, max_cost=INF, verbose=True) # TODO: include other info here?
 
     visited_facts = set()
     stream_results = []
@@ -82,6 +82,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
         retrace_instantiation(fact, streams, evaluations, visited_facts, stream_results)
 
     # TODO: consider other results if this fails
+    store = SolutionStore(max_time=INF, max_cost=INF, verbose=True) # TODO: include other info here?
     stream_plan = reschedule_stream_plan(evaluations, goal_facts, create_domain(goal_facts),
                                          stream_results, unique_binding=True, **kwargs)
     if stream_plan is None:

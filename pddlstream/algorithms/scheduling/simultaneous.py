@@ -3,7 +3,7 @@ from pddlstream.algorithms.downward import Domain, make_action, make_predicate, 
     get_cost_scale, add_predicate
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
 from pddlstream.language.constants import Head, And, Not
-from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression
+from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression, is_parameter
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
 from pddlstream.language.stream import Stream, StreamResult
@@ -102,11 +102,15 @@ def get_plan_cost(function_evaluations, action_plan, domain, unit_costs):
 
 def extract_function_results(results_from_head, action, pddl_args):
     import pddl
-    if (action.cost is None) or not isinstance(action.cost.expression, pddl.PrimitiveNumericExpression):
+    if action.cost is None:
+        return None
+    expression = action.cost.expression
+    if not isinstance(expression, pddl.PrimitiveNumericExpression):
         return None
     var_mapping = {p.name: a for p, a in zip(action.parameters, pddl_args)}
-    pddl_args = tuple(obj_from_pddl(var_mapping[p]) for p in action.cost.expression.args)
-    head = Head(action.cost.expression.symbol, pddl_args)
+    obj_args = tuple(obj_from_pddl(var_mapping[p] if is_parameter(p) else p)
+                     for p in expression.args)
+    head = Head(expression.symbol, obj_args)
     [(_, result)] = results_from_head[head]
     if result is None:
         return None

@@ -146,12 +146,12 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=False, debug=F
 Solution = namedtuple('Solution', ['plan', 'cost'])
 
 class SolutionStore(object):
-    def __init__(self, max_time, max_cost, verbose):
+    def __init__(self, max_time, success_cost, verbose):
         # TODO: store evaluations here as well as map from head to value?
         self.start_time = time.time()
         self.max_time = max_time
         #self.cost_fn = get_length if unit_costs else None
-        self.max_cost = max_cost
+        self.success_cost = success_cost # Inclusive
         self.verbose = verbose
         self.best_plan = None
         self.best_cost = INF
@@ -164,7 +164,7 @@ class SolutionStore(object):
             self.best_plan = plan
             self.best_cost = cost
     def is_solved(self):
-        return self.best_cost < self.max_cost
+        return (self.best_cost < INF) and (self.best_cost <= self.success_cost)
     def elapsed_time(self):
         return elapsed_time(self.start_time)
     def is_timeout(self):
