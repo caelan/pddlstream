@@ -107,8 +107,9 @@ class StreamInfo(ExternalInfo):
         #self.order = 0
 
 class StreamResult(Result):
-    def __init__(self, instance, output_objects, opt_index=None, call_index=None, list_index=None):
-        super(StreamResult, self).__init__(instance, opt_index)
+    def __init__(self, instance, output_objects, opt_index=None,
+                 call_index=None, list_index=None, optimistic=True):
+        super(StreamResult, self).__init__(instance, opt_index, optimistic)
         self.output_objects = tuple(output_objects)
         self.mapping = get_mapping(self.external.outputs, self.output_objects)
         self.mapping.update(instance.mapping)
@@ -128,7 +129,8 @@ class StreamResult(Result):
                         for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
         new_instance.opt_index = self.instance.opt_index
-        return self.__class__(new_instance, self.output_objects, self.opt_index)
+        return self.__class__(new_instance, self.output_objects, self.opt_index,
+                              self.call_index, self.list_index, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
@@ -137,6 +139,7 @@ class StreamResult(Result):
                                   str_from_object(self.output_objects))
 
 class StreamInstance(Instance):
+    _Result = StreamResult
     def __init__(self, stream, input_objects, fluent_facts):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
@@ -165,9 +168,9 @@ class StreamInstance(Instance):
             raise ValueError('Output wild facts for wild stream [{}] is not a sequence: {}'.format(
                 self.external.name, new_facts))
 
-    def get_result(self, object_objects, opt_index=None, list_index=None):
-        return self.external._Result(self, tuple(object_objects), opt_index=opt_index,
-                                     call_index=self.num_calls, list_index=list_index)
+    def get_result(self, object_objects, opt_index=None, list_index=None, optimistic=True):
+        return self._Result(self, tuple(object_objects), opt_index=opt_index,
+                            call_index=self.num_calls, list_index=list_index, optimistic=optimistic)
 
     def use_unique(self):
         return self.opt_index == 0
@@ -176,16 +179,13 @@ class StreamInstance(Instance):
         return [make_fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
 
     def _create_generator(self):
-        if self._generator is None:
-            input_values = self.get_input_values()
-            #try:
-            if self.external.is_fluent(): # self.fluent_facts
-                self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
-            else:
-                self._generator = self.external.gen_fn(*input_values)
-            #except TypeError as err:
-            #    print('Stream [{}] expects {} inputs'.format(self.external.name, len(input_values)))
-            #    raise err
+        if self._generator is not None:
+            return
+        input_values = self.get_input_values()
+        if self.external.is_fluent(): # self.fluent_facts
+            self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
+        else:
+            self._generator = self.external.gen_fn(*input_values)
 
     def _next_outputs(self):
         self._create_generator()
@@ -212,7 +212,8 @@ class StreamInstance(Instance):
             new_values, new_facts = self._next_outputs()
             self._check_output_values(new_values)
             self._check_wild_facts(new_facts)
-            new_results = [self.get_result(map(Object.from_value, output_values), list_index=list_index)
+            new_results = [self.get_result(map(Object.from_value, output_values),
+                                           list_index=list_index, optimistic=False)
                            for list_index, output_values in enumerate(new_values)]
             all_new_values.extend(new_values)
             all_new_facts.extend(new_facts)
@@ -253,8 +254,8 @@ class StreamInstance(Instance):
                 output_objects = tuple(output_objects)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
-                    self.opt_results.append(self.external._Result(self, output_objects, opt_index=self.opt_index,
-                                                                  call_index=len(self.opt_results), list_index=0))
+                    self.opt_results.append(self._Result(self, output_objects, opt_index=self.opt_index,
+                                                         call_index=len(self.opt_results), list_index=0))
         return self.opt_results
 
     def get_blocked_fact(self):
@@ -298,7 +299,6 @@ class StreamInstance(Instance):
 
 class Stream(External):
     _Instance = StreamInstance
-    _Result = StreamResult
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)

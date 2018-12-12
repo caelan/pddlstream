@@ -18,7 +18,7 @@ from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
-from pddlstream.language.external import get_plan_effort, Result
+from pddlstream.language.external import compute_plan_effort, Result
 from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE
 from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders
 
@@ -44,7 +44,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
     for result in reversed(stream_plan):
         steps_from_stream[result] = set()
         for fact in result.get_certified():
-            if (fact in step_from_fact) and (node_from_atom[fact].stream_result == result):
+            if (fact in step_from_fact) and (node_from_atom[fact].result == result):
                 steps_from_stream[result].update(step_from_fact[fact])
         for fact in result.instance.get_domain():
             step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
@@ -163,7 +163,7 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
         # TODO: larger effort for results using shared objects
         # TODO: round each effort individually to penalize multiple streams
         if effort_weight is not None:
-            effort = get_plan_effort(stream_plan, **kwargs)
+            effort = compute_plan_effort(stream_plan, **kwargs)
             instance.cost += scale_cost(effort_weight*effort)
             efforts.append(effort)
         add_optimizer_effects(instantiated, instance, stream_plan)

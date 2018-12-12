@@ -13,7 +13,7 @@ from pddlstream.algorithms.skeleton import SkeletonQueue, process_skeleton_queue
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
-from pddlstream.language.external import get_plan_effort
+from pddlstream.language.external import compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import retrace_instantiation
 from pddlstream.language.stream import Stream
@@ -88,7 +88,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_i
         return revert_solution(store.best_plan, store.best_cost, evaluations)
     stream_plan = reorder_stream_plan(stream_plan)
     print('Stream plan ({}, {:.1f}): {}'.format(
-        get_length(stream_plan), get_plan_effort(stream_plan), stream_plan))
+        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan))
 
     objects = set()
     for fact in goal_facts:

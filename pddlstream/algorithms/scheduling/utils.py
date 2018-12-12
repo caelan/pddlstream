@@ -29,7 +29,7 @@ def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
         assert(domain <= opt_evaluations)
         opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
     node_from_atom = get_achieving_streams(evaluations, stream_results)
-    result_from_evaluation = {evaluation_from_fact(f): n.stream_result
+    result_from_evaluation = {evaluation_from_fact(f): n.result
                               for f, n in node_from_atom.items() if n.effort < max_effort}
     return result_from_evaluation
 

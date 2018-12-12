@@ -9,7 +9,7 @@ from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
-from pddlstream.language.external import DEBUG, get_plan_effort
+from pddlstream.language.external import DEBUG, compute_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.object import Object
@@ -332,7 +332,7 @@ def compile_fluent_streams(domain, externals):
 
 def dump_plans(stream_plan, action_plan, cost):
     print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
-        get_length(stream_plan), get_plan_effort(stream_plan), stream_plan,
+        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
         get_length(action_plan), cost, str_from_plan(action_plan)))
 
 

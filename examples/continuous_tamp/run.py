@@ -209,8 +209,8 @@ def main(use_synthesizers=False):
                                  planner='ff-wastar1', max_planner_time=10, hierarchy=hierarchy, debug=False,
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
-                                 # TODO: run with search_sampling_ratio=1
-                                 unit_efforts=False, effort_weight=None, search_sample_ratio=0,
+                                 # TODO: run with search_sample_ratio=1
+                                 unit_efforts=False, effort_weight=0, search_sample_ratio=0,
                                  visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,

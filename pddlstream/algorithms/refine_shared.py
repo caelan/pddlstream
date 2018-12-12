@@ -7,7 +7,7 @@ from pddlstream.algorithms.algorithm import dump_plans
 from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
-from pddlstream.language.external import compute_effort
+from pddlstream.language.external import compute_instance_effort
 from pddlstream.language.object import OptimisticObject
 from pddlstream.utils import INF
 
@@ -63,7 +63,7 @@ def optimistic_process_streams(evaluations, streams, double_bindings=None, max_e
         instance = instantiator.stream_queue.popleft()
         if not is_double_bound(instance, double_bindings):
             continue
-        effort = compute_effort(instance, **kwargs)
+        effort = compute_instance_effort(instance, **kwargs)
         #op = sum # max | sum
         #total_effort = effort + op(effort_from_fact[fact] for fact in instance.get_domain())
         if max_effort <= effort:
@@ -106,8 +106,8 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
     opt_results = []
     for opt_result in stream_plan:
         # TODO: just do the first step of the plan somehow
-        for instance in optimistic_stream_grounding(opt_result.instance, opt_bindings,
-                                                    evaluations, opt_evaluations):
+        for instance in optimistic_stream_grounding(
+                opt_result.instance, opt_bindings, evaluations, opt_evaluations):
             results = instance.next_optimistic()
             opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
             opt_results += results

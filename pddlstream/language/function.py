@@ -21,8 +21,8 @@ class FunctionInfo(ExternalInfo):
         #self.order = 0
 
 class FunctionResult(Result):
-    def __init__(self, instance, value, opt_index=None):
-        super(FunctionResult, self).__init__(instance, opt_index)
+    def __init__(self, instance, value, opt_index=None, optimistic=True):
+        super(FunctionResult, self).__init__(instance, opt_index, optimistic)
         self.instance = instance
         self.value = value
     def get_certified(self):
@@ -34,17 +34,19 @@ class FunctionResult(Result):
         input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
         new_instance = self.external.get_instance(input_objects)
         new_instance.opt_index = self.instance.opt_index
-        return self.__class__(new_instance, self.value, self.opt_index)
+        return self.__class__(new_instance, self.value, self.opt_index, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
         return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
 
 class FunctionInstance(Instance):  # Head(Instance):
+    _Result = FunctionResult
     #_opt_value = 0
     def __init__(self, external, input_objects):
         super(FunctionInstance, self).__init__(external, input_objects)
         self.head = substitute_expression(self.external.head, self.get_mapping())
+        self.value = None
     def get_head(self):
         return self.head
     def next_results(self, accelerate=1, verbose=False):
@@ -52,27 +54,24 @@ class FunctionInstance(Instance):  # Head(Instance):
         assert not self.enumerated
         self.enumerated = True
         input_values = self.get_input_values()
-        #try:
         value = self.external.fn(*input_values)
-        #except TypeError as err:
-        #    print('Function [{}] expects {} inputs'.format(self.external.name, len(input_values)))
-        #    raise err
-        self.value = self.external._codomain(value)
+        self.value = self.external.codomain(value)
         # TODO: cast the inputs and test whether still equal?
-        #if not (type(self.value) is self.external._codomain):
-        #if not isinstance(self.value, self.external._codomain):
+        #if not (type(self.value) is self.external._odomain):
+        #if not isinstance(self.value, self.external.codomain):
         #if self.value != value:
         #    raise ValueError('Function [{}] produced a nonintegral value [{}]. '
         #                     'FastDownward only supports integral costs. '
         #                     'To "use" real costs, scale each cost by a large factor, '
         #                     'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
-            raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
+            raise ValueError('Function [{}] produced a negative value [{}]'.format(
+                self.external.name, self.value))
         if (self.value is not False) and verbose:
             start_call = 0
             print('{}) {}{}={}'.format(start_call, get_prefix(self.external.head),
                                        str_from_object(self.get_input_values()), self.value))
-        results = [self.external._Result(self, self.value)]
+        results = [self._Result(self, self.value, opt_index=None, optimistic=False)]
         #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
         #    self.update_statistics(start_time, [])
         self.update_statistics(start_time, results)
@@ -82,21 +81,19 @@ class FunctionInstance(Instance):  # Head(Instance):
         if self.enumerated or self.disabled:
             return []
         opt_value = self.external.opt_fn(*self.get_input_values())
-        self.opt_results = [self.external._Result(self, opt_value, opt_index=self.opt_index)]
+        self.opt_results = [self._Result(self, opt_value, opt_index=self.opt_index, optimistic=True)]
         return self.opt_results
     def __repr__(self):
         # return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
-        return '{}=?{}'.format(str_from_head(self.get_head()), self.external._codomain.__name__)
+        return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
 
 class Function(External):
     """
     An external nonnegative function F(i1, ..., ik) -> 0 <= int
     External functions differ from streams in that their output isn't an object
     """
+    codomain = float # int | float
     _Instance = FunctionInstance
-    _Result = FunctionResult
-    #_codomain = int
-    _codomain = float
     _default_p_success = 1
     _default_overhead = None
     def __init__(self, head, fn, domain, info):
@@ -104,7 +101,7 @@ class Function(External):
             info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
-        opt_fn = lambda *args: self._codomain()
+        opt_fn = lambda *args: self.codomain()
         if fn == DEBUG:
             fn = opt_fn
         self.fn = fn
@@ -114,7 +111,7 @@ class Function(External):
         #        self.name, list(self.inputs), arg_spec.args))
         self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
     def __repr__(self):
-        return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
+        return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 
 ##################################################
 
@@ -129,10 +126,8 @@ class PredicateResult(FunctionResult):
         return self.value == opt_value
 
 class PredicateInstance(FunctionInstance):
-    #_opt_value = True # TODO: make this False to be consistent with Function?
-    #_opt_value = Predicate._codomain()
-    #_opt_value = False
-    pass
+    _Result = PredicateResult
+    #_opt_value = True # True | False | Predicate._codomain()
     #def was_successful(self, results):
     #    #self.external.opt_fn(*input_values)
     #    return any(r.value for r in results)
@@ -143,8 +138,7 @@ class Predicate(Function):
     External predicates do not make the closed world assumption
     """
     _Instance = PredicateInstance
-    _Result = PredicateResult
-    _codomain = bool
+    codomain = bool
     _default_p_success = None
     _default_overhead = None
     #def is_negative(self):

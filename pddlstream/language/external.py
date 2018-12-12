@@ -18,9 +18,10 @@ class ExternalInfo(PerformanceInfo):
 ##################################################
 
 class Result(object):
-    def __init__(self, instance, opt_index):
+    def __init__(self, instance, opt_index, optimistic):
         self.instance = instance
         self.opt_index = opt_index
+        self.optimistic = optimistic
 
     @property
     def external(self):
@@ -126,7 +127,7 @@ class External(Performance):
 
 DEFAULT_SEARCH_OVERHEAD = 1e-2
 
-def compute_effort(instance, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+def compute_instance_effort(instance, search_overhead=DEFAULT_SEARCH_OVERHEAD):
     # TODO: handle case where resampled several times before the next search (search every ith time)
     external = instance.external
     info = external.info
@@ -139,15 +140,22 @@ def compute_effort(instance, search_overhead=DEFAULT_SEARCH_OVERHEAD):
            + (1-p_success)*geometric_cost(search_overhead, p_success) \
            + instance.opt_index * search_overhead
 
-def get_plan_effort(stream_plan, unit_efforts=False, **kwargs):
+def compute_result_effort(result, **kwargs):
+    if not result.optimistic:
+        return 0.
+    return compute_instance_effort(result.instance, **kwargs)
+
+def compute_plan_effort(stream_plan, unit_efforts=False, **kwargs):
     if stream_plan is None:
         return INF
     if unit_efforts:
         return len(stream_plan)
     if not stream_plan:
         return 0
-    return sum(compute_effort(result.instance, **kwargs)
+    return sum(compute_result_effort(result, **kwargs)
                for result in stream_plan)
+
+##################################################
 
 def get_procedure_fn(stream_map, name):
     if stream_map == DEBUG:
