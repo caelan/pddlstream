@@ -13,8 +13,7 @@ from examples.continuous_tamp.primitives import get_random_seed, get_tight_probl
 from examples.continuous_tamp.run import pddlstream_from_tamp
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.constants import Not, Minimize
-from pddlstream.algorithms.satisfaction import dump_assignment, \
-    solve_pddlstream_satisfaction, constraint_satisfaction
+from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
 
 # Be careful about uniqueness here
 CONF0 = array([-7.5, 5.])
@@ -97,7 +96,6 @@ def main(focused=True, success_cost=0, max_time=30):
     terms = CONSTRAINTS + OBJECTIVES
     pr = cProfile.Profile()
     pr.enable()
-    #solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms)
     if focused:
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
                                                  incremental=False, stream_info=stream_info,

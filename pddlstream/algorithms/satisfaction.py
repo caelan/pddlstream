@@ -2,29 +2,16 @@ from __future__ import print_function
 
 from collections import namedtuple
 
-from pddlstream.algorithms.algorithm import SolutionStore
-from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
+from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.reorder import reorder_stream_plan
-from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
-from pddlstream.language.conversion import revert_solution, \
-    evaluation_from_fact, replace_expression, get_prefix, get_args, obj_from_value_expression
-from pddlstream.language.external import compute_plan_effort
-from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import retrace_instantiation
-from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, get_mapping, str_from_object, get_length, safe_zip
-from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE
+from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
+from pddlstream.utils import str_from_object, safe_zip
 
-# TODO: version of this where I pass in a plan skeleton instead
-# Might be easiest to do this by performing the search normally but constraining the actions used
-# Can add effects that bind future parameters when going along
 
-# TODO: investigate constraint satisfaction techniques for binding instead
+# TODO: investigate constraint satisfaction techniques for search instead
 
 def dump_assignment(solution):
     # TODO: version of incremetal algorithm focused on constraint satisfaction
@@ -41,75 +28,6 @@ def dump_assignment(solution):
 
 ##################################################
 
-def obj_from_parameterized_expression(parent): # obj_from_value_expression
-    return replace_expression(parent, lambda o: OptimisticObject
-                              .from_opt(o, o) if is_parameter(o) else Object.from_value(o))
-
-
-def create_domain(constraints_list):
-    predicate_dict = {}
-    for fact in constraints_list: # TODO: consider removing this annoying check
-        name = get_prefix(fact)
-        if name not in predicate_dict:
-            parameters = ['?x{}'.format(i) for i in range(len(get_args(fact)))]
-            predicate_dict[name] = make_predicate(name, parameters)
-    return make_domain(predicates=list(predicate_dict.values()))
-
-
-def constraint_satisfaction(stream_pddl, stream_map, init, constraints, stream_info={},
-                            max_sample_time=INF, **kwargs):
-    # Approaches
-    # 1) Existential quantification of bindings in goal conditions
-    # 2) Backtrack useful streams and then schedule. Create arbitrary outputs for not mentioned.
-    # 3) Construct all useful streams and then associate outputs with bindings
-    #    Useful stream must satisfy at least one fact. How should these assignments be propagated though?
-    #    Make an action that maps each stream result to unbound values?
-    # TODO: include functions again for cost-sensitive satisfaction
-    # TODO: deprecate this in favor of solve_pddlstream_satisfaction
-    if not constraints:
-        return {}, 0, init
-    constraints = get_constraints(constraints)
-    externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    streams = list(filter(lambda e: isinstance(e, Stream), externals))
-    #print('Streams:', streams)
-    evaluations = evaluations_from_init(init)
-    goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations,
-                            map(obj_from_parameterized_expression, constraints)))
-
-    visited_facts = set()
-    stream_results = []
-    for fact in goal_facts:
-        retrace_instantiation(fact, streams, evaluations, visited_facts, stream_results)
-
-    # TODO: consider other results if this fails
-    store = SolutionStore(max_time=INF, max_cost=INF, verbose=True) # TODO: include other info here?
-    stream_plan = reschedule_stream_plan(evaluations, goal_facts, create_domain(goal_facts),
-                                         stream_results, unique_binding=True, **kwargs)
-    if stream_plan is None:
-        return revert_solution(store.best_plan, store.best_cost, evaluations)
-    stream_plan = reorder_stream_plan(stream_plan)
-    print('Stream plan ({}, {:.1f}): {}'.format(
-        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan))
-
-    objects = set()
-    for fact in goal_facts:
-        objects.update(get_args(fact))
-    free_parameters = list(filter(lambda o: isinstance(o, OptimisticObject), objects))
-    action_plan = [('bindings', free_parameters)]
-
-    queue = SkeletonQueue(store, evaluations, None, None)
-    terminate = not queue.process(stream_plan, action_plan, cost=0, max_time=max_sample_time)
-
-    #write_stream_statistics(externals + synthesizers, verbose)
-    plan, cost, init = revert_solution(store.best_plan, store.best_cost, evaluations)
-    if plan is None:
-        return plan, cost, init
-    parameter_names = [o.value for o in free_parameters]
-    [(_, parameter_values)] = plan
-    bindings = get_mapping(parameter_names, parameter_values)
-    return bindings, cost, init
-
-##################################################
 
 Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
 
@@ -166,10 +84,9 @@ def cluster_constraints(constraints):
                 update_cluster(c2, c1)
                 clusters.pop(i)
                 break
-    #for cluster in clusters:
-    #    print(cluster)
     return clusters
 
+##################################################
 
 def planning_from_satisfaction(init, constraints):
     clusters = cluster_constraints(constraints)
@@ -206,6 +123,7 @@ def planning_from_satisfaction(init, constraints):
     domain = make_domain(predicates=predicates, actions=actions)
     return domain, goal_expression
 
+##################################################
 
 def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
     # TODO: prune set of streams based on constraints
