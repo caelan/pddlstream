@@ -207,6 +207,8 @@ class HeapElement(object):
         return self.key < other.key
     def __iter__(self):
         return iter([self.key, self.value])
+    def __repr__(self):
+        return '{}({}, {})'.format(self.__class__.__name__, self.key, self.value)
 
 ##################################################
 

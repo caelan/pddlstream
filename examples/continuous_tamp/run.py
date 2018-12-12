@@ -12,13 +12,14 @@ import numpy as np
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn, has_gurobi
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, PROBLEMS, \
-    draw_state, get_random_seed, TAMPState, GROUND_NAME, SUCTION_HEIGHT
+    draw_state, get_random_seed, TAMPState, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.algorithms.constraints import PlanConstraints, ANY
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.utils import ensure_dir
@@ -167,7 +168,7 @@ def main(use_synthesizers=False):
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
-        #'distance': FunctionInfo(opt_fn=lambda *args: 1),
+        'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),
     }
@@ -206,11 +207,11 @@ def main(use_synthesizers=False):
         solution = solve_focused(pddlstream_problem, constraints=constraints,
                                  action_info=action_info, stream_info=stream_info, synthesizers=synthesizers,
                                  planner='ff-wastar1', max_planner_time=10, hierarchy=hierarchy, debug=False,
-                                 max_time=args.max_time, verbose=True,
+                                 max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  # TODO: run with search_sampling_ratio=1
-                                 unit_efforts=False, effort_weight=1, search_sampling_ratio=0,
-                                 postprocess=False, visualize=False)
+                                 unit_efforts=False, effort_weight=None, search_sample_ratio=0,
+                                 visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      layers_per_iteration=1, hierarchy=hierarchy,

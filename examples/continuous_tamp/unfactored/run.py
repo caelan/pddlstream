@@ -146,7 +146,7 @@ def main(focused=False, deterministic=False, unit_costs=True):
     if focused:
         solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                  max_time=10, success_cost=INF, debug=False,
-                                 effort_weight=None, unit_costs=unit_costs, postprocess=False,
+                                 effort_weight=None, unit_costs=unit_costs,
                                  visualize=False)
     else:
         solution = solve_incremental(pddlstream_problem, layers_per_iteration=1,

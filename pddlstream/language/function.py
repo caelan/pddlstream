@@ -25,33 +25,28 @@ class FunctionResult(Result):
         super(FunctionResult, self).__init__(instance, opt_index)
         self.instance = instance
         self.value = value
-
     def get_certified(self):
         return [Equal(self.instance.get_head(), self.value)]
-
     def get_tuple(self):
         return self.external.name, self.instance.input_objects, self.value
-
     def remap_inputs(self, bindings):
         # TODO: move this to the instance class?
         input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
         new_instance = self.external.get_instance(input_objects)
         new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.value, self.opt_index)
-
     def is_successful(self):
         return True
-
     def __repr__(self):
         return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
 
-
 class FunctionInstance(Instance):  # Head(Instance):
     #_opt_value = 0
-
+    def __init__(self, external, input_objects):
+        super(FunctionInstance, self).__init__(external, input_objects)
+        self.head = substitute_expression(self.external.head, self.get_mapping())
     def get_head(self):
-        return substitute_expression(self.external.head, self.get_mapping())
-
+        return self.head
     def next_results(self, accelerate=1, verbose=False):
         start_time = time.time()
         assert not self.enumerated
@@ -74,26 +69,24 @@ class FunctionInstance(Instance):  # Head(Instance):
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, self.value))
         if (self.value is not False) and verbose:
-            print('0) {}{}={}'.format(get_prefix(self.external.head),
-                                      str_from_object(self.get_input_values()), self.value))
+            start_call = 0
+            print('{}) {}{}={}'.format(start_call, get_prefix(self.external.head),
+                                       str_from_object(self.get_input_values()), self.value))
         results = [self.external._Result(self, self.value)]
         #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
         #    self.update_statistics(start_time, [])
         self.update_statistics(start_time, results)
         new_facts = []
         return results, new_facts
-
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
         opt_value = self.external.opt_fn(*self.get_input_values())
         self.opt_results = [self.external._Result(self, opt_value, opt_index=self.opt_index)]
         return self.opt_results
-
     def __repr__(self):
         # return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
         return '{}=?{}'.format(str_from_head(self.get_head()), self.external._codomain.__name__)
-
 
 class Function(External):
     """
@@ -123,7 +116,6 @@ class Function(External):
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self._codomain.__name__)
 
-
 ##################################################
 
 class PredicateResult(FunctionResult):
@@ -132,11 +124,9 @@ class PredicateResult(FunctionResult):
         if self.value:
             return [expression]
         return [Not(expression)]
-
     def is_successful(self):
         opt_value = self.external.opt_fn(*self.instance.get_input_values())
         return self.value == opt_value
-
 
 class PredicateInstance(FunctionInstance):
     #_opt_value = True # TODO: make this False to be consistent with Function?
@@ -146,7 +136,6 @@ class PredicateInstance(FunctionInstance):
     #def was_successful(self, results):
     #    #self.external.opt_fn(*input_values)
     #    return any(r.value for r in results)
-
 
 class Predicate(Function):
     """

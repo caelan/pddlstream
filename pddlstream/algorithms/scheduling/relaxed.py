@@ -265,7 +265,7 @@ def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
 
 def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative,
-                        unit_efforts, effort_weight, reachieve=False, unit_costs=False, debug=False, **kwargs):
+                        unit_efforts, effort_weight, reachieve=True, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(

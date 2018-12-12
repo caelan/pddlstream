@@ -45,7 +45,7 @@
                        (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
     :effect (and (Holding ?b) (CanMove)
                  (not (AtPose ?b ?p)) (not (HandEmpty))
-                 (increase (total-cost) 1))
+                 (increase (total-cost) 10))
   )
   (:action place
     :parameters (?b ?p ?q)
@@ -53,7 +53,7 @@
                        (AtConf ?q) (Holding ?b) (not (UnsafePose ?b ?p))) ; (SafePose ?b ?p))
     :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
                  (not (Holding ?b))
-                 (increase (total-cost) 1))
+                 (increase (total-cost) 10))
   )
   ;(:derived (SafePose ?b1 ?p1)
   ;  (and (Pose ?b1 ?p1)

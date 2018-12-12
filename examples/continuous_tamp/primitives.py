@@ -8,7 +8,9 @@ BLOCK_HEIGHT = BLOCK_WIDTH
 
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
-CARRY_Y = 5
+CARRY_Y = 5.
+MOVE_COST = 10.
+COST_PER_DIST = 1.
 
 
 def interval_contains(i1, i2):
@@ -35,7 +37,7 @@ def collision_test(b1, p1, b2, p2):
 
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
-    return 1 + np.linalg.norm(q2 - q1, ord=ord)
+    return MOVE_COST + COST_PER_DIST*np.linalg.norm(q2 - q1, ord=ord)
 
 
 def inverse_kin_fn(b, p):
@@ -95,7 +97,10 @@ def get_pose_gen(regions):
 def plan_motion(q1, q2):
     x1, y1 = q1
     x2, y2 = q2
-    t = [q1, np.array([x1, CARRY_Y]), np.array([x2, CARRY_Y]), q2]
+    t = [q1,
+         np.array([x1, CARRY_Y]),
+         np.array([x2, CARRY_Y]),
+         q2]
     return (t,)
 
 ##################################################

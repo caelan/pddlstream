@@ -112,6 +112,7 @@ class StreamResult(Result):
         self.output_objects = tuple(output_objects)
         self.mapping = get_mapping(self.external.outputs, self.output_objects)
         self.mapping.update(instance.mapping)
+        # TODO: lazily compute these properties
         self.certified = substitute_expression(self.external.certified, self.get_mapping())
         self.call_index = call_index
         self.list_index = list_index
@@ -142,7 +143,8 @@ class StreamInstance(Instance):
         self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
         opt_gen_fn = self.external.info.opt_gen_fn
-        self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+        self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
+            if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
         self.num_optimistic = 1
         self._axiom_predicate = None
         self._disabled_axiom = None
@@ -216,14 +218,18 @@ class StreamInstance(Instance):
             all_new_facts.extend(new_facts)
             all_results.extend(new_results)
             self.update_statistics(start_time, new_results)
-        if verbose and (VERBOSE_FAILURES or all_new_values):
-            print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
-                                            str_from_object(self.get_input_values()),
-                                            str_from_object(all_new_values)))
-        if verbose and all_new_facts:
-            # TODO: format all_new_facts
-            print('{}-{}) {}:{}->{}'.format(start_calls, self.num_calls, self.external.name,
-                                            str_from_object(self.get_input_values()), all_new_facts))
+        if verbose:
+            end_calls = self.num_calls - 1
+            call_range = start_calls if start_calls == end_calls else \
+                '{}-{}'.format(start_calls, end_calls)
+            if VERBOSE_FAILURES or all_new_values:
+                print('{}) {}:{}->{}'.format(call_range, self.external.name,
+                                             str_from_object(self.get_input_values()),
+                                             str_from_object(all_new_values)))
+            if all_new_facts:
+                # TODO: format all_new_facts
+                print('{}) {}:{}->{}'.format(call_range, self.external.name,
+                                             str_from_object(self.get_input_values()), all_new_facts))
         return all_results, list(map(obj_from_value_expression, all_new_facts))
 
     def next_optimistic(self):
