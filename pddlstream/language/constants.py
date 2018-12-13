@@ -97,8 +97,3 @@ def get_parameter_name(expression):
 
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
-
-
-def make_fact(predicate, args):
-    # TODO: unify with Fact
-    return (predicate,) + tuple(args)

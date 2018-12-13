@@ -14,7 +14,6 @@ from pddlstream.utils import str_from_object, safe_zip
 # TODO: investigate constraint satisfaction techniques for search instead
 
 def dump_assignment(solution):
-    # TODO: version of incremetal algorithm focused on constraint satisfaction
     bindings, cost, evaluations = solution
     print()
     print('Solved: {}'.format(bindings is not None))

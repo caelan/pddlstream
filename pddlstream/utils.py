@@ -96,6 +96,9 @@ def safe_zip(sequence1, sequence2):
 def get_mapping(sequence1, sequence2):
     return dict(safe_zip(sequence1, sequence2))
 
+def apply_mapping(sequence, mapping):
+    return tuple(mapping.get(e, e) for e in sequence)
+
 def invert_test(test):
     return lambda *args: not test(*args)
 

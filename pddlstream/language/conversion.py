@@ -201,7 +201,6 @@ def revert_solution(plan, cost, evaluations):
     init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
     return value_from_obj_plan(plan), cost, init
 
-
 #def opt_obj_from_value(value):
 #    if Object.has_value(value):
 #        return Object.from_value(value)
@@ -209,13 +208,8 @@ def revert_solution(plan, cost, evaluations):
 #    # TODO: better way of doing this?
 #    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
 
-def remap_objects(objects, bindings):
-    return tuple(bindings.get(i, i) for i in objects)
-
-
 def str_from_head(head):
     return '{}{}'.format(get_prefix(head), str_from_object(get_args(head)))
-
 
 def str_from_fact(fact):
     prefix = get_prefix(fact)

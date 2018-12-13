@@ -3,7 +3,7 @@ import time
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
 from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
-from pddlstream.utils import str_from_object
+from pddlstream.utils import str_from_object, apply_mapping
 
 # https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
 #try:
@@ -30,8 +30,9 @@ class FunctionResult(Result):
     def get_tuple(self):
         return self.external.name, self.instance.input_objects, self.value
     def remap_inputs(self, bindings):
-        # TODO: move this to the instance class?
-        input_objects = [bindings.get(i, i) for i in self.instance.input_objects]
+        if not any(o in bindings for o in self.instance.get_objects()):
+            return self
+        input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
         new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.value, self.opt_index, self.optimistic)

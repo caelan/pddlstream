@@ -20,7 +20,7 @@ from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expres
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
 from pddlstream.language.external import compute_plan_effort, Result
 from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE
-from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders
+from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders, apply_mapping
 
 def compute_function_plan(opt_evaluations, action_plan, unit_costs):
     function_plan = set()
@@ -126,7 +126,7 @@ def get_instance_facts(instance, node_from_atom):
     for precondition in get_literals(instance.action.precondition):
         if precondition.negated:
             continue
-        args = [instance.var_mapping.get(arg, arg) for arg in precondition.args]
+        args = apply_mapping(precondition.args, instance.var_mapping)
         literal = precondition.__class__(precondition.predicate, args)
         fact = fact_from_fd(literal)
         if fact in node_from_atom:

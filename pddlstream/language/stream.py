@@ -3,14 +3,14 @@ from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, make_fact
-from pddlstream.language.conversion import list_from_conjunction, remap_objects, \
-    substitute_expression, get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact
+from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
+    get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
-from pddlstream.utils import str_from_object, get_mapping, irange
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
 INTERNAL_EVALUATION = False
@@ -124,8 +124,11 @@ class StreamResult(Result):
     def get_tuple(self):
         return self.external.name, self.instance.input_objects, self.output_objects
     def remap_inputs(self, bindings):
-        input_objects = remap_objects(self.instance.input_objects, bindings)
-        fluent_facts = [make_fact(get_prefix(f), remap_objects(get_args(f), bindings))
+        # TODO: speed this procedure up
+        if not any(o in bindings for o in self.instance.get_objects()):
+            return self
+        input_objects = apply_mapping(self.instance.input_objects, bindings)
+        fluent_facts = [Fact(get_prefix(f), apply_mapping(get_args(f), bindings))
                         for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
         new_instance.opt_index = self.instance.opt_index
@@ -175,8 +178,11 @@ class StreamInstance(Instance):
     def use_unique(self):
         return self.opt_index == 0
 
+    def get_objects(self):
+        return set(self.input_objects) | {o for f in self.fluent_facts for o in get_args(f)}
+
     def get_fluent_values(self):
-        return [make_fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
+        return [Fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
 
     def _create_generator(self):
         if self._generator is not None:
@@ -261,8 +267,8 @@ class StreamInstance(Instance):
     def get_blocked_fact(self):
         if self.external.is_fluent():
             assert self._axiom_predicate is not None
-            return make_fact(self._axiom_predicate, self.input_objects)
-        return make_fact(self.external.blocked_predicate, self.input_objects)
+            return Fact(self._axiom_predicate, self.input_objects)
+        return Fact(self.external.blocked_predicate, self.input_objects)
 
     def disable(self, evaluations, domain):
         #assert not self.disabled
@@ -280,9 +286,9 @@ class StreamInstance(Instance):
         evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL_EVALUATION
         # TODO: allow reporting back which components lead to failure
 
-        static_fact = make_fact(self._axiom_predicate, self.external.inputs)
+        static_fact = Fact(self._axiom_predicate, self.external.inputs)
         preconditions = [static_fact] + list(self.fluent_facts)
-        derived_fact = make_fact(self._axiom_predicate, self.external.inputs)
+        derived_fact = Fact(self.blocked_predicate, self.external.inputs)
         self._disabled_axiom = make_axiom(
             parameters=self.external.inputs,
             preconditions=preconditions,

@@ -50,6 +50,7 @@ class Instance(object):
         self.disabled = False
         self.opt_index = 0
         self.results_history = []
+        self.num_calls = len(self.results_history)
         self.mapping = get_mapping(self.external.inputs, self.input_objects)
         for constant in self.external.constants:
             self.mapping[constant] = Object.from_name(constant)
@@ -62,14 +63,11 @@ class Instance(object):
         successes = len([r.is_successful() for r in results])
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
+        self.num_calls = len(self.results_history)
         self.successes += successes
 
     #def get_result(self):
     #    raise NotImplementedError()
-
-    @property
-    def num_calls(self):
-        return len(self.results_history)
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -79,6 +77,9 @@ class Instance(object):
 
     def get_domain(self):
         return self.domain
+
+    def get_objects(self):
+        return set(self.input_objects)
 
     #def is_first_call(self): # TODO: use in streams
     #    return self.online_calls == 0

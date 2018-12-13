@@ -1,6 +1,6 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import get_literals, conditions_hold, make_action
+from pddlstream.algorithms.downward import get_literals
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
 
