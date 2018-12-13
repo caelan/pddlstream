@@ -9,7 +9,7 @@ from pddlstream.language.conversion import evaluation_from_fact, substitute_expr
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.external import compute_instance_effort
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import INF
+from pddlstream.utils import INF, get_length
 
 # TODO: lazily expand the shared objects in some cases to prevent increase in size
 # TODO: constrain to using the previous plan skeleton
@@ -141,6 +141,7 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     stream_plan, action_plan = separate_plan(combined_plan, action_info=None, terminate=False, stream_only=False)
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
+    #print(depth, get_length(stream_plan))
     if stream_plan is None:
         return stream_plan, cost, depth
     plan_index = get_stream_plan_index(stream_plan)

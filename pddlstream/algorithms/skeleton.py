@@ -1,20 +1,32 @@
 import time
-from collections import namedtuple, Sized
-from heapq import heappush, heappop
+from collections import namedtuple, Sized, defaultdict
+from heapq import heappush, heappop, heapreplace
 
 from pddlstream.algorithms.algorithm import add_certified, add_facts
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult, StreamInstance
-from pddlstream.language.synthesizer import SynthStreamResult
-from pddlstream.utils import elapsed_time, HeapElement, INF, safe_zip
+from pddlstream.utils import elapsed_time, HeapElement, INF, safe_zip, apply_mapping, str_from_object
 
+# The motivation for immediately instantiating is to avoid unnecessary sampling
+# Consider a stream result DAG A -> C, B -> C
+# If A is already successfully sampled, don't want to resample A until B is sampled
+
+def is_enumerated(binding):
+    return any(result.instance.enumerated and (result.instance.num_calls == attempt)
+               for result, attempt in zip(binding.stream_plan, binding.stream_attempts))
+
+def remove_blocked(evaluations, instance, new_results):
+    if new_results and isinstance(instance, StreamInstance):
+        evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
+
+##################################################
 
 def _bind_solution(queue, bindings, skeleton_index, cost):
-    action_plan = [(name, tuple(bindings.get(o, o) for o in args))
-                   for name, args in queue.skeleton_plans[skeleton_index].action_plan]
-    # if is_solution(queue.domain, queue.evaluations, action_plan, queue.goal_expression):
-    queue.store.add_plan(action_plan, cost)
+    plan_skeleton = queue.skeleton_plans[skeleton_index].action_plan
+    bound_plan = [(name, apply_mapping(args, bindings)) for name, args in plan_skeleton]
+    # if is_solution(queue.domain, queue.evaluations, bound_plan, queue.goal_expression):
+    queue.store.add_plan(bound_plan, cost)
 
 def _reenable_stream_plan(queue, stream_plan):
     # TODO: only disable if not used elsewhere
@@ -28,15 +40,7 @@ def _reenable_stream_plan(queue, stream_plan):
 
 ##################################################
 
-def _add_existing_results(stream_plan, stream_attempts, results):
-    for stream_index, (result, attempt) in enumerate(safe_zip(stream_plan, stream_attempts)):
-        if result.instance.num_calls != attempt:
-            for call_index in range(attempt, result.instance.num_calls):
-                results.extend(result.instance.results_history[call_index])
-            return stream_index
-    return None
-
-def _query_new_results(queue, instance, results, accelerate=1):
+def _generate_new_results(queue, instance, accelerate=1):
     # assert(instance.opt_index == 0)
     if not all(evaluation_from_fact(f) in queue.evaluations for f in instance.get_domain()):
         raise RuntimeError(instance)
@@ -44,11 +48,13 @@ def _query_new_results(queue, instance, results, accelerate=1):
         return False
     new_results, new_facts = instance.next_results(accelerate=accelerate, verbose=queue.store.verbose)
     instance.disable(queue.evaluations, queue.domain)  # Disable only if actively sampled
-    if new_results and isinstance(instance, StreamInstance):
-        queue.evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
-    results.extend(new_results)
-    is_wild = bool(add_facts(queue.evaluations, new_facts, result=None))  # TODO: use instance
-    return is_wild
+    remove_blocked(queue.evaluations, instance, new_results)
+    for result in new_results:
+        add_certified(queue.evaluations, result)
+    add_facts(queue.evaluations, new_facts, result=None) # TODO: record the instance
+    for skeleton, _ in queue.bindings_from_instance[instance]:
+        _instantiate_binding(queue, skeleton)
+    return bool(new_results) | bool(new_facts)
 
 ##################################################
 
@@ -66,82 +72,64 @@ def _update_cost(cost, opt_result, result):
         new_cost += (result.value - opt_result.value)
     return new_cost
 
-def _bind_new_skeletons(queue, skeleton, index, results):
-    stream_plan, plan_attempts, bindings, skeleton_index, cost = skeleton
-    opt_result = stream_plan[index] # TODO: could do several at once but no real point
-    for result in results:
-        add_certified(queue.evaluations, result)
-        #if (type(result) is PredicateResult) and (opt_result.value != result.value):
-        if not result.is_successful():
-            continue # TODO: check if satisfies target certified
-        new_stream_plan =  stream_plan[:index] + stream_plan[index+1:]
-        new_plan_attempts = plan_attempts[:index] + plan_attempts[index+1:]
-        new_bindings = _update_bindings(bindings, opt_result, result)
-        new_cost = _update_cost(cost, opt_result, result)
-        queue.add_binding(new_stream_plan, new_plan_attempts, new_bindings, skeleton_index, new_cost)
+def puncture(sequence, index):
+    return sequence[:index] + sequence[index+1:]
 
-def _decompose_synthesizer_skeleton(queue, skeleton, index):
-    stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
-    opt_result = stream_plan[index]
-    if (plan_attempts[index] == 0) and isinstance(opt_result, SynthStreamResult):
-        # TODO: only decompose if failure?
-        decomposition = opt_result.decompose()
-        new_stream_plan = stream_plan[:index] + decomposition + stream_plan[index+1:]
-        new_plan_attempts = plan_attempts[:index] + [0]*len(decomposition) + plan_attempts[index+1:]
-        queue.add_binding(new_stream_plan, new_plan_attempts, bindings, plan_index, cost)
-
-def process_skeleton(queue, skeleton):
-    stream_plan, stream_attempts, bindings, skeleton_index, cost = skeleton
-    is_new, is_wild = False, False
-    if not stream_plan:
-        _bind_solution(queue, bindings, skeleton_index, cost)
-        return is_new
-    if (queue.store.best_cost < INF) and (queue.store.best_cost <= cost):
-        # TODO: what should I do if the cost=inf (from incremental/exhaustive)
-        #_reenable_stream_plan(queue, stream_plan)
-        print(stream_attempts, bindings, skeleton_index)
-        print('Pruned ({:.3f} < {:.3f})'.format(queue.store.best_cost, cost))
-        return is_new
-
-    new_results = []
-    # The goal of this really is for just getting the effort correct
-    stream_index = _add_existing_results(stream_plan, stream_attempts, new_results)
-    if stream_index is None:
-        # Cheaper to reuse before evaluating any new
-        stream_index = 0
-        opt_instance = stream_plan[stream_index].instance
-        is_wild |= _query_new_results(queue, opt_instance, new_results)
-        is_new |= bool(new_results) # | is_wild
-    opt_result = stream_plan[stream_index]
-
-    # Maybe hash all ground instances to update all the time
-    if is_new:
-        opt_instance = stream_plan[stream_index].instance
-        for sk in queue.bindings_from_instance[opt_instance]:
-            _bind_new_skeletons(queue, sk, stream_index, new_results)
-            sk.stream_attempts[stream_index] = opt_instance.num_calls
-            # Would be nice to just check enumerated here
-    else:
-        _bind_new_skeletons(queue, skeleton, stream_index, new_results)
+def _instantiate_binding(queue, binding):
+    updated = False
+    if is_enumerated(binding):
+        return updated
+    stream_plan, stream_indices, stream_attempts, bindings, skeleton_index, cost = binding
+    for stream_index, (opt_result, attempt) in enumerate(safe_zip(stream_plan, stream_attempts)):
+        if opt_result.instance.num_calls == attempt:
+            continue
+        new_results = []
+        for call_index in range(attempt, opt_result.instance.num_calls):
+            new_results.extend(opt_result.instance.results_history[call_index])
+        for result in new_results:
+            if result.is_successful():
+                # TODO: check if satisfies target certified
+                queue.new_binding(skeleton_index,
+                                  puncture(stream_indices, stream_index),
+                                  puncture(stream_attempts, stream_index),
+                                  _update_bindings(bindings, opt_result, result),
+                                  _update_cost(cost, opt_result, result))
         stream_attempts[stream_index] = opt_result.instance.num_calls
-    _decompose_synthesizer_skeleton(queue, skeleton, stream_index)
-    if not opt_result.instance.enumerated:
-        queue.add_binding(*skeleton)
-        # TODO: when popping delete the skeleton from the stream plan
-        # TODO: update some sort of is stale key (the current key is stale)
+        updated = True
+        # Would be nice to just check enumerated here
+    return updated
 
-    return is_new
+##################################################
+
+# from pddlstream.language.synthesizer import SynthStreamResult
+# def _decompose_synthesizer_skeleton(queue, skeleton, index):
+#     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
+#     opt_result = stream_plan[index]
+#     if (plan_attempts[index] == 0) and isinstance(opt_result, SynthStreamResult):
+#         # TODO: only decompose if failure?
+#         decomposition = opt_result.decompose()
+#         new_stream_plan = stream_plan[:index] + decomposition + stream_plan[index+1:]
+#         new_plan_attempts = plan_attempts[:index] + [0]*len(decomposition) + plan_attempts[index+1:]
+#         queue.new_binding(new_stream_plan, new_plan_attempts, bindings, plan_index, cost)
+#
 
 ##################################################
 
 Skeleton = namedtuple('SkeletonPlan', ['stream_plan', 'action_plan', 'cost'])
-Binding = namedtuple('Binding', ['stream_plan', 'stream_attempts', 'bindings', 'skeleton_index', 'cost'])
+Binding = namedtuple('Binding', ['stream_plan', 'stream_indices', 'stream_attempts',
+                                 'bindings', 'skeleton_index', 'cost'])
 BindingPriority = namedtuple('BindingPriority', ['attempted', 'effort'])
 
 class SkeletonQueue(Sized):
     # TODO: handle this in a partially ordered way
     # TODO: alternatively store just preimage and reachieve
-    # TODO: hash existing plan skeletons to prevent repeats
+    # TODO: make an "action" for returning to the search (if it is the best decision)
+    # TODO: could just maintain a list of active instances and sample/propagate
+    # TODO: store bindings in a factored form that only combines when needed
+    # TODO: update bindings given outcomes of eager streams
+    # TODO: immediately evaluate eager streams in the queue
+    # TODO: maintain a tree instead. Propagate the best subtree upwards
+
     def __init__(self, store, evaluations, goal_expression, domain):
         self.store = store
         self.evaluations = evaluations
@@ -149,72 +137,104 @@ class SkeletonQueue(Sized):
         self.domain = domain
         self.queue = []
         self.skeleton_plans = []
-        self.binding_set = set()
-        self.bindings_from_instance = {}
-        # TODO: include eager streams in the queue?
-        # TODO: make an "action" for returning to the search (if it is the best decision)
-        # TODO: map from stream to set of bindings
-        # TODO: could just maintain a list of active instances and sample/propagate
-        # Store bindings in a factored form that only combines when needed
+        self.binding_set = {}
+        self.bindings_from_instance = defaultdict(list)
 
-    def add_binding(self, stream_plan, stream_attempts, bindings, skeleton_index, cost):
-        assert len(stream_plan) == len(stream_attempts)
-        stream_plan = [result.remap_inputs(bindings) for result in stream_plan]
-        #key = (tuple(stream_plan), frozenset(bindings.items()), skeleton_index)
-        #if key in self.binding_set:
-        #    return
-        #self.binding_set.add(key)
-        # TODO: maybe add just update the number of attempts for the key but not bindings themselves
-        # TODO: hash the attempts index instead as well?
-        # Can't do yet because readding to the queue
+    def flush(self):
+        while self.queue:
+            old_priority, binding = self.queue[0]
+            new_priority = compute_priority(binding)
+            if old_priority == new_priority:
+                return
+            heapreplace(self.queue, HeapElement(new_priority, binding))
 
-        attempted = sum(stream_attempts) != 0 # Bias towards unused
-        effort = compute_effort(stream_attempts)
-        priority = BindingPriority(attempted, effort)
-        skeleton = Binding(stream_plan, stream_attempts, bindings, skeleton_index, cost)
-        heappush(self.queue, HeapElement(priority, skeleton))
-        if stream_plan:
-            instance = stream_plan[0].instance
-            self.bindings_from_instance.setdefault(instance, []).append(skeleton)
+    def push(self, binding):
+        if is_enumerated(binding):
+            return
+        priority = compute_priority(binding)
+        heappush(self.queue, HeapElement(priority, binding))
+
+    #def peek(self):
+    #    self.flush()
+    #    _, skeleton = self.queue[0]
+    #    return skeleton
+
+    def pop(self):
+        self.flush()
+        _, binding = heappop(self.queue)
+        return binding
+
+    def new_binding(self, skeleton_index, stream_indices, stream_attempts, mapping, cost):
+        assert len(stream_indices) == len(stream_attempts)
+        # Each stream result is unique (affects hashing)
+        key = (tuple(stream_indices), frozenset(mapping.items()), skeleton_index)
+        if key in self.binding_set:
+            print('Binding already visited!')
+            return
+        if (self.store.best_cost < INF) and (self.store.best_cost <= cost):
+            # TODO: what should I do if the cost=inf (from incremental/exhaustive)
+            # _reenable_stream_plan(queue, stream_plan)
+            return
+        if not stream_indices:
+            _bind_solution(self, mapping, skeleton_index, cost)
+            return
+        skeleton = self.skeleton_plans[skeleton_index]
+        stream_plan = [skeleton.stream_plan[index].remap_inputs(mapping) for index in stream_indices]
+        binding = Binding(stream_plan, stream_indices, stream_attempts, mapping, skeleton_index, cost)
+        self.binding_set[key] = binding
+        _instantiate_binding(self, binding)
+        if is_enumerated(binding):
+            return
+        self.push(binding)
+        for stream_index in range(len(stream_plan)):
+            instance = stream_plan[stream_index].instance
+            self.bindings_from_instance[instance].append((binding, stream_index))
 
     def new_skeleton(self, stream_plan, action_plan, cost):
-        # TODO: iteratively recompute full plan skeletons
         skeleton_index = len(self.skeleton_plans)
         self.skeleton_plans.append(Skeleton(stream_plan, action_plan, cost))
-        plan_attempts = [0]*len(stream_plan)
-        self.add_binding(stream_plan, plan_attempts, {}, skeleton_index, cost)
-        self.greedily_process()
+        stream_indices = list(range(len(stream_plan)))
+        stream_attempts = [0]*len(stream_plan)
+        mapping = {}
+        self.new_binding(skeleton_index, stream_indices, stream_attempts, mapping, cost)
 
     ####################
 
     def is_active(self):
         return self.queue and (not self.store.is_terminated())
 
+    def process_root(self):
+        is_new = False
+        binding = self.pop()
+        if not _instantiate_binding(self, binding):
+            opt_instance = binding.stream_plan[0].instance
+            is_new = _generate_new_results(self, opt_instance)
+        # _decompose_synthesizer_skeleton(queue, skeleton, stream_index)
+        if not is_enumerated(binding):
+            self.push(binding)
+        return is_new
+
     def greedily_process(self):
-        # TODO: search until new disabled or new evaluation?
         while self.is_active():
+            self.flush()
             key, _ = self.queue[0]
             if key.attempted:
                 break
-            _, skeleton = heappop(self.queue)
-            process_skeleton(self, skeleton)
+            self.process_root()
 
     def process_until_new(self):
         # TODO: process the entire queue once instead
         is_new = False
         while self.is_active() and (not is_new):
-            _, skeleton = heappop(self.queue)
-            is_new |= process_skeleton(self, skeleton)
+            is_new |= self.process_root()
             self.greedily_process()
 
     def timed_process(self, max_time):
         start_time = time.time()
         while self.is_active() and (elapsed_time(start_time) <= max_time):
-            _, skeleton = heappop(self.queue)
-            process_skeleton(self, skeleton)
+            self.process_root()
             self.greedily_process()
-            # TODO: print cost updates
-            # TODO: only print when progress with a new skeleton
+            # TODO: print cost updates when progress with a new skeleton
 
     ####################
 
@@ -224,17 +244,12 @@ class SkeletonQueue(Sized):
             if not self:
                 return False
             self.process_until_new()
-        elif not stream_plan:
-            self.store.add_plan(action_plan, cost)
         else:
-            # TODO: some identical stream plans are still sneaking through
-            #raw_input('New stream plan')
+            #print([result for result in stream_plan if result.optimistic])
+            #raw_input('New skeleton')
             self.new_skeleton(stream_plan, action_plan, cost)
+            self.greedily_process()
         self.timed_process(max_time - elapsed_time(start_time))
-        #for i, element in enumerate(self.queue):
-        #    bindings = element.value
-        #    print(i, element.key, bindings.bindings, bindings.stream_attempts, bindings.skeleton_index)
-        #raw_input('Continue?')
         return True
 
     def __len__(self):
@@ -245,9 +260,19 @@ class SkeletonQueue(Sized):
 # TODO: want to minimize number of new sequences as they induce overhead
 # TODO: estimate how many times a stream needs to be queried (acceleration)
 
-def compute_effort(plan_attempts):
-    attempts = sum(plan_attempts)
-    return attempts, len(plan_attempts)
+def compute_effort(stream_attempts):
+    attempts = sum(stream_attempts)
+    return attempts, len(stream_attempts)
+
+def compute_priority(binding):
+    # Infinite cost if skeleton is exhausted
+    # Attempted is equivalent to whether any stream result is disabled
+    attempted = sum(binding.stream_attempts) != 0
+    effort = compute_effort(binding.stream_attempts)
+    # TODO: lexicographic tiebreak using plan cost
+    return BindingPriority(attempted, effort)
+
+##################################################
 
 # def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
 #     # TODO: we are in a POMDP. If not the case, then the geometric cost policy is optimal
