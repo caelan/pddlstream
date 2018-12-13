@@ -16,27 +16,6 @@ def remove_blocked(evaluations, instance, new_results):
     if new_results and isinstance(instance, StreamInstance):
         evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
 
-##################################################
-
-def _reenable_stream_plan(queue, stream_plan):
-    # TODO: only disable if not used elsewhere
-    # TODO: could just hash instances
-    # TODO: do I actually need to reenable? Yes it ensures that
-    # TODO: check if the index is the only one being sampled
-    # for result in stream_plan:
-    #    result.instance.disabled = False
-    stream_plan[0].instance.enable(queue.evaluations, queue.domain)
-    # TODO: move functions as far forward as possible to prune these plans
-    # TODO: make function evaluations low success as soon as finite cost
-
-##################################################
-
-def history_slice(instance, start=0):
-    new_results = []
-    for call_index in range(start, instance.num_calls):
-        new_results.extend(instance.results_history[call_index])
-    return new_results
-
 def puncture(sequence, index):
     return sequence[:index] + sequence[index+1:]
 
@@ -70,11 +49,16 @@ def update_cost(cost, opt_result, result):
 ##################################################
 
 class Skeleton(object):
-    def __init__(self, stream_plan, action_plan, cost):
+    def __init__(self, queue, stream_plan, action_plan, cost):
+        self.queue = queue
         self.stream_plan = stream_plan
         self.action_plan = action_plan
         self.cost = cost
-        #self.root
+        self.root = Binding(self.queue, self,
+                            stream_indices=range(len(stream_plan)),
+                            stream_attempts=[0]*len(stream_plan),
+                            bindings={},
+                            cost=cost)
     def bind_stream_plan(self, mapping, indices=None):
         if indices is None:
             indices = range(len(self.stream_plan))
@@ -89,12 +73,14 @@ Priority = namedtuple('Priority', ['attempted', 'effort'])
 class Binding(object):
     # TODO: maintain a tree instead. Propagate the best subtree upwards
     def __init__(self, queue, skeleton, stream_indices, stream_attempts, bindings, cost):
+        assert len(stream_indices) == len(stream_attempts)
         self.queue = queue
         self.skeleton = skeleton
-        self.stream_indices = stream_indices
-        self.stream_attempts = stream_attempts
+        self.stream_indices = list(stream_indices)
+        self.stream_attempts = list(stream_attempts)
         self.bindings = bindings
         self.cost = cost
+        self.children = []
         self._enumerated = False
         self._stream_plan = None
     @property
@@ -102,6 +88,12 @@ class Binding(object):
         if self._stream_plan is None:
             self._stream_plan = self.skeleton.bind_stream_plan(self.bindings, self.stream_indices)
         return self._stream_plan
+    @property
+    def action_plan(self):
+        return self.skeleton.bind_action_plan(self.bindings)
+    def is_dominated(self):
+        # TODO: what should I do if the cost=inf (from incremental/exhaustive)
+        return (self.queue.store.best_cost < INF) and (self.queue.store.best_cost <= self.cost)
     def is_enumerated(self):
         if self._enumerated:
             return True
@@ -115,17 +107,21 @@ class Binding(object):
         effort = compute_effort(self.stream_attempts)
         # TODO: lexicographic tiebreaking using plan cost
         return Priority(attempted, effort)
-    #def get_key(self):
-    #    return self.skeleton, tuple(self.stream_indices), frozenset(self.bindings.items())
+    def get_key(self):
+        # Each stream result is unique (affects hashing)
+        return self.skeleton, tuple(self.stream_indices), frozenset(self.bindings.items())
     def _instantiate(self, index, new_result):
         if not new_result.is_successful():
-            return # TODO: check if satisfies target certified
+            return None # TODO: check if satisfies target certified
         opt_result = self.stream_plan[index]
-        self.queue._new_binding(self.skeleton,
-                                puncture(self.stream_indices, index),
-                                puncture(self.stream_attempts, index),
-                                update_bindings(self.bindings, opt_result, new_result),
-                                update_cost(self.cost, opt_result, new_result))
+        binding = Binding(self.queue, self.skeleton,
+                          puncture(self.stream_indices, index),
+                          puncture(self.stream_attempts, index),
+                          update_bindings(self.bindings, opt_result, new_result),
+                          update_cost(self.cost, opt_result, new_result))
+        self.children.append(binding)
+        self.queue.new_binding(binding)
+        return binding
     def update_instances(self):
         updated = False
         if self.is_enumerated():
@@ -134,15 +130,13 @@ class Binding(object):
         for index, (opt_result, attempt) in enumerate(safe_zip(self.stream_plan, self.stream_attempts)):
             if opt_result.instance.num_calls == attempt:
                 continue
-            for new_result in history_slice(opt_result.instance, start=attempt):
+            for new_result in opt_result.instance.get_results(start=attempt):
                 self._instantiate(index, new_result)
             self.stream_attempts[index] = opt_result.instance.num_calls
             updated = True
             # Would be nice to just check enumerated here
+        # Could just check if enumerated here
         return updated
-    def __iter__(self):
-        return iter((self.skeleton, self.stream_plan, self.stream_indices, self.stream_attempts,
-                     self.bindings, self.cost))
 
 ##################################################
 
@@ -167,7 +161,7 @@ class SkeletonQueue(Sized):
 
     ####################
 
-    def flush(self):
+    def _flush_stale(self):
         while self.queue:
             queue_priority, binding = self.queue[0]
             current_priority = binding.get_priority()
@@ -175,49 +169,47 @@ class SkeletonQueue(Sized):
                 return
             heapreplace(self.queue, HeapElement(current_priority, binding))
 
-    def push(self, binding):
+    def push_binding(self, binding):
         if binding.is_enumerated():
-            return
+            return False
         heappush(self.queue, HeapElement(binding.get_priority(), binding))
-
-    def pop(self):
-        self.flush()
-        _, binding = heappop(self.queue)
-        return binding
+        return True
 
     ####################
 
-    def _new_binding(self, skeleton, stream_indices, stream_attempts, mapping, cost):
-        assert len(stream_indices) == len(stream_attempts)
-        # Each stream result is unique (affects hashing)
-        key = (tuple(stream_indices), frozenset(mapping.items()), skeleton)
+    def _reenable_stream_plan(self, stream_plan):
+        # TODO: only disable if not used elsewhere
+        # TODO: could just hash instances
+        # TODO: do I actually need to reenable? Yes it ensures that
+        # TODO: check if the index is the only one being sampled
+        # for result in stream_plan:
+        #    result.instance.disabled = False
+        stream_plan[0].instance.enable(self.evaluations, self.domain)
+        # TODO: move functions as far forward as possible to prune these plans
+        # TODO: make function evaluations low success as soon as finite cost
+
+    def new_binding(self, binding):
+        key = binding.get_key()
         if key in self.binding_from_key:
-            print('Binding already visited!')
-            return
-        if (self.store.best_cost < INF) and (self.store.best_cost <= cost):
-            # TODO: what should I do if the cost=inf (from incremental/exhaustive)
+            print('Binding already visited!') # Could happen if binding is the same
+            #return
+        self.binding_from_key[key] = binding
+        if binding.is_dominated():
             # _reenable_stream_plan(queue, stream_plan)
             return
-        if not stream_indices:
+        if not binding.stream_indices:
             # if is_solution(self.domain, self.evaluations, bound_plan, self.goal_expression):
-            self.store.add_plan(skeleton.bind_action_plan(mapping), cost)
+            self.store.add_plan(binding.action_plan, binding.cost)
             return
-        binding = Binding(self, skeleton, stream_indices, stream_attempts, mapping, cost)
-        self.binding_from_key[key] = binding
         binding.update_instances()
-        if binding.is_enumerated():
-            return
-        self.push(binding)
-        for result in binding.stream_plan:
-            self.bindings_from_instance[result.instance].add(binding)
+        if self.push_binding(binding):
+            for result in binding.stream_plan:
+                self.bindings_from_instance[result.instance].add(binding)
 
     def new_skeleton(self, stream_plan, action_plan, cost):
-        skeleton = Skeleton(stream_plan, action_plan, cost)
+        skeleton = Skeleton(self, stream_plan, action_plan, cost)
         self.skeletons.append(skeleton)
-        stream_indices = list(range(len(stream_plan)))
-        stream_attempts = [0]*len(stream_plan)
-        mapping = {}
-        self._new_binding(skeleton, stream_indices, stream_attempts, mapping, cost)
+        self.new_binding(skeleton.root)
 
     ####################
 
@@ -239,12 +231,12 @@ class SkeletonQueue(Sized):
 
     def _process_root(self):
         is_new = False
-        binding = self.pop()
+        self._flush_stale()
+        _, binding = heappop(self.queue)
         if not binding.update_instances():
             is_new = self._generate_results(binding.stream_plan[0].instance)
         # _decompose_synthesizer_skeleton(queue, skeleton, stream_index)
-        if not binding.is_enumerated():
-            self.push(binding)
+        self.push_binding(binding)
         return is_new
 
     ####################
@@ -254,7 +246,7 @@ class SkeletonQueue(Sized):
 
     def greedily_process(self):
         while self.is_active():
-            self.flush()
+            self._flush_stale()
             key, _ = self.queue[0]
             if key.attempted:
                 break

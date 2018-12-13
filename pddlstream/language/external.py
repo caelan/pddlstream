@@ -58,6 +58,12 @@ class Instance(object):
         self.successes = 0
         self.opt_results = []
 
+    def get_results(self, start=0):
+        results = []
+        for index in range(start, self.num_calls):
+            results.extend(self.results_history[index])
+        return results
+
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
         successes = len([r.is_successful() for r in results])
@@ -65,9 +71,6 @@ class Instance(object):
         self.results_history.append(results)
         self.num_calls = len(self.results_history)
         self.successes += successes
-
-    #def get_result(self):
-    #    raise NotImplementedError()
 
     def get_input_values(self):
         return values_from_objects(self.input_objects)
