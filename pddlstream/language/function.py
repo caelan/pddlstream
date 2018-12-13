@@ -95,7 +95,7 @@ class Function(External):
     """
     codomain = float # int | float
     _Instance = FunctionInstance
-    _default_p_success = 1
+    _default_p_success = 0.99 # 1 | 0.99  # Might be pruned using cost threshold
     _default_overhead = None
     def __init__(self, head, fn, domain, info):
         if info is None:

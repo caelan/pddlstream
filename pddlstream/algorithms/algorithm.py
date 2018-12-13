@@ -158,13 +158,16 @@ class SolutionStore(object):
         #self.best_cost = self.cost_fn(self.best_plan)
         self.solutions = []
     def add_plan(self, plan, cost):
-        # TODO: double-check that this is a solution
-        self.solutions.append(Solution(plan, cost))
-        if cost < self.best_cost:
-            self.best_plan = plan
-            self.best_cost = cost
+        # TODO: double-check that plan is a solution
+        if (plan is None) or self.best_cost <= cost:
+            return
+        solution = Solution(plan, cost)
+        self.best_plan, self.best_cost = solution
+        self.solutions.append(solution)
+    def has_solution(self):
+        return self.best_plan is not None
     def is_solved(self):
-        return (self.best_cost < INF) and (self.best_cost <= self.success_cost)
+        return self.has_solution() and (self.best_cost <= self.success_cost)
     def elapsed_time(self):
         return elapsed_time(self.start_time)
     def is_timeout(self):
