@@ -100,6 +100,7 @@ def main(focused=True, success_cost=0, max_time=30):
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
                                                  incremental=False, stream_info=stream_info,
                                                  #search_sample_ratio=1,
+                                                 #max_iterations=1,
                                                  success_cost=success_cost, max_time=max_time)
     else:
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,

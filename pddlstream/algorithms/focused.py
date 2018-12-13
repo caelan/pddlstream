@@ -89,7 +89,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                     evaluations, store, eager_layers, verbose=False)
         print('\nIteration: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, len(queue.skeleton_plans), len(queue), len(disabled), len(evaluations), eager_calls,
+            num_iterations, len(queue.skeletons), len(queue), len(disabled), len(evaluations), eager_calls,
             store.best_cost, search_time, sample_time, store.elapsed_time()))
         max_cost = min(store.best_cost, constraints.max_cost)
         solve_stream_plan = lambda sr: relaxed_stream_plan(evaluations, goal_exp, domain, sr, negative,
