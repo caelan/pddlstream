@@ -111,22 +111,31 @@ class StreamResult(Result):
                  call_index=None, list_index=None, optimistic=True):
         super(StreamResult, self).__init__(instance, opt_index, optimistic)
         self.output_objects = tuple(output_objects)
-        self.mapping = get_mapping(self.external.outputs, self.output_objects)
-        self.mapping.update(instance.mapping)
-        # TODO: lazily compute these properties
-        self.certified = substitute_expression(self.external.certified, self.get_mapping())
         self.call_index = call_index
         self.list_index = list_index
+        self._mapping = None
+        self._certified = None
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._mapping = get_mapping(self.external.outputs, self.output_objects)
+            self._mapping.update(self.instance.get_mapping())
+        return self._mapping
     def get_mapping(self):
         return self.mapping
+    @property
+    def certified(self):
+        if self._certified is None:
+            self._certified = substitute_expression(self.external.certified, self.get_mapping())
+        return self._certified
     def get_certified(self):
         return self.certified
     def get_tuple(self):
         return self.external.name, self.instance.input_objects, self.output_objects
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
-        if not any(o in bindings for o in self.instance.get_objects()):
-            return self
+        #if not any(o in bindings for o in self.instance.get_objects()):
+        #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         fluent_facts = [Fact(get_prefix(f), apply_mapping(get_args(f), bindings))
                         for f in self.instance.fluent_facts]
@@ -178,7 +187,7 @@ class StreamInstance(Instance):
     def use_unique(self):
         return self.opt_index == 0
 
-    def get_objects(self):
+    def get_objects(self): # TODO: lazily compute
         return set(self.input_objects) | {o for f in self.fluent_facts for o in get_args(f)}
 
     def get_fluent_values(self):

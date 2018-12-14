@@ -51,12 +51,45 @@ class Instance(object):
         self.opt_index = 0
         self.results_history = []
         self.num_calls = len(self.results_history)
-        self.mapping = get_mapping(self.external.inputs, self.input_objects)
-        for constant in self.external.constants:
-            self.mapping[constant] = Object.from_name(constant)
-        self.domain = substitute_expression(self.external.domain, self.get_mapping())
         self.successes = 0
         self.opt_results = []
+        self._mapping = None
+        self._domain = None
+
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._mapping = get_mapping(self.external.inputs, self.input_objects)
+            for constant in self.external.constants:
+                self._mapping[constant] = Object.from_name(constant)
+        return self._mapping
+
+    def get_mapping(self):
+        return self.mapping
+
+    @property
+    def domain(self):
+        if self._domain is None:
+            self._domain = substitute_expression(self.external.domain, self.get_mapping())
+        return self._domain
+
+    def get_domain(self):
+        return self.domain
+
+    def get_objects(self):
+        return set(self.input_objects)
+
+    def get_input_values(self):
+        return values_from_objects(self.input_objects)
+
+    #def is_first_call(self): # TODO: use in streams
+    #    return self.online_calls == 0
+    #
+    #def has_previous_success(self):
+    #    return self.online_success != 0
+
+    def next_results(self, accelerate=1, verbose=False):
+        raise NotImplementedError()
 
     def get_results(self, start=0):
         results = []
@@ -71,27 +104,6 @@ class Instance(object):
         self.results_history.append(results)
         self.num_calls = len(self.results_history)
         self.successes += successes
-
-    def get_input_values(self):
-        return values_from_objects(self.input_objects)
-
-    def get_mapping(self):
-        return self.mapping
-
-    def get_domain(self):
-        return self.domain
-
-    def get_objects(self):
-        return set(self.input_objects)
-
-    #def is_first_call(self): # TODO: use in streams
-    #    return self.online_calls == 0
-    #
-    #def has_previous_success(self):
-    #    return self.online_success != 0
-
-    def next_results(self, accelerate=1, verbose=False):
-        raise NotImplementedError()
 
     def disable(self, evaluations, domain):
         self.disabled = True

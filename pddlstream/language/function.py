@@ -25,13 +25,19 @@ class FunctionResult(Result):
         super(FunctionResult, self).__init__(instance, opt_index, optimistic)
         self.instance = instance
         self.value = value
+        self._certified = None
+    @property
+    def certified(self):
+        if self._certified is None:
+            self._certified = [Equal(self.instance.head, self.value)]
+        return self._certified
     def get_certified(self):
-        return [Equal(self.instance.get_head(), self.value)]
+        return self.certified
     def get_tuple(self):
         return self.external.name, self.instance.input_objects, self.value
     def remap_inputs(self, bindings):
-        if not any(o in bindings for o in self.instance.get_objects()):
-            return self
+        #if not any(o in bindings for o in self.instance.get_objects()):
+        #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
         new_instance.opt_index = self.instance.opt_index
@@ -41,13 +47,18 @@ class FunctionResult(Result):
     def __repr__(self):
         return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
 
-class FunctionInstance(Instance):  # Head(Instance):
+class FunctionInstance(Instance):
     _Result = FunctionResult
     #_opt_value = 0
     def __init__(self, external, input_objects):
         super(FunctionInstance, self).__init__(external, input_objects)
-        self.head = substitute_expression(self.external.head, self.get_mapping())
         self.value = None
+        self._head = None
+    @property
+    def head(self):
+        if self._head is None:
+            self._head = substitute_expression(self.external.head, self.get_mapping())
+        return self._head
     def get_head(self):
         return self.head
     def next_results(self, accelerate=1, verbose=False):
@@ -60,11 +71,6 @@ class FunctionInstance(Instance):  # Head(Instance):
         # TODO: cast the inputs and test whether still equal?
         #if not (type(self.value) is self.external._odomain):
         #if not isinstance(self.value, self.external.codomain):
-        #if self.value != value:
-        #    raise ValueError('Function [{}] produced a nonintegral value [{}]. '
-        #                     'FastDownward only supports integral costs. '
-        #                     'To "use" real costs, scale each cost by a large factor, '
-        #                     'capturing the most significant bits.'.format(self.external.name, self.value))
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(
                 self.external.name, self.value))
@@ -85,7 +91,6 @@ class FunctionInstance(Instance):  # Head(Instance):
         self.opt_results = [self._Result(self, opt_value, opt_index=self.opt_index, optimistic=True)]
         return self.opt_results
     def __repr__(self):
-        # return '{}:{}->{}'.format(self.instance.external.name, self.instance.inputs, self.value)
         return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
 
 class Function(External):
@@ -103,9 +108,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
-        if fn == DEBUG:
-            fn = opt_fn
-        self.fn = fn
+        self.fn = opt_fn if fn == DEBUG else fn
         #arg_spec = get_arg_spec(self.fn)
         #if len(self.inputs) != len(arg_spec.args):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(
