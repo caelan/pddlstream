@@ -36,22 +36,22 @@ def solve_focused(problem, constraints=PlanConstraints(),
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
-    :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
+    :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
-    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_costs: use unit action costs rather than numeric costs
+    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
+    :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param eager_layers: the number of eager stream application layers per iteration
-    :param search_sample_ratio: the desired ratio of search time / sample time
+    :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
     :param use_skeleton: maintains a set of plan skeletons to sample from
+    :param search_sample_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
-    :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
-    :param postprocess: postprocess the stream plan to find a better solution
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
@@ -62,10 +62,10 @@ def solve_focused(problem, constraints=PlanConstraints(),
     # TODO: warning check if using simultaneous_stream_plan or sequential_stream_plan with non-eager functions
     # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = search_time = sample_time = eager_calls = 0
-    store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
+    store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
     #initial_evaluations = copy.copy(evaluations)
     full_action_info = get_action_info(action_info)
     load_stream_statistics(externals + synthesizers)
@@ -86,7 +86,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         start_time = time.time()
         num_iterations += 1
         eager_calls += layered_process_stream_queue(Instantiator(evaluations, eager_externals),
-                                                    evaluations, store, eager_layers, verbose=False)
+                                                    store, eager_layers, verbose=False)
         print('\nIteration: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue.skeletons), len(queue), len(disabled), len(evaluations), eager_calls,
@@ -128,4 +128,4 @@ def solve_focused(problem, constraints=PlanConstraints(),
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals + synthesizers, verbose)
-    return revert_solution(store.best_plan, store.best_cost, evaluations)
+    return store.extract_solution()

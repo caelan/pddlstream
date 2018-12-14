@@ -31,7 +31,7 @@ def process_instance(instantiator, evaluations, instance, effort, **kwargs):
     for evaluation in add_facts(evaluations, new_facts, result=None): # TODO: record the instance?
         instantiator.add_atom(evaluation, fact_effort)
     if not instance.enumerated:
-        # TODO: more intelligence way of updating effort
+        # TODO: more intelligent way of updating effort
         # Effort needs to incorporate the level as well as the num call
         next_effort = effort+1 if USE_EFFORTS else effort
         instantiator.push(instance, next_effort)
@@ -102,15 +102,15 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
 
 ##################################################
 
-def layered_process_stream_queue(instantiator, evaluations, store, num_layers, **kwargs):
+def layered_process_stream_queue(instantiator, store, num_layers, **kwargs):
     # TODO: reframe as processing all efforts up to a point
     num_calls = 0
     for layer in range(num_layers):
         for _ in range(len(instantiator.stream_queue)):
             if store.is_terminated():
                 return num_calls
-            num_calls += process_instance(instantiator, evaluations, *instantiator.pop_stream(), **kwargs)
-    num_calls += process_function_queue(instantiator, evaluations, **kwargs)
+            num_calls += process_instance(instantiator, store.evaluations, *instantiator.pop_stream(), **kwargs)
+    num_calls += process_function_queue(instantiator, store.evaluations, **kwargs)
     return num_calls
 
 def solve_incremental(problem, constraints=PlanConstraints(),
@@ -134,9 +134,9 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         using stream applications
     """
     # success_cost = terminate_cost = decision_cost
-    store = SolutionStore(max_time, success_cost, verbose) # TODO: include other info here?
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
+    store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
     ensure_no_fluent_streams(externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
@@ -148,14 +148,13 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         num_calls += process_function_queue(instantiator, evaluations, verbose=verbose)
         print('Iteration: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
-        max_cost = min(store.best_cost, constraints.max_cost)
-        plan, cost = solve_finite(evaluations, goal_expression, domain, max_cost=max_cost, **search_kwargs)
+        plan, cost = solve_finite(evaluations, goal_expression, domain,
+                                  max_cost=min(store.best_cost, constraints.max_cost), **search_kwargs)
         if plan is not None:
             store.add_plan(plan, cost)
-        if store.is_terminated() or not instantiator:
+        if store.is_terminated() or (not instantiator):
             break
-        num_calls += layered_process_stream_queue(instantiator, evaluations, store,
-                                                  layers_per_iteration, verbose=verbose)
+        num_calls += layered_process_stream_queue(instantiator, store, layers_per_iteration, verbose=verbose)
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
-    return revert_solution(store.best_plan, store.best_cost, evaluations)
+    return store.extract_solution()

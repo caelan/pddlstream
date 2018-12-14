@@ -55,6 +55,8 @@ def add_plan_constraints(constraints, domain, init, goal):
             #wildcards = [p.name for a, p in safe_zip(args, new_action.parameters) if a == ANY]
             constants = [p.name for a, p in safe_zip(args, new_action.parameters)
                          if not is_parameter(a) and a != ANY]
+            # TODO: handle shared optimistic objects by enforcing that parameter is bound to it
+            # TODO: pass in a set of values rather than a wild card
             skeleton_parameters = list(filter(is_parameter, args))
             existing_parameters = [p for p in skeleton_parameters if p in bound_parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}

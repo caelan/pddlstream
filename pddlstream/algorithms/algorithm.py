@@ -7,7 +7,7 @@ from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact, substitute_expression
+    evaluation_from_fact, substitute_expression, revert_solution
 from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
 from pddlstream.language.external import DEBUG, compute_plan_effort
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
@@ -146,8 +146,9 @@ def solve_finite(evaluations, goal_expression, domain, unit_costs=False, debug=F
 Solution = namedtuple('Solution', ['plan', 'cost'])
 
 class SolutionStore(object):
-    def __init__(self, max_time, success_cost, verbose):
+    def __init__(self, evaluations, max_time, success_cost, verbose):
         # TODO: store evaluations here as well as map from head to value?
+        self.evaluations = evaluations
         self.start_time = time.time()
         self.max_time = max_time
         #self.cost_fn = get_length if unit_costs else None
@@ -176,8 +177,10 @@ class SolutionStore(object):
         return self.is_solved() or self.is_timeout()
     #def __repr__(self):
     #    raise NotImplementedError()
+    def extract_solution(self):
+        return revert_solution(self.best_plan, self.best_cost, self.evaluations)
 
-def add_facts(evaluations, fact, result=INIT_EVALUATION):
+def add_facts(evaluations, fact, result=INIT_EVALUATION): #, effort=0):
     new_evaluations = []
     for fact in fact:
         evaluation = evaluation_from_fact(fact)

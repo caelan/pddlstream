@@ -197,9 +197,10 @@ def value_from_obj_plan(obj_plan):
 #def expression_holds(expression, evaluations):
 #    pass
 
-def revert_solution(plan, cost, evaluations):
+def revert_solution(obj_plan, cost, evaluations):
     init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
-    return value_from_obj_plan(plan), cost, init
+    plan = value_from_obj_plan(obj_plan)
+    return plan, cost, init
 
 #def opt_obj_from_value(value):
 #    if Object.has_value(value):
