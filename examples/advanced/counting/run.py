@@ -58,15 +58,15 @@ STREAM_PDDL = """
 
 ##################################################
 
-def get_problem1():
+def get_problem1(n=5):
     # TODO: consider even/odd and version with infinite generator
     # TODO: replicate the effect where a stream fails
     constant_map = {}
     stream_map = {
-        'increment': from_fn(lambda x: (x + 1,)),
+        'increment': from_fn(lambda x: (x + 1,)), # Increment by different amounts
         'decrement': from_fn(lambda x: (x - 1,)),
-        'test-large': from_test(lambda x: 5 <= x),
-        'test-small': from_test(lambda x: x <= -5),
+        'test-large': from_test(lambda x: n <= x),
+        'test-small': from_test(lambda x: x <= -n),
     }
 
     init = [

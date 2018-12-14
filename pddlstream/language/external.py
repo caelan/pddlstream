@@ -33,6 +33,9 @@ class Result(object):
     def get_certified(self):
         raise NotImplementedError()
 
+    def get_tuple(self):
+        raise NotImplementedError()
+
     def remap_inputs(self, bindings):
         raise NotImplementedError()
 

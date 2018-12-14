@@ -28,9 +28,9 @@ from pddlstream.utils import INF, elapsed_time
 
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_iterations=INF, success_cost=INF, unit_costs=False,
-                  unit_efforts=False, effort_weight=None, eager_layers=1,
-                  reorder=True, search_sample_ratio=0, use_skeleton=True,
+                  max_time=INF, max_iterations=INF, unit_costs=False, success_cost=INF,
+                  unit_efforts=False, max_effort=INF, effort_weight=None,
+                  eager_layers=1, reorder=True, use_skeleton=True, search_sample_ratio=0,
                   visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
@@ -92,11 +92,11 @@ def solve_focused(problem, constraints=PlanConstraints(),
             num_iterations, len(queue.skeletons), len(queue), len(disabled), len(evaluations), eager_calls,
             store.best_cost, search_time, sample_time, store.elapsed_time()))
         max_cost = min(store.best_cost, constraints.max_cost)
-        solve_stream_plan = lambda sr: relaxed_stream_plan(evaluations, goal_exp, domain, sr, negative,
-                                                           unit_efforts=unit_efforts, effort_weight=effort_weight,
-                                                           max_cost=max_cost, **search_kwargs)
+        solve_stream_plan_fn = lambda sr: relaxed_stream_plan(evaluations, goal_exp, domain, sr, negative,
+                                                              unit_efforts=unit_efforts, effort_weight=effort_weight,
+                                                              max_cost=max_cost, **search_kwargs)
         #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
-        combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan)
+        combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan_fn)
 
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)

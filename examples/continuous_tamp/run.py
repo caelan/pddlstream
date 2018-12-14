@@ -191,11 +191,11 @@ def main(use_synthesizers=False):
         ('move', ['?q1', ANY, '?q2']),
         ('place', ['b0', '?p1', '?q2']),
     ]
-    constraints = PlanConstraints(#skeletons=[],
+    constraints = PlanConstraints(skeletons=None,
+                                  #skeletons=[],
                                   #skeletons=[skeleton],
-                                  skeletons=[skeleton, []],
+                                  #skeletons=[skeleton, []],
                                   exact=True, hint=False)
-    constraints = PlanConstraints() # None
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     print('Initial:', str_from_object(pddlstream_problem.init))
