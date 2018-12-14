@@ -66,11 +66,11 @@ def optimistic_process_function_queue(instantiator, **kwargs):
             yield result
 
 def optimistic_process_streams(evaluations, streams, double_bindings=None,
-                               unit_efforts=True, initial_effort=0, max_effort=INF):
+                               initial_effort=0, **kwargs):
     # TODO: enforce that the search uses one optimistic object before claiming the next (like in my first version)
     # Can even fall back on converting streams to test streams
     results = []
-    instantiator = Instantiator(evaluations, streams, unit_efforts=unit_efforts, max_effort=max_effort)
+    instantiator = Instantiator(evaluations, streams, **kwargs)
     while instantiator.stream_queue:
         instance, effort = instantiator.pop_stream()
         if not is_double_bound(instance, double_bindings):
@@ -182,7 +182,7 @@ def recursive_solve_stream_plan(evaluations, externals, stream_results, solve_st
                                        solve_stream_plan_fn, depth + 1)
 
 
-def iterative_solve_stream_plan(evaluations, externals, solve_stream_plan_fn, max_effort=INF):
+def iterative_solve_stream_plan_old(evaluations, externals, solve_stream_plan_fn, max_effort=INF):
     # TODO: option to toggle commit using max_depth?
     # TODO: constrain to use previous plan to some degree
     num_iterations = 0
@@ -199,3 +199,23 @@ def iterative_solve_stream_plan(evaluations, externals, solve_stream_plan_fn, ma
         #raw_input('Continue?') # TODO: inspect failures here
         if (combined_plan is not None) or (depth == 0):
             return combined_plan, cost
+
+##################################################
+
+def iterative_solve_stream_plan(evaluations, externals, solve_stream_plan_fn, max_effort=INF):
+    #effort_limit = INF # 0 | INF
+    unit_efforts = True
+    num_iterations = 0
+    while True:
+        num_iterations += 1
+        stream_results = optimistic_process_streams(
+            evaluations, externals, unit_efforts=unit_efforts, max_effort=max_effort)
+        combined_plan, cost = solve_stream_plan_fn(stream_results)
+        if combined_plan is None:
+            return combined_plan, cost
+        stream_plan, action_plan = separate_plan(combined_plan, stream_only=False)
+        if get_stream_plan_index(stream_plan) == 0:
+            print('Attempt: {} | Results: {} | Success: {}'.format(
+                num_iterations, len(stream_results), combined_plan is not None))
+            return combined_plan, cost
+        optimistic_process_stream_plan(evaluations, stream_plan)

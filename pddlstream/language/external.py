@@ -145,41 +145,47 @@ class External(Performance):
 ##################################################
 
 DEFAULT_SEARCH_OVERHEAD = 1e-2
+# Can also include the overhead to process skeletons
+
+def get_unit_effort(effort):
+    if (effort == 0) or (effort == INF):
+        return effort
+    return 1
 
 def compute_external_effort(external, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
-    # TODO: handle the case where effort_fn is a constant
-    if unit_efforts:
-        return 1
-    info = external.info
-    if info.effort_fn is not None:
-        return 0 # This really is a bound on the effort
-    # Can also include the overhead to process skeletons
-    # By linearity of expectation
-    p_success = external.get_p_success()
-    return geometric_cost(external.get_overhead(), p_success) + \
-           (1-p_success)*geometric_cost(search_overhead, p_success)
+    effort_fn = external.info.effort_fn
+    if effort_fn is None:
+        p_success = external.get_p_success()
+        effort = geometric_cost(external.get_overhead(), p_success) + \
+                 (1-p_success)*geometric_cost(search_overhead, p_success)
+    elif callable(effort_fn):
+        effort = 0 # This really is a bound on the effort
+    else:
+        effort = float(effort_fn)
+    return get_unit_effort(effort) if unit_efforts else effort
 
 def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
     # TODO: handle case where resampled several times before the next search (search every ith time)
-    if unit_efforts:
-        return 1
-    external = instance.external
-    info = external.info
-    if info.effort_fn is not None:
-        return info.effort_fn(*instance.get_input_values())
-    return (instance.opt_index * search_overhead) + compute_external_effort(
-        external, unit_efforts=unit_efforts, search_overhead=search_overhead)
+    effort = instance.opt_index * search_overhead # By linearity of expectation
+    effort_fn = instance.external.info.effort_fn
+    if effort_fn is None:
+        effort += compute_external_effort(
+            instance.external, unit_efforts=False, search_overhead=search_overhead)
+    elif callable(effort_fn):
+        effort += effort_fn(*instance.get_input_values())
+    else:
+        effort += float(effort_fn)
+    return get_unit_effort(effort) if unit_efforts else effort
 
 def compute_result_effort(result, **kwargs):
     if not result.optimistic:
-        return 0. # Unit efforts?
+        return 0 # Unit efforts?
     return compute_instance_effort(result.instance, **kwargs)
 
 def compute_plan_effort(stream_plan, **kwargs):
     if stream_plan is None:
         return INF
-    return sum([0] + [compute_result_effort(result, **kwargs)
-                      for result in stream_plan]) # start=0
+    return sum((compute_result_effort(result, **kwargs) for result in stream_plan), 0)
 
 ##################################################
 
