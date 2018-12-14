@@ -39,7 +39,7 @@ def process_instance(instantiator, evaluations, instance, effort, **kwargs):
 
 def process_function_queue(instantiator, evaluations, **kwargs):
     num_calls = 0
-    while instantiator.function_queue:
+    while instantiator.function_queue: # not store.is_terminated()
         num_calls += process_instance(instantiator, evaluations, *instantiator.pop_function(), **kwargs)
     return num_calls
 
@@ -110,6 +110,7 @@ def layered_process_stream_queue(instantiator, evaluations, store, num_layers, *
             if store.is_terminated():
                 return num_calls
             num_calls += process_instance(instantiator, evaluations, *instantiator.pop_stream(), **kwargs)
+    num_calls += process_function_queue(instantiator, evaluations, **kwargs)
     return num_calls
 
 def solve_incremental(problem, constraints=PlanConstraints(),

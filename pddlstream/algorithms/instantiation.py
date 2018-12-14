@@ -25,7 +25,7 @@ def get_mapping(atoms1, atoms2):
 
 class Instantiator(Sized): # Dynamic Instantiator
     def __init__(self, evaluations, streams,
-                 unit_efforts=True, combine_fn=max, max_effort=INF):
+                 unit_efforts=True, combine_fn=max, max_effort=None):
         # Focused considers path effort while incremental is just immediate effort
         self.unit_efforts = unit_efforts
         self.combine_fn = combine_fn # max | sum
@@ -49,6 +49,11 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     def __len__(self):
         return len(self.stream_queue) + len(self.function_queue)
+
+    def prune_effort(self, external, effort):
+        if self.max_effort is None:
+            return False
+        return (not isinstance(external, Function)) and (self.max_effort <= effort)
 
     def push(self, instance, effort):
         # TODO: update self.effort_from_instance with new effort?
@@ -75,13 +80,13 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     def _add_instance(self, stream, input_objects, domain_effort):
         instance = stream.get_instance(input_objects)
+        assert instance not in self.effort_from_instance
         effort = domain_effort + compute_instance_effort(
             instance, unit_efforts=self.unit_efforts)
-        assert instance not in self.effort_from_instance
         #if instance in self.effort_from_instance:
         #    assert self.effort_from_instance[instance] <= effort
         #    return False
-        if (not isinstance(instance, FunctionInstance)) and (self.max_effort <= effort):
+        if self.prune_effort(instance.external, effort):
             return False
         self.effort_from_instance[instance] = effort
         self.push(instance, effort)
@@ -99,9 +104,9 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     def _add_new_instances(self, new_atom):
         for i, stream in enumerate(self.streams):
-            effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(stream,
-                unit_efforts=self.unit_efforts)
-            if (not isinstance(stream, Function)) and (self.max_effort <= effort_bound):
+            effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(
+                stream, unit_efforts=self.unit_efforts)
+            if self.prune_effort(stream, effort_bound):
                 continue
             for j, domain_fact in enumerate(stream.domain):
                 domain_atom = head_from_fact(domain_fact)

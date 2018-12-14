@@ -1,15 +1,18 @@
+from __future__ import print_function
+
 from itertools import product
 
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
-from pddlstream.algorithms.algorithm import dump_plans
+from pddlstream.algorithms.algorithm import dump_plans, partition_externals
 from pddlstream.algorithms.visualization import create_visualizations
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.function import FunctionResult
 from pddlstream.language.external import compute_instance_effort
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import INF, get_length
+from pddlstream.utils import INF, get_length, safe_zip, get_mapping
 
 # TODO: lazily expand the shared objects in some cases to prevent increase in size
 # TODO: constrain to using the previous plan skeleton
@@ -21,9 +24,7 @@ RECURSIVE = True
 DOUBLE_BOUND = False
 
 def get_stream_plan_index(stream_plan):
-    if not stream_plan:
-        return 0
-    return max(r.opt_index for r in stream_plan)
+    return max([0] + [r.opt_index for r in stream_plan])
 
 # def get_ancestors(obj):
 #     if not isinstance(obj, OptimisticObject):
@@ -45,40 +46,40 @@ def is_double_bound(stream_instance, double_bindings):
     #                 return True
     #             used_bindings[shared].add(ancestor)
     # return False
-    bindings = [double_bindings[o] for o in stream_instance.input_objects if o in double_bindings]
+    bindings = [double_bindings[o] for o in stream_instance.input_objects
+                if o in double_bindings]
     return len(set(bindings)) != len(bindings)
 
 ##################################################
 
-def optimistic_process_streams(evaluations, streams, double_bindings=None, max_effort=INF, **kwargs):
-    # TODO: iteratively increase max_effort to bias towards easier streams to start
-    # TODO: cut off instantiation using max_effort
-    # TODO: make each repeated optimistic object have ordinal more effort
+def optimistic_process_instance(instantiator, instance, effort):
+    for result in instance.next_optimistic():
+        new_facts = False
+        for fact in result.get_certified():
+            new_facts |= instantiator.add_atom(evaluation_from_fact(fact), effort)
+        if isinstance(result, FunctionResult) or new_facts:
+            yield result
+
+def optimistic_process_function_queue(instantiator, **kwargs):
+    while instantiator.function_queue:
+        for result in optimistic_process_instance(instantiator, *instantiator.pop_function(), **kwargs):
+            yield result
+
+def optimistic_process_streams(evaluations, streams, double_bindings=None,
+                               unit_efforts=True, initial_effort=0, max_effort=INF):
     # TODO: enforce that the search uses one optimistic object before claiming the next (like in my first version)
     # Can even fall back on converting streams to test streams
-    # Additive max effort in case something requires a long sequence to achieve
     results = []
-    # initial_effort
-    next_effort = INF
-    #effort_from_fact = {}
-    instantiator = Instantiator(evaluations, streams, max_effort=max_effort)
-    while instantiator:
-        # TODO: periodically solve here
-        instance, _ = instantiator.pop()
+    instantiator = Instantiator(evaluations, streams, unit_efforts=unit_efforts, max_effort=max_effort)
+    while instantiator.stream_queue:
+        instance, effort = instantiator.pop_stream()
         if not is_double_bound(instance, double_bindings):
             continue
-        effort = compute_instance_effort(instance, **kwargs)
-        #op = sum # max | sum
-        #total_effort = effort + op(effort_from_fact[fact] for fact in instance.get_domain())
-        if max_effort <= effort: # Max effort is exclusive
-            next_effort = min(next_effort, effort)
-            continue
-        for stream_result in instance.next_optimistic():
-            for fact in stream_result.get_certified():
-                #effort_from_fact[fact] = min(effort_from_fact.get(fact, INF), effort)
-                instantiator.add_atom(evaluation_from_fact(fact), 0)
-            results.append(stream_result) # TODO: don't readd if all repeated facts?
-    print(next_effort)
+        if initial_effort < effort: # TODO: different increment
+            # TODO: periodically solve here
+            initial_effort = effort
+        results.extend(optimistic_process_instance(instantiator, instance, effort))
+    results.extend(optimistic_process_function_queue(instantiator))
     return results
 
 ##################################################
@@ -92,7 +93,7 @@ def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_eval
         bindings = {}
     input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
     for combo in product(*input_objects):
-        mapping = dict(zip(stream_instance.input_objects, combo))
+        mapping = get_mapping(stream_instance.input_objects, combo)
         domain = set(map(evaluation_from_fact, substitute_expression(
             stream_instance.get_domain(), mapping))) # TODO: could just instantiate first
         if domain <= opt_evaluations:
@@ -116,10 +117,10 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
                 opt_result.instance, opt_bindings, evaluations, opt_evaluations):
             results = instance.next_optimistic()
             opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
-            opt_results += results
+            opt_results.extend(results)
             for result in results:
                 if isinstance(result, StreamResult): # Could not add if same value
-                    for opt, obj in zip(opt_result.output_objects, result.output_objects):
+                    for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
                         opt_bindings.setdefault(opt, []).append(obj)
     return opt_results, opt_bindings
 
@@ -140,7 +141,7 @@ def optimistic_process_stream_plan(evaluations, stream_plan):
 #         preimage |= set(stream_result.instance.get_domain())
 #     return preimage
 
-def recursive_solve_stream_plan(evaluations, streams, functions, stream_results, solve_stream_plan_fn, depth):
+def recursive_solve_stream_plan(evaluations, externals, stream_results, solve_stream_plan_fn, depth):
     if not RECURSIVE and (depth != 0):
         return None, INF, depth
     combined_plan, cost = solve_stream_plan_fn(stream_results)
@@ -153,10 +154,9 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     plan_index = get_stream_plan_index(stream_plan)
     if plan_index == 0:
         return combined_plan, cost, depth
-
+    stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
     # TODO: should I just plan using all original plus expanded
     # TODO: might need new actions here (such as a move)
-    stream_results, bindings = optimistic_process_stream_plan(evaluations, stream_plan)
     # TODO: plan up to first action that only has one
     # Only use actions in the states between the two
     # planned_instances = []
@@ -170,6 +170,7 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
     # print(action_plan)
     # print(planned_instances)
 
+    streams, functions, _ = partition_externals(externals)
     if DOUBLE_BOUND:
         # I don't think the double bound thing really makes entire sense here
         double_bindings = {v: k for k, values in bindings.items() if 2 <= len(values) for v in values}
@@ -177,11 +178,11 @@ def recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
             evaluations, stream_results), streams, double_bindings=double_bindings))
     stream_results.extend(optimistic_process_streams(
         evaluations_from_stream_plan(evaluations, stream_results), functions))
-    return recursive_solve_stream_plan(evaluations, streams, functions, stream_results,
+    return recursive_solve_stream_plan(evaluations, externals, stream_results,
                                        solve_stream_plan_fn, depth + 1)
 
 
-def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan_fn, max_effort=INF):
+def iterative_solve_stream_plan(evaluations, externals, solve_stream_plan_fn, max_effort=INF):
     # TODO: option to toggle commit using max_depth?
     # TODO: constrain to use previous plan to some degree
     num_iterations = 0
@@ -189,10 +190,10 @@ def iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_pl
     unit_efforts = True
     while True:
         num_iterations += 1
-        stream_results = optimistic_process_streams(evaluations, streams + functions,
-                                                    unit_efforts=unit_efforts, max_effort=effort_limit)
+        stream_results = optimistic_process_streams(
+            evaluations, externals, unit_efforts=unit_efforts, max_effort=max_effort)
         combined_plan, cost, depth = recursive_solve_stream_plan(
-            evaluations, streams, functions, stream_results, solve_stream_plan_fn, depth=0)
+            evaluations, externals, stream_results, solve_stream_plan_fn, depth=0)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
             num_iterations, len(stream_results), depth, combined_plan is not None))
         #raw_input('Continue?') # TODO: inspect failures here

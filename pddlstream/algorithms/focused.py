@@ -91,12 +91,11 @@ def solve_focused(problem, constraints=PlanConstraints(),
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue.skeletons), len(queue), len(disabled), len(evaluations), eager_calls,
             store.best_cost, search_time, sample_time, store.elapsed_time()))
-        max_cost = min(store.best_cost, constraints.max_cost)
-        solve_stream_plan_fn = lambda sr: relaxed_stream_plan(evaluations, goal_exp, domain, sr, negative,
-                                                              unit_efforts=unit_efforts, effort_weight=effort_weight,
-                                                              max_cost=max_cost, **search_kwargs)
+        solve_stream_plan_fn = lambda sr: relaxed_stream_plan(
+            evaluations, goal_exp, domain, sr, negative, max_cost=min(store.best_cost, constraints.max_cost),
+            unit_efforts=unit_efforts, effort_weight=effort_weight, **search_kwargs)
         #combined_plan, cost = solve_stream_plan(optimistic_process_streams(evaluations, streams + functions))
-        combined_plan, cost = iterative_solve_stream_plan(evaluations, streams, functions, solve_stream_plan_fn)
+        combined_plan, cost = iterative_solve_stream_plan(evaluations, externals, solve_stream_plan_fn, max_effort=max_effort)
 
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
