@@ -19,7 +19,7 @@ def ensure_no_fluent_streams(streams):
             raise NotImplementedError('Algorithm does not support fluent stream: {}'.format(stream.name))
 
 def process_stream_queue(instantiator, evaluations, **kwargs):
-    instance = instantiator.stream_queue.popleft()
+    instance = instantiator.pop()
     if instance.enumerated:
         return
     new_results, new_facts = instance.next_results(**kwargs)
@@ -31,7 +31,14 @@ def process_stream_queue(instantiator, evaluations, **kwargs):
     for evaluation in add_facts(evaluations, new_facts, result=None): # TODO: record the instance?
         instantiator.add_atom(evaluation)
     if not instance.enumerated:
-        instantiator.stream_queue.append(instance)
+        instantiator.push(instance)
+
+def function_process_stream_queue(instantiator, evaluations, **kwargs):
+    for _ in range(len(instantiator)):
+        if isinstance(instantiator.head(), FunctionInstance):
+            process_stream_queue(instantiator, evaluations, **kwargs)
+        else:
+            instantiator.poppush()
 
 ##################################################
 
@@ -81,7 +88,7 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
-    while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
+    while instantiator and (elapsed_time(start_time) < max_time):
         process_stream_queue(instantiator, evaluations, verbose=verbose)
     function_process_stream_queue(instantiator, evaluations, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain,
@@ -92,18 +99,11 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
 
 ##################################################
 
-def function_process_stream_queue(instantiator, evaluations, **kwargs):
-    for _ in range(len(instantiator.stream_queue)):
-        if isinstance(instantiator.stream_queue[0], FunctionInstance):
-            process_stream_queue(instantiator, evaluations, **kwargs)
-        else:
-            instantiator.stream_queue.rotate(-1)
-
 def layered_process_stream_queue(instantiator, evaluations, store, num_layers, **kwargs):
     # TODO: priority queue and iteratively increase max stream max or add effort
     num_calls = 0
-    for _ in range(num_layers):
-        for _ in range(len(instantiator.stream_queue)):
+    for layer in range(num_layers):
+        for _ in range(len(instantiator)):
             if store.is_terminated():
                 return num_calls
             process_stream_queue(instantiator, evaluations, **kwargs)
@@ -137,9 +137,9 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     ensure_no_fluent_streams(externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
-    instantiator = Instantiator(evaluations, externals)
     num_iterations = 0
     num_calls = 0
+    instantiator = Instantiator(evaluations, externals)
     while not store.is_terminated() and (num_iterations < max_iterations):
         num_iterations += 1
         print('Iteration: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
@@ -149,7 +149,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         plan, cost = solve_finite(evaluations, goal_expression, domain, max_cost=max_cost, **search_kwargs)
         if plan is not None:
             store.add_plan(plan, cost)
-        if store.is_terminated() or not instantiator.stream_queue:
+        if store.is_terminated() or not instantiator:
             break
         num_calls += layered_process_stream_queue(instantiator, evaluations, store,
                                                   layers_per_iteration, verbose=verbose)

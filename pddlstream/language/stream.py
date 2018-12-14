@@ -297,7 +297,7 @@ class StreamInstance(Instance):
 
         static_fact = Fact(self._axiom_predicate, self.external.inputs)
         preconditions = [static_fact] + list(self.fluent_facts)
-        derived_fact = Fact(self.blocked_predicate, self.external.inputs)
+        derived_fact = Fact(self.external.blocked_predicate, self.external.inputs)
         self._disabled_axiom = make_axiom(
             parameters=self.external.inputs,
             preconditions=preconditions,
@@ -335,6 +335,7 @@ class Stream(External):
 
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
+        assert callable(self.gen_fn)
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique:
             self.num_opt_fns = 0

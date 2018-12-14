@@ -166,6 +166,14 @@ def compute_result_effort(result, **kwargs):
         return 0.
     return compute_instance_effort(result.instance, **kwargs)
 
+#def compute_effort_bound(external, unit_efforts=False):
+#    # TODO: compute efforts on a stream level to prune streams too expensive to instantiate
+#    # TODO: handle the case where effort_fn is a constant
+#    if unit_efforts:
+#        return 1
+#    p_success = external.get_p_success()
+#    return geometric_cost(external.get_overhead(), p_success)
+
 def compute_plan_effort(stream_plan, unit_efforts=False, **kwargs):
     if stream_plan is None:
         return INF
