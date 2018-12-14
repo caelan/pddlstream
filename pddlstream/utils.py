@@ -99,7 +99,10 @@ def get_mapping(sequence1, sequence2):
 def apply_mapping(sequence, mapping):
     return tuple(mapping.get(e, e) for e in sequence)
 
-def invert_test(test):
+#def safe_apply_mapping(sequence, mapping)
+#    return tuple(mapping[e] for e in sequence)
+
+def negate_test(test):
     return lambda *args: not test(*args)
 
 def flatten(iterable_of_iterables):
@@ -134,15 +137,11 @@ def irange(start, end=None, step=1):
         yield n
         n += step
 
-def argmin(function, sequence):
-    values = list(sequence)
-    scores = [function(x) for x in values]
-    return values[scores.index(min(scores))]
+def argmin(fn, iterable):
+    return min(iterable, key=fn)
 
-def argmax(function, sequence):
-    values = list(sequence)
-    scores = [function(x) for x in values]
-    return values[scores.index(max(scores))]
+def argmax(fn, iterable):
+    return max(iterable, key=fn)
 
 def invert_dict(d):
     return dict((v, k) for k, v in d.items())

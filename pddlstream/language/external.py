@@ -146,6 +146,19 @@ class External(Performance):
 
 DEFAULT_SEARCH_OVERHEAD = 1e-2
 
+def compute_external_effort(external, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+    # TODO: handle the case where effort_fn is a constant
+    if unit_efforts:
+        return 1
+    info = external.info
+    if info.effort_fn is not None:
+        return 0 # This really is a bound on the effort
+    # Can also include the overhead to process skeletons
+    # By linearity of expectation
+    p_success = external.get_p_success()
+    return geometric_cost(external.get_overhead(), p_success) + \
+           (1-p_success)*geometric_cost(search_overhead, p_success)
+
 def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
     # TODO: handle case where resampled several times before the next search (search every ith time)
     if unit_efforts:
@@ -154,35 +167,19 @@ def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAUL
     info = external.info
     if info.effort_fn is not None:
         return info.effort_fn(*instance.get_input_values())
-    # Can also include the overhead to process skeletons
-    # By linearity of expectation
-    p_success = external.get_p_success()
-    return geometric_cost(external.get_overhead(), p_success) \
-           + (1-p_success)*geometric_cost(search_overhead, p_success) \
-           + instance.opt_index * search_overhead
+    return (instance.opt_index * search_overhead) + compute_external_effort(
+        external, unit_efforts=unit_efforts, search_overhead=search_overhead)
 
 def compute_result_effort(result, **kwargs):
     if not result.optimistic:
-        return 0.
+        return 0. # Unit efforts?
     return compute_instance_effort(result.instance, **kwargs)
 
-#def compute_effort_bound(external, unit_efforts=False):
-#    # TODO: compute efforts on a stream level to prune streams too expensive to instantiate
-#    # TODO: handle the case where effort_fn is a constant
-#    if unit_efforts:
-#        return 1
-#    p_success = external.get_p_success()
-#    return geometric_cost(external.get_overhead(), p_success)
-
-def compute_plan_effort(stream_plan, unit_efforts=False, **kwargs):
+def compute_plan_effort(stream_plan, **kwargs):
     if stream_plan is None:
         return INF
-    if unit_efforts:
-        return len(stream_plan)
-    if not stream_plan:
-        return 0
-    return sum(compute_result_effort(result, **kwargs)
-               for result in stream_plan)
+    return sum([0] + [compute_result_effort(result, **kwargs)
+                      for result in stream_plan]) # start=0
 
 ##################################################
 

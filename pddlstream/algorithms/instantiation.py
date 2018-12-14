@@ -1,17 +1,19 @@
-from collections import deque, defaultdict, Sized
+from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
 from pddlstream.language.conversion import is_atom, head_from_fact
-from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.function import Function, FunctionInstance
+from pddlstream.language.external import compute_external_effort, compute_instance_effort
 from pddlstream.language.object import Object
-from pddlstream.utils import safe_zip, HeapElement
+from pddlstream.utils import safe_zip, HeapElement, INF
 
+Priority = namedtuple('Priority', ['effort', 'num']) # num ensures FIFO
 
 def get_mapping(atoms1, atoms2):
     mapping = {}
     for a1, a2 in safe_zip(atoms1, atoms2):
-        assert get_prefix(a1) == get_prefix(a2)
+        assert a1.function == a2.function
         for arg1, arg2 in safe_zip(a1.args, a2.args):
             if mapping.get(arg1, arg2) == arg2:
                 mapping[arg1] = arg2
@@ -21,46 +23,68 @@ def get_mapping(atoms1, atoms2):
 
 ##################################################
 
-class Instantiator(Sized): # Dynamic Stream Instantiator
-    def __init__(self, evaluations, streams):
-        # TODO: priority queue based on effort. Useful for both incremental and focused
-        # One difference is that focused considers path while incremental is just immediate
+class Instantiator(Sized): # Dynamic Instantiator
+    def __init__(self, evaluations, streams,
+                 unit_efforts=True, combine_fn=max, max_effort=INF):
+        # Focused considers path effort while incremental is just immediate effort
+        self.unit_efforts = unit_efforts
+        self.combine_fn = combine_fn # max | sum
+        self.max_effort = max_effort # exclusive
         self.streams = streams
         #self.streams_from_atom = defaultdict(list)
-        self.stream_instances = {}
-        self.stream_queue = deque()
-        #self.stream_queue = []
+        self.effort_from_instance = {}
+        self.stream_queue = []
+        self.function_queue = []
+        self.num_pushes = 0 # shared between the queues
         # TODO: rename atom to head in most places
-        self.atoms = {}
+        self.effort_from_atom = {}
         self.atoms_from_domain = defaultdict(list)
         for stream in self.streams:
-            if not stream.inputs: # TODO: need to do with with domain...
-                self._add_instance(stream, tuple())
+            if not stream.domain:
+                self._add_instance(stream, tuple(), 0)
         for atom in evaluations:
-            self.add_atom(atom)
+            self.add_atom(atom, 0)
+
+    #########################
 
     def __len__(self):
-        return len(self.stream_queue)
+        return len(self.stream_queue) + len(self.function_queue)
 
-    def push(self, stream_instance):
-        # TODO: update self.stream_instances
-        self.stream_queue.append(stream_instance)
+    def push(self, instance, effort):
+        # TODO: update self.effort_from_instance with new effort?
+        # TODO: flush stale priorities?
+        queue = self.function_queue if isinstance(instance, FunctionInstance) else self.stream_queue
+        priority = Priority(effort, self.num_pushes)
+        heappush(queue, HeapElement(priority, instance))
+        self.num_pushes += 1
 
-    def head(self):
-        return self.stream_queue[0]
+    def pop_stream(self):
+        priority, instance = heappop(self.stream_queue)
+        return instance, priority.effort
+
+    def pop_function(self):
+        priority, instance = heappop(self.function_queue)
+        return instance, priority.effort
 
     def pop(self):
-        return self.stream_queue.popleft()
+        if self.function_queue:
+            return self.pop_function()
+        return self.pop_stream()
 
-    def poppush(self): # replace
-        self.stream_queue.rotate(-1)
+    #########################
 
-    def _add_instance(self, stream, input_objects, effort=0):
-        stream_instance = stream.get_instance(input_objects)
-        if stream_instance in self.stream_instances:
+    def _add_instance(self, stream, input_objects, domain_effort):
+        instance = stream.get_instance(input_objects)
+        effort = domain_effort + compute_instance_effort(
+            instance, unit_efforts=self.unit_efforts)
+        assert instance not in self.effort_from_instance
+        #if instance in self.effort_from_instance:
+        #    assert self.effort_from_instance[instance] <= effort
+        #    return False
+        if (not isinstance(instance, FunctionInstance)) and (self.max_effort <= effort):
             return False
-        self.stream_instances[stream_instance] = effort
-        self.push(stream_instance)
+        self.effort_from_instance[instance] = effort
+        self.push(instance, effort)
         return True
 
     def _add_combinations(self, stream, atoms):
@@ -69,37 +93,36 @@ class Instantiator(Sized): # Dynamic Stream Instantiator
             mapping = get_mapping(domain, combo)
             if mapping is None:
                 continue
+            domain_effort = self.combine_fn([0]+[self.effort_from_atom[a] for a in combo])
             input_objects = tuple(mapping[p] for p in stream.inputs)
-            self._add_instance(stream, input_objects)
+            self._add_instance(stream, input_objects, domain_effort)
 
     def _add_new_instances(self, new_atom):
         for i, stream in enumerate(self.streams):
+            effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(stream,
+                unit_efforts=self.unit_efforts)
+            if (not isinstance(stream, Function)) and (self.max_effort <= effort_bound):
+                continue
             for j, domain_fact in enumerate(stream.domain):
-                if new_atom.function != get_prefix(domain_fact):
+                domain_atom = head_from_fact(domain_fact)
+                if new_atom.function != domain_atom.function:
                     continue
                 if any(isinstance(b, Object) and (a != b) for a, b in
-                       safe_zip(new_atom.args, get_args(domain_fact))):
+                       safe_zip(new_atom.args, domain_atom.args)):
                     continue
                 self.atoms_from_domain[(i, j)].append(new_atom)
                 atoms = [self.atoms_from_domain[(i, k)] if j != k else [new_atom]
                           for k in range(len(stream.domain))]
                 self._add_combinations(stream, atoms)
 
-    def add_atom(self, atom, effort=0):
+    def add_atom(self, atom, effort):
+        # TODO: eventually allow constants
         if not is_atom(atom):
             return False
         head = atom.head
-        if head in self.atoms:
+        if head in self.effort_from_atom:
+            assert self.effort_from_atom[head] <= effort
             return False
-        self.atoms[head] = effort
-        # TODO: doing this in a way that will eventually allow constants
+        self.effort_from_atom[head] = effort
         self._add_new_instances(head)
         return True
-
-    #def __next__(self):
-    #    pass
-    #
-    #def __iter__(self):
-    #    while self.stream_queue:
-    #        stream_instance = self.stream_queue.popleft()
-    #        yield stream_instance # Remove from set?
