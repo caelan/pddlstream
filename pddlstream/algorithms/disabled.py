@@ -56,10 +56,12 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
 ##################################################
 
 def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, reenable):
+    # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
     if not is_plan(stream_plan):
         if (stream_plan is INFEASIBLE) and not disabled:
             return False
         if reenable:
+            # TODO: can always add back in disabled but use a larger effort limit
             reenable_disabled(store.evaluations, domain, disabled)
         else:
             process_all_disabled(store, disabled)

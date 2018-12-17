@@ -142,6 +142,12 @@ def parse_domain(domain_pddl):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
     return domain
 
+def has_costs(domain):
+    for action in domain.actions:
+        if action.cost is not None:
+            return True
+    return False
+
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
                                  'objects', 'init', 'goal', 'use_metric'])
 
@@ -157,11 +163,7 @@ def parse_problem(domain, problem_pddl):
 #              ':effect', []]
 #    parse_action(action)
 #    pddl_parser.parsing_functions.parse_action(lisp_list, [], {})
-#    return
-#
-#def create_action(lisp_list):
-#    raise NotImplementedError()
-#    #return pddl.Action
+#    return pddl.Action
 
 ##################################################
 
@@ -487,8 +489,13 @@ def add_predicate(domain, predicate):
     domain.predicate_dict[predicate.name] = predicate
     return True
 
-def make_parameters(parameters, type=OBJECT):
-    return tuple(pddl.TypedObject(p, type) for p in parameters)
+
+def make_object(obj, type=OBJECT):
+    return pddl.TypedObject(obj, type)
+
+
+def make_parameters(parameters, **kwargs):
+    return tuple(make_object(p, **kwargs) for p in parameters)
 
 
 def make_predicate(name, parameters):
@@ -534,7 +541,6 @@ def make_axiom(parameters, preconditions, derived):
                       parameters=make_parameters(parameters),
                       num_external_parameters=len(external_parameters),
                       condition=make_preconditions(preconditions))
-
 
 
 def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]):

@@ -6,7 +6,7 @@ from pddlstream.algorithms.algorithm import partition_externals
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
-from pddlstream.language.constants import FAILED, INFEASIBLE
+from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult, Result
@@ -34,9 +34,10 @@ def optimistic_process_instance(instantiator, instance, effort):
         if isinstance(result, FunctionResult) or new_facts:
             yield result
 
-def optimistic_process_function_queue(instantiator, **kwargs):
+def optimistic_process_function_queue(instantiator):
     while instantiator.function_queue:
-        for result in optimistic_process_instance(instantiator, *instantiator.pop_function(), **kwargs):
+        instance, effort = instantiator.pop_function()
+        for result in optimistic_process_instance(instantiator, instance, effort):
             yield result
 
 ##################################################
@@ -157,29 +158,30 @@ def recursive_solve_stream_plan(evaluations, externals, stream_results, solve_st
     # TODO: might need new actions here (such as a move)
     # TODO: plan up to first action that only has one
     # TODO: only use streams in the states between the two actions
-    streams, functions, _ = partition_externals(externals)
+    _, functions, _ = partition_externals(externals)
     stream_results.extend(optimistic_process_streams(
-        evaluations_from_stream_plan(evaluations, stream_results), functions))
+        evaluations_from_stream_plan(evaluations, stream_results), functions)[0])
     return recursive_solve_stream_plan(evaluations, externals, stream_results,
                                        solve_stream_plan_fn, depth + 1)
 
 
-def iterative_solve_stream_plan_old(evaluations, externals, optimistic_solve_fn, max_effort=INF):
+def iterative_solve_stream_plan_old(evaluations, externals, optimistic_solve_fn, **effort_args):
     # TODO: option to toggle commit using max_depth?
     # TODO: constrain to use previous plan to some degree
     num_iterations = 0
-    unit_efforts = True
     while True:
         num_iterations += 1
-        stream_results = optimistic_process_streams(evaluations, externals, optimistic_solve_fn,
-                                                    unit_efforts=unit_efforts, max_effort=max_effort)
+        results, full = optimistic_process_streams(evaluations, externals, **effort_args)
         combined_plan, cost, depth = recursive_solve_stream_plan(
-            evaluations, externals, stream_results, optimistic_solve_fn, depth=0)
+            evaluations, externals, results, optimistic_solve_fn, depth=0)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(stream_results), depth, combined_plan is not None))
+            num_iterations, len(results), depth, combined_plan is not None))
         #raw_input('Continue?') # TODO: inspect failures here
-        if (combined_plan is not None) or (depth == 0):
+        if is_plan(combined_plan):
             return combined_plan, cost
+        if depth == 0:
+            status = INFEASIBLE if full else FAILED
+            return status, cost
 
 ##################################################
 

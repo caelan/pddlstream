@@ -106,6 +106,8 @@ class StreamInfo(ExternalInfo):
         self.simultaneous = simultaneous
         #self.order = 0
 
+##################################################
+
 class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None,
                  call_index=None, list_index=None, optimistic=True):
@@ -311,6 +313,8 @@ class StreamInstance(Instance):
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
+##################################################
+
 class Stream(External):
     _Instance = StreamInstance
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
@@ -369,6 +373,8 @@ class Stream(External):
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)
         return self.instances[key]
+
+    # TODO: method that converts a stream into a test stream
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)

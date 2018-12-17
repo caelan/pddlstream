@@ -31,7 +31,7 @@ def to_constant(parameter):
 
 
 def add_plan_constraints(constraints, domain, init, goal):
-    if constraints.skeletons is None:
+    if (constraints is None) or (constraints.skeletons is None):
         return goal
     import pddl
     # TODO: can search over skeletons first and then fall back
