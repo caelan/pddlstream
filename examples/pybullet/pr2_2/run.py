@@ -15,8 +15,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_p
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.synthesizer import StreamSynthesizer
-from pddlstream.language.constants import Equal, AND
-from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
+from pddlstream.language.constants import Equal, AND, print_solution
+from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo
 from collections import namedtuple

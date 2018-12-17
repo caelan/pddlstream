@@ -3,6 +3,10 @@ from pddlstream.language.exogenous import replace_literals
 from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, get_mapping
 
+def ensure_no_fluent_streams(streams):
+    for stream in streams:
+        if isinstance(stream, Stream) and stream.is_fluent():
+            raise NotImplementedError('Algorithm does not support fluent stream: {}'.format(stream.name))
 
 def compile_fluent_streams(domain, externals):
     state_streams = list(filter(lambda e: isinstance(e, Stream) and

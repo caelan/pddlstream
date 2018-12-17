@@ -9,9 +9,9 @@ from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, get
     set_joint_positions, wait_for_interrupt, link_from_name, inverse_kinematics, get_link_pose, Pose, Euler, Point, \
     multiply, set_pose, get_pose, invert, draw_pose
 from pddlstream.algorithms.incremental import solve_exhaustive
-from pddlstream.language.constants import And, PDDLProblem
+from pddlstream.language.constants import And, PDDLProblem, print_solution
 from pddlstream.language.generator import from_test
-from pddlstream.utils import read, get_file_path, user_input, print_solution
+from pddlstream.utils import read, get_file_path, user_input
 
 
 def test_confs(robot, num_samples=10):

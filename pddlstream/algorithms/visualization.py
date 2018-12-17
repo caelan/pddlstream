@@ -1,12 +1,12 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE
+from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE, str_from_plan
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
 from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
-from pddlstream.utils import clear_dir, ensure_dir, str_from_plan
+from pddlstream.utils import clear_dir, ensure_dir
 
 # https://www.graphviz.org/doc/info/
 
@@ -179,6 +179,7 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
     graph.graph_attr['ranksep'] = 0.25
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
+    # TODO: store these settings as a dictionary
 
     def add_fact(fact):
         head, color = (fact[1], COST_COLOR) if get_prefix(fact) == EQ else (fact, CONSTRAINT_COLOR)

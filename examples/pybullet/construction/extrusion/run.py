@@ -13,10 +13,10 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wa
     get_link_pose, multiply, wait_for_duration, add_text, angle_between, plan_joint_motion, \
     get_pose, invert, point_from_pose, get_distance, get_joint_positions, wrap_angle, get_collision_fn
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import PDDLProblem, And
+from pddlstream.language.constants import PDDLProblem, And, print_solution
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo, PartialInputs, NEGATIVE_SUFFIX
-from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, neighbors_from_orders
+from pddlstream.utils import read, get_file_path, user_input, irange, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
 SELF_COLLISIONS = True

@@ -4,15 +4,13 @@ from __future__ import print_function
 
 import math
 import os
-
 import numpy as np
-from pddlstream.algorithms.focused import solve_focused
 
-from operator import itemgetter
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import And, Equal, TOTAL_COST
+from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution
 from pddlstream.language.generator import from_test, from_list_fn
-from pddlstream.utils import print_solution, read
+from pddlstream.utils import read
 from examples.discrete_tamp.run import DiscreteTAMPState, DiscreteTAMPProblem, apply_plan, GRASP, \
     distance_fn, collision_test, get_length, get_difference, is_valid
 from examples.discrete_tamp.viewer import MAX_COLS

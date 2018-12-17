@@ -1,11 +1,11 @@
 from __future__ import print_function
 
+import math
 import os
+import pickle
 import shutil
 import sys
 import time
-import math
-import pickle
 from collections import defaultdict
 from heapq import heappush, heappop
 
@@ -16,10 +16,11 @@ try:
 except NameError:
    user_input = input
 
+##################################################
+
 def int_ceil(f):
     return int(math.ceil(f))
 
-##################################################
 
 def get_python_version():
     return sys.version_info[0]
@@ -36,7 +37,7 @@ def write(filename, string):
 
 
 def write_pickle(filename, data):
-    # TODO: cannot pickle lambda or nested functions
+    # Cannot pickle lambda or nested functions
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
 
@@ -61,13 +62,16 @@ def safe_rm_dir(d):
     if os.path.exists(d):
         shutil.rmtree(d)
 
+
 def clear_dir(d):
     safe_rm_dir(d)
     ensure_dir(d)
 
+
 def get_file_path(file, rel_path):
     directory = os.path.dirname(os.path.abspath(file))
     return os.path.join(directory, rel_path)
+
 
 def open_pdf(filename):
     import subprocess
@@ -84,35 +88,38 @@ def open_pdf(filename):
 def elapsed_time(start_time):
     return time.time() - start_time
 
-def get_length(sequence):
-    if sequence is None:
-        return INF
-    return len(sequence)
 
 def safe_zip(sequence1, sequence2):
     assert len(sequence1) == len(sequence2)
     return zip(sequence1, sequence2)
 
+
 def get_mapping(sequence1, sequence2):
     return dict(safe_zip(sequence1, sequence2))
+
 
 def apply_mapping(sequence, mapping):
     return tuple(mapping.get(e, e) for e in sequence)
 
+
 #def safe_apply_mapping(sequence, mapping)
 #    return tuple(mapping[e] for e in sequence)
+
 
 def negate_test(test):
     return lambda *args: not test(*args)
 
+
 def flatten(iterable_of_iterables):
     return (item for iterables in iterable_of_iterables for item in iterables)
+
 
 def find(test, sequence):
     for item in sequence:
         if test(item):
             return item
     return None
+
 
 def find_unique(test, sequence):
     found, value = False, None
@@ -125,8 +132,10 @@ def find_unique(test, sequence):
         raise RuntimeError('Unable to find an element satisfying the test')
     return value
 
+
 def implies(a, b):
     return not a or b
+
 
 def irange(start, end=None, step=1):
     if end is None:
@@ -137,32 +146,20 @@ def irange(start, end=None, step=1):
         yield n
         n += step
 
+
 def argmin(fn, iterable):
     return min(iterable, key=fn)
 
+
 def argmax(fn, iterable):
     return max(iterable, key=fn)
+
 
 def invert_dict(d):
     return dict((v, k) for k, v in d.items())
 
 ##################################################
 
-def print_solution(solution):
-    plan, cost, evaluations = solution
-    solved = plan is not None
-    print()
-    print('Solved: {}'.format(solved))
-    print('Cost: {}'.format(cost))
-    print('Length: {}'.format(get_length(plan)))
-    print('Evaluations: {}'.format(len(evaluations)))
-    if not solved:
-        return
-    for i, (name, args) in enumerate(plan):
-        print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
-    #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
-
-##################################################
 
 class Verbose(object): # TODO: use DisableOutput
     def __init__(self, verbose):
@@ -183,6 +180,7 @@ class Verbose(object): # TODO: use DisableOutput
             #sys.stderr = self.stderr
             #self.devnull.close()
 
+
 class TmpCWD(object):
     def __init__(self, temp_cwd):
         self.tmp_cwd = temp_cwd
@@ -200,6 +198,7 @@ class MockSet(object):
         self.test = test
     def __contains__(self, item):
         return self.test(item)
+
 
 class HeapElement(object):
     def __init__(self, key, value):
@@ -232,18 +231,6 @@ def str_from_object(obj):  # str_object
     #    return obj.__name__
     return str(obj)
     #return repr(obj)
-
-def str_from_tuple(tup):
-    return str_from_object(tup)
-
-def str_from_action(action):
-    name, args = action
-    return '{}{}'.format(name, str_from_object(tuple(args)))
-
-def str_from_plan(plan):
-    if plan is None:
-        return str(plan)
-    return str_from_object(list(map(str_from_action, plan)))
 
 ##################################################
 

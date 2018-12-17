@@ -10,8 +10,8 @@ from examples.motion.viewer import sample_box, get_distance, is_collision_free, 
     create_box, draw_solution, draw_roadmap, draw_environment
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_test
-from pddlstream.utils import read, print_solution, user_input, str_from_object, INF
-from pddlstream.language.constants import PDDLProblem
+from pddlstream.utils import read, user_input, str_from_object, INF
+from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.constraints import PlanConstraints
 
 

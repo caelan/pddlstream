@@ -17,13 +17,13 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.algorithms.constraints import PlanConstraints, ANY
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.utils import ensure_dir
-from pddlstream.utils import print_solution, user_input, read, INF, get_file_path, str_from_object
+from pddlstream.utils import user_input, read, INF, get_file_path, str_from_object
 
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):

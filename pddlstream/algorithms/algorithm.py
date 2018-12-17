@@ -5,7 +5,7 @@ from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp, sas_from_pddl, parse_goal, make_cost
 from pddlstream.algorithms.search import abstrips_solve_from_task
-from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.constants import get_prefix, get_args, is_plan, get_length, str_from_plan
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression, revert_solution
 from pddlstream.language.exogenous import compile_to_exogenous
@@ -16,7 +16,7 @@ from pddlstream.language.object import Object
 from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.rule import parse_rule
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
-from pddlstream.utils import elapsed_time, INF, get_mapping, get_length, str_from_plan
+from pddlstream.utils import elapsed_time, INF, get_mapping
 
 INIT_EVALUATION = None
 
@@ -131,13 +131,11 @@ def has_costs(domain):
             return True
     return False
 
-def solve_finite(evaluations, goal_expression, domain, unit_costs=False, debug=False, **kwargs):
-    #if unit_costs is None:
-    #    unit_costs = not has_costs(domain)
-    problem = get_problem(evaluations, goal_expression, domain, unit_costs)
+def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)
-    pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **kwargs)
+    pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
     plan = obj_from_pddl_plan(pddl_plan)
     return plan, cost
 
@@ -162,13 +160,13 @@ class SolutionStore(object):
         self.solutions = []
     def add_plan(self, plan, cost):
         # TODO: double-check that plan is a solution
-        if (plan is None) or self.best_cost <= cost:
+        if not is_plan(plan) or (self.best_cost <= cost):
             return
         solution = Solution(plan, cost)
         self.best_plan, self.best_cost = solution
         self.solutions.append(solution)
     def has_solution(self):
-        return self.best_plan is not None
+        return is_plan(self.best_plan)
     def is_solved(self):
         return self.has_solution() and (self.best_cost <= self.success_cost)
     def elapsed_time(self):

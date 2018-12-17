@@ -15,7 +15,8 @@ from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import print_solution, user_input, read, INF, get_file_path
+from pddlstream.utils import user_input, read, INF, get_file_path
+from pddlstream.language.constants import print_solution
 
 R = 'r'
 H = 'h'

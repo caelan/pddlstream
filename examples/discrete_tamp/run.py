@@ -10,10 +10,10 @@ from collections import namedtuple
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_current, solve_exhaustive, solve_incremental
 #from pddlstream.algorithms.execution import solve_execution
-from pddlstream.language.constants import And, Equal, TOTAL_COST
+from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test, from_list_fn, outputs_from_boolean
-from pddlstream.utils import print_solution, user_input, read
+from pddlstream.utils import user_input, read
 from examples.discrete_tamp.viewer import DiscreteTAMPViewer, COLORS, MAX_COLS, MAX_ROWS
 
 # TODO: Can infer domain from usage or from specification

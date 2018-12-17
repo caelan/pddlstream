@@ -54,17 +54,17 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
 
 ##################################################
 
-def process_disabled(store, evaluations, domain, disabled, stream_plan, action_plan, cost, reenable):
+def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, reenable):
     if stream_plan is None:
         if not disabled:
             return False
         if reenable:
-            reenable_disabled(evaluations, domain, disabled)
+            reenable_disabled(store.evaluations, domain, disabled)
         else:
             process_all_disabled(store, disabled)
     elif not stream_plan:
         store.add_plan(action_plan, cost)
     else:
-        process_stream_plan(evaluations, domain, stream_plan, disabled, verbose=store.verbose)
+        process_stream_plan(store.evaluations, domain, stream_plan, disabled, verbose=store.verbose)
     # TODO: report back whether to try w/o stream values
     return True

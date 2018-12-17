@@ -14,9 +14,9 @@ from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDi
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.downward import get_cost_scale, set_cost_scale, MAX_FD_COST
 
-from pddlstream.language.constants import And
+from pddlstream.language.constants import And, print_solution
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import print_solution, read, INF
+from pddlstream.utils import read, INF
 
 # TODO: would be helpful if I could use <= here
 # TODO: could use fixed threshold or the max of the ones met

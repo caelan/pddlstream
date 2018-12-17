@@ -2,15 +2,15 @@ from collections import deque, Counter
 
 from pddlstream.utils import neighbors_from_orders
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import Minimize
+from pddlstream.language.constants import Minimize, is_plan
 from pddlstream.language.conversion import substitute_expression
 from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.statistics import Performance
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
 
 def decompose_stream_plan(stream_plan):
-    if stream_plan is None:
-        return None
+    if not is_plan(stream_plan):
+        return stream_plan
     new_stream_plan = []
     for result in stream_plan:
         if isinstance(result, SynthStreamResult):
@@ -176,7 +176,7 @@ def get_synthetic_stream_plan(stream_plan, synthesizers):
     # 1) Prune graph not related
     # 2) Cluster
     # 3) Try combinations of replacing on stream plan
-    if (stream_plan is None) or (not synthesizers):
+    if not is_plan(stream_plan) or (not synthesizers):
         return stream_plan
     orders = get_partial_orders(stream_plan)
     for order in list(orders):

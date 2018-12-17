@@ -13,7 +13,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, ge
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
-from pddlstream.utils import print_solution, read, INF, get_file_path
+from pddlstream.utils import read, INF, get_file_path
+from pddlstream.language.constants import print_solution
 
 
 # TODO: make a fixed body for each object (or one environment body)

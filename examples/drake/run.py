@@ -18,10 +18,10 @@ from examples.drake.utils import get_world_pose, get_configuration, \
     get_model_name, get_joint_positions, get_parent_joints, \
     get_state, set_state, get_movable_joints
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import And
+from pddlstream.language.constants import And, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_fn
-from pddlstream.utils import print_solution, read, INF, get_file_path
+from pddlstream.utils import read, INF, get_file_path
 
 
 # Listing all available docker images

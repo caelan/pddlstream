@@ -9,7 +9,8 @@ import numpy as np
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_fn
-from pddlstream.utils import print_solution, read, get_file_path
+from pddlstream.utils import read, get_file_path
+from pddlstream.language.constants import print_solution
 
 
 def pddlstream_from_belief():

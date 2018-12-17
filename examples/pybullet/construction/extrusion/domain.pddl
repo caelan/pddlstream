@@ -26,7 +26,7 @@
 
   (:action print
     :parameters (?n ?e ?t)
-    :precondition (and (PrintAction ?n ?e ?t) (Printed ?e) ; (Stiff)
+    :precondition (and (PrintAction ?n ?e ?t) (Printed ?e) (Stiff)
                        (forall (?e2) (imply (Supports ?e2 ?n) (Printed ?e2)))
                        (forall (?e2) (imply (Collision ?t ?e2) (Removed ?e2))))
 

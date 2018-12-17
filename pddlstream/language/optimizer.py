@@ -3,7 +3,7 @@ from collections import Counter, deque
 
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate
+from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate, is_plan
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import FunctionResult
@@ -252,7 +252,7 @@ def combine_optimizer_plan(stream_plan, functions):
 ##################################################
 
 def combine_optimizers_greedy(evaluations, external_plan):
-    if external_plan is None:
+    if not is_plan(external_plan):
         return external_plan
     # The key thing is that a variable must be grounded before it can used in a non-stream thing
     # TODO: construct variables in order
@@ -303,7 +303,7 @@ def sequence_results(evaluations, combined_results):
     return combined_plan
 
 def combine_optimizers(evaluations, external_plan):
-    if external_plan is None:
+    if not is_plan(external_plan):
         return external_plan
     stream_plan, function_plan = partition_external_plan(external_plan)
     optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
@@ -348,7 +348,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     # TODO: return multiple plans?
     # TODO: can instead have multiple goal binding combinations
     # TODO: can replan using samplers as well
-    if external_plan is None:
+    if not is_plan(external_plan):
         return external_plan
     optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
     if not optimizer_streams:
@@ -382,7 +382,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     combined_plan = reschedule_stream_plan(evaluations, goal_facts, copy.copy(domain),
                                            (stream_plan + optimizer_results),
                                            unique_binding=True, unit_efforts=True)
-    if combined_plan is None:
+    if not is_plan(combined_plan):
         return external_plan
     return combined_plan + function_plan
 

@@ -6,10 +6,9 @@ import argparse
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import PDDLProblem, Or, Exists
+from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_fn, from_test
-from pddlstream.utils import print_solution
 
 DOMAIN_PDDL = """
 (define (domain debug)

@@ -4,7 +4,7 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object
 
@@ -158,8 +158,8 @@ def values_from_objects(objects):
 
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):
-    if pddl_plan is None:
-        return None
+    if not is_plan(pddl_plan):
+        return pddl_plan
     return [(action, tuple(map(obj_from_pddl, args))) for action, args in pddl_plan]
 
 def param_from_object(obj):
@@ -171,8 +171,8 @@ def params_from_objects(objects):
     return tuple(map(param_from_object, objects))
 
 def value_from_obj_plan(obj_plan):
-    if obj_plan is None:
-        return None
+    if not is_plan(obj_plan):
+        return obj_plan
     #return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
     #return [(action, tuple(values_from_objects(args))) for action, args in obj_plan]
     value_plan = []

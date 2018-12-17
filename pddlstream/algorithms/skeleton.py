@@ -1,20 +1,19 @@
+from __future__ import print_function
+
 import time
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 
-from pddlstream.algorithms.algorithm import add_certified, add_facts
-from pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.algorithms.algorithm import add_certified, add_facts, remove_blocked, is_instance_ready
+from pddlstream.language.constants import INFEASIBLE, FAILED
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult, StreamInstance
-from pddlstream.utils import elapsed_time, HeapElement, INF, safe_zip, apply_mapping
+from pddlstream.language.stream import StreamResult
+from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object
+
 
 # The motivation for immediately instantiating is to avoid unnecessary sampling
 # Consider a stream result DAG A -> C, B -> C
 # If A is already successfully sampled, don't want to resample A until B is sampled
-
-def remove_blocked(evaluations, instance, new_results):
-    if new_results and isinstance(instance, StreamInstance):
-        evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
 
 def puncture(sequence, index):
     return sequence[:index] + sequence[index+1:]
@@ -32,9 +31,6 @@ def update_cost(cost, opt_result, result):
     if type(result) is FunctionResult:
         new_cost += (result.value - opt_result.value)
     return new_cost
-
-def is_instance_ready(evaluations, instance):
-    return all(evaluation_from_fact(f) in evaluations for f in instance.get_domain())
 
 ##################################################
 
@@ -86,6 +82,11 @@ class Binding(object):
         self.children = []
         self.enumerated = False # What if result enumerated with zero calls?
         self._stream_plan = None
+        # Maybe just reset the indices for anything that isn't applicable
+        # n+1 sample represented
+        # TODO: store partial orders
+        # TODO: store applied results
+        # TODO: the problem is that I'm not actually doing all combinations because I'm passing attempted
     @property
     def stream_plan(self):
         if self._stream_plan is None:
@@ -135,6 +136,9 @@ class Binding(object):
                 self.stream_attempts[index] = opt_result.instance.num_calls
                 self.enumerated |= opt_result.instance.enumerated
         return updated
+    def __repr__(self):
+        #return '{}({})'.format(self.__class__.__name__, str_from_object(self.stream_plan))
+        return '{}({})'.format(self.__class__.__name__, str_from_object(self.action_plan))
 
 ##################################################
 
@@ -147,9 +151,9 @@ class SkeletonQueue(Sized):
     # TODO: update bindings given outcomes of eager streams
     # TODO: immediately evaluate eager streams in the queue
 
-    def __init__(self, store, evaluations, goal_expression, domain):
+    def __init__(self, store, goal_expression, domain):
         self.store = store
-        self.evaluations = evaluations
+        self.evaluations = store.evaluations
         #self.goal_expression = goal_expression
         self.domain = domain
         self.skeletons = []
@@ -250,10 +254,13 @@ class SkeletonQueue(Sized):
         for result in new_results:
             add_certified(self.evaluations, result)
         add_facts(self.evaluations, new_facts, result=None)  # TODO: record the instance
-        for binding in list(self.bindings_from_instance[instance]):
+        for i, binding in enumerate(list(self.bindings_from_instance[instance])):
+            #print(i, binding)
+            # Maybe this list grows but not all the things are accounted for
             if self.is_enabled(binding):
                 binding.update_instances()
                 self.update_enabled(binding)
+        #print()
         return bool(new_results) | bool(new_facts)
 
     def _process_root(self):
@@ -300,7 +307,9 @@ class SkeletonQueue(Sized):
     def process(self, stream_plan, action_plan, cost, max_time=0):
         # TODO: manually add stream_plans for synthesizers/optimizers
         start_time = time.time()
-        if stream_plan is None:
+        if stream_plan is FAILED:
+            pass
+        elif stream_plan is INFEASIBLE:
             if not self.process_until_new():
                 return False
         else:
