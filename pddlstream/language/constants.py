@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from collections import namedtuple
 
 from pddlstream.utils import INF, str_from_object

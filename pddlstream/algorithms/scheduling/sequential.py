@@ -1,8 +1,8 @@
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, sas_from_pddl
-from pddlstream.language.constants import TOTAL_COST
 from pddlstream.algorithms.search import solve_from_task, abstrips_solve_from_task
 from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, add_stream_actions
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan, get_results_from_head
+from pddlstream.language.constants import TOTAL_COST
 from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, INF, MockSet
@@ -56,6 +56,7 @@ def sequential_stream_plan(evaluations, goal_expression, domain, stream_results,
     for result in stream_results:
         if isinstance(result.external, Stream) and result.external.is_fluent():
             raise NotImplementedError('Fluents are not supported')
+    # TODO: warning check if using simultaneous_stream_plan with non-eager functions
 
     # TODO: compute preimage and make that the goal instead
     opt_evaluations = evaluations_from_stream_plan(evaluations, stream_results)

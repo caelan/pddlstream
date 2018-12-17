@@ -157,6 +157,7 @@ def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_result
     for result in stream_results:
         if isinstance(result.external, Stream) and result.external.is_fluent():
             raise NotImplementedError('Fluents are not supported')
+    # TODO: warning check if using simultaneous_stream_plan with non-eager functions
 
     applied_streams, deferred_streams = partition_results(evaluations, stream_results, lambda r: False)
     opt_evaluations = apply_streams(evaluations, applied_streams)

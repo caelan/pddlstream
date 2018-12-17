@@ -12,6 +12,7 @@ class ExternalInfo(PerformanceInfo):
     def __init__(self, eager, p_success, overhead, effort_fn):
         super(ExternalInfo, self).__init__(p_success, overhead)
         # TODO: enable eager=True for inexpensive test streams by default
+        # TODO: make any info just a dict
         self.eager = eager
         self.effort_fn = effort_fn
 

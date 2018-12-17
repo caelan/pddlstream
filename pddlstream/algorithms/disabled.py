@@ -1,4 +1,5 @@
 from pddlstream.algorithms.algorithm import add_certified, add_facts, remove_blocked, is_instance_ready
+from pddlstream.language.constants import INFEASIBLE, is_plan
 from pddlstream.utils import INF
 
 
@@ -55,8 +56,8 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
 ##################################################
 
 def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, reenable):
-    if stream_plan is None:
-        if not disabled:
+    if not is_plan(stream_plan):
+        if (stream_plan is INFEASIBLE) and not disabled:
             return False
         if reenable:
             reenable_disabled(store.evaluations, domain, disabled)

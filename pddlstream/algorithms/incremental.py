@@ -111,12 +111,12 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
-    :param effort_step: the increase in the effort limit after each iteration
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum amount of search iterations
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
+    :param effort_step: the increase in the effort limit after each failure
     :param max_effort: the maximum amount of effort to consider for streams
     :param verbose: if True, this prints the result of each stream application
     :param search_args: keyword args for the search subroutine
