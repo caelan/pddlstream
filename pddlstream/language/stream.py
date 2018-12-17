@@ -109,9 +109,8 @@ class StreamInfo(ExternalInfo):
 class StreamResult(Result):
     def __init__(self, instance, output_objects, opt_index=None,
                  call_index=None, list_index=None, optimistic=True):
-        super(StreamResult, self).__init__(instance, opt_index, optimistic)
+        super(StreamResult, self).__init__(instance, opt_index, call_index, optimistic)
         self.output_objects = tuple(output_objects)
-        self.call_index = call_index
         self.list_index = list_index
         self._mapping = None
         self._certified = None

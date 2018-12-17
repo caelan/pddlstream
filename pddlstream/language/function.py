@@ -22,7 +22,7 @@ class FunctionInfo(ExternalInfo):
 
 class FunctionResult(Result):
     def __init__(self, instance, value, opt_index=None, optimistic=True):
-        super(FunctionResult, self).__init__(instance, opt_index, optimistic)
+        super(FunctionResult, self).__init__(instance, opt_index, 0, optimistic)
         self.instance = instance
         self.value = value
         self._certified = None
@@ -69,7 +69,7 @@ class FunctionInstance(Instance):
         value = self.external.fn(*input_values)
         self.value = self.external.codomain(value)
         # TODO: cast the inputs and test whether still equal?
-        #if not (type(self.value) is self.external._odomain):
+        #if not (type(self.value) is self.external._codomain):
         #if not isinstance(self.value, self.external.codomain):
         if self.value < 0:
             raise ValueError('Function [{}] produced a negative value [{}]'.format(

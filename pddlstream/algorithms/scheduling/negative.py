@@ -42,8 +42,8 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     for fluent_facts in fluent_facts_list:
         negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
         if not negative_instance.successes:
-            negative_plan.add(StreamResult(negative_instance, tuple(),
-                                           opt_index=negative_instance.opt_index))
+            negative_plan.add(StreamResult(negative_instance, output_objects=tuple(),
+                                           opt_index=negative_instance.opt_index, optimistic=True))
 
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):

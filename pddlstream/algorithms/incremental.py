@@ -5,42 +5,39 @@ from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_fa
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.conversion import revert_solution
+from pddlstream.language.external import compute_instance_effort
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF
-from pddlstream.utils import elapsed_time
+from pddlstream.utils import INF, elapsed_time
 
 DEFAULT_VERBOSE = True
 UPDATE_STATISTICS = False
-USE_EFFORTS = False
 
 def ensure_no_fluent_streams(streams):
     for stream in streams:
         if isinstance(stream, Stream) and stream.is_fluent():
             raise NotImplementedError('Algorithm does not support fluent stream: {}'.format(stream.name))
 
-def process_instance(instantiator, evaluations, instance, effort, **kwargs):
+def process_instance(instantiator, evaluations, instance, effort, verbose=False, **effort_args):
     if instance.enumerated:
         return False
-    new_results, new_facts = instance.next_results(**kwargs)
+    new_results, new_facts = instance.next_results(verbose=verbose)
     #if new_results and isinstance(instance, StreamInstance):
     #    evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
-    fact_effort = effort if USE_EFFORTS else 0
     for result in new_results:
         for evaluation in add_certified(evaluations, result):
-            instantiator.add_atom(evaluation, fact_effort)
+            instantiator.add_atom(evaluation, effort)
     for evaluation in add_facts(evaluations, new_facts, result=None): # TODO: record the instance?
-        instantiator.add_atom(evaluation, fact_effort)
+        instantiator.add_atom(evaluation, effort)
     if not instance.enumerated:
-        # TODO: more intelligent way of updating effort
-        # Effort needs to incorporate the level as well as the num call
-        next_effort = effort+1 if USE_EFFORTS else effort
+        next_effort = effort + compute_instance_effort(instance, **effort_args)
         instantiator.push(instance, next_effort)
     return True
 
 def process_function_queue(instantiator, evaluations, **kwargs):
     num_calls = 0
     while instantiator.function_queue: # not store.is_terminated()
-        num_calls += process_instance(instantiator, evaluations, *instantiator.pop_function(), **kwargs)
+        instance, effort = instantiator.pop_function()
+        num_calls += process_instance(instantiator, evaluations, instance, effort, **kwargs)
     return num_calls
 
 ##################################################
@@ -102,19 +99,16 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
 
 ##################################################
 
-def layered_process_stream_queue(instantiator, store, num_layers, **kwargs):
-    # TODO: reframe as processing all efforts up to a point
+def process_stream_queue(instantiator, store, effort_limit, **kwargs):
     num_calls = 0
-    for layer in range(num_layers):
-        for _ in range(len(instantiator.stream_queue)):
-            if store.is_terminated():
-                return num_calls
-            num_calls += process_instance(instantiator, store.evaluations, *instantiator.pop_stream(), **kwargs)
+    while not store.is_terminated() and instantiator.stream_queue and (instantiator.min_effort() < effort_limit):
+        num_calls += process_instance(instantiator, store.evaluations, *instantiator.pop_stream(), **kwargs)
     num_calls += process_function_queue(instantiator, store.evaluations, **kwargs)
     return num_calls
 
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
+                      unit_efforts=True, max_effort=None,
                       max_iterations=INF, layers_per_iteration=1,
                       max_time=INF, verbose=DEFAULT_VERBOSE,
                       **search_kwargs):
@@ -127,6 +121,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     :param max_iterations: the maximum amount of search iterations
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
+    :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
+    :param max_effort: the maximum amount of effort to consider for streams
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
@@ -142,19 +138,22 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         load_stream_statistics(externals)
     num_iterations = 0
     num_calls = 0
-    instantiator = Instantiator(evaluations, externals)
+    effort_limit = 0
+    instantiator = Instantiator(evaluations, externals, unit_efforts=unit_efforts, max_effort=max_effort)
     while not store.is_terminated() and (num_iterations < max_iterations):
         num_iterations += 1
         num_calls += process_function_queue(instantiator, evaluations, verbose=verbose)
-        print('Iteration: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
+        print('Iteration: {} | Effort: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
+            num_iterations, effort_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
         plan, cost = solve_finite(evaluations, goal_expression, domain,
                                   max_cost=min(store.best_cost, constraints.max_cost), **search_kwargs)
         if plan is not None:
             store.add_plan(plan, cost)
         if store.is_terminated() or (not instantiator):
             break
-        num_calls += layered_process_stream_queue(instantiator, store, layers_per_iteration, verbose=verbose)
+        effort_limit += layers_per_iteration
+        num_calls += process_stream_queue(instantiator, store, effort_limit,
+                                          unit_efforts=unit_efforts, verbose=verbose)
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()

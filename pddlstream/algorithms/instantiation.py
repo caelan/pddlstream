@@ -6,8 +6,9 @@ from pddlstream.language.conversion import is_atom, head_from_fact
 from pddlstream.language.function import Function, FunctionInstance
 from pddlstream.language.external import compute_external_effort, compute_instance_effort
 from pddlstream.language.object import Object
-from pddlstream.utils import safe_zip, HeapElement, INF
+from pddlstream.utils import safe_zip, HeapElement
 
+# TODO: maybe store effort as well unit effort here
 Priority = namedtuple('Priority', ['effort', 'num']) # num ensures FIFO
 
 def get_mapping(atoms1, atoms2):
@@ -52,7 +53,7 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     def prune_effort(self, external, effort):
         if self.max_effort is None:
-            return False
+            return False # Allows infinite effort
         return (not isinstance(external, Function)) and (self.max_effort <= effort)
 
     def push(self, instance, effort):
@@ -75,6 +76,10 @@ class Instantiator(Sized): # Dynamic Instantiator
         if self.function_queue:
             return self.pop_function()
         return self.pop_stream()
+
+    def min_effort(self):
+        priority, _ = self.stream_queue[0]
+        return priority.effort
 
     #########################
 

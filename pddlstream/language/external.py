@@ -18,9 +18,10 @@ class ExternalInfo(PerformanceInfo):
 ##################################################
 
 class Result(object):
-    def __init__(self, instance, opt_index, optimistic):
+    def __init__(self, instance, opt_index, call_index, optimistic):
         self.instance = instance
         self.opt_index = opt_index
+        self.call_index = call_index
         self.optimistic = optimistic
 
     @property

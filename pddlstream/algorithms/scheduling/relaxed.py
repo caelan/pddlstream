@@ -152,20 +152,18 @@ def add_optimizer_effects(instantiated, instance, stream_plan):
 
 def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
     # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
-    efforts = [] # TODO: regularize & normalize across the problem?
+    #efforts = [] # TODO: regularize & normalize across the problem?
     for instance in instantiated.actions:
         # TODO: prune stream actions here?
+        # TODO: round each effort individually to penalize multiple streams
         facts = get_instance_facts(instance, node_from_atom)
         #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
         stream_plan = []
         extract_stream_plan(node_from_atom, facts, stream_plan)
-        # TODO: maybe just change efforts at the start to avoid passing around unit_efforts
-        # TODO: larger effort for results using shared objects
-        # TODO: round each effort individually to penalize multiple streams
         if effort_weight is not None:
             effort = compute_plan_effort(stream_plan, **kwargs)
             instance.cost += scale_cost(effort_weight*effort)
-            efforts.append(effort)
+            #efforts.append(effort)
         add_optimizer_effects(instantiated, instance, stream_plan)
     #print(min(efforts), efforts)
 
