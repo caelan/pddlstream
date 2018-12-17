@@ -1,29 +1,30 @@
 from __future__ import print_function
 
+import argparse
+import cProfile
 import json
 import os
-import cProfile
 import pstats
-import numpy as np
+import random
 import time
-import argparse
-
 from collections import namedtuple
 
+import numpy as np
+
 from examples.pybullet.construction.spatial_extrusion.run import MotionTrajectory
-from examples.pybullet.construction.spatial_extrusion.utils import DISABLED_COLLISIONS, parse_point, parse_transform
-from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, has_link, set_pose, \
-    multiply, invert, inverse_kinematics, plan_direct_joint_motion, Attachment, set_joint_positions, unit_quat, \
-    plan_joint_motion, get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, set_point, \
-    draw_pose, unit_quat, create_obj, add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn, \
+from examples.pybullet.construction.spatial_extrusion.utils import get_disabled_collisions, parse_point, \
+    parse_transform, get_custom_limits
+from examples.pybullet.utils.pybullet_tools.ikfast.kuka_kr6r900.ik import sample_tool_ik
+from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, set_pose, \
+    multiply, invert, inverse_kinematics, plan_direct_joint_motion, Attachment, set_joint_positions, plan_joint_motion, \
+    get_configuration, wait_for_interrupt, point_from_pose, HideOutput, load_pybullet, draw_pose, unit_quat, create_obj, \
+    add_body_name, get_pose, pose_from_tform, connect, WorldSaver, get_sample_fn, \
     wait_for_duration, enable_gravity, enable_real_time, trajectory_controller, simulate_controller, \
-    add_fixed_constraint, remove_fixed_constraint, elapsed_time, dump_body
+    add_fixed_constraint, remove_fixed_constraint, Pose, Euler, get_collision_fn
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import read, get_file_path, print_solution
-from pddlstream.algorithms.focused import solve_focused
-
-from examples.pybullet.utils.pybullet_tools.ikfast.kuka_kr6r900.ik import sample_tool_ik
 
 #PICKNPLACE_DIRECTORY = 'picknplace/'
 PICKNPLACE_DIRECTORY = ''
@@ -36,6 +37,7 @@ GRASP_NAMES = ['pick_grasp_approach_plane', 'pick_grasp_plane', 'pick_grasp_retr
 TOOL_NAME = 'eef_tcp_frame' # robot_tool0 | eef_base_link | eef_tcp_frame
 SELF_COLLISIONS = False
 MILLIMETER = 0.001
+IK_FAST = True
 
 ##################################################
 
@@ -47,7 +49,8 @@ class WorldPose(object):
         self.index = index
         self.value = value
     def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, self.index, str(np.array(point_from_pose(self.value))))
+        return '{}({},{})'.format(self.__class__.__name__, self.index,
+                                  str(np.array(point_from_pose(self.value))))
 
 class Grasp(object):
     def __init__(self, index, num, approach, attach, retreat):
@@ -62,6 +65,7 @@ class Grasp(object):
 def strip_extension(path):
     root, ext = os.path.splitext(path)
     return root
+
 
 ##################################################
 
@@ -141,8 +145,12 @@ def load_pick_and_place(extrusion_name, scale=MILLIMETER, max_bricks=6):
 def get_grasp_gen_fn(brick_from_index):
     def gen_fn(index):
         brick = brick_from_index[index]
-        for grasp in brick.grasps:
-            # TODO: can always rotate grasps around the tool frame x axis
+        while True:
+            original_grasp = random.choice(brick.grasps)
+            theta = random.uniform(-np.pi, +np.pi)
+            rotation = Pose(euler=Euler(yaw=theta))
+            new_attach = multiply(rotation, original_grasp.attach)
+            grasp = Grasp(None, None, None, new_attach, None)
             yield grasp,
     return gen_fn
 
@@ -150,8 +158,7 @@ def get_grasp_gen_fn(brick_from_index):
 def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
     movable_joints = get_movable_joints(robot)
     tool_link = link_from_name(robot, TOOL_NAME)
-    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
-                           for pair in DISABLED_COLLISIONS}
+    disabled_collisions = get_disabled_collisions(robot)
     sample_fn = get_sample_fn(robot, movable_joints)
     approach_distance = 0.1
     #approach_distance = 0.0
@@ -159,34 +166,37 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
 
     def gen_fn(index, pose, grasp):
         body = brick_from_index[index].body
-        #world_pose = get_link_pose(robot, tool_link)
-        #draw_pose(world_pose, length=0.04)
-        #set_pose(body, multiply(world_pose, grasp.attach))
-        #draw_pose(multiply(pose.value, invert(grasp.attach)), length=0.04)
-        #wait_for_interrupt()
         set_pose(body, pose.value)
+
+        obstacles = list(obstacle_from_name.values()) # + [body]
+        collision_fn = get_collision_fn(robot, movable_joints, obstacles=obstacles, attachments=[],
+                                        self_collisions=SELF_COLLISIONS,
+                                        disabled_collisions=disabled_collisions,
+                                        custom_limits=get_custom_limits(robot))
+        attach_pose = multiply(pose.value, invert(grasp.attach))
+        approach_pose = multiply(attach_pose, (approach_vector, unit_quat()))
+        # approach_pose = multiply(pose.value, invert(grasp.approach))
         for _ in range(max_attempts):
-            set_joint_positions(robot, movable_joints, sample_fn()) # Random seed
-            attach_pose = multiply(pose.value, invert(grasp.attach))
-            #attach_conf = inverse_kinematics(robot, tool_link, attach_pose)
-            attach_conf = sample_tool_ik(robot, attach_pose)
-            if attach_conf is None:
+            if IK_FAST:
+                attach_conf = sample_tool_ik(robot, attach_pose)
+            else:
+                set_joint_positions(robot, movable_joints, sample_fn())  # Random seed
+                attach_conf = inverse_kinematics(robot, tool_link, attach_pose)
+            if (attach_conf is None) or collision_fn(attach_conf):
                 continue
             set_joint_positions(robot, movable_joints, attach_conf)
-            #wait_for_interrupt()
-            approach_pose = multiply(attach_pose, (approach_vector, unit_quat()))
-            #approach_pose = multiply(pose.value, invert(grasp.approach))
-            #approach_conf = inverse_kinematics(robot, tool_link, approach_pose)
-            approach_conf = sample_tool_ik(robot, approach_pose, nearby_conf=attach_conf)
-            if approach_conf is None:
+            if IK_FAST:
+                approach_conf = sample_tool_ik(robot, approach_pose, nearby_conf=attach_conf)
+            else:
+                approach_conf = inverse_kinematics(robot, tool_link, approach_pose)
+            if (approach_conf is None) or collision_fn(approach_conf):
                 continue
             set_joint_positions(robot, movable_joints, approach_conf)
-            # TODO: retreat
             path = plan_direct_joint_motion(robot, movable_joints, attach_conf,
-                                            obstacles=obstacle_from_name.values(),
+                                            obstacles=obstacles,
                                             self_collisions=SELF_COLLISIONS,
                                             disabled_collisions=disabled_collisions)
-            if path is None:
+            if path is None: # TODO: retreat
                 continue
             #path = [approach_conf, attach_conf]
             attachment = Attachment(robot, tool_link, grasp.attach, body)
@@ -196,11 +206,27 @@ def get_ik_gen_fn(robot, brick_from_index, obstacle_from_name, max_attempts=25):
     return gen_fn
 
 
+def parse_fluents(robot, brick_from_index, fluents, obstacles):
+    tool_link = link_from_name(robot, TOOL_NAME)
+    attachments = []
+    for fact in fluents:
+        if fact[0] == 'atpose':
+            index, pose = fact[1:]
+            body = brick_from_index[index].body
+            set_pose(body, pose.value)
+            obstacles.append(body)
+        elif fact[0] == 'atgrasp':
+            index, grasp = fact[1:]
+            body = brick_from_index[index].body
+            attachments.append(Attachment(robot, tool_link, grasp.attach, body))
+        else:
+            raise NotImplementedError(fact[0])
+    return attachments
+
+
 def get_motion_fn(robot, brick_from_index, obstacle_from_name, teleport=False):
     movable_joints = get_movable_joints(robot)
-    tool_link = link_from_name(robot, TOOL_NAME)
-    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
-                           for pair in DISABLED_COLLISIONS}
+    disabled_collisions = get_disabled_collisions(robot)
 
     def fn(conf1, conf2, fluents=[]):
         if teleport is True:
@@ -208,23 +234,11 @@ def get_motion_fn(robot, brick_from_index, obstacle_from_name, teleport=False):
             traj = MotionTrajectory(robot, movable_joints, path)
             return traj,
         obstacles = list(obstacle_from_name.values())
-        attachments = []
-        for fact in fluents:
-            if fact[0] == 'atpose':
-                index, pose = fact[1:]
-                body = brick_from_index[index].body
-                set_pose(body, pose.value)
-                obstacles.append(body)
-            elif fact[0] == 'atgrasp':
-                index, grasp = fact[1:]
-                body = brick_from_index[index].body
-                attachments.append(Attachment(robot, tool_link, grasp.attach, body))
-            else:
-                raise NotImplementedError(fact[0])
-
+        attachments = parse_fluents(robot, brick_from_index, fluents, obstacles)
         set_joint_positions(robot, movable_joints, conf1)
-        path = plan_joint_motion(robot, movable_joints, conf2, obstacles=obstacles, attachments=attachments,
-                                 self_collisions=True, disabled_collisions=disabled_collisions,
+        path = plan_joint_motion(robot, movable_joints, conf2,
+                                 obstacles=obstacles, attachments=attachments,
+                                 self_collisions=SELF_COLLISIONS, disabled_collisions=disabled_collisions,
                                  #weights=weights, resolutions=resolutions,
                                  restarts=5, iterations=50, smooth=100)
         if path is None:
@@ -366,7 +380,6 @@ def simulate_plan(plan, time_step=0.0, real_time=False): #time_step=np.inf
 ##################################################
 
 def main():
-    # TODO: restrict joint limits for base link using custom_joint_limits
     parser = argparse.ArgumentParser()
     # choreo_brick_demo | choreo_eth-trees_demo
     parser.add_argument('-p', '--problem', default='choreo_brick_demo', help='The name of the problem to solve')
@@ -392,7 +405,7 @@ def main():
     plan, _, _ = solution
     if plan is None:
         return
-    step_plan(plan, time_step=(np.inf if args.teleport else 0.2))
+    step_plan(plan, time_step=(np.inf if args.teleport else 0.1))
     #simulate_plan(plan)
 
 

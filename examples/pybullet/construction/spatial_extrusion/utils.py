@@ -9,7 +9,7 @@ import numpy as np
 
 from examples.pybullet.utils.pybullet_tools.utils import add_line, create_cylinder, set_point, Euler, quat_from_euler, \
     set_quat, get_movable_joints, set_joint_positions, pairwise_collision, Pose, multiply, Point, load_model, \
-    HideOutput, load_pybullet
+    HideOutput, load_pybullet, link_from_name, has_link, joint_from_name
 
 #EXTRUSION_DIRECTORY = 'spatial_extrusion/'
 EXTRUSION_DIRECTORY = 'json/'
@@ -27,13 +27,6 @@ EXTRUSION_FILENAMES = {
 KUKA_PATH = '../models/framefab_kr6_r900_support/urdf/kr6_r900.urdf'
 #KUKA_PATH = '../models/framefab_kr6_r900_support/urdf/kr6_r900_workspace.urdf'
 TOOL_NAME = 'eef_tcp_frame'
-DISABLED_COLLISIONS = [
-    # ('robot_link_1', 'workspace_objects'),
-    # ('robot_link_2', 'workspace_objects'),
-    # ('robot_link_3', 'workspace_objects'),
-    # ('robot_link_4', 'workspace_objects'),
-    ('robot_link_5', 'eef_base_link'),
-]
 # [u'base_frame_in_rob_base', u'element_list', u'node_list', u'assembly_type', u'model_type', u'unit']
 
 DEFAULT_SCALE = 1e-3 # TODO: load different scales
@@ -204,3 +197,24 @@ def get_element_neighbors(element_bodies):
         element_neighbors[e].update(node_neighbors[n2])
         element_neighbors[e].remove(e)
     return element_neighbors
+
+##################################################
+
+DISABLED_COLLISIONS = [
+    # ('robot_link_1', 'workspace_objects'),
+    # ('robot_link_2', 'workspace_objects'),
+    # ('robot_link_3', 'workspace_objects'),
+    # ('robot_link_4', 'workspace_objects'),
+    ('robot_link_5', 'eef_base_link'),
+]
+
+def get_disabled_collisions(robot):
+    return {tuple(link_from_name(robot, link) for link in pair if has_link(robot, link))
+                  for pair in DISABLED_COLLISIONS}
+
+CUSTOM_LIMITS = {
+    'robot_joint_a1': (-np.pi/2, np.pi/2),
+}
+
+def get_custom_limits(robot):
+    return {joint_from_name(robot, joint): limits for joint, limits in CUSTOM_LIMITS.items()}
