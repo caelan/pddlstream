@@ -214,7 +214,7 @@ def main(use_synthesizers=False):
                                  visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
-                                     layers_per_iteration=1, hierarchy=hierarchy,
+                                     effort_step=2, hierarchy=hierarchy,
                                      unit_costs=args.unit, success_cost=success_cost,
                                      max_time=args.max_time, verbose=False)
     else:

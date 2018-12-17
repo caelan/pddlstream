@@ -109,14 +109,14 @@ def process_stream_queue(instantiator, store, effort_limit, **kwargs):
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
                       unit_efforts=True, max_effort=None,
-                      max_iterations=INF, layers_per_iteration=1,
+                      max_iterations=INF, effort_step=1,
                       max_time=INF, verbose=DEFAULT_VERBOSE,
                       **search_kwargs):
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
-    :param layers_per_iteration: the number of stream application layers per iteration
+    :param effort_step: the increase in the effort limit after each iteration
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum amount of search iterations
     :param unit_costs: use unit action costs rather than numeric costs
@@ -136,24 +136,20 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     ensure_no_fluent_streams(externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
-    num_iterations = 0
-    num_calls = 0
-    effort_limit = 0
+    num_iterations = num_calls = effort_limit = 0
     instantiator = Instantiator(evaluations, externals, unit_efforts=unit_efforts, max_effort=max_effort)
     while not store.is_terminated() and (num_iterations < max_iterations):
         num_iterations += 1
-        num_calls += process_function_queue(instantiator, evaluations, verbose=verbose)
+        num_calls += process_stream_queue(instantiator, store, effort_limit, unit_efforts=unit_efforts, verbose=verbose)
         print('Iteration: {} | Effort: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, effort_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
         plan, cost = solve_finite(evaluations, goal_expression, domain,
                                   max_cost=min(store.best_cost, constraints.max_cost), **search_kwargs)
         if plan is not None:
             store.add_plan(plan, cost)
-        if store.is_terminated() or (not instantiator):
+        if not instantiator:
             break
-        effort_limit += layers_per_iteration
-        num_calls += process_stream_queue(instantiator, store, effort_limit,
-                                          unit_efforts=unit_efforts, verbose=verbose)
+        effort_limit += effort_step # TODO: option to select the next smallest effort
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()

@@ -8,15 +8,15 @@ from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
     evaluation_from_fact, substitute_expression, revert_solution
-from pddlstream.language.exogenous import compile_to_exogenous, replace_literals
+from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.external import DEBUG, compute_plan_effort
+from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
-from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.object import Object
+from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.rule import parse_rule
-from pddlstream.language.stream import parse_stream, Stream
-from pddlstream.utils import elapsed_time, INF, get_mapping, find_unique, get_length, str_from_plan
-
+from pddlstream.language.stream import parse_stream, Stream, StreamInstance
+from pddlstream.utils import elapsed_time, INF, get_mapping, get_length, str_from_plan
 
 INIT_EVALUATION = None
 
@@ -147,8 +147,10 @@ Solution = namedtuple('Solution', ['plan', 'cost'])
 
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose):
-        # TODO: store evaluations here as well as map from head to value?
+        # TODO: store a map from head to value?
+        # TODO: include other problem information here?
         self.evaluations = evaluations
+        #self.initial_evaluations = copy.copy(evaluations)
         self.start_time = time.time()
         self.max_time = max_time
         #self.cost_fn = get_length if unit_costs else None
@@ -288,65 +290,29 @@ def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts
 
 ##################################################
 
-def compile_fluent_streams(domain, externals):
-    state_streams = list(filter(lambda e: isinstance(e, Stream) and
-                                          (e.is_negated() or e.is_fluent()), externals))
-    predicate_map = {}
-    for stream in state_streams:
-        for fact in stream.certified:
-            predicate = get_prefix(fact)
-            assert predicate not in predicate_map # TODO: could make a conjunction condition instead
-            predicate_map[predicate] = stream
-    if not predicate_map:
-        return state_streams
-
-    # TODO: could make free parameters free
-    # TODO: allow functions on top the produced values?
-    # TODO: check that generated values are not used in the effects of any actions
-    # TODO: could treat like a normal stream that generates values (but with no inputs required/needed)
-    def fn(literal):
-        if literal.predicate not in predicate_map:
-            return literal
-        # TODO: other checks on only inputs
-        stream = predicate_map[literal.predicate]
-        certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
-        mapping = get_mapping(get_args(certified), literal.args)
-        #assert all(arg in mapping for arg in stream.inputs) # Certified must contain all inputs
-        if not all(arg in mapping for arg in stream.inputs):
-            # TODO: this excludes typing. This is not entirely safe
-            return literal
-        blocked_args = tuple(mapping[arg] for arg in stream.inputs)
-        blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
-        if stream.is_negated():
-            # TODO: add stream conditions here
-            return blocked_literal
-        return pddl.Conjunction([literal, blocked_literal])
-
-    import pddl
-    for action in domain.actions:
-        action.precondition = replace_literals(fn, action.precondition).simplified()
-        # TODO: throw an error if the effect would be altered
-        for effect in action.effects:
-            if not isinstance(effect.condition, pddl.Truth):
-                raise NotImplementedError(effect.condition)
-            #assert(isinstance(effect, pddl.Effect))
-            #effect.condition = replace_literals(fn, effect.condition)
-    for axiom in domain.axioms:
-        axiom.condition = replace_literals(fn, axiom.condition).simplified()
-    return state_streams
-
-
 def dump_plans(stream_plan, action_plan, cost):
     print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
         get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
         get_length(action_plan), cost, str_from_plan(action_plan)))
 
 
-def partition_externals(externals):
+def partition_externals(externals, verbose=False):
     functions = list(filter(lambda s: type(s) is Function, externals))
     predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
     negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
     negative = predicates + negated_streams
     streams = list(filter(lambda s: s not in (functions + negative), externals))
     #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    if verbose:
+        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
     return streams, functions, negative #, optimizers
+
+##################################################
+
+def remove_blocked(evaluations, instance, new_results):
+    if new_results and isinstance(instance, StreamInstance):
+        evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), default=None)
+
+
+def is_instance_ready(evaluations, instance):
+    return all(evaluation_from_fact(f) in evaluations for f in instance.get_domain())
