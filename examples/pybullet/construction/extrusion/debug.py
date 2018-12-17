@@ -4,7 +4,7 @@ import re
 
 import numpy as np
 
-from examples.pybullet.construction.spatial_extrusion.utils import TOOL_NAME, create_elements, get_grasp_pose, sample_direction
+from examples.pybullet.construction.extrusion.utils import TOOL_NAME, create_elements, get_grasp_pose, sample_direction
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, get_joint_name, get_sample_fn, \
     set_joint_positions, wait_for_interrupt, link_from_name, inverse_kinematics, get_link_pose, Pose, Euler, Point, \
     multiply, set_pose, get_pose, invert, draw_pose

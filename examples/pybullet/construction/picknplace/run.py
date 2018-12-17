@@ -11,8 +11,8 @@ from collections import namedtuple
 
 import numpy as np
 
-from examples.pybullet.construction.spatial_extrusion.run import MotionTrajectory
-from examples.pybullet.construction.spatial_extrusion.utils import get_disabled_collisions, parse_point, \
+from examples.pybullet.construction.extrusion.run import MotionTrajectory
+from examples.pybullet.construction.extrusion.utils import get_disabled_collisions, parse_point, \
     parse_transform, get_custom_limits
 from examples.pybullet.utils.pybullet_tools.ikfast.kuka_kr6r900.ik import sample_tool_ik
 from examples.pybullet.utils.pybullet_tools.utils import get_movable_joints, link_from_name, set_pose, \
@@ -77,7 +77,6 @@ def load_pick_and_place(extrusion_name, scale=MILLIMETER, max_bricks=6):
     with open(os.path.join(bricks_directory, PICKNPLACE_FILENAMES[extrusion_name]), 'r') as f:
         json_data = json.loads(f.read())
 
-    #kuka_urdf = '../models/framefab_kr6_r900_support/urdf/kr6_r900_wo_ee.urdf'
     kuka_urdf = '../models/framefab_kr6_r900_support/urdf/kr6_r900_mit_suction_gripper.urdf'
     obj_directory = os.path.join(bricks_directory, 'meshes', 'collision')
     with HideOutput():

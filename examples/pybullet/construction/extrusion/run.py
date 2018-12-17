@@ -5,9 +5,9 @@ import pstats
 import numpy as np
 import argparse
 
-from examples.pybullet.construction.spatial_extrusion.utils import create_elements, \
-    load_extrusion, TOOL_NAME, DISABLED_COLLISIONS, check_trajectory_collision, get_grasp_pose, load_world, \
-    get_node_neighbors, sample_direction, draw_element
+from examples.pybullet.construction.extrusion.utils import create_elements, \
+    load_extrusion, TOOL_NAME, check_trajectory_collision, get_grasp_pose, load_world, \
+    get_node_neighbors, sample_direction, draw_element, get_disabled_collisions, get_custom_limits
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wait_for_interrupt, \
     get_movable_joints, get_sample_fn, set_joint_positions, link_from_name, add_line, inverse_kinematics, \
     get_link_pose, multiply, wait_for_duration, add_text, angle_between, plan_joint_motion, \
@@ -19,7 +19,7 @@ from pddlstream.language.stream import StreamInfo, PartialInputs, NEGATIVE_SUFFI
 from pddlstream.utils import read, get_file_path, print_solution, user_input, irange, neighbors_from_orders
 
 SUPPORT_THETA = np.math.radians(10)  # Support polygon
-
+SELF_COLLISIONS = True
 JOINT_WEIGHTS = [0.3078557810844393, 0.443600199302506, 0.23544367607317915,
                  0.03637161028426032, 0.04644626184081511, 0.015054267683041092]
 
@@ -268,14 +268,14 @@ def sample_print_path(robot, length, reverse, element_body, collision_fn):
 
 ##################################################
 
-def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes):
+def get_print_gen_fn(robot, fixed_obstacles, node_points, element_bodies, ground_nodes):
     max_attempts = 300 # 150 | 300
     max_trajectories = 10
     check_collisions = True
     # 50 doesn't seem to be enough
 
     movable_joints = get_movable_joints(robot)
-    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair) for pair in DISABLED_COLLISIONS}
+    disabled_collisions = get_disabled_collisions(robot)
     #element_neighbors = get_element_neighbors(element_bodies)
     node_neighbors = get_node_neighbors(element_bodies)
     incoming_supporters, _ = neighbors_from_orders(get_supported_orders(element_bodies, node_points))
@@ -297,9 +297,11 @@ def get_print_gen_fn(robot, obstacles, node_points, element_bodies, ground_nodes
         retrace_supporters(element, incoming_supporters, supporters)
         elements_order = [e for e in element_bodies if (e != element) and (e not in supporters)]
         bodies_order = [element_bodies[e] for e in elements_order]
-        collision_fn = get_collision_fn(robot, movable_joints, obstacles + [element_bodies[e] for e in supporters],
-                                        attachments=[], self_collisions=True,
-                                        disabled_collisions=disabled_collisions)
+        obstacles = fixed_obstacles + [element_bodies[e] for e in supporters]
+        collision_fn = get_collision_fn(robot, movable_joints, obstacles,
+                                        attachments=[], self_collisions=SELF_COLLISIONS,
+                                        disabled_collisions=disabled_collisions,
+                                        custom_limits={}) # TODO: get_custom_limits
         trajectories = []
         for num in irange(max_trajectories):
             for attempt in range(max_attempts):
@@ -388,7 +390,7 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
     weights = np.array(JOINT_WEIGHTS)
     resolutions = np.divide(0.005*np.ones(weights.shape), weights)
     movable_joints = get_movable_joints(robot)
-    disabled_collisions = {tuple(link_from_name(robot, link) for link in pair) for pair in DISABLED_COLLISIONS}
+    disabled_collisions = get_disabled_collisions(robot)
     printed_elements = []
     current_conf = initial_conf
     all_trajectories = []
@@ -397,7 +399,7 @@ def compute_motions(robot, fixed_obstacles, element_bodies, initial_conf, trajec
         goal_conf = print_traj.path[0]
         obstacles = fixed_obstacles + [element_bodies[e] for e in printed_elements]
         path = plan_joint_motion(robot, movable_joints, goal_conf, obstacles=obstacles,
-                                 self_collisions=True, disabled_collisions=disabled_collisions,
+                                 self_collisions=SELF_COLLISIONS, disabled_collisions=disabled_collisions,
                                  weights=weights, resolutions=resolutions,
                                  restarts=5, iterations=50, smooth=100)
         if path is None:
