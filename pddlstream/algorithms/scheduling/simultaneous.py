@@ -150,8 +150,11 @@ def partition_plan(combined_plan, stream_result_from_name):
             action_plan.append((name, args))
     return stream_plan, action_plan
 
+##################################################
+
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,
                              negated, unit_costs=False, **kwargs):
+    # TODO: remove this method in favor of the more general relaxed plan
     if negated:
         raise NotImplementedError(negated)
     for result in stream_results:

@@ -6,6 +6,8 @@ from pddlstream.language.constants import And
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.utils import flatten
 
+# TODO: rename this to plan streams?
+
 DO_RESCHEDULE = False
 #RESCHEDULE_PLANNER = 'ff-astar'
 RESCHEDULE_PLANNER = 'lmcut-astar'
