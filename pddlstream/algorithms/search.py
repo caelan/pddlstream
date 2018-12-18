@@ -26,10 +26,10 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     #for axiom in sas_task.axioms:
-    #    # TODO: return the set of axioms as well
+    #    # TODO: return the set of axioms here as well
     #    var, value = axiom.effect
-    #    #names = sas_task.variables.value_names[var]
-    #    #axiom.dump()
+    #    print(sas_task.variables.value_names[var])
+    #    axiom.dump()
     return parse_solution(solution)
 
 def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):

@@ -75,31 +75,6 @@ def add_stream_actions(domain, results, **kwargs):
 
 ##################################################
 
-def get_action_cost(domain, results_from_head, name, args):
-    import pddl
-    action = find_unique(lambda a: a.name == name, domain.actions)
-    if action.cost is None:
-        return 0.
-    if isinstance(action.cost.expression, pddl.NumericConstant):
-        return action.cost.expression.value / get_cost_scale()
-    var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-    args = tuple(var_mapping[p] for p in action.cost.expression.args)
-    head = Head(action.cost.expression.symbol, args)
-    [(value, _)] = results_from_head[head]
-    return value
-
-def get_plan_cost(function_evaluations, action_plan, domain, unit_costs):
-    # TODO: deprecate in favor of using the raw action instances
-    if action_plan is None:
-        return INF
-    if unit_costs:
-        return len(action_plan)
-    results_from_head = get_results_from_head(function_evaluations)
-    return sum([0.] + [get_action_cost(domain, results_from_head, name, args)
-                       for name, args in action_plan])
-
-##################################################
-
 def extract_function_results(results_from_head, action, pddl_args):
     import pddl
     if action.cost is None:
@@ -151,6 +126,29 @@ def partition_plan(combined_plan, stream_result_from_name):
     return stream_plan, action_plan
 
 ##################################################
+
+def get_action_cost(domain, results_from_head, name, args):
+    import pddl
+    action = find_unique(lambda a: a.name == name, domain.actions)
+    if action.cost is None:
+        return 0.
+    if isinstance(action.cost.expression, pddl.NumericConstant):
+        return action.cost.expression.value / get_cost_scale()
+    var_mapping = {p.name: a for p, a in zip(action.parameters, args)}
+    args = tuple(var_mapping[p] for p in action.cost.expression.args)
+    head = Head(action.cost.expression.symbol, args)
+    [(value, _)] = results_from_head[head]
+    return value
+
+def get_plan_cost(function_evaluations, action_plan, domain, unit_costs):
+    # TODO: deprecate in favor of using the raw action instances
+    if action_plan is None:
+        return INF
+    if unit_costs:
+        return len(action_plan)
+    results_from_head = get_results_from_head(function_evaluations)
+    return sum([0.] + [get_action_cost(domain, results_from_head, name, args)
+                       for name, args in action_plan])
 
 def simultaneous_stream_plan(evaluations, goal_expression, domain, stream_results,
                              negated, unit_costs=False, **kwargs):

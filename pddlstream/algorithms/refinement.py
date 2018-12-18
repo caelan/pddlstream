@@ -17,6 +17,7 @@ from pddlstream.utils import INF, safe_zip, get_mapping
 
 CONSTRAIN_STREAMS = False
 CONSTRAIN_PLANS = True
+MAX_DEPTH = INF # 1 | INF
 
 def is_refined(stream_plan):
     # TODO: lazily expand the shared objects in some cases to prevent increase in size
@@ -162,8 +163,8 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 ##################################################
 
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn,
-                              depth, max_depth, constraints, **effort_args):
-    if max_depth <= depth:
+                              depth, constraints, **effort_args):
+    if MAX_DEPTH <= depth:
         return None, INF, depth
     combined_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
     if not is_plan(combined_plan):
@@ -183,9 +184,9 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     if CONSTRAIN_PLANS:
         next_constraints = compute_skeleton_constraints(action_plan, bindings)
     return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn,
-                                     depth + 1, max_depth, next_constraints, **effort_args)
+                                     depth + 1, next_constraints, **effort_args)
 
-def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, max_depth=1, **effort_args):
+def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, **effort_args):
     # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
     num_iterations = 0
     while True:
@@ -193,7 +194,7 @@ def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, max_dept
         results, full = optimistic_process_streams(evaluations, externals, **effort_args)
         combined_plan, cost, final_depth = hierarchical_plan_streams(
             evaluations, externals, results, optimistic_solve_fn,
-            depth=0, max_depth=max_depth, constraints=None, **effort_args)
+            depth=0, constraints=None, **effort_args)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
             num_iterations, len(results), final_depth, combined_plan is not None))
         if is_plan(combined_plan):

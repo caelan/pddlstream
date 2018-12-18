@@ -27,6 +27,7 @@ def get_mapping(atoms1, atoms2):
 class Instantiator(Sized): # Dynamic Instantiator
     def __init__(self, evaluations, streams,
                  unit_efforts=True, combine_fn=max, max_effort=None):
+        # TODO: switch to deque when unit efforts?
         # Focused considers path effort while incremental is just immediate effort
         self.unit_efforts = unit_efforts
         self.combine_fn = combine_fn # max | sum
@@ -108,25 +109,24 @@ class Instantiator(Sized): # Dynamic Instantiator
             self._add_instance(stream, input_objects, domain_effort)
 
     def _add_new_instances(self, new_atom):
-        for i, stream in enumerate(self.streams):
+        for s_idx, stream in enumerate(self.streams):
             effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(
                 stream, unit_efforts=self.unit_efforts)
             if self.prune_effort(stream, effort_bound):
                 continue
-            for j, domain_fact in enumerate(stream.domain):
+            for d_idx, domain_fact in enumerate(stream.domain):
                 domain_atom = head_from_fact(domain_fact)
                 if new_atom.function != domain_atom.function:
                     continue
                 if any(isinstance(b, Object) and (a != b) for a, b in
                        safe_zip(new_atom.args, domain_atom.args)):
-                    continue
-                self.atoms_from_domain[(i, j)].append(new_atom)
-                atoms = [self.atoms_from_domain[(i, k)] if j != k else [new_atom]
-                          for k in range(len(stream.domain))]
+                    continue # TODO: handle domain constants nicely
+                self.atoms_from_domain[s_idx, d_idx].append(new_atom)
+                atoms = [self.atoms_from_domain[s_idx, d2_idx] if d_idx != d2_idx else [new_atom]
+                          for d2_idx in range(len(stream.domain))]
                 self._add_combinations(stream, atoms)
 
     def add_atom(self, atom, effort):
-        # TODO: eventually allow constants
         if not is_atom(atom):
             return False
         head = atom.head

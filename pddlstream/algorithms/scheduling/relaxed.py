@@ -262,12 +262,12 @@ def get_plan_cost(action_plan, cost_from_action, unit_costs):
 def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, negative,
-                        unit_efforts, effort_weight, reachieve=True, unit_costs=False, debug=False, **kwargs):
+def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negative, unit_efforts, effort_weight,
+                        simultaneous=False, reachieve=True, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(
-        evaluations, stream_results, apply_now=lambda r: not r.external.info.simultaneous)
+        evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
 
@@ -277,7 +277,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
     node_from_atom = get_achieving_streams(evaluations, applied_results)
-    if using_optimizers(stream_results):
+    if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric
 
@@ -288,7 +288,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, stream_results, ne
     cost_from_action = {action: action.cost for action in instantiated.actions}
     if (effort_weight is not None) or using_optimizers(applied_results):
         add_stream_efforts(node_from_atom, instantiated, effort_weight, unit_efforts=unit_efforts)
-    add_optimizer_axioms(stream_results, instantiated)
+    add_optimizer_axioms(all_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)

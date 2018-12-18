@@ -1,4 +1,4 @@
-(define (stream pick-and-place)
+(define (stream discrete-tamp)
   (:rule
     :inputs (?p1 ?q1 ?p2 ?q2)
     :domain (Push ?p1 ?q1 ?p2 ?q2)

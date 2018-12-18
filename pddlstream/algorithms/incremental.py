@@ -144,7 +144,11 @@ def solve_incremental(problem, constraints=PlanConstraints(),
             store.add_plan(plan, cost)
         if not instantiator:
             break
-        effort_limit += effort_step # TODO: option to select the next k-smallest efforts
+        if effort_step is None:
+            # TODO: option to select the next k-smallest efforts
+            effort_limit = min(instantiator.min_effort())
+        else:
+            effort_limit += effort_step
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()

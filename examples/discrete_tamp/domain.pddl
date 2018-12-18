@@ -1,4 +1,4 @@
-(define (domain pick-and-place)
+(define (domain discrete-tamp)
   (:requirements :strips :equality)
   (:constants q100)
   (:predicates
