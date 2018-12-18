@@ -19,7 +19,6 @@ from pddlstream.utils import INF, safe_zip, get_mapping
 # TODO: constrain to using the previous plan skeleton
 # TODO: only use samples in the preimage and plan as well as initial state
 
-RECURSIVE = True
 CONSTRAIN_STREAMS = False
 CONSTRAIN_PLANS = True
 
@@ -97,43 +96,38 @@ def optimistic_process_streams(evaluations, streams, effort_limit=INF, **effort_
 ##################################################
 
 def optimistic_stream_grounding(stream_instance, bindings, evaluations, opt_evaluations,
-                                bind=True, immediate=False):
+                                only_immediate=False):
     # TODO: combination for domain predicates
-    opt_instances = []
-    if not bind:
-        bindings = {}
     input_objects = [bindings.get(i, [i]) for i in stream_instance.input_objects]
+    opt_instances = []
     for combo in product(*input_objects):
         mapping = get_mapping(stream_instance.input_objects, combo)
         domain = set(map(evaluation_from_fact, substitute_expression(
             stream_instance.get_domain(), mapping))) # TODO: could just instantiate first
         if domain <= opt_evaluations:
             instance = stream_instance.external.get_instance(combo)
-            if (instance.opt_index != 0) and (not immediate or (domain <= evaluations)):
+            if (instance.opt_index != 0) and (not only_immediate or (domain <= evaluations)):
                 instance.opt_index -= 1
             opt_instances.append(instance)
     return opt_instances
 
-
-def optimistic_process_stream_plan(evaluations, stream_plan):
+def optimistic_process_stream_plan(evaluations, stream_plan, use_bindings=True):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
-    evaluations = set(evaluations)
-    opt_evaluations = set(evaluations)
-    opt_bindings = {}
-    opt_results = []
-    for opt_result in stream_plan:
-        # TODO: just do the first step of the plan somehow
+    evaluations = set(evaluations) # For subset testing
+    new_evaluations = set(evaluations)
+    new_results = []
+    bindings = {}
+    for opt_result in stream_plan: # TODO: just refine the first step of the plan
         for instance in optimistic_stream_grounding(
-                opt_result.instance, opt_bindings, evaluations, opt_evaluations):
-            results = instance.next_optimistic()
-            opt_evaluations.update(evaluation_from_fact(f) for r in results for f in r.get_certified())
-            opt_results.extend(results)
-            for result in results:
-                if isinstance(result, StreamResult): # Could not add if same value
-                    for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
-                        opt_bindings.setdefault(opt, []).append(obj)
-    return opt_results, opt_bindings
+                opt_result.instance, (bindings if use_bindings else {}), evaluations, new_evaluations):
+            for new_result in instance.next_optimistic():
+                new_evaluations.update(map(evaluation_from_fact, new_result.get_certified()))
+                new_results.append(new_result)
+                if isinstance(new_result, StreamResult): # Could not add if same value
+                    for opt, obj in safe_zip(opt_result.output_objects, new_result.output_objects):
+                        bindings.setdefault(opt, []).append(obj)
+    return new_results, bindings
 
 ##################################################
 
@@ -168,70 +162,6 @@ def compute_skeleton_constraints(action_plan, bindings):
     # exact=False because we might need new actions
     return PlanConstraints(skeletons=[skeleton], exact=False, max_cost=INF)
 
-##################################################
-
-def recursive_solve_stream_plan(evaluations, externals, results, optimistic_solve_fn,
-                                depth, constraints, **effort_args):
-    if not RECURSIVE and (depth != 0):
-        return None, INF, depth
-    combined_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-    if not is_plan(combined_plan):
-        return combined_plan, cost, depth
-    stream_plan, action_plan = separate_plan(combined_plan, stream_only=False)
-    #dump_plans(stream_plan, action_plan, cost)
-    #create_visualizations(evaluations, stream_plan, depth)
-    #print(depth, get_length(stream_plan))
-    if is_refined(stream_plan):
-        return combined_plan, cost, depth
-    opt_results, opt_bindings = optimistic_process_stream_plan(evaluations, stream_plan)
-    if CONSTRAIN_STREAMS:
-        next_results = compute_stream_results(evaluations, opt_results, externals, **effort_args)
-    else:
-        next_results, _ = optimistic_process_streams(evaluations, externals, **effort_args)
-    next_constraints = None
-    if CONSTRAIN_PLANS:
-        next_constraints = compute_skeleton_constraints(action_plan, opt_bindings)
-    return recursive_solve_stream_plan(evaluations, externals, next_results, optimistic_solve_fn,
-                                       depth + 1, next_constraints, **effort_args)
-
-
-def iterative_solve_stream_plan(evaluations, externals, optimistic_solve_fn, **effort_args):
-    # TODO: enforce a max_depth or max plan cost?
-    num_iterations = 0
-    while True:
-        num_iterations += 1
-        results, full = optimistic_process_streams(evaluations, externals, **effort_args)
-        combined_plan, cost, depth = recursive_solve_stream_plan(
-            evaluations, externals, results, optimistic_solve_fn, depth=0, constraints=None, **effort_args)
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(results), depth, combined_plan is not None))
-        if is_plan(combined_plan):
-            return combined_plan, cost
-        if depth == 0:
-            status = INFEASIBLE if full else FAILED
-            return status, cost
-
-##################################################
-
-def iterative_solve_stream_plan_old(evaluations, externals, optimistic_solve_fn, **effort_args):
-    # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
-    constraints = None
-    while True:
-        #combined_plan, cost, initial_effort = process_and_solve_streams(
-        #    evaluations, externals, solve_stream_plan_fn,
-        #    initial_effort=initial_effort, unit_efforts=unit_efforts, max_effort=max_effort)
-        results, full = optimistic_process_streams(evaluations, externals, **effort_args)
-        combined_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-        if combined_plan is None:
-            status = INFEASIBLE if full else FAILED
-            return status, cost
-        stream_plan, action_plan = separate_plan(combined_plan, stream_only=False)
-        if is_refined(stream_plan):
-            return combined_plan, cost
-        optimistic_process_stream_plan(evaluations, stream_plan)
-
-##################################################
-
 def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
     def fn(evaluations, results, constraints):
         if constraints is None:
@@ -251,3 +181,46 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
         #raw_input('Continue?')
         return combined_plan, cost
     return fn
+
+##################################################
+
+def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn,
+                              depth, max_depth, constraints, **effort_args):
+    if max_depth <= depth:
+        return None, INF, depth
+    combined_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
+    if not is_plan(combined_plan):
+        return combined_plan, cost, depth
+    stream_plan, action_plan = separate_plan(combined_plan, stream_only=False)
+    #dump_plans(stream_plan, action_plan, cost)
+    #create_visualizations(evaluations, stream_plan, depth)
+    #print(depth, get_length(stream_plan))
+    if is_refined(stream_plan):
+        return combined_plan, cost, depth
+    opt_results, opt_bindings = optimistic_process_stream_plan(evaluations, stream_plan)
+    if CONSTRAIN_STREAMS:
+        next_results = compute_stream_results(evaluations, opt_results, externals, **effort_args)
+    else:
+        next_results, _ = optimistic_process_streams(evaluations, externals, **effort_args)
+    next_constraints = None
+    if CONSTRAIN_PLANS:
+        next_constraints = compute_skeleton_constraints(action_plan, opt_bindings)
+    return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn,
+                                     depth + 1, max_depth, next_constraints, **effort_args)
+
+def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, max_depth=1, **effort_args):
+    # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
+    num_iterations = 0
+    while True:
+        num_iterations += 1
+        results, full = optimistic_process_streams(evaluations, externals, **effort_args)
+        combined_plan, cost, final_depth = hierarchical_plan_streams(
+            evaluations, externals, results, optimistic_solve_fn,
+            depth=0, max_depth=max_depth, constraints=None, **effort_args)
+        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
+            num_iterations, len(results), final_depth, combined_plan is not None))
+        if is_plan(combined_plan):
+            return combined_plan, cost
+        if final_depth == 0:
+            status = INFEASIBLE if full else FAILED
+            return status, cost

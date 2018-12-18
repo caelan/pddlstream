@@ -7,7 +7,7 @@ from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import process_disabled
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.refine_shared import iterative_solve_stream_plan, get_optimistic_solve_fn
+from pddlstream.algorithms.refine_shared import iterative_plan_streams, get_optimistic_solve_fn
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
@@ -84,8 +84,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       unit_efforts=unit_efforts, effort_weight=effort_weight, **search_kwargs)
-        combined_plan, cost = iterative_solve_stream_plan(evaluations, externals, optimistic_solve_fn,
-                                                          effort_limit=effort_limit, max_effort=max_effort)
+        combined_plan, cost = iterative_plan_streams(evaluations, externals, optimistic_solve_fn,
+                                                     effort_limit=effort_limit, max_effort=max_effort)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
