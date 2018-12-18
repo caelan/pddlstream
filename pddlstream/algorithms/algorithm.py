@@ -85,20 +85,20 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
         raise NotImplementedError('Types are not currently supported')
     set_unit_costs(domain, unit_costs)
     obj_from_constant = parse_constants(domain, constant_map)
-    goal = add_plan_constraints(constraints, domain, init, goal)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info, unit_efforts=unit_efforts)
     check_problem(domain, streams, obj_from_constant)
 
     evaluations = evaluations_from_init(init)
-    goal_expression = obj_from_value_expression(goal)
-    parse_goal(goal_expression, domain) # Just to check that it parses
+    goal_exp = obj_from_value_expression(goal)
     #normalize_domain_goal(domain, goal_expression)
+    goal_exp = add_plan_constraints(constraints, domain, evaluations, goal_exp)
+    parse_goal(goal_exp, domain) # Just to check that it parses
 
     # TODO: refactor the following?
     compile_to_exogenous(evaluations, domain, streams)
     compile_fluent_streams(domain, streams)
     enforce_simultaneous(domain, streams)
-    return evaluations, goal_expression, domain, streams
+    return evaluations, goal_exp, domain, streams
 
 ##################################################
 

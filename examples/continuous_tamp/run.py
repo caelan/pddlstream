@@ -16,17 +16,17 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.algorithms.constraints import PlanConstraints, ANY
+from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.utils import ensure_dir
-from pddlstream.utils import user_input, read, INF, get_file_path, str_from_object
+from pddlstream.utils import user_input, read, INF, get_file_path, str_from_object, implies
 
 
-def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):
+def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
@@ -66,8 +66,8 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False):
         's-ik': from_fn(inverse_kin_fn),
         'distance': distance_fn,
 
-        't-cfree': from_test(lambda *args: not collision_test(*args)),
-        'posecollision': collision_test, # Redundant
+        't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
+        #'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
     }
     if use_optimizer:
@@ -135,8 +135,9 @@ def display_plan(tamp_problem, plan, display=True):
 def main(use_synthesizers=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
-    parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
+    parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=20, type=int, help='The max time')
@@ -186,18 +187,19 @@ def main(use_synthesizers=False):
 
 
     skeleton = [
-        ('move', ['?q0', ANY, '?q1']),
+        ('move', ['?q0', WILD, '?q1']),
         ('pick', ['b0', '?p0', '?q1']),
-        ('move', ['?q1', ANY, '?q2']),
+        ('move', ['?q1', WILD, '?q2']),
         ('place', ['b0', '?p1', '?q2']),
     ]
     constraints = PlanConstraints(skeletons=None,
                                   #skeletons=[],
                                   #skeletons=[skeleton],
                                   #skeletons=[skeleton, []],
-                                  exact=True, hint=False)
+                                  exact=True,
+                                  max_cost=INF)
 
-    pddlstream_problem = pddlstream_from_tamp(tamp_problem)
+    pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree)
     print('Initial:', str_from_object(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()

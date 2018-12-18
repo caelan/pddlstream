@@ -4,7 +4,7 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object
 
@@ -26,7 +26,7 @@ def replace_expression(parent, fn):
         return prefix, parameters, replace_expression(child, fn)
     name = get_prefix(parent).lower()
     args = get_args(parent)
-    return (name,) + tuple(map(fn, args))
+    return Fact(name, map(fn, args))
 
 def obj_from_value_expression(parent):
     return replace_expression(parent, lambda o: o if is_parameter(o) else Object.from_value(o))
@@ -125,12 +125,12 @@ def evaluation_from_fact(fact):
     return Evaluation(head_from_fact(head), value)
 
 def fact_from_evaluation(evaluation):
-    head = (evaluation.head.function,) + evaluation.head.args
+    fact = Fact(evaluation.head.function, evaluation.head.args)
     if is_atom(evaluation):
-        return head
+        return fact
     elif is_negated_atom(evaluation):
-        return (NOT, head)
-    return (EQ, head, evaluation.value)
+        return Not(fact)
+    return Equal(fact, evaluation.value)
 
 # def state_from_evaluations(evaluations):
 #     # TODO: default value?
@@ -151,7 +151,6 @@ def obj_from_pddl(pddl):
         return OptimisticObject.from_name(pddl)
     raise ValueError(pddl)
 
-
 def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
     #return tuple(map(value_from_object, objects))
@@ -160,12 +159,15 @@ def values_from_objects(objects):
 def obj_from_pddl_plan(pddl_plan):
     if not is_plan(pddl_plan):
         return pddl_plan
-    return [(action, tuple(map(obj_from_pddl, args))) for action, args in pddl_plan]
+    return [(action, tuple(map(obj_from_pddl, args)))
+            for action, args in pddl_plan]
 
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
         return obj.pddl
-    return obj.value
+    if isinstance(obj, Object):
+        return obj.value
+    raise ValueError(obj)
 
 def params_from_objects(objects):
     return tuple(map(param_from_object, objects))

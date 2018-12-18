@@ -1,12 +1,14 @@
+from __future__ import print_function
+
 from copy import deepcopy
 
 from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate
-from pddlstream.language.constants import Or, And, is_parameter, Equal, Not
-from pddlstream.language.conversion import obj_from_value_expression
-from pddlstream.language.object import Object
+from pddlstream.language.constants import Or, And, is_parameter, Equal, Not, str_from_plan
+from pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import find_unique, safe_zip, str_from_object, INF
 
-ANY = '*'
+WILD = '*'
 ASSIGNED_PREDICATE = 'assigned'
 ORDER_PREDICATE = 'order'
 
@@ -19,6 +21,12 @@ class PlanConstraints(object):
         #self.max_length = max_length
         if self.hint:
             raise NotImplementedError()
+    def dump(self):
+        print('{}(exact={}, max_cost={})'.format(self.__class__.__name__, self.exact, self.max_cost))
+        if self.skeletons is None:
+            return
+        for i, skeleton in enumerate(self.skeletons):
+            print(i, str_from_plan(skeleton))
     def __repr__(self):
         return '{}{}'.format(self.__class__.__name__, str_from_object(self.__dict__))
 
@@ -29,53 +37,60 @@ def to_constant(parameter):
     name = parameter[1:]
     return '@{}'.format(name)
 
+def to_obj(value):
+    # Allows both raw values as well as objects to be specified
+    if any(isinstance(value, Class) for Class in [Object, OptimisticObject]):
+        return value
+    return Object.from_value(value)
 
-def add_plan_constraints(constraints, domain, init, goal):
+##################################################
+
+def make_assignment_facts(local_from_global, parameters):
+    return [(ASSIGNED_PREDICATE, to_obj(to_constant(p)), local_from_global[p])
+            for p in parameters]
+
+def add_plan_constraints(constraints, domain, evaluations, goal_exp):
     if (constraints is None) or (constraints.skeletons is None):
-        return goal
+        return goal_exp
     import pddl
     # TODO: can search over skeletons first and then fall back
     # TODO: unify this with the constraint ordering
+    # TODO: can constrain to use a plan prefix
     new_actions = []
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
-        order_value_facts = [(ORDER_PREDICATE, 'n{}'.format(num), 't{}'.format(step))
-                             for step in range(len(skeleton) + 1)]
-        init.append(order_value_facts[0])
-        new_goals.append(order_value_facts[-1])
-        order_facts = list(map(obj_from_value_expression, order_value_facts))
+        # TODO: change the prefix for these
+        order_facts = [(ORDER_PREDICATE, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
+                        for step in range(len(skeleton) + 1)]
+        evaluations[evaluation_from_fact(order_facts[0])] = None
+        new_goals.append(order_facts[-1])
         bound_parameters = set()
         for step, (name, args) in enumerate(skeleton):
             # TODO: could also just remove the free parameter from the action
-            action = find_unique(lambda a: a.name == name, domain.actions)
-            new_action = deepcopy(action)
-            assert len(args) == len(new_action.parameters)
+            new_action = deepcopy(find_unique(lambda a: a.name == name, domain.actions))
             arg_from_parameter = {p.name: a for p, a in safe_zip(new_action.parameters, args)}
-            #free = [p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)]
-            #wildcards = [p.name for a, p in safe_zip(args, new_action.parameters) if a == ANY]
             constants = [p.name for a, p in safe_zip(args, new_action.parameters)
-                         if not is_parameter(a) and a != ANY]
-            # TODO: handle shared optimistic objects by enforcing that parameter is bound to it
-            # TODO: pass in a set of values rather than a wild card
+                         if not is_parameter(a) and a != WILD]
             skeleton_parameters = list(filter(is_parameter, args))
             existing_parameters = [p for p in skeleton_parameters if p in bound_parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
-            new_preconditions = [(ASSIGNED_PREDICATE, Object.from_value(to_constant(p)), local_from_global[p])
-                                 for p in existing_parameters] + [order_facts[step]] + \
-                                [Equal(p, Object.from_value(arg_from_parameter[p])) for p in constants]
+            new_preconditions = make_assignment_facts(local_from_global, existing_parameters) + [order_facts[step]] \
+                                + [Equal(p, to_obj(arg_from_parameter[p])) for p in constants]
             new_action.precondition = pddl.Conjunction(
                 [new_action.precondition, make_preconditions(new_preconditions)]).simplified()
 
-            new_effects = [(ASSIGNED_PREDICATE, Object.from_value(to_constant(p)), local_from_global[p])
-                           for p in skeleton_parameters] + [Not(order_facts[step]), order_facts[step + 1]]
+            new_effects = make_assignment_facts(local_from_global, skeleton_parameters) \
+                          + [Not(order_facts[step]), order_facts[step + 1]]
             new_action.effects.extend(make_effects(new_effects))
-            # TODO: should negate the effects of all other sequences here
+            # TODO: should also negate the effects of all other sequences here
 
             new_actions.append(new_action)
             bound_parameters.update(skeleton_parameters)
+            #new_action.dump()
     add_predicate(domain, make_predicate(ORDER_PREDICATE, ['?num', '?step']))
     if constraints.exact:
         domain.actions[:] = []
     domain.actions.extend(new_actions)
-    return And(goal, Or(*new_goals))
+    new_goal_exp = And(goal_exp, Or(*new_goals))
+    return new_goal_exp

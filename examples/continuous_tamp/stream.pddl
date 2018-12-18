@@ -1,4 +1,4 @@
-(define (stream pick-and-place)
+(define (stream continuous-tamp)
   (:stream s-region
     :inputs (?b ?r)
     ;:domain (and (Block ?b) (Region ?r))

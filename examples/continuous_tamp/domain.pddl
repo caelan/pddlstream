@@ -1,4 +1,4 @@
-(define (domain pick-and-place)
+(define (domain continuous-tamp)
   (:requirements :strips :equality)
   (:predicates
     ; Static predicates

@@ -1,7 +1,7 @@
 from collections import Counter
 
 from pddlstream.language.conversion import substitute_expression, values_from_objects
-from pddlstream.language.constants import get_args, is_parameter
+from pddlstream.language.constants import get_args, is_parameter, is_plan
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance, PerformanceInfo
 from pddlstream.utils import elapsed_time, get_mapping, INF
@@ -185,7 +185,7 @@ def compute_result_effort(result, **kwargs):
     return compute_instance_effort(result.instance, **kwargs)
 
 def compute_plan_effort(stream_plan, **kwargs):
-    if stream_plan is None:
+    if not is_plan(stream_plan):
         return INF
     return sum((compute_result_effort(result, **kwargs) for result in stream_plan), 0)
 

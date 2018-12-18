@@ -15,7 +15,7 @@ from pddlstream.algorithms.scheduling.simultaneous import extract_function_resul
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams, partition_external_plan
 from pddlstream.algorithms.search import solve_from_task
-from pddlstream.language.constants import get_args, Not
+from pddlstream.language.constants import get_args, Not, EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
 from pddlstream.language.external import compute_plan_effort, Result
@@ -108,7 +108,7 @@ def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, n
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
 
     step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
-    target_facts = list(step_from_fact.keys())
+    target_facts = [fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ]
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
     stream_plan = []

@@ -557,20 +557,23 @@ def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]
 InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
                                                    'reachable_action_params', 'goal_list'])
 
+def instantiate_goal(goal):
+    # HACK! Goals should be treated differently.
+    if isinstance(goal, pddl.Conjunction):
+        goal_list = goal.parts
+    else:
+        goal_list = [goal]
+    for item in goal_list:
+        assert isinstance(item, pddl.Literal)
+    return goal_list
+
 def instantiate_task(task):
+    # TODO: my own action instantiation
     normalize.normalize(task)
     relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     if not relaxed_reachable:
         return None
-
-    # HACK! Goals should be treated differently.
-    if isinstance(task.goal, pddl.Conjunction):
-        goal_list = task.goal.parts
-    else:
-        goal_list = [task.goal]
-    for item in goal_list:
-        assert isinstance(item, pddl.Literal)
-
+    goal_list = instantiate_goal(task.goal)
     return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
 
 ##################################################

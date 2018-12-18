@@ -1,4 +1,4 @@
-(define (stream pick-and-place)
+(define (stream continuous-tamp)
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
