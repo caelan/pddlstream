@@ -7,7 +7,7 @@ from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import process_disabled
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.refine_shared import iterative_plan_streams, get_optimistic_solve_fn
+from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
