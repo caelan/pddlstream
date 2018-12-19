@@ -120,6 +120,7 @@ def compute_stream_results(evaluations, opt_results, externals, **effort_args):
 
 def compute_skeleton_constraints(action_plan, bindings):
     skeleton = []
+    groups = {arg: values for arg, values in bindings.items() if len(values) != 1}
     for name, args in action_plan:
         new_args = []
         for arg in args:
@@ -130,14 +131,13 @@ def compute_skeleton_constraints(action_plan, bindings):
                 if len(bindings[arg]) == 1:
                     new_args.append(bindings[arg][0])
                 else:
-                    # TODO: pass in a set of possible values
-                    # Handle by making predicates for each binding
-                    new_args.append(WILD)
+                    #new_args.append(WILD)
+                    new_args.append(arg)
             else:
                 raise ValueError(arg)
         skeleton.append((name, new_args))
     # exact=False because we might need new actions
-    return PlanConstraints(skeletons=[skeleton], exact=False, max_cost=INF)
+    return PlanConstraints(skeletons=[skeleton], groups=groups, exact=False, max_cost=INF)
 
 def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
     # TODO: apply to hierarchical actions representations (will need to instantiate more actions)
