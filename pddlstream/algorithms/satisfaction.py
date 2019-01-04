@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from collections import namedtuple
+from collections import namedtuple, Counter
 
 from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
@@ -18,7 +18,8 @@ def dump_assignment(solution):
     print()
     print('Solved: {}'.format(bindings is not None))
     print('Cost: {}'.format(cost))
-    print('Evaluations: {}'.format(len(evaluations)))
+    print('Total facts: {}'.format(len(evaluations)))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
     if bindings is None:
         return
     print('Assignments:')

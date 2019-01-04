@@ -218,7 +218,7 @@ def str_from_object(obj):  # str_object
         return '[{}]'.format(', '.join(str_from_object(item) for item in obj))
     if type(obj) == tuple:
         return '({})'.format(', '.join(str_from_object(item) for item in obj))
-    if type(obj) == dict:
+    if isinstance(obj, dict):
         return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key), str_from_object(obj[key])) \
                                   for key in sorted(obj.keys(), key=lambda k: str_from_object(k))))
     if type(obj) in [set, frozenset]:

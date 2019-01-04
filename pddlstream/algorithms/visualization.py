@@ -1,7 +1,7 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE, str_from_plan
+from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE, str_from_plan, is_parameter
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
@@ -113,11 +113,6 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     heads.update(functions)
     heads.update(negated)
 
-    objects = {a for head in heads for a in get_args(head)}
-    optimistic_objects = filter(lambda o: isinstance(o, OptimisticObject), objects)
-    for opt_obj in optimistic_objects:
-        graph.add_node(str(opt_obj), shape='circle', color=PARAMETER_COLOR)
-
     for head in heads:
         if not use_functions and (head in functions):
             continue
@@ -131,8 +126,10 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
             color = CONSTRAINT_COLOR
         graph.add_node(name, shape='box', color=color)
         for arg in get_args(head):
-            if arg in optimistic_objects:
-                graph.add_edge(name, str(arg))
+            if isinstance(arg, OptimisticObject) or is_parameter(arg):
+                arg_name = str(arg)
+                graph.add_node(arg_name, shape='circle', color=PARAMETER_COLOR)
+                graph.add_edge(name, arg_name)
     graph.draw(filename, prog='dot') # neato | dot | twopi | circo | fdp | nop
     return graph
 
