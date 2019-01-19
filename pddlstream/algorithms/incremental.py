@@ -101,6 +101,16 @@ def process_stream_queue(instantiator, store, effort_limit, **kwargs):
     num_calls += process_function_queue(instantiator, store.evaluations, **kwargs)
     return num_calls
 
+def retrace_stream_plan(store, domain, goal_expression):
+    # TODO: retrace the stream plan used
+    if store.best_plan is None:
+        return None
+    assert not domain.axioms
+    from pddlstream.algorithms.downward import plan_preimage
+    print(goal_expression)
+    plan_preimage(store.best_plan, goal_expression)
+    raise NotImplementedError()
+
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
                       unit_efforts=True, max_effort=None,
@@ -133,11 +143,13 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         load_stream_statistics(externals)
     num_iterations = num_calls = effort_limit = 0
     instantiator = Instantiator(evaluations, externals, unit_efforts=unit_efforts, max_effort=max_effort)
-    while not store.is_terminated() and (num_iterations < max_iterations):
+    while not store.is_terminated() and \
+            (num_iterations < max_iterations) and \
+            ((max_effort is None) or (effort_limit < max_effort)):
         num_iterations += 1
-        num_calls += process_stream_queue(instantiator, store, effort_limit, unit_efforts=unit_efforts, verbose=verbose)
         print('Iteration: {} | Effort: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, effort_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
+        num_calls += process_stream_queue(instantiator, store, effort_limit, unit_efforts=unit_efforts, verbose=verbose)
         plan, cost = solve_finite(evaluations, goal_expression, domain,
                                   max_cost=min(store.best_cost, constraints.max_cost), **search_args)
         if is_plan(plan):
@@ -149,6 +161,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
             effort_limit = min(instantiator.min_effort())
         else:
             effort_limit += effort_step
+    #retrace_stream_plan(store, domain, goal_expression)
+    #print('Final queue size: {}'.format(len(instantiator)))
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()

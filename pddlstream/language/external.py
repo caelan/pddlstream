@@ -1,6 +1,6 @@
 from collections import Counter
 
-from pddlstream.language.conversion import substitute_expression, values_from_objects
+from pddlstream.language.conversion import substitute_expression, values_from_objects, substitute_fact
 from pddlstream.language.constants import get_args, is_parameter, is_plan
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import geometric_cost, Performance, PerformanceInfo
@@ -75,7 +75,9 @@ class Instance(object):
     @property
     def domain(self):
         if self._domain is None:
-            self._domain = substitute_expression(self.external.domain, self.get_mapping())
+            #self._domain = substitute_expression(self.external.domain, self.get_mapping())
+            self._domain = tuple(substitute_fact(atom, self.get_mapping())
+                                 for atom in self.external.domain)
         return self._domain
 
     def get_domain(self):

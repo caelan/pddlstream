@@ -6,7 +6,7 @@ from itertools import product
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
     Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import str_from_object
+from pddlstream.utils import str_from_object, apply_mapping
 
 def replace_expression(parent, fn):
     prefix = get_prefix(parent)
@@ -77,6 +77,9 @@ def substitute_expression(parent, mapping):
     if any(isinstance(parent, Class) for Class in [str, Object, OptimisticObject]):
         return mapping.get(parent, parent)
     return tuple(substitute_expression(child, mapping) for child in parent)
+
+def substitute_fact(fact, mapping):
+    return Fact(get_prefix(fact), apply_mapping(get_args(fact), mapping))
 
 ##################################################
 

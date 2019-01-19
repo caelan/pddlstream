@@ -70,9 +70,10 @@ OBJECTIVES = [
     Minimize(('distance', '?q3', '?q2')),
 ]
 
-def main(focused=True, success_cost=0, max_time=30):
+def main(success_cost=0, max_time=30):
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
+    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-o', '--optimizer', action='store_true', help='Uses the optimizers')
     args = parser.parse_args()
     print('Arguments:', args)
@@ -96,15 +97,18 @@ def main(focused=True, success_cost=0, max_time=30):
     terms = CONSTRAINTS + OBJECTIVES
     pr = cProfile.Profile()
     pr.enable()
-    if focused:
+    if args.algorithm == 'focused':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
                                                  incremental=False, stream_info=stream_info,
                                                  #search_sample_ratio=1,
-                                                 #max_iterations=1,
+                                                 max_iterations=1,
                                                  success_cost=success_cost, max_time=max_time)
-    else:
+    elif args.algorithm == 'incremental':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
                                                  success_cost=success_cost, max_time=max_time, verbose=False)
+    else:
+        raise ValueError(args.algorithm)
+
     dump_assignment(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

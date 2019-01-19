@@ -192,11 +192,11 @@ def main(use_synthesizers=False):
         ('move', ['?q1', WILD, '?q2']),
         ('place', ['b0', '?p1', '?q2']),
     ]
-    constraints = PlanConstraints(skeletons=None,
+    constraints = PlanConstraints(#skeletons=None,
                                   #skeletons=[],
                                   #skeletons=[skeleton],
                                   #skeletons=[skeleton, []],
-                                  exact=True,
+                                  #exact=False,
                                   max_cost=INF)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree)

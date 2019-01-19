@@ -16,7 +16,7 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import INF, safe_zip, get_mapping
 
 CONSTRAIN_STREAMS = False
-CONSTRAIN_PLANS = True
+CONSTRAIN_PLANS = False
 MAX_DEPTH = INF # 1 | INF
 
 def is_refined(stream_plan):

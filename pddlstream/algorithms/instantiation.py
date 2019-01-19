@@ -2,16 +2,22 @@ from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
+from pddlstream.algorithms.relation import compute_order, Relation, solve_satisfaction
+from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import is_atom, head_from_fact
-from pddlstream.language.function import Function, FunctionInstance
 from pddlstream.language.external import compute_external_effort, compute_instance_effort
-from pddlstream.language.object import Object
+from pddlstream.language.function import Function, FunctionInstance
 from pddlstream.utils import safe_zip, HeapElement
 
 # TODO: maybe store effort as well unit effort here
 Priority = namedtuple('Priority', ['effort', 'num']) # num ensures FIFO
 
-def get_mapping(atoms1, atoms2):
+def is_instance(atom, schema):
+    return (atom.function == schema.function) and \
+            all(is_parameter(b) or (a == b)
+                for a, b in safe_zip(atom.args, schema.args))
+
+def test_mapping(atoms1, atoms2):
     mapping = {}
     for a1, a2 in safe_zip(atoms1, atoms2):
         assert a1.function == a2.function
@@ -24,10 +30,13 @@ def get_mapping(atoms1, atoms2):
 
 ##################################################
 
+# http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
+
 class Instantiator(Sized): # Dynamic Instantiator
     def __init__(self, evaluations, streams,
                  unit_efforts=True, combine_fn=max, max_effort=None):
         # TODO: switch to deque when unit efforts?
+        # TODO: lazily instantiate upon demand
         # Focused considers path effort while incremental is just immediate effort
         self.unit_efforts = unit_efforts
         self.combine_fn = combine_fn # max | sum
@@ -43,7 +52,7 @@ class Instantiator(Sized): # Dynamic Instantiator
         self.atoms_from_domain = defaultdict(list)
         for stream in self.streams:
             if not stream.domain:
-                self._add_instance(stream, tuple(), 0)
+                self._add_instance(stream, {})
         for atom in evaluations:
             self.add_atom(atom, 0)
 
@@ -84,9 +93,12 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     #########################
 
-    def _add_instance(self, stream, input_objects, domain_effort):
+    def _add_instance(self, stream, mapping):
+        input_objects = tuple(mapping[p] for p in stream.inputs)
         instance = stream.get_instance(input_objects)
         assert instance not in self.effort_from_instance
+        domain_effort = self.combine_fn([self.effort_from_atom[head_from_fact(f)]
+                                         for f in instance.get_domain()] + [0])
         effort = domain_effort + compute_instance_effort(
             instance, unit_efforts=self.unit_efforts)
         #if instance in self.effort_from_instance:
@@ -99,14 +111,27 @@ class Instantiator(Sized): # Dynamic Instantiator
         return True
 
     def _add_combinations(self, stream, atoms):
+        if not all(atoms):
+            return
         domain = list(map(head_from_fact, stream.domain))
+        # Most constrained variable/atom to least constrained
         for combo in product(*atoms):
-            mapping = get_mapping(domain, combo)
-            if mapping is None:
-                continue
-            domain_effort = self.combine_fn([0]+[self.effort_from_atom[a] for a in combo])
-            input_objects = tuple(mapping[p] for p in stream.inputs)
-            self._add_instance(stream, input_objects, domain_effort)
+            mapping = test_mapping(domain, combo)
+            if mapping is not None:
+                self._add_instance(stream, mapping)
+
+    def _add_combinations2(self, stream, atoms):
+        if not all(atoms):
+            return
+        domain = list(map(head_from_fact, stream.domain))
+        # TODO: compute this first?
+        relations = [Relation(filter(is_parameter, domain[index].args),
+                              [tuple(a for a, b in safe_zip(atom.args, domain[index].args)
+                                     if is_parameter(b)) for atom in atoms[index]])
+                     for index in compute_order(domain, atoms)]
+        solution = solve_satisfaction(relations)
+        for element in solution.body:
+            self._add_instance(stream, solution.get_mapping(element))
 
     def _add_new_instances(self, new_atom):
         for s_idx, stream in enumerate(self.streams):
@@ -116,15 +141,13 @@ class Instantiator(Sized): # Dynamic Instantiator
                 continue
             for d_idx, domain_fact in enumerate(stream.domain):
                 domain_atom = head_from_fact(domain_fact)
-                if new_atom.function != domain_atom.function:
-                    continue
-                if any(isinstance(b, Object) and (a != b) for a, b in
-                       safe_zip(new_atom.args, domain_atom.args)):
-                    continue # TODO: handle domain constants nicely
-                self.atoms_from_domain[s_idx, d_idx].append(new_atom)
-                atoms = [self.atoms_from_domain[s_idx, d2_idx] if d_idx != d2_idx else [new_atom]
-                          for d2_idx in range(len(stream.domain))]
-                self._add_combinations(stream, atoms)
+                if is_instance(new_atom, domain_atom):
+                    # TODO: handle domain constants more intelligently
+                    self.atoms_from_domain[s_idx, d_idx].append(new_atom)
+                    atoms = [self.atoms_from_domain[s_idx, d2_idx] if d_idx != d2_idx else [new_atom]
+                              for d2_idx in range(len(stream.domain))]
+                    self._add_combinations(stream, atoms)
+                    #self._add_combinations2(stream, atoms) # TODO: might be a bug here?
 
     def add_atom(self, atom, effort):
         if not is_atom(atom):
