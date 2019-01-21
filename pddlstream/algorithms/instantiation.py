@@ -1,11 +1,11 @@
-from collections import defaultdict, namedtuple, Sized
+from collections import defaultdict, namedtuple, Sized, deque
 from heapq import heappush, heappop
 from itertools import product
 
+from pddlstream.algorithms.common import COMPLEXITY_OP, compute_call_complexity
 from pddlstream.algorithms.relation import compute_order, Relation, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import is_atom, head_from_fact
-from pddlstream.language.external import compute_external_effort, compute_instance_effort
 from pddlstream.language.function import Function, FunctionInstance
 from pddlstream.utils import safe_zip, HeapElement
 
@@ -28,22 +28,25 @@ def test_mapping(atoms1, atoms2):
                 return None
     return mapping
 
+def pop_queue(queue):
+    if isinstance(queue, deque):
+        return queue.popleft()
+    else:
+        return heappop(queue)
+
 ##################################################
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
 
 class Instantiator(Sized): # Dynamic Instantiator
     def __init__(self, evaluations, streams,
-                 unit_efforts=True, combine_fn=max, max_effort=None):
-        # TODO: switch to deque when unit efforts?
+                 unit_efforts=True, max_effort=None, use_deque=False):
         # TODO: lazily instantiate upon demand
-        # Focused considers path effort while incremental is just immediate effort
-        self.unit_efforts = unit_efforts
-        self.combine_fn = combine_fn # max | sum
-        self.max_effort = max_effort # exclusive
+        self.unit_complexities = unit_efforts
+        self.max_complexity = max_effort # exclusive
+        self.use_heap = use_deque
         self.streams = streams
         #self.streams_from_atom = defaultdict(list)
-        self.effort_from_instance = {}
         self.stream_queue = []
         self.function_queue = []
         self.num_pushes = 0 # shared between the queues
@@ -53,8 +56,8 @@ class Instantiator(Sized): # Dynamic Instantiator
         for stream in self.streams:
             if not stream.domain:
                 self._add_instance(stream, {})
-        for atom in evaluations:
-            self.add_atom(atom, 0)
+        for atom, node in evaluations.items():
+            self.add_atom(atom, node.complexity)
 
     #########################
 
@@ -62,24 +65,27 @@ class Instantiator(Sized): # Dynamic Instantiator
         return len(self.stream_queue) + len(self.function_queue)
 
     def prune_effort(self, external, effort):
-        if self.max_effort is None:
+        if self.max_complexity is None:
             return False # Allows infinite effort
-        return (not isinstance(external, Function)) and (self.max_effort <= effort)
+        return (not isinstance(external, Function)) and (self.max_complexity <= effort)
 
-    def push(self, instance, effort):
-        # TODO: update self.effort_from_instance with new effort?
+    def push(self, instance):
         # TODO: flush stale priorities?
+        complexity = self._compute_complexity(instance)
+        priority = Priority(complexity, self.num_pushes)
         queue = self.function_queue if isinstance(instance, FunctionInstance) else self.stream_queue
-        priority = Priority(effort, self.num_pushes)
-        heappush(queue, HeapElement(priority, instance))
+        if isinstance(queue, deque):
+            queue.append(HeapElement(priority, instance))
+        else:
+            heappush(queue, HeapElement(priority, instance))
         self.num_pushes += 1
 
     def pop_stream(self):
-        priority, instance = heappop(self.stream_queue)
+        priority, instance = pop_queue(self.stream_queue)
         return instance, priority.effort
 
     def pop_function(self):
-        priority, instance = heappop(self.function_queue)
+        priority, instance = pop_queue(self.function_queue)
         return instance, priority.effort
 
     def pop(self):
@@ -93,21 +99,21 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     #########################
 
+    def _compute_complexity(self, instance):
+        domain_complexity = COMPLEXITY_OP([self.effort_from_atom[head_from_fact(f)]
+                                       for f in instance.get_domain()] + [0])
+        return domain_complexity + compute_call_complexity(instance.num_calls)
+
     def _add_instance(self, stream, mapping):
         input_objects = tuple(mapping[p] for p in stream.inputs)
         instance = stream.get_instance(input_objects)
-        assert instance not in self.effort_from_instance
-        domain_effort = self.combine_fn([self.effort_from_atom[head_from_fact(f)]
-                                         for f in instance.get_domain()] + [0])
-        effort = domain_effort + compute_instance_effort(
-            instance, unit_efforts=self.unit_efforts)
-        #if instance in self.effort_from_instance:
-        #    assert self.effort_from_instance[instance] <= effort
+        #domain_effort = COMPLEXITY_OP([self.effort_from_atom[head_from_fact(f)]
+        #                               for f in instance.get_domain()] + [0])
+        #effort = domain_effort + compute_instance_effort(
+        #    instance, unit_efforts=self.unit_complexities)
+        #if self.prune_effort(instance.external, effort):
         #    return False
-        if self.prune_effort(instance.external, effort):
-            return False
-        self.effort_from_instance[instance] = effort
-        self.push(instance, effort)
+        self.push(instance)
         return True
 
     def _add_combinations(self, stream, atoms):
@@ -120,9 +126,10 @@ class Instantiator(Sized): # Dynamic Instantiator
             if mapping is not None:
                 self._add_instance(stream, mapping)
 
-    def _add_combinations2(self, stream, atoms):
+    def _add_combinations_relation(self, stream, atoms):
         if not all(atoms):
             return
+        # TODO: might be a bug here?
         domain = list(map(head_from_fact, stream.domain))
         # TODO: compute this first?
         relations = [Relation(filter(is_parameter, domain[index].args),
@@ -135,10 +142,10 @@ class Instantiator(Sized): # Dynamic Instantiator
 
     def _add_new_instances(self, new_atom):
         for s_idx, stream in enumerate(self.streams):
-            effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(
-                stream, unit_efforts=self.unit_efforts)
-            if self.prune_effort(stream, effort_bound):
-                continue
+            #effort_bound = self.effort_from_atom[new_atom] + compute_external_effort(
+            #    stream, unit_efforts=self.unit_complexities)
+            #if self.prune_effort(stream, effort_bound):
+            #    continue
             for d_idx, domain_fact in enumerate(stream.domain):
                 domain_atom = head_from_fact(domain_fact)
                 if is_instance(new_atom, domain_atom):
@@ -147,7 +154,7 @@ class Instantiator(Sized): # Dynamic Instantiator
                     atoms = [self.atoms_from_domain[s_idx, d2_idx] if d_idx != d2_idx else [new_atom]
                               for d2_idx in range(len(stream.domain))]
                     self._add_combinations(stream, atoms)
-                    #self._add_combinations2(stream, atoms) # TODO: might be a bug here?
+                    #self._add_combinations_relation(stream, atoms)
 
     def add_atom(self, atom, effort):
         if not is_atom(atom):

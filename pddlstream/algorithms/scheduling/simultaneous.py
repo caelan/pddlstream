@@ -7,7 +7,7 @@ from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, subs
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.language.external import compute_result_effort
+from pddlstream.language.effort import compute_result_effort
 from pddlstream.utils import INF, find_unique
 
 BOUND_PREDICATE = '_bound'

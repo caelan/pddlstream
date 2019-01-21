@@ -16,7 +16,7 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import INF, safe_zip, get_mapping
 
 CONSTRAIN_STREAMS = False
-CONSTRAIN_PLANS = False
+CONSTRAIN_PLANS = False # TODO: might cause some strange effects on continuous_tamp
 MAX_DEPTH = INF # 1 | INF
 
 def is_refined(stream_plan):
@@ -47,7 +47,7 @@ def optimistic_process_function_queue(instantiator):
 ##################################################
 
 def extract_level(evaluations, target_atom, combine_fn=max):
-    result = evaluations[target_atom]
+    result = evaluations[target_atom].result
     if not isinstance(result, Result):
         return 0
     domain_atoms = map(evaluation_from_fact, result.get_domain())
@@ -57,7 +57,7 @@ def extract_level(evaluations, target_atom, combine_fn=max):
 
 def optimistic_process_streams(evaluations, streams, effort_limit=INF, **effort_args):
     combine_fn = max
-    instantiator = Instantiator([], streams, combine_fn=combine_fn, **effort_args)
+    instantiator = Instantiator({}, streams, **effort_args)
     for evaluation in evaluations:
         #level = 0
         level = extract_level(evaluations, evaluation, combine_fn=combine_fn)

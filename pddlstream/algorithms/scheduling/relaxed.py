@@ -18,7 +18,8 @@ from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not, EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
 from pddlstream.language.object import UniqueOptValue, OptimisticObject
-from pddlstream.language.external import compute_plan_effort, Result
+from pddlstream.language.external import Result
+from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE
 from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders, apply_mapping
 

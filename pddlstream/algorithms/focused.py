@@ -70,13 +70,14 @@ def solve_focused(problem, constraints=PlanConstraints(),
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     queue = SkeletonQueue(store, goal_exp, domain)
     disabled = set()
-    terminate = False
-    while (not store.is_terminated()) and (not terminate) and (num_iterations < max_iterations):
+    eager_intantiator = Instantiator(evaluations, eager_externals, max_effort=None)
+    while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
-        # TODO: maintain a single Instantiator instance. Use effort_limit in this as well
-        calls += process_stream_queue(Instantiator(evaluations, eager_externals, max_effort=None),
-                                                   store, effort_limit=1, verbose=False)
+        for evaluation, node in evaluations.items():
+            eager_intantiator.add_atom(evaluation, node.complexity)
+        calls += process_stream_queue(eager_intantiator, store, effort_limit=effort_limit, verbose=False)
+
         print('\nIteration: {} | Limit: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, effort_limit, len(queue.skeletons), len(queue), len(disabled), len(evaluations), calls,
@@ -109,11 +110,13 @@ def solve_focused(problem, constraints=PlanConstraints(),
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
             if max_iterations <= num_iterations:
                 allocated_sample_time = INF
-            terminate = not queue.process(stream_plan, action_plan, cost, allocated_sample_time)
+            terminate = not queue.process(stream_plan, action_plan, cost, effort_limit, allocated_sample_time)
         else:
             reenable = effort_weight is not None # No point if no stream effort biasing
-            terminate = not process_disabled(store, domain, disabled, stream_plan, action_plan, cost, reenable)
+            terminate = not process_disabled(store, domain, disabled, stream_plan, action_plan, cost, effort_limit, reenable)
         sample_time += elapsed_time(start_time)
+        if terminate:
+            break
 
     write_stream_statistics(externals + synthesizers, verbose)
     return store.extract_solution()

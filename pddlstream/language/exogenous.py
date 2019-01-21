@@ -1,9 +1,10 @@
 from collections import defaultdict
 from itertools import count
 
+from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom
 from pddlstream.language.conversion import evaluation_from_fact, \
-    is_atom
+    is_atom, fact_from_evaluation
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args, OBJECT
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
@@ -50,7 +51,8 @@ def augment_evaluations(evaluations, future_map):
         if name in future_map:
             new_head = Head(future_map[name], evaluation.head.args)
             new_evaluation = Evaluation(new_head, evaluation.value)
-            evaluations[new_evaluation] = None
+            add_fact(evaluations, fact_from_evaluation(new_evaluation),
+                     result=INTERNAL_EVALUATION, complexity=0)
 
 def rename_atom(atom, mapping):
     name = get_prefix(atom)

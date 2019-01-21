@@ -2,7 +2,7 @@ from collections import namedtuple, defaultdict
 from heapq import heappop, heappush
 
 from pddlstream.language.conversion import is_atom, fact_from_evaluation
-from pddlstream.language.external import compute_result_effort
+from pddlstream.language.effort import compute_result_effort
 from pddlstream.utils import HeapElement, INF
 
 Node = namedtuple('Node', ['effort', 'result']) # TODO: include level

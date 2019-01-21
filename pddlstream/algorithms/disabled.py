@@ -1,4 +1,5 @@
-from pddlstream.algorithms.algorithm import add_certified, add_facts, remove_blocked, is_instance_ready
+from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
+from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.constants import INFEASIBLE, is_plan
 from pddlstream.utils import INF
 
@@ -55,7 +56,7 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
 
 ##################################################
 
-def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, reenable):
+def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, effort_limit, reenable):
     # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
     if not is_plan(stream_plan):
         if (stream_plan is INFEASIBLE) and not disabled:

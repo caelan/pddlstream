@@ -1,15 +1,17 @@
 import time
-from collections import OrderedDict, namedtuple, Counter
+from collections import namedtuple, Counter
 
+from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
     parse_lisp, sas_from_pddl, parse_goal, make_cost, has_costs
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import get_prefix, get_args, is_plan, get_length, str_from_plan
 from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
-    evaluation_from_fact, revert_solution
+    revert_solution, evaluation_from_fact
 from pddlstream.language.exogenous import compile_to_exogenous
-from pddlstream.language.external import DEBUG, compute_plan_effort
+from pddlstream.language.external import DEBUG
+from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
 from pddlstream.language.object import Object
@@ -18,7 +20,7 @@ from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 from pddlstream.utils import elapsed_time, INF
 
-INIT_EVALUATION = None
+# TODO: rename to parsing
 
 def parse_constants(domain, constant_map):
     obj_from_constant = {}
@@ -64,10 +66,6 @@ def check_problem(domain, streams, obj_from_constant):
     if undeclared_predicates:
         print('Warning! Undeclared predicates: {}'.format(
             sorted(undeclared_predicates))) # Undeclared predicate: {}
-
-def evaluations_from_init(init):
-    return OrderedDict((evaluation_from_fact(obj_from_value_expression(f)),
-                        INIT_EVALUATION) for f in init)
 
 def set_unit_costs(domain, unit_costs):
     if not unit_costs and has_costs(domain):
@@ -178,18 +176,6 @@ class SolutionStore(object):
     def extract_solution(self):
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
 
-def add_facts(evaluations, fact, result=INIT_EVALUATION): #, effort=0):
-    new_evaluations = []
-    for fact in fact:
-        evaluation = evaluation_from_fact(fact)
-        if evaluation not in evaluations:
-            evaluations[evaluation] = result
-            new_evaluations.append(evaluation)
-    return new_evaluations
-
-def add_certified(evaluations, result):
-    return add_facts(evaluations, result.get_certified(), result=result)
-
 ##################################################
 
 def get_domain_predicates(external):
@@ -287,12 +273,7 @@ def partition_externals(externals, verbose=False):
         print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
     return streams, functions, negative #, optimizers
 
-##################################################
 
 def remove_blocked(evaluations, instance, new_results):
     if new_results and isinstance(instance, StreamInstance):
         evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), default=None)
-
-
-def is_instance_ready(evaluations, instance):
-    return all(evaluation_from_fact(f) in evaluations for f in instance.get_domain())

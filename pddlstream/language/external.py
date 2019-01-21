@@ -1,10 +1,11 @@
 from collections import Counter
 
-from pddlstream.language.conversion import substitute_expression, values_from_objects, substitute_fact
-from pddlstream.language.constants import get_args, is_parameter, is_plan
+from pddlstream.algorithms.common import compute_complexity, compute_call_complexity
+from pddlstream.language.constants import get_args, is_parameter
+from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object
-from pddlstream.language.statistics import geometric_cost, Performance, PerformanceInfo
-from pddlstream.utils import elapsed_time, get_mapping, INF
+from pddlstream.language.statistics import Performance, PerformanceInfo
+from pddlstream.utils import elapsed_time, get_mapping
 
 DEBUG = 'debug'
 
@@ -15,6 +16,7 @@ class ExternalInfo(PerformanceInfo):
         # TODO: make any info just a dict
         self.eager = eager
         self.effort_fn = effort_fn
+        #self.complexity_fn = complexity_fn
 
 ##################################################
 
@@ -44,6 +46,11 @@ class Result(object):
     def is_successful(self):
         raise NotImplementedError()
 
+    def compute_complexity(self, evaluations):
+        # Should be constant
+        return compute_complexity(evaluations, self.get_domain()) + \
+               compute_call_complexity(self.call_index)
+
 ##################################################
 
 class Instance(object):
@@ -52,14 +59,17 @@ class Instance(object):
         self.external = external
         self.input_objects = tuple(input_objects)
         self.enumerated = False
-        self.disabled = False
+        self.disabled = False # TODO: perform disabled using complexity
         self.opt_index = 0
         self.results_history = []
-        self.num_calls = len(self.results_history)
-        self.successes = 0
+        self.successes = 0 # Different from total_successes
         self.opt_results = []
         self._mapping = None
         self._domain = None
+
+    @property
+    def num_calls(self):
+        return len(self.results_history)
 
     @property
     def mapping(self):
@@ -104,12 +114,16 @@ class Instance(object):
             results.extend(self.results_history[index])
         return results
 
+    def compute_complexity(self, evaluations):
+        # Will change as self.num_calls increases
+        return compute_complexity(evaluations, self.get_domain()) + \
+               compute_call_complexity(self.num_calls)
+
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
         successes = len([r.is_successful() for r in results])
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
-        self.num_calls = len(self.results_history)
         self.successes += successes
 
     def disable(self, evaluations, domain):
@@ -145,51 +159,6 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
-
-##################################################
-
-DEFAULT_SEARCH_OVERHEAD = 1e-2
-# Can also include the overhead to process skeletons
-
-def get_unit_effort(effort):
-    if (effort == 0) or (effort == INF):
-        return effort
-    return 1
-
-def compute_external_effort(external, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
-    effort_fn = external.info.effort_fn
-    if effort_fn is None:
-        p_success = external.get_p_success()
-        effort = geometric_cost(external.get_overhead(), p_success) + \
-                 (1-p_success)*geometric_cost(search_overhead, p_success)
-    elif callable(effort_fn):
-        effort = 0 # This really is a bound on the effort
-    else:
-        effort = float(effort_fn)
-    return get_unit_effort(effort) if unit_efforts else effort
-
-def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
-    # TODO: handle case where resampled several times before the next search (search every ith time)
-    effort = instance.opt_index * search_overhead # By linearity of expectation
-    effort_fn = instance.external.info.effort_fn
-    if effort_fn is None:
-        effort += compute_external_effort(
-            instance.external, unit_efforts=False, search_overhead=search_overhead)
-    elif callable(effort_fn):
-        effort += effort_fn(*instance.get_input_values())
-    else:
-        effort += float(effort_fn)
-    return get_unit_effort(effort) if unit_efforts else effort
-
-def compute_result_effort(result, **kwargs):
-    if not result.optimistic:
-        return 0 # Unit efforts?
-    return compute_instance_effort(result.instance, **kwargs)
-
-def compute_plan_effort(stream_plan, **kwargs):
-    if not is_plan(stream_plan):
-        return INF
-    return sum((compute_result_effort(result, **kwargs) for result in stream_plan), 0)
 
 ##################################################
 

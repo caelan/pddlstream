@@ -164,26 +164,35 @@ class Performance(object):
     def __init__(self, name, info):
         self.name = name.lower()
         self.info = info
-        self.total_calls = 0
-        self.total_overhead = 0.
-        self.total_successes = 0
+        self.initial_calls = 0
+        self.initial_overhead = 0.
+        self.initial_successes = 0
         # TODO: online learning vs offline learning
         self.online_calls = 0
         self.online_overhead = 0.
-        self.online_success = 0
+        self.online_successes = 0
+
+    @property
+    def total_calls(self):
+        return self.initial_calls + self.online_calls
+
+    @property
+    def total_overhead(self):
+        return self.initial_overhead + self.online_overhead
+
+    @property
+    def total_successes(self):
+        return self.initial_successes + self.online_successes
 
     def load_statistics(self, statistics):
-        self.total_calls += statistics['calls']
-        self.total_overhead += statistics['overhead']
-        self.total_successes += statistics['successes']
+        self.initial_calls = statistics['calls']
+        self.initial_overhead = statistics['overhead']
+        self.initial_successes = statistics['successes']
 
     def update_statistics(self, overhead, success):
-        self.total_calls += 1
-        self.total_overhead += overhead
-        self.total_successes += success
         self.online_calls += 1
         self.online_overhead += overhead
-        self.online_success += success
+        self.online_successes += success
 
     def _estimate_p_success(self, reg_p_success=1., reg_calls=1):
         # TODO: use prior from info instead?
@@ -216,7 +225,7 @@ class Performance(object):
             return
         print('External: {} | n: {:d} | p_success: {:.3f} | mean overhead: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.online_calls,
-            safe_ratio(self.online_success, self.online_calls),
+            safe_ratio(self.online_successes, self.online_calls),
             safe_ratio(self.online_overhead, self.online_calls),
             self.online_overhead))
 

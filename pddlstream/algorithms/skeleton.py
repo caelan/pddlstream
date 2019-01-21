@@ -4,7 +4,8 @@ import time
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 
-from pddlstream.algorithms.algorithm import add_certified, add_facts, remove_blocked, is_instance_ready
+from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
+from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.constants import INFEASIBLE, FAILED
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
@@ -304,7 +305,7 @@ class SkeletonQueue(Sized):
             self.greedily_process()
             # TODO: print cost updates when progress with a new skeleton
 
-    def process(self, stream_plan, action_plan, cost, max_time=0):
+    def process(self, stream_plan, action_plan, cost, effort_limit, max_time=0):
         # TODO: manually add stream_plans for synthesizers/optimizers
         start_time = time.time()
         if stream_plan is FAILED:

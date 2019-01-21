@@ -2,10 +2,11 @@ import time
 from collections import Counter, defaultdict, namedtuple, Sequence
 from itertools import count
 
+from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
-    get_formula_operators, evaluation_from_fact, values_from_objects, obj_from_value_expression
+    get_formula_operators, values_from_objects, obj_from_value_expression
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
@@ -13,7 +14,6 @@ from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
-INTERNAL_EVALUATION = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
 NEGATIVE_SUFFIX = '-negative'
@@ -285,7 +285,7 @@ class StreamInstance(Instance):
         super(StreamInstance, self).disable(evaluations, domain)
         if not self.external.is_fluent(): # self.fluent_facts:
             if self.external.is_negated() and not self.successes:
-                evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL_EVALUATION
+                add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
             return
 
         if self._axiom_predicate is not None:
@@ -293,7 +293,7 @@ class StreamInstance(Instance):
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
         self._axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
-        evaluations[evaluation_from_fact(self.get_blocked_fact())] = INTERNAL_EVALUATION
+        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
         # TODO: allow reporting back which components lead to failure
 
         static_fact = Fact(self._axiom_predicate, self.external.inputs)

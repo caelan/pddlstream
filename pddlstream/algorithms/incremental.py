@@ -1,38 +1,38 @@
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, add_facts, add_certified, solve_finite
+from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, solve_finite, remove_blocked
+from pddlstream.algorithms.common import add_facts, add_certified
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import revert_solution
-from pddlstream.language.external import compute_instance_effort
 from pddlstream.language.fluent import ensure_no_fluent_streams
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.utils import INF, elapsed_time
 
 UPDATE_STATISTICS = False
 
-def process_instance(instantiator, evaluations, instance, effort, verbose=False, **effort_args):
+def process_instance(instantiator, evaluations, instance, verbose=False, **complexity_args):
     if instance.enumerated:
         return False
     new_results, new_facts = instance.next_results(verbose=verbose)
-    #if new_results and isinstance(instance, StreamInstance):
-    #    evaluations.pop(evaluation_from_fact(instance.get_blocked_fact()), None)
+    #remove_blocked(evaluations, instance, new_results)
     for result in new_results:
+        complexity = result.compute_complexity(evaluations)
         for evaluation in add_certified(evaluations, result):
-            instantiator.add_atom(evaluation, effort)
-    for evaluation in add_facts(evaluations, new_facts, result=None): # TODO: record the instance?
-        instantiator.add_atom(evaluation, effort)
+            instantiator.add_atom(evaluation, complexity)
+    fact_complexity = 0 # TODO: record the instance or treat as initial?
+    for evaluation in add_facts(evaluations, new_facts, result=None, complexity=fact_complexity):
+        instantiator.add_atom(evaluation, fact_complexity)
     if not instance.enumerated:
-        next_effort = effort + compute_instance_effort(instance, **effort_args)
-        instantiator.push(instance, next_effort)
+        instantiator.push(instance)
     return True
 
 def process_function_queue(instantiator, evaluations, **kwargs):
     num_calls = 0
     while instantiator.function_queue: # not store.is_terminated()
         instance, effort = instantiator.pop_function()
-        num_calls += process_instance(instantiator, evaluations, instance, effort, **kwargs)
+        num_calls += process_instance(instantiator, evaluations, instance, **kwargs)
     return num_calls
 
 ##################################################
@@ -84,7 +84,8 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
         load_stream_statistics(externals)
     instantiator = Instantiator(evaluations, externals)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
-        process_instance(instantiator, evaluations, *instantiator.pop_stream(), verbose=verbose)
+        instance, effort = instantiator.pop_stream()
+        process_instance(instantiator, evaluations, instance, verbose=verbose)
     process_function_queue(instantiator, evaluations, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain,
                               max_cost=constraints.max_cost, **search_args)
@@ -97,7 +98,8 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
 def process_stream_queue(instantiator, store, effort_limit, **kwargs):
     num_calls = 0
     while not store.is_terminated() and instantiator.stream_queue and (instantiator.min_effort() <= effort_limit):
-        num_calls += process_instance(instantiator, store.evaluations, *instantiator.pop_stream(), **kwargs)
+        instance, effort = instantiator.pop_stream()
+        num_calls += process_instance(instantiator, store.evaluations, instance, **kwargs)
     num_calls += process_function_queue(instantiator, store.evaluations, **kwargs)
     return num_calls
 
@@ -149,7 +151,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         num_iterations += 1
         print('Iteration: {} | Effort: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, effort_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
-        num_calls += process_stream_queue(instantiator, store, effort_limit, unit_efforts=unit_efforts, verbose=verbose)
+        num_calls += process_stream_queue(instantiator, store, effort_limit,
+                                          unit_efforts=unit_efforts, verbose=verbose)
         plan, cost = solve_finite(evaluations, goal_expression, domain,
                                   max_cost=min(store.best_cost, constraints.max_cost), **search_args)
         if is_plan(plan):

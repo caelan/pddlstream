@@ -2,17 +2,17 @@ from __future__ import print_function
 
 from copy import deepcopy
 
+from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate
 from pddlstream.language.constants import Or, And, is_parameter, Equal, Not, str_from_plan, EQ
-from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable
 
+# TODO: rename based on whether internal vs external
 WILD = '*'
 ASSIGNED_PREDICATE = 'assigned'
 ORDER_PREDICATE = 'order'
 GROUP_PREDICATE = 'group'
-INTERNAL_EVALUATION = None
 
 class PlanConstraints(object):
     def __init__(self, skeletons=None, groups={}, exact=True, hint=False, max_cost=INF):
@@ -63,14 +63,14 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp):
         for value in constraints.groups[group]:
             # TODO: could make all constants groups (like an equality group)
             fact = (GROUP_PREDICATE, to_obj(group), to_obj(value))
-            evaluations[evaluation_from_fact(fact)] = INTERNAL_EVALUATION
+            add_fact(evaluations, fact, result=INTERNAL_EVALUATION)
     new_actions = []
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
         # TODO: change the prefix for these
         order_facts = [(ORDER_PREDICATE, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
                         for step in range(len(skeleton) + 1)]
-        evaluations[evaluation_from_fact(order_facts[0])] = INTERNAL_EVALUATION
+        add_fact(evaluations, order_facts[0], result=INTERNAL_EVALUATION)
         new_goals.append(order_facts[-1])
         bound_parameters = set()
         for step, (name, args) in enumerate(skeleton):
