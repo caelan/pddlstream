@@ -141,11 +141,10 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
                                        max_cost=max_cost, **kwargs)
         #print(*relaxed_stream_plan(evaluations, goal_exp, domain, results, negative,
         #                               max_cost=max_cost, **kwargs))
-        # TODO: be careful with the original plan constraints
         #constraints.dump()
         domain2 = deepcopy(domain)
         evaluations2 = copy(evaluations)
-        goal_exp2 = add_plan_constraints(constraints, domain2, evaluations2, goal_exp)
+        goal_exp2 = add_plan_constraints(constraints, domain2, evaluations2, goal_exp, predicate_prefix='_')
         max_cost2 = max_cost if constraints is None else min(max_cost, constraints.max_cost)
         combined_plan, cost = relaxed_stream_plan(evaluations2, goal_exp2, domain2, results, negative,
                                                   max_cost=max_cost2, **kwargs)
@@ -170,6 +169,8 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     if is_refined(stream_plan):
         return combined_plan, cost, depth
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
+    if not CONSTRAIN_STREAMS and not CONSTRAIN_PLANS:
+        return None, INF, depth + 1
     if CONSTRAIN_STREAMS:
         next_results = compute_stream_results(evaluations, new_results, externals, **effort_args)
     else:

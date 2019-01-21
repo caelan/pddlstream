@@ -4,11 +4,11 @@ import time
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 
-from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
-from pddlstream.algorithms.algorithm import remove_blocked
-from pddlstream.language.constants import INFEASIBLE, FAILED
+from pddlstream.algorithms.common import is_instance_ready
+from pddlstream.algorithms.disabled import process_instance
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
+from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object
 
 
@@ -104,10 +104,10 @@ class Binding(object):
     def get_priority(self):
         # Infinite cost if skeleton is exhausted
         # Attempted is equivalent to whether any stream result is disabled
-        attempted = sum(self.stream_attempts) != 0
-        effort = compute_effort(self.stream_attempts)
-        # TODO: lexicographic tiebreaking using plan cost
-        return Priority(attempted, effort)
+        num_attempts = sum(self.stream_attempts)
+        attempted = num_attempts != 0
+        # TODO: lexicographic tiebreaking using plan cost and other skeleton properties
+        return Priority(attempted, (num_attempts, len(self.stream_attempts)))
     def get_element(self):
         return HeapElement(self.get_priority(), self)
     def get_key(self):
@@ -243,18 +243,11 @@ class SkeletonQueue(Sized):
 
     ####################
 
-    def _generate_results(self, instance, accelerate=1):
+    def _generate_results(self, instance):
         # assert(instance.opt_index == 0)
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
-        if instance.enumerated:
-            return False
-        new_results, new_facts = instance.next_results(accelerate=accelerate, verbose=self.store.verbose)
-        instance.disable(self.evaluations, self.domain)  # Disable only if actively sampled
-        remove_blocked(self.evaluations, instance, new_results)
-        for result in new_results:
-            add_certified(self.evaluations, result)
-        add_facts(self.evaluations, new_facts, result=None)  # TODO: record the instance
+        is_new = process_instance(self.store, self.domain, instance)
         for i, binding in enumerate(list(self.bindings_from_instance[instance])):
             #print(i, binding)
             # Maybe this list grows but not all the things are accounted for
@@ -262,7 +255,7 @@ class SkeletonQueue(Sized):
                 binding.update_instances()
                 self.update_enabled(binding)
         #print()
-        return bool(new_results) | bool(new_facts)
+        return is_new
 
     def _process_root(self):
         is_new = False
@@ -305,21 +298,18 @@ class SkeletonQueue(Sized):
             self.greedily_process()
             # TODO: print cost updates when progress with a new skeleton
 
-    def process(self, stream_plan, action_plan, cost, effort_limit, max_time=0):
+    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: manually add stream_plans for synthesizers/optimizers
         start_time = time.time()
-        if stream_plan is FAILED:
-            pass
-        elif stream_plan is INFEASIBLE:
-            if not self.process_until_new():
-                return False
-        else:
+        if is_plan(stream_plan):
             #print([result for result in stream_plan if result.optimistic])
             #raw_input('New skeleton')
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
+        elif stream_plan is INFEASIBLE:
+            # TODO: use complexity_limit
+            self.process_until_new()
         self.timed_process(max_time - elapsed_time(start_time))
-        return True
 
     def __len__(self):
         return len(self.queue)
@@ -328,14 +318,7 @@ class SkeletonQueue(Sized):
 
 # TODO: want to minimize number of new sequences as they induce overhead
 # TODO: estimate how many times a stream needs to be queried (acceleration)
-
-def compute_effort(stream_attempts):
-    # TODO: tiebreak bindings using info about the skeleton (base cost etc)
-    attempts = sum(stream_attempts)
-    return attempts, len(stream_attempts)
-
-##################################################
-
+#
 # def compute_sampling_cost(stream_plan, stats_fn=get_stream_stats):
 #     # TODO: we are in a POMDP. If not the case, then the geometric cost policy is optimal
 #     if stream_plan is None:

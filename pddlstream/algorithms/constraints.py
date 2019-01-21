@@ -8,11 +8,10 @@ from pddlstream.language.constants import Or, And, is_parameter, Equal, Not, str
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable
 
-# TODO: rename based on whether internal vs external
 WILD = '*'
-ASSIGNED_PREDICATE = 'assigned'
-ORDER_PREDICATE = 'order'
-GROUP_PREDICATE = 'group'
+ASSIGNED_PREDICATE = '{}assigned'
+GROUP_PREDICATE = '{}group'
+ORDER_PREDICATE = '{}order'
 
 class PlanConstraints(object):
     def __init__(self, skeletons=None, groups={}, exact=True, hint=False, max_cost=INF):
@@ -48,27 +47,30 @@ def to_obj(value):
 
 ##################################################
 
-def make_assignment_facts(local_from_global, parameters):
-    return [(ASSIGNED_PREDICATE, to_obj(to_constant(p)), local_from_global[p])
+def make_assignment_facts(predicate, local_from_global, parameters):
+    return [(predicate, to_obj(to_constant(p)), local_from_global[p])
             for p in parameters]
 
-def add_plan_constraints(constraints, domain, evaluations, goal_exp):
+def add_plan_constraints(constraints, domain, evaluations, goal_exp, predicate_prefix=''):
     if (constraints is None) or (constraints.skeletons is None):
         return goal_exp
     import pddl
     # TODO: can search over skeletons first and then fall back
     # TODO: unify this with the constraint ordering
     # TODO: can constrain to use a plan prefix
+    assigned_predicate = ASSIGNED_PREDICATE.format(predicate_prefix)
+    group_predicate = GROUP_PREDICATE.format(predicate_prefix)
+    order_predicate = ORDER_PREDICATE.format(predicate_prefix)
     for group in constraints.groups:
         for value in constraints.groups[group]:
             # TODO: could make all constants groups (like an equality group)
-            fact = (GROUP_PREDICATE, to_obj(group), to_obj(value))
+            fact = (group_predicate, to_obj(group), to_obj(value))
             add_fact(evaluations, fact, result=INTERNAL_EVALUATION)
     new_actions = []
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
         # TODO: change the prefix for these
-        order_facts = [(ORDER_PREDICATE, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
+        order_facts = [(order_predicate, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
                         for step in range(len(skeleton) + 1)]
         add_fact(evaluations, order_facts[0], result=INTERNAL_EVALUATION)
         new_goals.append(order_facts[-1])
@@ -82,14 +84,14 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp):
             existing_parameters = [p for p in skeleton_parameters if p in bound_parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
-            group_preconditions = [(GROUP_PREDICATE if is_hashable(a) and (a in constraints.groups) else EQ,
+            group_preconditions = [(group_predicate if is_hashable(a) and (a in constraints.groups) else EQ,
                                     to_obj(a), p) for a, p in constant_pairs]
-            new_preconditions = make_assignment_facts(local_from_global, existing_parameters) + \
+            new_preconditions = make_assignment_facts(assigned_predicate, local_from_global, existing_parameters) + \
                                 group_preconditions + [order_facts[step]]
             new_action.precondition = pddl.Conjunction(
                 [new_action.precondition, make_preconditions(new_preconditions)]).simplified()
 
-            new_effects = make_assignment_facts(local_from_global, skeleton_parameters) \
+            new_effects = make_assignment_facts(assigned_predicate, local_from_global, skeleton_parameters) \
                           + [Not(order_facts[step]), order_facts[step + 1]]
             new_action.effects.extend(make_effects(new_effects))
             # TODO: should also negate the effects of all other sequences here
@@ -97,7 +99,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp):
             new_actions.append(new_action)
             bound_parameters.update(skeleton_parameters)
             #new_action.dump()
-    add_predicate(domain, make_predicate(ORDER_PREDICATE, ['?num', '?step']))
+    add_predicate(domain, make_predicate(order_predicate, ['?num', '?step']))
     if constraints.exact:
         domain.actions[:] = []
     domain.actions.extend(new_actions)

@@ -3,42 +3,39 @@ from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.constants import INFEASIBLE, is_plan
 from pddlstream.utils import INF
 
+def push_disabled(instantiator, disabled):
+    for instance in list(disabled):
+        if instance.enumerated:
+            disabled.remove(instance)
+        else:
+            # TODO: only add if not already queued
+            instantiator.push_instance(instance)
 
 def reenable_disabled(evaluations, domain, disabled):
     for instance in disabled:
         instance.enable(evaluations, domain)
     disabled.clear()
 
-def process_instance(evaluations, instance, verbose=True):
+def process_instance(store, domain, instance):
     success = False
     if instance.enumerated:
         return success
-    new_results, new_facts = instance.next_results(verbose=verbose)
+    new_results, new_facts = instance.next_results(accelerate=1, verbose=store.verbose)
+    instance.disable(store.evaluations, domain)
     for result in new_results:
-        success |= bool(add_certified(evaluations, result))
-    remove_blocked(evaluations, instance, new_results)
-    add_facts(evaluations, new_facts, result=None)
+        success |= bool(add_certified(store.evaluations, result))
+    remove_blocked(store.evaluations, instance, new_results)
+    success |= bool(add_facts(store.evaluations, new_facts, result=None, complexity=0)) # TODO: record the instance
     return success
 
 ##################################################
 
-def process_all_disabled(store, disabled, greedy=False):
-    # TODO: use max_sample_time to process the queue for some amount of time
-    success = False
-    while not success and disabled:
-        for instance in list(disabled):
-            if greedy and success:
-                break
-            if instance.enumerated:
-                disabled.remove(instance)
-            else:
-                success |= process_instance(store.evaluations, instance, verbose=store.verbose)
-    return success
-
-def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures=INF, **kwargs):
+def process_stream_plan(store, domain, disabled, stream_plan, max_failures=INF):
     # TODO: had old implementation of these
     # TODO: could do version that allows bindings and is able to return
-    # effort_weight is None # Keep in a queue
+    # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
+    if not is_plan(stream_plan):
+        return
     failures = 0
     for result in stream_plan:
         if max_failures < failures:
@@ -46,29 +43,9 @@ def process_stream_plan(evaluations, domain, stream_plan, disabled, max_failures
         instance = result.instance
         if instance.enumerated:
             raise RuntimeError(instance)
-        if is_instance_ready(evaluations, instance):
-            instance.disable(evaluations, domain)
-            failures += not process_instance(evaluations, instance, **kwargs)
+        if is_instance_ready(store.evaluations, instance):
+            # TODO: could remove disabled and just use complexity_limit
+            failures += not process_instance(store, domain, instance)
             if not instance.enumerated:
                 disabled.add(instance)
-    # TODO: indicate whether should resolve w/o disabled
-    return not failures
-
-##################################################
-
-def process_disabled(store, domain, disabled, stream_plan, action_plan, cost, effort_limit, reenable):
-    # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
-    if not is_plan(stream_plan):
-        if (stream_plan is INFEASIBLE) and not disabled:
-            return False
-        if reenable:
-            # TODO: can always add back in disabled but use a larger effort limit
-            reenable_disabled(store.evaluations, domain, disabled)
-        else:
-            process_all_disabled(store, disabled)
-    elif not stream_plan:
-        store.add_plan(action_plan, cost)
-    else:
-        process_stream_plan(store.evaluations, domain, stream_plan, disabled, verbose=store.verbose)
-    # TODO: report back whether to try w/o stream values
-    return True
+    # TODO: report back whether to try w/o optimistic values

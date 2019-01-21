@@ -212,7 +212,9 @@ def main(use_synthesizers=False):
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  # TODO: run with search_sample_ratio=1
-                                 unit_efforts=False, effort_weight=0, search_sample_ratio=0,
+                                 unit_efforts=False, effort_weight=0,
+                                 search_sample_ratio=0,
+                                 #use_skeleton=False,
                                  visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,

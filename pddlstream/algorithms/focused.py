@@ -5,10 +5,10 @@ import time
 from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.disabled import process_disabled
+from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
+from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn, INFEASIBLE
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
@@ -76,6 +76,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     # TODO: no optimizers during search with relaxed_stream_plan
     num_iterations = search_time = sample_time = calls = 0
     complexity_limit = float(INITIAL_COMPLEXITY)
+    eager_disabled = effort_weight is None  # No point if no stream effort biasing
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
@@ -89,16 +90,19 @@ def solve_focused(problem, constraints=PlanConstraints(),
         reset_visualizations()
     streams, functions, negative = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
-    queue = SkeletonQueue(store, goal_exp, domain)
+    skeleton_queue = SkeletonQueue(store, goal_exp, domain)
     disabled = set()
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
-        calls += process_stream_queue(Instantiator(evaluations, eager_externals),
-                                      store, complexity_limit=complexity_limit, verbose=False)
+        eager_instantiator = Instantiator(evaluations, eager_externals) # Only update after an increase?
+        if eager_disabled:
+            push_disabled(eager_instantiator, disabled)
+        calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=False)
+
         print('\nIteration: {} | Complexity: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, complexity_limit, len(queue.skeletons), len(queue), len(disabled), len(evaluations), calls,
+            num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled), len(evaluations), calls,
             store.best_cost, search_time, sample_time, store.elapsed_time()))
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
@@ -124,20 +128,24 @@ def solve_focused(problem, constraints=PlanConstraints(),
             create_visualizations(evaluations, stream_plan, num_iterations)
         search_time += elapsed_time(start_time)
 
+        if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
+            break
         start_time = time.time()
         if not is_plan(stream_plan):
             complexity_limit += complexity_step
+            if not eager_disabled:
+                reenable_disabled(evaluations, domain, disabled)
+        elif not stream_plan:
+            store.add_plan(action_plan, cost)
+
         if use_skeleton:
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
             if max_iterations <= num_iterations:
                 allocated_sample_time = INF
-            terminate = not queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
+            skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         else:
-            reenable = effort_weight is not None # No point if no stream effort biasing
-            terminate = not process_disabled(store, domain, disabled, stream_plan, action_plan, cost, complexity_limit, reenable)
+            process_stream_plan(store, domain, disabled, stream_plan)
         sample_time += elapsed_time(start_time)
-        if terminate:
-            break
 
     write_stream_statistics(externals + synthesizers, verbose)
     return store.extract_solution()
