@@ -39,7 +39,7 @@ def pop_queue(queue):
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
 
 class Instantiator(Sized): # Dynamic Instantiator
-    def __init__(self, evaluations, streams, use_deque=False):
+    def __init__(self, streams, evaluations={}, use_deque=False):
         # TODO: lazily instantiate upon demand
         self.use_heap = use_deque
         self.streams = streams

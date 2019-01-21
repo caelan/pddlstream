@@ -51,16 +51,17 @@ def make_assignment_facts(predicate, local_from_global, parameters):
     return [(predicate, to_obj(to_constant(p)), local_from_global[p])
             for p in parameters]
 
-def add_plan_constraints(constraints, domain, evaluations, goal_exp, predicate_prefix=''):
+def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=False):
     if (constraints is None) or (constraints.skeletons is None):
         return goal_exp
     import pddl
     # TODO: can search over skeletons first and then fall back
     # TODO: unify this with the constraint ordering
     # TODO: can constrain to use a plan prefix
-    assigned_predicate = ASSIGNED_PREDICATE.format(predicate_prefix)
-    group_predicate = GROUP_PREDICATE.format(predicate_prefix)
-    order_predicate = ORDER_PREDICATE.format(predicate_prefix)
+    prefix = '_' if internal else ''
+    assigned_predicate = ASSIGNED_PREDICATE.format(prefix)
+    group_predicate = GROUP_PREDICATE.format(prefix)
+    order_predicate = ORDER_PREDICATE.format(prefix)
     for group in constraints.groups:
         for value in constraints.groups[group]:
             # TODO: could make all constants groups (like an equality group)

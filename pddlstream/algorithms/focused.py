@@ -15,7 +15,7 @@ from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
-from pddlstream.language.constants import is_plan, get_length, str_from_plan
+from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import combine_optimizers
@@ -41,11 +41,11 @@ def partition_externals(externals, verbose=False):
 
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_iterations=INF,
+                  max_time=INF, max_iterations=INF, max_skeletons=INF,
                   unit_costs=False, success_cost=INF,
                   complexity_step=1,
                   unit_efforts=False, max_effort=INF, effort_weight=None,
-                  reorder=True, use_skeleton=True, search_sample_ratio=0,
+                  reorder=True, search_sample_ratio=0,
                   visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
@@ -56,6 +56,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
+    :param max_iterations: the maximum number of plan skeletons to consider
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
@@ -63,7 +64,6 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
-    :param use_skeleton: maintains a set of plan skeletons to sample from
     :param search_sample_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
@@ -74,7 +74,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     """
     # TODO: select whether to search or sample based on expected success rates
     # TODO: no optimizers during search with relaxed_stream_plan
-    num_iterations = search_time = sample_time = calls = 0
+    num_iterations = search_time = sample_time = eager_calls = 0
     complexity_limit = float(INITIAL_COMPLEXITY)
     eager_disabled = effort_weight is None  # No point if no stream effort biasing
     evaluations, goal_exp, domain, externals = parse_problem(
@@ -95,21 +95,24 @@ def solve_focused(problem, constraints=PlanConstraints(),
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
-        eager_instantiator = Instantiator(evaluations, eager_externals) # Only update after an increase?
+        eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
         if eager_disabled:
             push_disabled(eager_instantiator, disabled)
-        calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=False)
+        eager_calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=False)
 
-        print('\nIteration: {} | Complexity: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
-              '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled), len(evaluations), calls,
-            store.best_cost, search_time, sample_time, store.elapsed_time()))
+        print('\nIteration: {} | Complexity: {} | Skeletons: {} | Skeleton Queue: {} | Disabled: {} | Evaluations: {} | '
+              'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
+            num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
+            len(evaluations), eager_calls, store.best_cost, search_time, sample_time, store.elapsed_time()))
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       unit_efforts=unit_efforts, max_effort=max_effort,
                                                       effort_weight=effort_weight, **search_kwargs)
-        combined_plan, cost = iterative_plan_streams(evaluations, externals, optimistic_solve_fn,
-                                                     complexity_limit=complexity_limit, unit_efforts=unit_efforts, max_effort=max_effort)
+        if (max_skeletons is not None) and (len(skeleton_queue.skeletons) < max_skeletons):
+            combined_plan, cost = iterative_plan_streams(evaluations, externals, optimistic_solve_fn, complexity_limit,
+                                                         unit_efforts=unit_efforts, max_effort=max_effort)
+        else:
+            combined_plan, cost = INFEASIBLE, INF
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
@@ -138,13 +141,11 @@ def solve_focused(problem, constraints=PlanConstraints(),
         elif not stream_plan:
             store.add_plan(action_plan, cost)
 
-        if use_skeleton:
-            allocated_sample_time = (search_sample_ratio * search_time) - sample_time
-            if max_iterations <= num_iterations:
-                allocated_sample_time = INF
-            skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
-        else:
+        if max_skeletons is None:
             process_stream_plan(store, domain, disabled, stream_plan)
+        else:
+            allocated_sample_time = (search_sample_ratio * search_time) - sample_time
+            skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals + synthesizers, verbose)

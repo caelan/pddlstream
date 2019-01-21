@@ -63,7 +63,7 @@ def solve_current(problem, constraints=PlanConstraints(),
     """
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
-    instantiator = Instantiator(evaluations, externals)
+    instantiator = Instantiator(externals, evaluations)
     process_function_queue(instantiator, evaluations, verbose=verbose)
     plan, cost = solve_finite(evaluations, goal_expression, domain,
                               max_cost=constraints.max_cost, **search_args)
@@ -92,7 +92,7 @@ def solve_exhaustive(problem, constraints=PlanConstraints(),
     ensure_no_fluent_streams(externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
-    instantiator = Instantiator(evaluations, externals)
+    instantiator = Instantiator(externals, evaluations)
     while instantiator.stream_queue and (elapsed_time(start_time) < max_time):
         process_instance(instantiator, evaluations, instantiator.pop_stream(), verbose=verbose)
     process_function_queue(instantiator, evaluations, verbose=verbose)
@@ -150,8 +150,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
     num_iterations = num_calls = complexity_limit = 0
-    instantiator = Instantiator(evaluations, externals)
-    while not store.is_terminated() and (num_iterations < max_iterations):
+    instantiator = Instantiator(externals, evaluations)
+    while (not store.is_terminated()) and (num_iterations < max_iterations):
         num_iterations += 1
         print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, complexity_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
