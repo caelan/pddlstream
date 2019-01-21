@@ -263,7 +263,8 @@ def get_plan_cost(action_plan, cost_from_action, unit_costs):
 def using_optimizers(stream_results):
     return any(map(is_optimizer_result, stream_results))
 
-def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negative, unit_efforts, effort_weight,
+def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negative,
+                        unit_efforts, effort_weight, max_effort,
                         simultaneous=False, reachieve=True, unit_costs=False, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
@@ -277,7 +278,9 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negat
         init_evaluations = {e for e, r in evaluations.items() if r not in achieved_results}
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
-    node_from_atom = get_achieving_streams(evaluations, applied_results)
+    # TODO: could iteratively increase max_effort
+    node_from_atom = get_achieving_streams(evaluations, applied_results,
+                                           unit_efforts=unit_efforts, max_effort=max_effort)
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric

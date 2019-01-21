@@ -21,10 +21,15 @@ from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.utils import INF, elapsed_time
 
+INITIAL_COMPLEXITY = 0
+#INITIAL_COMPLEXITY = INF
+
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_iterations=INF, unit_costs=False, success_cost=INF,
-                  unit_efforts=False, effort_step=1, max_effort=INF, effort_weight=None,
+                  max_time=INF, max_iterations=INF,
+                  unit_costs=False, success_cost=INF,
+                  complexity_step=1,
+                  unit_efforts=False, max_effort=INF, effort_weight=None,
                   reorder=True, use_skeleton=True, search_sample_ratio=0,
                   visualize=False, verbose=True, **search_kwargs):
     """
@@ -39,7 +44,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
-    :param effort_step: the increase in the effort limit after each failure
+    :param complexity_step: the increase in the effort limit after each failure
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
@@ -54,7 +59,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
     """
     # TODO: select whether to search or sample based on expected success rates
     # TODO: no optimizers during search with relaxed_stream_plan
-    num_iterations = search_time = sample_time = calls = effort_limit = 0
+    num_iterations = search_time = sample_time = calls = 0
+    complexity_limit = float(INITIAL_COMPLEXITY)
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
@@ -70,23 +76,21 @@ def solve_focused(problem, constraints=PlanConstraints(),
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     queue = SkeletonQueue(store, goal_exp, domain)
     disabled = set()
-    eager_intantiator = Instantiator(evaluations, eager_externals, max_effort=None)
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
-        for evaluation, node in evaluations.items():
-            eager_intantiator.add_atom(evaluation, node.complexity)
-        calls += process_stream_queue(eager_intantiator, store, effort_limit=effort_limit, verbose=False)
-
-        print('\nIteration: {} | Limit: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
+        calls += process_stream_queue(Instantiator(evaluations, eager_externals),
+                                      store, complexity_limit=complexity_limit, verbose=False)
+        print('\nIteration: {} | Complexity: {} | Skeletons: {} | Queue: {} | Disabled: {} | Evaluations: {} | Eager calls: {} '
               '| Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
-            num_iterations, effort_limit, len(queue.skeletons), len(queue), len(disabled), len(evaluations), calls,
+            num_iterations, complexity_limit, len(queue.skeletons), len(queue), len(disabled), len(evaluations), calls,
             store.best_cost, search_time, sample_time, store.elapsed_time()))
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
-                                                      unit_efforts=unit_efforts, effort_weight=effort_weight, **search_kwargs)
+                                                      unit_efforts=unit_efforts, max_effort=max_effort,
+                                                      effort_weight=effort_weight, **search_kwargs)
         combined_plan, cost = iterative_plan_streams(evaluations, externals, optimistic_solve_fn,
-                                                     effort_limit=effort_limit, max_effort=max_effort)
+                                                     complexity_limit=complexity_limit, unit_efforts=unit_efforts, max_effort=max_effort)
         if action_info:
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
@@ -105,15 +109,15 @@ def solve_focused(problem, constraints=PlanConstraints(),
 
         start_time = time.time()
         if not is_plan(stream_plan):
-            effort_limit += effort_step
+            complexity_limit += complexity_step
         if use_skeleton:
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
             if max_iterations <= num_iterations:
                 allocated_sample_time = INF
-            terminate = not queue.process(stream_plan, action_plan, cost, effort_limit, allocated_sample_time)
+            terminate = not queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         else:
             reenable = effort_weight is not None # No point if no stream effort biasing
-            terminate = not process_disabled(store, domain, disabled, stream_plan, action_plan, cost, effort_limit, reenable)
+            terminate = not process_disabled(store, domain, disabled, stream_plan, action_plan, cost, complexity_limit, reenable)
         sample_time += elapsed_time(start_time)
         if terminate:
             break

@@ -150,7 +150,7 @@ def main(focused=False, deterministic=False, unit_costs=True):
                                  effort_weight=None, unit_costs=unit_costs,
                                  visualize=False)
     else:
-        solution = solve_incremental(pddlstream_problem, effort_step=1,
+        solution = solve_incremental(pddlstream_problem, complexity_step=1,
                                      unit_costs=unit_costs, verbose=False)
     print_solution(solution)
     plan, cost, evaluations = solution

@@ -12,6 +12,7 @@ from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
+from pddlstream.language.effort import compute_external_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import INF, safe_zip, get_mapping
 
@@ -29,47 +30,39 @@ def is_refined(stream_plan):
 
 ##################################################
 
-def optimistic_process_instance(instantiator, instance, effort):
-    # TODO: convert streams to test streams with extremely high effort
+def optimistic_process_instance(instantiator, instance):
     for result in instance.next_optimistic():
         new_facts = False
+        complexity = instantiator.compute_complexity(instance)
         for fact in result.get_certified():
-            new_facts |= instantiator.add_atom(evaluation_from_fact(fact), effort)
+            new_facts |= instantiator.add_atom(evaluation_from_fact(fact), complexity)
         if isinstance(result, FunctionResult) or new_facts:
             yield result
 
 def optimistic_process_function_queue(instantiator):
     while instantiator.function_queue:
-        instance, effort = instantiator.pop_function()
-        for result in optimistic_process_instance(instantiator, instance, effort):
+        for result in optimistic_process_instance(instantiator, instantiator.pop_function()):
             yield result
 
-##################################################
+def prune_high_effort_streams(streams, max_effort=INF, **effort_args):
+    # TODO: convert streams to test streams with extremely high effort
+    low_effort_streams = []
+    for stream in streams:
+        effort = compute_external_effort(stream, **effort_args)
+        if isinstance(stream, Function) or (effort < max_effort): # exclusive
+            low_effort_streams.append(stream)
+    return low_effort_streams
 
-def extract_level(evaluations, target_atom, combine_fn=max):
-    result = evaluations[target_atom].result
-    if not isinstance(result, Result):
-        return 0
-    domain_atoms = map(evaluation_from_fact, result.get_domain())
-    domain_level = combine_fn([extract_level(evaluations, atom, combine_fn=combine_fn)
-                               for atom in domain_atoms] + [0])
-    return domain_level + result.call_index + 1
-
-def optimistic_process_streams(evaluations, streams, effort_limit=INF, **effort_args):
-    combine_fn = max
-    instantiator = Instantiator({}, streams, **effort_args)
-    for evaluation in evaluations:
-        #level = 0
-        level = extract_level(evaluations, evaluation, combine_fn=combine_fn)
-        instantiator.add_atom(evaluation, level)
+def optimistic_process_streams(evaluations, streams, complexity_limit=INF, **effort_args):
+    optimistic_streams = prune_high_effort_streams(streams, **effort_args)
+    instantiator = Instantiator(evaluations, optimistic_streams)
     results = []
-    while instantiator.stream_queue and (instantiator.min_effort() <= effort_limit):
-        instance, effort = instantiator.pop_stream()
-        results.extend(optimistic_process_instance(instantiator, instance, effort))
+    while instantiator.stream_queue and (instantiator.min_complexity() <= complexity_limit):
+        results.extend(optimistic_process_instance(instantiator, instantiator.pop_stream()))
         # TODO: instantiate and solve to avoid repeated work
     results.extend(optimistic_process_function_queue(instantiator))
-    full = not instantiator
-    return results, full
+    exhausted = not instantiator
+    return results, exhausted
 
 ##################################################
 
@@ -116,7 +109,8 @@ def compute_stream_results(evaluations, opt_results, externals, **effort_args):
     # TODO: revisit considering double bound streams
     functions = list(filter(lambda s: type(s) is Function, externals))
     opt_evaluations = evaluations_from_stream_plan(evaluations, opt_results)
-    return opt_results + optimistic_process_streams(opt_evaluations, functions, **effort_args)[0]
+    new_results, _ = optimistic_process_streams(opt_evaluations, functions, **effort_args)
+    return opt_results + new_results
 
 def compute_skeleton_constraints(action_plan, bindings):
     skeleton = []
@@ -191,7 +185,7 @@ def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, **effort
     num_iterations = 0
     while True:
         num_iterations += 1
-        results, full = optimistic_process_streams(evaluations, externals, **effort_args)
+        results, exhausted = optimistic_process_streams(evaluations, externals, **effort_args)
         combined_plan, cost, final_depth = hierarchical_plan_streams(
             evaluations, externals, results, optimistic_solve_fn,
             depth=0, constraints=None, **effort_args)
@@ -200,5 +194,5 @@ def iterative_plan_streams(evaluations, externals, optimistic_solve_fn, **effort
         if is_plan(combined_plan):
             return combined_plan, cost
         if final_depth == 0:
-            status = INFEASIBLE if full else FAILED
+            status = INFEASIBLE if exhausted else FAILED
             return status, cost
