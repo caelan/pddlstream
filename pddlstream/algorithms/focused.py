@@ -2,7 +2,8 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem, SolutionStore, dump_plans, partition_externals
+from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import process_disabled
 from pddlstream.algorithms.incremental import process_stream_queue
@@ -14,15 +15,29 @@ from pddlstream.algorithms.skeleton import SkeletonQueue
 # from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
-from pddlstream.language.constants import is_plan
+from pddlstream.language.constants import is_plan, get_length, str_from_plan
 from pddlstream.language.execution import get_action_info
+from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
+from pddlstream.language.effort import compute_plan_effort
+from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, elapsed_time
 
 INITIAL_COMPLEXITY = 0
 #INITIAL_COMPLEXITY = INF
+
+def partition_externals(externals, verbose=False):
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
+    negative = predicates + negated_streams
+    streams = list(filter(lambda s: s not in (functions + negative), externals))
+    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    if verbose:
+        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
+    return streams, functions, negative #, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
@@ -101,7 +116,9 @@ def solve_focused(problem, constraints=PlanConstraints(),
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
             stream_plan = reorder_stream_plan(stream_plan) # This may be redundant when using reorder_combined_plan
-        dump_plans(stream_plan, action_plan, cost)
+        print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
+            get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
+            get_length(action_plan), cost, str_from_plan(action_plan)))
         if is_plan(stream_plan) and visualize:
             log_plans(stream_plan, action_plan, num_iterations)
             create_visualizations(evaluations, stream_plan, num_iterations)

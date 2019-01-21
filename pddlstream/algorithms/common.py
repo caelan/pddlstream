@@ -1,6 +1,9 @@
+import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression
+from pddlstream.language.constants import is_plan
+from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
+from pddlstream.utils import INF, elapsed_time
 
 # Complexity is a way to characterize the number of external evaluations required for a solution
 # Most algorithms regularize to prefer lower complexity solutions
@@ -14,6 +17,46 @@ INIT_EVALUATION = None
 INTERNAL_EVALUATION = False
 
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
+Solution = namedtuple('Solution', ['plan', 'cost'])
+
+class SolutionStore(object):
+    def __init__(self, evaluations, max_time, success_cost, verbose):
+        # TODO: store a map from head to value?
+        # TODO: include other problem information here?
+        self.evaluations = evaluations
+        #self.initial_evaluations = copy.copy(evaluations)
+        self.start_time = time.time()
+        self.max_time = max_time
+        #self.cost_fn = get_length if unit_costs else None
+        self.success_cost = success_cost # Inclusive
+        self.verbose = verbose
+        self.best_plan = None
+        self.best_cost = INF
+        #self.best_cost = self.cost_fn(self.best_plan)
+        self.solutions = []
+    def add_plan(self, plan, cost):
+        # TODO: double-check that plan is a solution
+        if not is_plan(plan) or (self.best_cost <= cost):
+            return
+        solution = Solution(plan, cost)
+        self.best_plan, self.best_cost = solution
+        self.solutions.append(solution)
+    def has_solution(self):
+        return is_plan(self.best_plan)
+    def is_solved(self):
+        return self.has_solution() and (self.best_cost <= self.success_cost)
+    def elapsed_time(self):
+        return elapsed_time(self.start_time)
+    def is_timeout(self):
+        return self.max_time <= self.elapsed_time()
+    def is_terminated(self):
+        return self.is_solved() or self.is_timeout()
+    #def __repr__(self):
+    #    raise NotImplementedError()
+    def extract_solution(self):
+        return revert_solution(self.best_plan, self.best_cost, self.evaluations)
+
+##################################################
 
 def add_fact(evaluations, fact, result=INIT_EVALUATION, complexity=0):
     evaluation = evaluation_from_fact(fact)

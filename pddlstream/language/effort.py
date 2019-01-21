@@ -43,6 +43,7 @@ def compute_instance_effort(instance, unit_efforts=False, search_overhead=DEFAUL
 def compute_result_effort(result, **kwargs):
     if not result.optimistic:
         return 0 # Unit efforts?
+    # TODO: this should be the min of all instances
     return compute_instance_effort(result.instance, **kwargs)
 
 

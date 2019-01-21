@@ -1,24 +1,19 @@
-import time
-from collections import namedtuple, Counter
+from collections import Counter
 
 from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_domain, get_problem, task_from_domain_problem, \
-    parse_lisp, sas_from_pddl, parse_goal, make_cost, has_costs
-from pddlstream.algorithms.search import abstrips_solve_from_task
-from pddlstream.language.constants import get_prefix, get_args, is_plan, get_length, str_from_plan
-from pddlstream.language.conversion import obj_from_value_expression, obj_from_pddl_plan, \
-    revert_solution, evaluation_from_fact
+from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, has_costs
+from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.external import DEBUG
-from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.fluent import compile_fluent_streams
-from pddlstream.language.function import parse_function, parse_predicate, Function, Predicate
+from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object
 from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
-from pddlstream.utils import elapsed_time, INF
+
 
 # TODO: rename to parsing
 
@@ -127,57 +122,6 @@ def enforce_simultaneous(domain, externals):
 
 ##################################################
 
-def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
-    problem = get_problem(evaluations, goal_exp, domain, unit_costs)
-    task = task_from_domain_problem(domain, problem)
-    sas_task = sas_from_pddl(task, debug=debug)
-    pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
-    plan = obj_from_pddl_plan(pddl_plan)
-    return plan, cost
-
-##################################################
-
-Solution = namedtuple('Solution', ['plan', 'cost'])
-
-class SolutionStore(object):
-    def __init__(self, evaluations, max_time, success_cost, verbose):
-        # TODO: store a map from head to value?
-        # TODO: include other problem information here?
-        self.evaluations = evaluations
-        #self.initial_evaluations = copy.copy(evaluations)
-        self.start_time = time.time()
-        self.max_time = max_time
-        #self.cost_fn = get_length if unit_costs else None
-        self.success_cost = success_cost # Inclusive
-        self.verbose = verbose
-        self.best_plan = None
-        self.best_cost = INF
-        #self.best_cost = self.cost_fn(self.best_plan)
-        self.solutions = []
-    def add_plan(self, plan, cost):
-        # TODO: double-check that plan is a solution
-        if not is_plan(plan) or (self.best_cost <= cost):
-            return
-        solution = Solution(plan, cost)
-        self.best_plan, self.best_cost = solution
-        self.solutions.append(solution)
-    def has_solution(self):
-        return is_plan(self.best_plan)
-    def is_solved(self):
-        return self.has_solution() and (self.best_cost <= self.success_cost)
-    def elapsed_time(self):
-        return elapsed_time(self.start_time)
-    def is_timeout(self):
-        return self.max_time <= self.elapsed_time()
-    def is_terminated(self):
-        return self.is_solved() or self.is_timeout()
-    #def __repr__(self):
-    #    raise NotImplementedError()
-    def extract_solution(self):
-        return revert_solution(self.best_plan, self.best_cost, self.evaluations)
-
-##################################################
-
 def get_domain_predicates(external):
     return set(map(get_prefix, external.domain))
 
@@ -255,24 +199,6 @@ def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts
     return externals
 
 ##################################################
-
-def dump_plans(stream_plan, action_plan, cost):
-    print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
-        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
-        get_length(action_plan), cost, str_from_plan(action_plan)))
-
-
-def partition_externals(externals, verbose=False):
-    functions = list(filter(lambda s: type(s) is Function, externals))
-    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
-    negative = predicates + negated_streams
-    streams = list(filter(lambda s: s not in (functions + negative), externals))
-    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
-    if verbose:
-        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
-    return streams, functions, negative #, optimizers
-
 
 def remove_blocked(evaluations, instance, new_results):
     if new_results and isinstance(instance, StreamInstance):

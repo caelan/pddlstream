@@ -1,4 +1,4 @@
-from pddlstream.algorithms.algorithm import solve_finite
+from pddlstream.algorithms.incremental import solve_finite
 from pddlstream.algorithms.downward import Domain, make_action, make_predicate, make_parameters, make_domain, \
     get_cost_scale, add_predicate
 from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_streams, partition_results
