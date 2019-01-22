@@ -28,6 +28,7 @@ http://www.fast-downward.org/ObtainingAndRunningFastDownward
 
 ## Resources
 
+* Tutorial: file:///Users/caelan/Programs/LIS/git/www/presentations/6.881_TAMP.pdf
 * Planning Domain Description Language (PDDL): http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html
 * Derived Predicates: https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html
 
