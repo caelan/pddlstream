@@ -98,7 +98,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
         if eager_disabled:
             push_disabled(eager_instantiator, disabled)
-        eager_calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=False)
+        eager_calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=verbose)
 
         print('\nIteration: {} | Complexity: {} | Skeletons: {} | Skeleton Queue: {} | Disabled: {} | Evaluations: {} | '
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(

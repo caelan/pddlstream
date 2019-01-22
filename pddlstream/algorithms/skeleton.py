@@ -1,14 +1,16 @@
 from __future__ import print_function
 
 import time
+from operator import itemgetter
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 
-from pddlstream.algorithms.common import is_instance_ready
+from pddlstream.algorithms.common import is_instance_ready, EvaluationNode, add_certified
 from pddlstream.algorithms.disabled import process_instance
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.constants import is_plan, INFEASIBLE
+from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object
 
 
@@ -35,19 +37,6 @@ def update_cost(cost, opt_result, result):
 
 ##################################################
 
-# from pddlstream.language.synthesizer import SynthStreamResult
-# def _decompose_synthesizer_skeleton(queue, skeleton, index):
-#     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
-#     opt_result = stream_plan[index]
-#     if (plan_attempts[index] == 0) and isinstance(opt_result, SynthStreamResult):
-#         # TODO: only decompose if failure?
-#         decomposition = opt_result.decompose()
-#         new_stream_plan = stream_plan[:index] + decomposition + stream_plan[index+1:]
-#         new_plan_attempts = plan_attempts[:index] + [0]*len(decomposition) + plan_attempts[index+1:]
-#         queue.new_binding(new_stream_plan, new_plan_attempts, bindings, plan_index, cost)
-
-##################################################
-
 class Skeleton(object):
     def __init__(self, queue, stream_plan, action_plan, cost):
         self.queue = queue
@@ -57,8 +46,10 @@ class Skeleton(object):
         self.root = Binding(self.queue, self,
                             stream_indices=range(len(stream_plan)),
                             stream_attempts=[0]*len(stream_plan),
+                            bound_results={},
                             bindings={},
                             cost=cost)
+        self.best_binding = self.root
     def bind_stream_plan(self, mapping, indices=None):
         if indices is None:
             indices = range(len(self.stream_plan))
@@ -72,12 +63,14 @@ Priority = namedtuple('Priority', ['attempted', 'effort'])
 
 class Binding(object):
     # TODO: maintain a tree instead. Propagate the best subtree upwards
-    def __init__(self, queue, skeleton, stream_indices, stream_attempts, bindings, cost):
+    def __init__(self, queue, skeleton, stream_indices, stream_attempts,
+                 bound_results, bindings, cost):
         assert len(stream_indices) == len(stream_attempts)
         self.queue = queue
         self.skeleton = skeleton
         self.stream_indices = list(stream_indices)
         self.stream_attempts = list(stream_attempts)
+        self.bound_results = bound_results
         self.bindings = bindings
         self.cost = cost
         self.children = []
@@ -117,11 +110,16 @@ class Binding(object):
         if not new_result.is_successful():
             return None # TODO: check if satisfies target certified
         opt_result = self.stream_plan[index]
+        bound_results = self.bound_results.copy()
+        bound_results[self.stream_indices[index]] = new_result
         binding = Binding(self.queue, self.skeleton,
                           puncture(self.stream_indices, index),
                           puncture(self.stream_attempts, index),
+                          bound_results,
                           update_bindings(self.bindings, opt_result, new_result),
                           update_cost(self.cost, opt_result, new_result))
+        if len(binding.stream_indices) < len(self.skeleton.best_binding.stream_indices):
+            self.skeleton.best_binding = binding
         self.children.append(binding)
         self.queue.new_binding(binding)
         return binding
@@ -175,16 +173,16 @@ class SkeletonQueue(Sized):
 
     ####################
 
-    def _reenable_stream_plan(self, stream_plan):
-        # TODO: only disable if not used elsewhere
-        # TODO: could just hash instances
-        # TODO: do I actually need to reenable? Yes it ensures that
-        # TODO: check if the index is the only one being sampled
-        # for result in stream_plan:
-        #    result.instance.disabled = False
-        stream_plan[0].instance.enable(self.evaluations, self.domain)
-        # TODO: move functions as far forward as possible to prune these plans
-        # TODO: make function evaluations low success as soon as finite cost
+    #def _reenable_stream_plan(self, stream_plan):
+    #    # TODO: only disable if not used elsewhere
+    #    # TODO: could just hash instances
+    #    # TODO: do I actually need to reenable? Yes it ensures that
+    #    # TODO: check if the index is the only one being sampled
+    #    # for result in stream_plan:
+    #    #    result.instance.disabled = False
+    #    stream_plan[0].instance.enable(self.evaluations, self.domain)
+    #    # TODO: move functions as far forward as possible to prune these plans
+    #    # TODO: make function evaluations low success as soon as finite cost
 
     # Maybe the reason repeat skeletons are happening is that the currently active thing is disabled
     # But another one on the plan isn't
@@ -298,6 +296,16 @@ class SkeletonQueue(Sized):
             self.greedily_process()
             # TODO: print cost updates when progress with a new skeleton
 
+    def accelerate_best_bindings(self):
+        # TODO: reset the values for old streams
+        for skeleton in self.skeletons:
+            for _, result in sorted(skeleton.best_binding.bound_results.items(), key=itemgetter(0)):
+                # TODO: just accelerate the facts within the plan preimage
+                for fact in result.get_certified():
+                    del self.evaluations[evaluation_from_fact(fact)]
+                result.call_index = 0 # Pretends the fact was first
+                add_certified(self.evaluations, result)
+
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: manually add stream_plans for synthesizers/optimizers
         start_time = time.time()
@@ -310,9 +318,23 @@ class SkeletonQueue(Sized):
             # TODO: use complexity_limit
             self.process_until_new()
         self.timed_process(max_time - elapsed_time(start_time))
+        self.accelerate_best_bindings()
 
     def __len__(self):
         return len(self.queue)
+
+##################################################
+
+# from pddlstream.language.synthesizer import SynthStreamResult
+# def _decompose_synthesizer_skeleton(queue, skeleton, index):
+#     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
+#     opt_result = stream_plan[index]
+#     if (plan_attempts[index] == 0) and isinstance(opt_result, SynthStreamResult):
+#         # TODO: only decompose if failure?
+#         decomposition = opt_result.decompose()
+#         new_stream_plan = stream_plan[:index] + decomposition + stream_plan[index+1:]
+#         new_plan_attempts = plan_attempts[:index] + [0]*len(decomposition) + plan_attempts[index+1:]
+#         queue.new_binding(new_stream_plan, new_plan_attempts, bindings, plan_index, cost)
 
 ##################################################
 
