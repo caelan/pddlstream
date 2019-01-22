@@ -7,6 +7,8 @@ This repository is the "third version" of the STRIPStream framework, intended to
 1) https://github.com/caelan/stripstream
 2) https://github.com/caelan/ss
 
+<!--https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet-->
+
 ## Installation
 
 ```
@@ -22,15 +24,13 @@ If `./FastDownward/build.py` fails, install FastDownward's dependencies using yo
 * MacPorts (OS X): TBD
 * N/A (Windows): install each dependency manually-->
 
-If necessary, see FastDownward's documentation for more detailed installation instructions:
-
-http://www.fast-downward.org/ObtainingAndRunningFastDownward
+If necessary, see FastDownward's [documentation](http://www.fast-downward.org/ObtainingAndRunningFastDownward) for more detailed installation instructions.
 
 ## Resources
 
-* Tutorial: file:///Users/caelan/Programs/LIS/git/www/presentations/6.881_TAMP.pdf
-* Planning Domain Description Language (PDDL): http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html
-* Derived Predicates: https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html
+* [PDDLStream Tutorial](https://web.mit.edu/caelan/www/presentations/6.881_TAMP.pdf)
+* [Planning Domain Description Language (PDDL)](http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html)
+* [Derived Predicates](https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html)
 
 ## Examples
 
@@ -90,20 +90,24 @@ See https://github.com/caelan/ss-pybullet for more information.
 
 ### Drake
 
-Install Drake on OS X or Ubuntu by following the following instructions: http://drake.mit.edu/installation.html
+Install Drake on OS X or Ubuntu by following the following instructions: http://drake.mit.edu/installation.html.
+
+Alternatively, install Drake through docker by following the following instructions: http://manipulation.csail.mit.edu/install_drake_docker.html. Use the appropriate docker_run_bash script with docker tag drake-20181128.
 
 Examples:
 * Kuka IIWA task and motion planning - ```python -m examples.drake.run```
 <!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
 <img src="images/drake_kuka.png" height="150">
 
+Additional PDDLStream + Drake examples can be found at: https://github.com/RobotLocomotion/6-881-examples.
+
+<!--https://drake.mit.edu/gallery.html#task-and-motion-planning-->
+
 ## Publications
 
-STRIPStream: Integrating Symbolic Planners and Blackbox Samplers
-https://arxiv.org/abs/1802.08705
-
-STRIPStream: Planning In Infinite Domains
-https://arxiv.org/abs/1701.00287
+* [STRIPStream: Integrating Symbolic Planners and Blackbox Samplers](https://arxiv.org/abs/1802.08705
+)
+* [STRIPStream: Planning In Infinite Domains](https://arxiv.org/abs/1701.00287)
 
 ## Citation
 
