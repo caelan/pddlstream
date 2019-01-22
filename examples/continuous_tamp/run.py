@@ -10,7 +10,7 @@ import pstats
 import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn, has_gurobi
-from examples.continuous_tamp.primitives import get_pose_gen, collision_test, \
+from examples.continuous_tamp.primitives import get_pose_gen, collision_test, unreliable_ik_fn, \
     distance_fn, inverse_kin_fn, get_region_test, plan_motion, PROBLEMS, \
     draw_state, get_random_seed, TAMPState, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST
 from pddlstream.algorithms.focused import solve_focused
@@ -64,6 +64,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(inverse_kin_fn),
+        #'s-ik': from_gen_fn(unreliable_ik_fn),
         'distance': distance_fn,
 
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
@@ -211,10 +212,9 @@ def main(use_synthesizers=False):
                                  planner='ff-wastar1', max_planner_time=10, hierarchy=hierarchy, debug=False,
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
-                                 # TODO: run with search_sample_ratio=1
                                  unit_efforts=False, effort_weight=0,
                                  search_sample_ratio=0,
-                                 #use_skeleton=False,
+                                 #max_skeletons=None,
                                  visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,

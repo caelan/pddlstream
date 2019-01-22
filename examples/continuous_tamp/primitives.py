@@ -44,6 +44,13 @@ def inverse_kin_fn(b, p):
     return (p - GRASP,)
 
 
+def unreliable_ik_fn(b, p):
+    # For testing the algorithms
+    while 1e-2 < np.random.random():
+        yield None
+    yield inverse_kin_fn(b, p)
+
+
 def get_region_test(regions):
     def test(b, p, r):
         return interval_contains(regions[r], get_block_interval(b, p))

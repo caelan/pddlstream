@@ -182,8 +182,11 @@ class StreamInstance(Instance):
                 self.external.name, new_facts))
 
     def get_result(self, object_objects, opt_index=None, list_index=None, optimistic=True):
+        # TODO: ideally would increment a flag per stream for each failure
+        call_index = self.num_calls
+        #call_index = self.successes # Only counts iterations that return results for complexity
         return self._Result(self, tuple(object_objects), opt_index=opt_index,
-                            call_index=self.num_calls, list_index=list_index, optimistic=optimistic)
+                            call_index=call_index, list_index=list_index, optimistic=optimistic)
 
     def use_unique(self):
         return self.opt_index == 0

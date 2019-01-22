@@ -31,9 +31,9 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     fluent_facts_list = []
     if negative.is_fluent():
         # TODO: ensure that only used once?
-        for state_index in step_from_atom[literal]:
+        for step in step_from_atom[literal]:
             fluent_facts_list.append(list(map(fact_from_fd, filter(
-                lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents), real_states[state_index]))))
+                lambda f: isinstance(f, pddl.Atom) and (f.predicate in negative.fluents), real_states[step]))))
     else:
         fluent_facts_list.append(frozenset())
 
