@@ -303,7 +303,9 @@ class SkeletonQueue(Sized):
             for _, result in sorted(skeleton.best_binding.bound_results.items(), key=itemgetter(0)):
                 # TODO: just accelerate the facts within the plan preimage
                 for fact in result.get_certified():
-                    del self.evaluations[evaluation_from_fact(fact)]
+                    evaluation = evaluation_from_fact(fact)
+                    if evaluation in self.evaluations: # In the event the fact is returned twice
+                        del self.evaluations[evaluation]
                 result.call_index = 0 # Pretends the fact was first
                 add_certified(self.evaluations, result)
 
