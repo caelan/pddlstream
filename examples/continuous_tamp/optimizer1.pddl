@@ -9,6 +9,7 @@
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
+  ; Creates more free variables than optimizer1.pddl
   (:optimizer gurobi
 
     ; Constructs a set of free variables

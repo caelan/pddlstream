@@ -133,23 +133,6 @@ def hash_object(evaluations, obj):
 
 ##################################################
 
-# TODO: cannot easily do Bayesian hypothesis testing because might never receive ground truth when empty
-# In some cases, the stream does finish though
-
-# Estimate probability that will generate result
-# Need to produce belief that has additional samples
-# P(Success | Samples) = estimated parameter
-# P(Success | ~Samples) = 0
-# T(Samples | ~Samples) = 0
-# T(~Samples | Samples) = 1-p
-
-# TODO: estimate a parameter conditioned on successful streams?
-# Need a transition fn as well because generating a sample might change state
-# Problem with estimating prior. Don't always have data on failed streams
-
-# Goal: estimate P(Success | History)
-# P(Success | History) = P(Success | Samples) * P(Samples | History)
-
 class PerformanceInfo(object):
     def __init__(self, p_success, overhead):
         if p_success is not None:
@@ -230,6 +213,23 @@ class Performance(object):
             self.online_overhead))
 
 ##################################################
+
+# TODO: cannot easily do Bayesian hypothesis testing because might never receive ground truth when empty
+# In some cases, the stream does finish though
+
+# Estimate probability that will generate result
+# Need to produce belief that has additional samples
+# P(Success | Samples) = estimated parameter
+# P(Success | ~Samples) = 0
+# T(Samples | ~Samples) = 0
+# T(~Samples | Samples) = 1-p
+
+# TODO: estimate a parameter conditioned on successful streams?
+# Need a transition fn as well because generating a sample might change state
+# Problem with estimating prior. Don't always have data on failed streams
+
+# Goal: estimate P(Success | History)
+# P(Success | History) = P(Success | Samples) * P(Samples | History)
 
 # Previously in Instance
 # def get_belief(self):

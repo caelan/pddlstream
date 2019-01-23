@@ -18,7 +18,7 @@ from pddlstream.algorithms.visualization import reset_visualizations, create_vis
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
-from pddlstream.language.optimizer import combine_optimizers
+from pddlstream.language.optimizer import combine_optimizers, replan_with_optimizers, OPTIMIZER_STREAMS
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.effort import compute_plan_effort
@@ -30,14 +30,15 @@ INITIAL_COMPLEXITY = 0
 
 def partition_externals(externals, verbose=False):
     functions = list(filter(lambda s: type(s) is Function, externals))
-    predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals)) # and s.is_negative()
-    negative = predicates + negated_streams
-    streams = list(filter(lambda s: s not in (functions + negative), externals))
-    #optimizers = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
+    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals))
+    negative = negative_predicates + negated_streams
+    optimizers = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, externals))
+    streams = list(filter(lambda s: s not in (functions + negative + optimizers), externals))
     if verbose:
-        print('Streams: {}\nFunctions: {}\nNegated: {}'.format(streams, functions, negative))
-    return streams, functions, negative #, optimizers
+        print('Streams: {}\nFunctions: {}\nNegated: {}\nOptimizers: {}'.format(
+            streams, functions, negative, optimizers))
+    return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
@@ -56,7 +57,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
-    :param max_iterations: the maximum number of plan skeletons to consider
+    :param max_skeletons: the maximum number of plan skeletons to consider
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
@@ -74,6 +75,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
     """
     # TODO: select whether to search or sample based on expected success rates
     # TODO: no optimizers during search with relaxed_stream_plan
+    # TODO: locally optimize only after a solution is identified
+    # TODO: replan with a better search algorithm after feasible
     num_iterations = search_time = sample_time = eager_calls = 0
     complexity_limit = float(INITIAL_COMPLEXITY)
     eager_disabled = effort_weight is None  # No point if no stream effort biasing
@@ -88,10 +91,10 @@ def solve_focused(problem, constraints=PlanConstraints(),
         print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
     if visualize:
         reset_visualizations()
-    streams, functions, negative = partition_externals(externals, verbose=verbose)
+    streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     skeleton_queue = SkeletonQueue(store, goal_exp, domain)
-    disabled = set()
+    disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
@@ -109,7 +112,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                       unit_efforts=unit_efforts, max_effort=max_effort,
                                                       effort_weight=effort_weight, **search_kwargs)
         if (max_skeletons is not None) and (len(skeleton_queue.skeletons) < max_skeletons):
-            combined_plan, cost = iterative_plan_streams(evaluations, externals, optimistic_solve_fn, complexity_limit,
+            combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions),
+                                                         optimistic_solve_fn, complexity_limit,
                                                          unit_efforts=unit_efforts, max_effort=max_effort)
         else:
             combined_plan, cost = INFEASIBLE, INF

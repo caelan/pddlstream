@@ -59,6 +59,9 @@ class OptimizerInfo(StreamInfo):
         self.planable = planable # TODO: this isn't currently used
         # TODO: post-processing
 
+#class OptimizerStream(Stream):
+#    pass
+
 class VariableStream(Stream):
     def __init__(self, optimizer, variable, inputs, domain, certified, info):
         self.optimizer = optimizer
@@ -90,6 +93,8 @@ class ConstraintStream(Stream):
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info, fluents=fluents)
+
+OPTIMIZER_STREAMS = [VariableStream, ConstraintStream]
 
 ##################################################
 
@@ -200,11 +205,11 @@ def parse_optimizer(lisp_list, procedures, infos):
 
 ##################################################
 
+def is_optimizer_result(result):
+    return type(result.external) in OPTIMIZER_STREAMS
+
 def get_optimizer(result):
-    external = result.instance.external
-    if isinstance(external, VariableStream) or isinstance(external, ConstraintStream):
-        return external.optimizer
-    return None
+    return result.external.optimizer if is_optimizer_result(result) else None
 
 def get_connected_components(vertices, edges):
     #return [vertices]
@@ -350,7 +355,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     # TODO: can replan using samplers as well
     if not is_plan(external_plan):
         return external_plan
-    optimizer_streams = list(filter(lambda s: type(s) in [VariableStream, ConstraintStream], externals))
+    optimizer_streams = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, externals))
     if not optimizer_streams:
         return external_plan
     stream_plan, function_plan = partition_external_plan(external_plan)
@@ -385,7 +390,3 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
     if not is_plan(combined_plan):
         return external_plan
     return combined_plan + function_plan
-
-
-def is_optimizer_result(result):
-    return type(result.external) in [VariableStream, ConstraintStream]

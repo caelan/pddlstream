@@ -5,6 +5,7 @@ from itertools import count
 from pddlstream.utils import INF, elapsed_time
 
 # TODO: indicate wild stream output just from the output form
+# TODO: depth limited and cycle-free optimistic objects
 
 class BoundedGenerator(Iterator):
     """

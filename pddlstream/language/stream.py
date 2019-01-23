@@ -34,7 +34,7 @@ def get_identity_fn(indices):
 ##################################################
 
 # TODO: make wild the default output
-Wild = namedtuple('Wild', ['outputs', 'facts'])
+WildOutput = namedtuple('WildOutput', ['values', 'facts'])
 
 class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
@@ -210,9 +210,9 @@ class StreamInstance(Instance):
         self._create_generator()
         output, self.enumerated = get_next(self._generator, default=None)
         if output is None:
-            return [], []
-        if not self.external.is_wild:
-            return output, []
+            output = []
+        if not self.external.is_wild and not isinstance(output, WildOutput):
+            return WildOutput(output, [])
         if len(output) != 2:
             raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(
                 self.external.name))

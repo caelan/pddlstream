@@ -35,7 +35,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl'))
+        external_paths.append(get_file_path(__file__, 'optimizer2.pddl')) # optimizer1 | optimizer2
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}
@@ -141,6 +141,7 @@ def main(use_synthesizers=False):
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=20, type=int, help='The max time')
     args = parser.parse_args()
     print('Arguments:', args)
@@ -189,18 +190,24 @@ def main(use_synthesizers=False):
 
     skeleton = [
         ('move', ['?q0', WILD, '?q1']),
-        ('pick', ['b0', '?p0', '?q1']),
+        ('pick', ['b1', '?p0', '?q1']),
         ('move', ['?q1', WILD, '?q2']),
-        ('place', ['b0', '?p1', '?q2']),
-    ]
-    constraints = PlanConstraints(#skeletons=None,
-                                  #skeletons=[],
-                                  #skeletons=[skeleton],
-                                  #skeletons=[skeleton, []],
-                                  #exact=False,
-                                  max_cost=INF)
+        ('place', ['b1', '?p1', '?q2']),
 
-    pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree)
+        ('move', ['?q2', WILD, '?q3']),
+        ('pick', ['b0', '?p2', '?q3']),
+        ('move', ['?q3', WILD, '?q4']),
+        ('place', ['b0', '?p3', '?q4']),
+    ]
+    skeletons = [skeleton] if args.skeleton else None
+    max_cost = INF # 8*MOVE_COST
+    constraints = PlanConstraints(skeletons=skeletons,
+                                  #skeletons=[],
+                                  #skeletons=[skeleton, []],
+                                  exact=True,
+                                  max_cost=max_cost)
+
+    pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree, use_optimizer=True)
     print('Initial:', str_from_object(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()
@@ -213,7 +220,7 @@ def main(use_synthesizers=False):
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  unit_efforts=False, effort_weight=0,
-                                 search_sample_ratio=0,
+                                 search_sample_ratio=1,
                                  #max_skeletons=None,
                                  visualize=False)
     elif args.algorithm == 'incremental':
