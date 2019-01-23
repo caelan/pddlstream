@@ -139,3 +139,18 @@ def print_solution(solution):
     for i, (name, args) in enumerate(plan):
         print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
     #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
+
+
+def partition_facts(facts):
+    functions = []
+    negated = []
+    positive = []
+    for fact in facts:
+        prefix = get_prefix(fact)
+        if prefix in (EQ, MINIMIZE):
+            functions.append(fact[1])
+        elif prefix == NOT:
+            negated.append(fact[1])
+        else:
+            positive.append(fact)
+    return positive, negated, functions

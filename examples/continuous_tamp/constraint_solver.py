@@ -2,6 +2,8 @@ import numpy as np
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
 from pddlstream.utils import hash_or_id
+from pddlstream.language.constants import partition_facts, NOT, MINIMIZE
+from pddlstream.language.optimizer import OptimizerOutput
 
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
@@ -76,6 +78,7 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             m.addConstr(BLOCK_WIDTH + MIN_CLEARANCE, GRB.LESS_EQUAL, abs_dist, name=name)
             m.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
 
+        #postive, negative, functions = partition_facts(facts)
         objective_terms = []
         for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
@@ -92,7 +95,7 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 m.addConstr(x1, GRB.LESS_EQUAL, px - BLOCK_WIDTH / 2, name=name)
                 m.addConstr(px + BLOCK_WIDTH / 2, GRB.LESS_EQUAL, x2, name=name)
                 m.addConstr(py, GRB.EQUAL, 0, name=name)
-            elif prefix == 'not':
+            elif prefix == NOT:
                 fact = args[0]
                 predicate, args = fact[0], fact[1:]
                 if predicate == 'posecollision':
@@ -103,10 +106,10 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 raise NotImplementedError()
                 #q1, t, q2 = map(get_var, args)
                 #for i in range(len(q1)):
-                #    m.addConstr(t[0][i], GRB.EQUAL, q1[i])
+                #    m.addConstr(t[0][i], GRB.EQUAL, q1[i], name=name)
                 #for i in range(len(q2)):
-                #    m.addConstr(t[1][i], GRB.EQUAL, q2[i])
-            elif prefix == 'minimize':
+                #    m.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
+            elif prefix == MINIMIZE:
                 fact = args[0]
                 func, args = fact[0], fact[1:]
                 if func == 'distance':
@@ -125,47 +128,51 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         m.optimize()
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
         if m.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
-            # TODO: drop the objective function and decompose into smaller clusters
-            # TODO: is there a way of determining which constraints are weak (separating plane on set of values?)
-            # https://ac.els-cdn.com/0377221781901776/1-s2.0-0377221781901776-main.pdf?_tid=c2247453-b8b8-4f5d-b4e5-77ee8fa2d109&acdnat=1548267058_2548c4fa1e9dfba6e7ce0cf88d35f6e1
-            # http://www.sce.carleton.ca/faculty/chinneck/docs/ChinneckDravnieks.pdf
-
-            #m.setObjective(0.0)
-            # m.computeIIS()
-            # if m.IISMinimal:
-            #     print('IIS is minimal\n')
-            # else:
-            #     print('IIS is not minimal\n')
-            # iss_constraints = {c.constrName for c in m.getConstrs() if c.IISConstr}
-            # iss_facts = [facts[int(name)] for name in iss_constraints]
-            # print(iss_facts)
-            # for c in m.getConstrs():
-            #     if c.constrName in iss_constraints:
-            #         m.remove(c)
-            # TODO: reoptimize
-
-            # Iterate over subsets of constraints that are allowed to be violated/removed
-            # The relaxation is a heuristic to more intelligently guide this search
-            # Use L1 penalization to enforce sparsity. Could even frame as a MILP
-            # The assumption is that there is intersection between the failure and a solution
-
-            #m.feasRelax
-            # m.feasRelaxS(relaxobjtype=0, # relax linear constraints
-            #              minrelax=False, # Minimum relaxation
-            #              vrelax=False, # Variable violations
-            #              crelax=True) # Constraint violations
-            # m.optimize()
-            # art_vars = [v for v in m.getVars() if (0 < v.x) and
-            #            (v.varname.startswith('ArtP_') or v.varname.startswith('ArtN_'))]
-            # violated_constraints = {v.varname[5:] for v in art_vars}
-            # violated_facts = [facts[int(name)] for name in violated_constraints]
-            # print(violated_facts)
-            # print(tuple(value_from_var(get_var(out)) for out in outputs))
-            #raw_input('Failure!')
-            return None
-        output_values = tuple(value_from_var(get_var(out)) for out in outputs)
-        return output_values
+            #diagnose_infeasibility(outputs, facts, m, get_var)
+            infeasible = set(range(len(facts)))
+            return OptimizerOutput(infeasible=[infeasible])
+        assignment = tuple(value_from_var(get_var(out)) for out in outputs)
+        return OptimizerOutput(assignments=[assignment])
     return fn
+
+def diagnose_infeasibility(outputs, facts, m, get_var):
+    # TODO: drop the objective function and decompose into smaller clusters
+    # TODO: is there a way of determining which constraints are weak (separating plane on set of values?)
+    # https://ac.els-cdn.com/0377221781901776/1-s2.0-0377221781901776-main.pdf?_tid=c2247453-b8b8-4f5d-b4e5-77ee8fa2d109&acdnat=1548267058_2548c4fa1e9dfba6e7ce0cf88d35f6e1
+    # http://www.sce.carleton.ca/faculty/chinneck/docs/ChinneckDravnieks.pdf
+
+    m.setObjective(0.0)
+    m.computeIIS()
+    if m.IISMinimal:
+        print('IIS is minimal\n')
+    else:
+        print('IIS is not minimal\n')
+    iss_constraints = {c.constrName for c in m.getConstrs() if c.IISConstr}
+    iss_facts = [facts[int(name)] for name in iss_constraints]
+    print(iss_facts)
+    for c in m.getConstrs():
+        if c.constrName in iss_constraints:
+            m.remove(c)
+    # TODO: reoptimize
+
+    # Iterate over subsets of constraints that are allowed to be violated/removed
+    # The relaxation is a heuristic to more intelligently guide this search
+    # Use L1 penalization to enforce sparsity. Could even frame as a MILP
+    # The assumption is that there is intersection between the failure and a solution
+
+    #m.feasRelax
+    m.feasRelaxS(relaxobjtype=0, # relax linear constraints
+                 minrelax=False, # Minimum relaxation
+                 vrelax=False, # Variable violations
+                 crelax=True) # Constraint violations
+    m.optimize()
+    art_vars = [v for v in m.getVars() if (0 < v.x) and
+               (v.varname.startswith('ArtP_') or v.varname.startswith('ArtN_'))]
+    violated_constraints = {v.varname[5:] for v in art_vars}
+    violated_facts = [facts[int(name)] for name in violated_constraints]
+    print(violated_facts)
+    print(tuple(value_from_var(get_var(out)) for out in outputs))
+    raw_input('Failure!')
 
 ##################################################
 

@@ -1,7 +1,8 @@
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE, str_from_plan, is_parameter
+from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_plan, is_parameter, \
+    partition_facts
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
@@ -99,26 +100,13 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
 
-    functions = set()
-    negated = set()
-    heads = set()
-    for fact in constraints:
-        prefix = get_prefix(fact)
-        if prefix in (EQ, MINIMIZE):
-            functions.add(fact[1])
-        elif prefix == NOT:
-            negated.add(fact[1])
-        else:
-            heads.add(fact)
-    heads.update(functions)
-    heads.update(negated)
-
-    for head in heads:
-        if not use_functions and (head in functions):
-            continue
+    positive, negated, functions = partition_facts(constraints)
+    for head in positive + negated + functions:
         # TODO: prune values w/o free parameters?
         name = str_from_fact(head)
         if head in functions:
+            if not use_functions:
+                continue
             color = COST_COLOR
         elif head in negated:
             color = NEGATED_COLOR
