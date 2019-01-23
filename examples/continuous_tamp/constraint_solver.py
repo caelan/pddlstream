@@ -35,6 +35,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
     def fn(outputs, facts, fluents={}, hint={}):
         # TODO: fluents is map from constraint to fluent inputs
         # TODO: hint is a map from a subset of outputs to values to consider
+        # The true test is placing two blocks in a tight region obstructed by one
+
         #print(outputs, facts)
         m = Model(name='TAMP')
         m.setParam(GRB.Param.OutputFlag, verbose)
@@ -114,11 +116,18 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                         objective_terms.append(delta * delta)
                         # TODO: cost on endpoints and subtract from total cost
 
+        for out, value in hint.items():
+            for var, coord in zip(get_var(out), value):
+                var.start = coord
+
         m.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
         #m.write("file.lp")
         m.optimize()
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
         if m.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
+            # TODO: drop the objective function and decompose into smaller clusters
+            # TODO: is there a way of determining which constraints are weak (separating plane on set of values?)
+            #m.setObjective(0.0)
             # m.computeIIS()
             # if m.IISMinimal:
             #     print('IIS is minimal\n')
@@ -131,6 +140,11 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             #     if c.constrName in iss_constraints:
             #         m.remove(c)
             # TODO: reoptimize
+
+            # Iterate over subsets of constraints that are allowed to be violated/removed
+            # The relaxation is a heuristic to more intelligently guide this search
+            # Use L1 penalization to enforce sparsity. Could even frame as a MILP
+            # The assumption is that there is intersection between the failure and a solution
 
             #m.feasRelax
             # m.feasRelaxS(relaxobjtype=0, # relax linear constraints

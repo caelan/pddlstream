@@ -106,7 +106,7 @@ def get_cluster_values(stream_plan):
             fluent_facts.extend(result.instance.fluent_facts)
             add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
             certified.update(substitute_expression(stream.certified, local_mapping))
-            macro_from_micro.append(local_mapping)
+            macro_from_micro.append(local_mapping) # TODO: append for functions as well?
     #assert not fluent_facts
     return inputs, domain, outputs, certified, functions, \
            macro_from_micro, input_objects, output_objects, fluent_facts

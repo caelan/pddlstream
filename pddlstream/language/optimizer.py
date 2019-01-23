@@ -1,16 +1,18 @@
 import copy
 from collections import Counter, deque
 
+from pddlstream.algorithms.common import INIT_EVALUATION
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate, is_plan
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, evaluation_from_fact
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.object import OptimisticObject
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, PartialInputs, NEGATIVE_SUFFIX
+from pddlstream.language.object import OptimisticObject, Object
+from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
+    PartialInputs, NEGATIVE_SUFFIX
 from pddlstream.language.synthesizer import get_cluster_values
-from pddlstream.utils import neighbors_from_orders, INF, get_mapping
+from pddlstream.utils import neighbors_from_orders, INF, get_mapping, safe_zip
 
 # TODO: could also just block a skeleton itself by adding it as a state variable
 
@@ -33,11 +35,11 @@ class Optimizer(object):
 
 ##################################################
 
-def get_gen_fn(procedure, inputs, outputs, certified):
+def get_gen_fn(procedure, inputs, outputs, certified, fluents={}, hint={}):
     def gen_fn(*input_values):
         mapping = get_mapping(inputs, input_values)
         targets = substitute_expression(certified, mapping)
-        return procedure(outputs, targets)
+        return procedure(outputs, targets, hint=hint)
     return gen_fn
 
 def get_effort_fn(optimizer_name):
@@ -157,7 +159,14 @@ class OptimizerStream(Stream):
         self.stream_plan, self.function_plan = partition_external_plan(external_plan)
         inputs, domain, outputs, certified, functions, self.macro_from_micro, \
             self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(external_plan)
-        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions)
+
+        self.hint = {}
+        for result, mapping in safe_zip(self.stream_plan, self.macro_from_micro):
+            if isinstance(result, StreamResult):
+                for param, obj in safe_zip(result.external.outputs, result.output_objects):
+                    if isinstance(obj, Object):
+                        self.hint[mapping[param]] = obj.value
+        gen_fn = get_gen_fn(optimizer.procedure, inputs, outputs, certified | functions, hint=self.hint)
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)
     @property
@@ -324,7 +333,7 @@ def combine_optimizers(evaluations, external_plan):
 
 ##################################################
 
-def retrace_instantiation(fact, streams, evaluations, visited_facts, planned_results):
+def retrace_instantiation(fact, streams, evaluations, free_parameters, visited_facts, planned_results):
     if (evaluation_from_fact(fact) in evaluations) or (fact in visited_facts):
         return
     visited_facts.add(fact)
@@ -340,33 +349,38 @@ def retrace_instantiation(fact, streams, evaluations, visited_facts, planned_res
 
                 input_objects = tuple(mapping[p] for p in stream.inputs)
                 output_objects = tuple(mapping[p] for p in stream.outputs)
-                if not all(isinstance(out, OptimisticObject) for out in output_objects):
+                if not all(out in free_parameters for out in output_objects):
                     # Can only bind if free
                     continue
                 instance = stream.get_instance(input_objects)
                 for new_fact in instance.get_domain():
-                    retrace_instantiation(new_fact, streams, evaluations, visited_facts, planned_results)
-                result = instance.get_result(output_objects)
-                planned_results.append(result)
+                    retrace_instantiation(new_fact, streams, evaluations, free_parameters,
+                                          visited_facts, planned_results)
+                planned_results.append(instance.get_result(output_objects))
 
-def replan_with_optimizers(evaluations, external_plan, domain, externals):
+def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     # TODO: return multiple plans?
     # TODO: can instead have multiple goal binding combinations
     # TODO: can replan using samplers as well
     if not is_plan(external_plan):
-        return external_plan
-    optimizer_streams = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, externals))
-    if not optimizer_streams:
-        return external_plan
+        return None
+    optimizers = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, optimizers))
+    if not optimizers:
+        return None
     stream_plan, function_plan = partition_external_plan(external_plan)
+    free_parameters = {o for r in stream_plan for o in r.output_objects}
+    #free_parameters = {o for r in stream_plan for o in r.output_objects if isinstance(o, OptimisticObject)}
+    initial_evaluations = {e: n for e, n in evaluations.items() if n.result == INIT_EVALUATION}
+    #initial_evaluations = evaluations
     goal_facts = set()
     for result in stream_plan:
-        goal_facts.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, result.get_certified()))
+        goal_facts.update(filter(lambda f: evaluation_from_fact(f) not in
+                                           initial_evaluations, result.get_certified()))
 
     visited_facts = set()
     new_results = []
     for fact in goal_facts:
-        retrace_instantiation(fact, optimizer_streams, evaluations, visited_facts, new_results)
+        retrace_instantiation(fact, optimizers, initial_evaluations, free_parameters, visited_facts, new_results)
     variable_results = filter(lambda r: isinstance(r.external, VariableStream), new_results)
     constraint_results = filter(lambda r: isinstance(r.external, ConstraintStream), new_results)
     new_results = variable_results + constraint_results # TODO: ensure correct ordering
@@ -384,9 +398,9 @@ def replan_with_optimizers(evaluations, external_plan, domain, externals):
 
     # TODO: can do the flexibly sized optimizers search
     from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-    combined_plan = reschedule_stream_plan(evaluations, goal_facts, copy.copy(domain),
+    optimizer_plan = reschedule_stream_plan(initial_evaluations, goal_facts, copy.copy(domain),
                                            (stream_plan + optimizer_results),
                                            unique_binding=True, unit_efforts=True)
-    if not is_plan(combined_plan):
-        return external_plan
-    return combined_plan + function_plan
+    if not is_plan(optimizer_plan):
+        return None
+    return optimizer_plan + function_plan

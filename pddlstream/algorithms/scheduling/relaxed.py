@@ -99,7 +99,8 @@ def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, n
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
     negative_from_name = get_negative_predicates(negative)
 
-    real_states, combined_plan = recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name)
+    real_states, combined_plan = recover_negative_axioms(
+        real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_plan = compute_function_plan(opt_evaluations, action_plan, unit_costs)
 
     full_preimage = plan_preimage(combined_plan, [])
@@ -274,8 +275,8 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negat
     opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
 
     if reachieve:
-        achieved_results = {r for r in evaluations.values() if isinstance(r, Result)}
-        init_evaluations = {e for e, r in evaluations.items() if r not in achieved_results}
+        achieved_results = {n.result for n in evaluations.values() if isinstance(n.result, Result)}
+        init_evaluations = {e for e, n in evaluations.items() if n.result not in achieved_results}
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
     # TODO: could iteratively increase max_effort
