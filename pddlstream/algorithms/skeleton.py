@@ -5,7 +5,7 @@ from operator import itemgetter
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 
-from pddlstream.algorithms.common import is_instance_ready, EvaluationNode, add_certified
+from pddlstream.algorithms.common import is_instance_ready, EvaluationNode
 from pddlstream.algorithms.disabled import process_instance
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
@@ -302,12 +302,12 @@ class SkeletonQueue(Sized):
         for skeleton in self.skeletons:
             for _, result in sorted(skeleton.best_binding.bound_results.items(), key=itemgetter(0)):
                 # TODO: just accelerate the facts within the plan preimage
+                result.call_index = 0 # Pretends the fact was first
+                new_complexity = result.compute_complexity(self.evaluations)
                 for fact in result.get_certified():
                     evaluation = evaluation_from_fact(fact)
-                    if evaluation in self.evaluations: # In the event the fact is returned twice
-                        del self.evaluations[evaluation]
-                result.call_index = 0 # Pretends the fact was first
-                add_certified(self.evaluations, result)
+                    if new_complexity < self.evaluations[evaluation].complexity:
+                        self.evaluations[evaluation] = EvaluationNode(new_complexity, result)
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: manually add stream_plans for synthesizers/optimizers
@@ -322,6 +322,14 @@ class SkeletonQueue(Sized):
             self.process_until_new()
         self.timed_process(max_time - elapsed_time(start_time))
         self.accelerate_best_bindings()
+
+        # Only currently blocking streams with after called
+        # Can always process streams with a certain complexity
+        # Temporarily pop off the queue and then re-add
+        # Domination occurs when no downstream skeleton that
+        # Is it worth even doing the dynamic instantiation?
+        # IF some set fails where the output is an input
+        # Scale input
 
     def __len__(self):
         return len(self.queue)

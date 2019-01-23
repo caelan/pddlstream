@@ -68,8 +68,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         def get_var(param):
             return var_from_id.get(hash_or_id(param), param)
 
-        def collision_constraint(fact, name):
-            b1, p1, b2, p2 = map(get_var, fact[1:])
+        def collision_constraint(args, name):
+            b1, p1, b2, p2 = map(get_var, args)
             dist = unbounded_var()
             abs_dist = unbounded_var()
             m.addConstr(dist, GRB.EQUAL, p2[0] - p1[0], name=name)
@@ -77,9 +77,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             m.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
 
         objective_terms = []
-        for i, fact in enumerate(facts):
+        for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
-            name = str(i)
+            name = str(index)
             if prefix == 'kin':
                 _, q, p = map(get_var, args)
                 for i in range(len(q)):
@@ -96,9 +96,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 fact = args[0]
                 predicate, args = fact[0], fact[1:]
                 if predicate == 'posecollision':
-                    collision_constraint(fact, name)
+                    collision_constraint(args, name)
             elif prefix == 'cfree':
-                collision_constraint(fact, name)
+                collision_constraint(args, name)
             elif prefix == 'motion':
                 raise NotImplementedError()
                 #q1, t, q2 = map(get_var, args)
@@ -127,6 +127,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         if m.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
             # TODO: drop the objective function and decompose into smaller clusters
             # TODO: is there a way of determining which constraints are weak (separating plane on set of values?)
+            # https://ac.els-cdn.com/0377221781901776/1-s2.0-0377221781901776-main.pdf?_tid=c2247453-b8b8-4f5d-b4e5-77ee8fa2d109&acdnat=1548267058_2548c4fa1e9dfba6e7ce0cf88d35f6e1
+            # http://www.sce.carleton.ca/faculty/chinneck/docs/ChinneckDravnieks.pdf
+
             #m.setObjective(0.0)
             # m.computeIIS()
             # if m.IISMinimal:

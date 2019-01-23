@@ -8,11 +8,9 @@ from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn, INFEASIBLE
+from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
 from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
-# from pddlstream.algorithms.scheduling.sequential import sequential_stream_plan
-# from pddlstream.algorithms.scheduling.incremental import incremental_stream_plan, exhaustive_stream_plan
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
@@ -121,7 +119,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
             combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
             print('Combined plan: {}'.format(combined_plan))
         stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
-        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals)
+        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
@@ -148,6 +146,12 @@ def solve_focused(problem, constraints=PlanConstraints(),
         if max_skeletons is None:
             process_stream_plan(store, domain, disabled, stream_plan)
         else:
+            optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
+            if optimizer_plan is not None:
+                # TODO: post process a bound plan
+                print('Optimizer plan ({}, {:.3f}): {}'.format(
+                    get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
+                skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
             skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         sample_time += elapsed_time(start_time)
