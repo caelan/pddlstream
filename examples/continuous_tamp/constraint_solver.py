@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
@@ -40,12 +42,12 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         # The true test is placing two blocks in a tight region obstructed by one
 
         #print(outputs, facts)
-        m = Model(name='TAMP')
-        m.setParam(GRB.Param.OutputFlag, verbose)
-        m.setParam(GRB.Param.TimeLimit, max_time)
+        model = Model(name='TAMP')
+        model.setParam(GRB.Param.OutputFlag, verbose)
+        model.setParam(GRB.Param.TimeLimit, max_time)
 
         def unbounded_var():
-            return m.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
+            return model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
         def np_var(d=2):
             return np.array([unbounded_var() for _ in range(d)])
@@ -74,9 +76,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             b1, p1, b2, p2 = map(get_var, args)
             dist = unbounded_var()
             abs_dist = unbounded_var()
-            m.addConstr(dist, GRB.EQUAL, p2[0] - p1[0], name=name)
-            m.addConstr(BLOCK_WIDTH + MIN_CLEARANCE, GRB.LESS_EQUAL, abs_dist, name=name)
-            m.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
+            model.addConstr(dist, GRB.EQUAL, p2[0] - p1[0], name=name)
+            model.addConstr(BLOCK_WIDTH + MIN_CLEARANCE, GRB.LESS_EQUAL, abs_dist, name=name)
+            model.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
 
         #postive, negative, functions = partition_facts(facts)
         objective_terms = []
@@ -86,15 +88,15 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             if prefix == 'kin':
                 _, q, p = map(get_var, args)
                 for i in range(len(q)):
-                    m.addConstr(q[i] + GRASP[i], GRB.EQUAL, p[i], name=name)
-                m.addConstr(p[1], GRB.EQUAL, 0, name=name) # IK vs pick/place semantics
+                    model.addConstr(q[i] + GRASP[i], GRB.EQUAL, p[i], name=name)
+                model.addConstr(p[1], GRB.EQUAL, 0, name=name) # IK vs pick/place semantics
             elif prefix == 'contained':
                 _, p, r = args
                 px, py = get_var(p)
                 x1, x2 = regions[r]
-                m.addConstr(x1, GRB.LESS_EQUAL, px - BLOCK_WIDTH / 2, name=name)
-                m.addConstr(px + BLOCK_WIDTH / 2, GRB.LESS_EQUAL, x2, name=name)
-                m.addConstr(py, GRB.EQUAL, 0, name=name)
+                model.addConstr(x1, GRB.LESS_EQUAL, px - BLOCK_WIDTH / 2, name=name)
+                model.addConstr(px + BLOCK_WIDTH / 2, GRB.LESS_EQUAL, x2, name=name)
+                model.addConstr(py, GRB.EQUAL, 0, name=name)
             elif prefix == NOT:
                 fact = args[0]
                 predicate, args = fact[0], fact[1:]
@@ -123,36 +125,50 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             for var, coord in zip(get_var(out), value):
                 var.start = coord
 
-        m.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
         #m.write("file.lp")
-        m.optimize()
+        model.optimize()
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
-        if m.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
+        if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
             #diagnose_infeasibility(outputs, facts, m, get_var)
-            infeasible = set(range(len(facts)))
+            infeasible = identify_infeasibility(facts, model)
             return OptimizerOutput(infeasible=[infeasible])
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
         return OptimizerOutput(assignments=[assignment])
     return fn
 
-def diagnose_infeasibility(outputs, facts, m, get_var):
+def identify_feasible_subsets(facts, model):
+    # TODO: add facts corresponding to feasible subproblems
+    raise NotImplementedError()
+
+def identify_infeasibility(facts, model):
+    # TODO: search over irreducible infeasible sets
+    model.computeIIS()
+    assert model.IISMinimal # Otherwise return all facts
+    #infeasible = set(range(len(facts)))
+    infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
+    infeasible_facts = [facts[index] for index in infeasible]
+    print('Infeasible:', infeasible_facts)
+    return infeasible
+
+def diagnose_infeasibility_test(outputs, facts, model, get_var):
     # TODO: drop the objective function and decompose into smaller clusters
     # TODO: is there a way of determining which constraints are weak (separating plane on set of values?)
     # https://ac.els-cdn.com/0377221781901776/1-s2.0-0377221781901776-main.pdf?_tid=c2247453-b8b8-4f5d-b4e5-77ee8fa2d109&acdnat=1548267058_2548c4fa1e9dfba6e7ce0cf88d35f6e1
     # http://www.sce.carleton.ca/faculty/chinneck/docs/ChinneckDravnieks.pdf
 
-    m.setObjective(0.0)
-    m.computeIIS()
-    if m.IISMinimal:
+    model.setObjective(0.0)
+    model.computeIIS()
+    if model.IISMinimal:
         print('IIS is minimal\n')
     else:
         print('IIS is not minimal\n')
-    iss_constraints = {c.constrName for c in m.getConstrs() if c.IISConstr}
+    iss_constraints = {c.constrName for c in model.getConstrs() if c.IISConstr}
     iss_facts = [facts[int(name)] for name in iss_constraints]
     print(iss_facts)
-    for c in m.getConstrs():
+    for c in model.getConstrs():
         if c.constrName in iss_constraints:
-            m.remove(c)
+            model.remove(c)
     # TODO: reoptimize
 
     # Iterate over subsets of constraints that are allowed to be violated/removed
@@ -161,13 +177,13 @@ def diagnose_infeasibility(outputs, facts, m, get_var):
     # The assumption is that there is intersection between the failure and a solution
 
     #m.feasRelax
-    m.feasRelaxS(relaxobjtype=0, # relax linear constraints
-                 minrelax=False, # Minimum relaxation
-                 vrelax=False, # Variable violations
+    model.feasRelaxS(relaxobjtype=0,  # relax linear constraints
+                 minrelax=False,  # Minimum relaxation
+                 vrelax=False,  # Variable violations
                  crelax=True) # Constraint violations
-    m.optimize()
-    art_vars = [v for v in m.getVars() if (0 < v.x) and
-               (v.varname.startswith('ArtP_') or v.varname.startswith('ArtN_'))]
+    model.optimize()
+    art_vars = [v for v in model.getVars() if (0 < v.x) and
+                (v.varname.startswith('ArtP_') or v.varname.startswith('ArtN_'))]
     violated_constraints = {v.varname[5:] for v in art_vars}
     violated_facts = [facts[int(name)] for name in violated_constraints]
     print(violated_facts)
