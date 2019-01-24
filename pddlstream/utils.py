@@ -6,7 +6,7 @@ import pickle
 import shutil
 import sys
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from heapq import heappush, heappop
 
 INF = float('inf')
@@ -162,7 +162,7 @@ def invert_dict(d):
 
 
 class Verbose(object): # TODO: use DisableOutput
-    def __init__(self, verbose):
+    def __init__(self, verbose=False):
         self.verbose = verbose
     def __enter__(self):
         if not self.verbose:
@@ -260,6 +260,27 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
             if not incoming_edges[v2]:
                 heappush(queue, HeapElement(priority_fn(v2), v2))
     return ordering
+
+
+def get_connected_components(vertices, edges):
+    incoming, outgoing = neighbors_from_orders(edges)
+    clusters = []
+    processed = set()
+    for v0 in vertices:
+        if v0 in processed:
+            continue
+        processed.add(v0)
+        cluster = {v0}
+        queue = deque([v0])
+        while queue:
+            v1 = queue.popleft()
+            for v2 in (incoming[v1] | outgoing[v1]):
+                if v2 not in processed:
+                    processed.add(v2)
+                    cluster.add(v2)
+                    queue.append(v2)
+        clusters.append([v for v in vertices if v in cluster])
+    return clusters
 
 ##################################################
 

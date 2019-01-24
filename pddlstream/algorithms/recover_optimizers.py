@@ -1,5 +1,4 @@
 import copy
-from collections import deque
 
 from pddlstream.algorithms.common import INIT_EVALUATION
 from pddlstream.algorithms.reorder import get_partial_orders
@@ -8,7 +7,7 @@ from pddlstream.language.constants import get_prefix, is_plan, get_args
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import OPTIMIZER_STREAMS, OptimizerStream, VariableStream, ConstraintStream
-from pddlstream.utils import neighbors_from_orders, get_mapping
+from pddlstream.utils import neighbors_from_orders, get_mapping, get_connected_components
 
 
 def is_optimizer_result(result):
@@ -19,30 +18,9 @@ def get_optimizer(result):
     return result.external.optimizer if is_optimizer_result(result) else None
 
 
-def get_connected_components(vertices, edges):
-    #return [vertices]
-    incoming, outgoing = neighbors_from_orders(edges)
-    clusters = []
-    processed = set()
-    for v0 in vertices:
-        if v0 in processed:
-            continue
-        processed.add(v0)
-        cluster = {v0}
-        queue = deque([v0])
-        while queue:
-            v1 = queue.popleft()
-            for v2 in (incoming[v1] | outgoing[v1]):
-                if v2 not in processed:
-                    processed.add(v2)
-                    cluster.add(v2)
-                    queue.append(v2)
-        clusters.append([v for v in vertices if v in cluster])
-    return clusters
-
 ##################################################
 
-def combine_optimizer_plan(stream_plan, functions):
+def combine_optimizer_plan(stream_plan, functions, cluster=False):
     if not stream_plan:
         return stream_plan
     optimizer = get_optimizer(stream_plan[-1])
@@ -51,8 +29,13 @@ def combine_optimizer_plan(stream_plan, functions):
     function_plan = list(filter(lambda r: get_prefix(r.instance.external.head)
                                           in optimizer.objectives, functions))
     external_plan = stream_plan + function_plan
+    if cluster:
+        partial_orders = get_partial_orders(external_plan)
+        cluster_plans = get_connected_components(external_plan, partial_orders)
+    else:
+        cluster_plans = [external_plan]
     optimizer_plan = []
-    for cluster_plan in get_connected_components(external_plan, get_partial_orders(external_plan)):
+    for cluster_plan in cluster_plans:
         if all(isinstance(r, FunctionResult) for r in cluster_plan):
             continue
         if len(cluster_plan) == 1:

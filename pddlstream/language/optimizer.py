@@ -9,13 +9,14 @@ from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.object import OptimisticObject, Object
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX
-from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
+from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object, get_connected_components
+from pddlstream.algorithms.reorder import get_partial_orders
 
 # TODO: could also just block a skeleton itself by adding it as a state variable
 
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
-OPTIMIZER_AXIOM = False
+OPTIMIZER_AXIOM = True
 BLOCK_ADDITIONS = False
 
 class OptimizerOutput(object):
@@ -44,6 +45,7 @@ class Optimizer(object):
 ##################################################
 
 def get_list_gen_fn(stream, procedure, inputs, outputs, certified, fluents={}, hint={}):
+    # TODO: prevent outputs of the sampler from being used as inputs (only consider initial values)
     def list_gen_fn(*input_values):
         mapping = get_mapping(inputs, input_values)
         targets = substitute_expression(certified, mapping)
@@ -182,7 +184,7 @@ class OptimizerInstance(StreamInstance):
         #print(self.external.certified)
         # TODO: I think I should be able to just disable the fluent fact from being used in that context
         return constraints
-    def get_free_objects(self):
+    def _free_objects(self):
        constraints = self.get_constraints()
        objects = set()
        for fact in constraints:
@@ -190,7 +192,7 @@ class OptimizerInstance(StreamInstance):
        return list(filter(lambda o: isinstance(o, OptimisticObject), objects))
     def _add_disabled_axiom(self, domain):
         # TODO: be careful about the shared objects as parameters
-        #free_objects = self.get_free_objects()
+        #free_objects = self._free_objects()
         free_objects = self.external.output_objects
         parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
         preconditions = substitute_expression(self.get_constraints(), get_mapping(free_objects, parameters))
@@ -219,8 +221,14 @@ class OptimizerStream(Stream):
         target_facts = sorted(certified | functions)
         gen_fn = get_list_gen_fn(self, optimizer.procedure, inputs, outputs,
                                  target_facts, hint=self.hint)
+        #assert len(self.get_cluster_plans()) == 1
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)
+    def get_cluster_plans(self):
+        # TODO: split the optimizer into clusters when provably independent
+        external_plan = self.stream_plan + self.function_plan
+        partial_orders = get_partial_orders(external_plan)
+        return get_connected_components(external_plan, partial_orders)
     @property
     def instance(self):
         return self.get_instance(self.input_objects, fluent_facts=self.fluent_facts)

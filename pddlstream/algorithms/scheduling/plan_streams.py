@@ -23,19 +23,19 @@ from pddlstream.utils import Verbose, INF
 
 
 def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, node_from_atom,
-                        action_plan, axiom_plans, negative, unit_costs):
+                        action_plan, axiom_plans, negative):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
     # Added effects cancel out removed effects
     # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
-    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs))
-    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain, unit_costs))
+    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
+    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = get_negative_predicates(negative)
 
     real_states, combined_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
-    function_plan = compute_function_plan(opt_evaluations, action_plan, unit_costs)
+    function_plan = compute_function_plan(opt_evaluations, action_plan)
 
     full_preimage = plan_preimage(combined_plan, [])
     stream_preimage = set(full_preimage) - real_states[0]
@@ -77,6 +77,7 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
 ##################################################
 
 def rename_instantiated_actions(instantiated):
+    # TODO: rename SAS instead?
     actions = instantiated.actions[:]
     renamed_actions = []
     action_from_name = {}
@@ -113,28 +114,36 @@ def pddl_from_instance(instance):
 
 ##################################################
 
-def get_plan_cost(action_plan, cost_from_action, unit_costs):
+def get_plan_cost(action_plan, cost_from_action):
     if action_plan is None:
         return INF
-    if unit_costs:
-        # TODO: no longer need to pass around unit_costs
-        return len(action_plan)
     #return sum([0.] + [instance.cost for instance in action_plan])
     scaled_cost = sum([0.] + [cost_from_action[instance] for instance in action_plan])
     return scaled_cost / get_cost_scale()
+
+def instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, results):
+    # Needed for instantiating axioms before adding stream action effects
+    # TODO: compute this first and then apply the eager actions
+    #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
+    stream_domain, result_from_name = add_stream_actions(domain, results)
+    problem = get_problem(evaluations, goal_expression, stream_domain)
+    with Verbose():
+        new_instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
+    instantiated.axioms[:] = new_instantiated.axioms
+    instantiated.atoms.update(new_instantiated.atoms)
 
 ##################################################
 
 def plan_streams(evaluations, goal_expression, domain, all_results, negative,
                  unit_efforts, effort_weight, max_effort,
-                 simultaneous=False, reachieve=True, unit_costs=False, debug=False, **kwargs):
+                 simultaneous=False, reachieve=True, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
 
-    if reachieve:
+    if reachieve and not using_optimizers(all_results):
         achieved_results = {n.result for n in evaluations.values() if isinstance(n.result, Result)}
         init_evaluations = {e for e, n in evaluations.items() if n.result not in achieved_results}
         applied_results = achieved_results | set(applied_results)
@@ -143,16 +152,17 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
     node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
                                            unit_efforts=unit_efforts, max_effort=max_effort)
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
-    #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
-
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
-    problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric
-
+    problem = get_problem(opt_evaluations, goal_expression, stream_domain) # begin_metric
     with Verbose(debug):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return None, INF
+
+    if using_optimizers(all_results):
+        # TODO: reachieve=False when using optimizers or should add applied facts
+        instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, all_results)
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight, unit_efforts=unit_efforts)
     if using_optimizers(applied_results):
@@ -169,12 +179,12 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
-    cost = get_plan_cost(action_instances, cost_from_action, unit_costs)
+    cost = get_plan_cost(action_instances, cost_from_action)
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 
     applied_plan, function_plan = partition_external_plan(recover_stream_plan(
         evaluations, opt_evaluations, goal_expression, stream_domain, node_from_atom,
-        action_instances, axiom_plans, negative, unit_costs))
+        action_instances, axiom_plans, negative))
     #action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
     action_plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
 

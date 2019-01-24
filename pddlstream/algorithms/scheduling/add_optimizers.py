@@ -50,7 +50,10 @@ def add_optimizer_effects(instantiated, node_from_atom):
 
 def add_optimizer_axioms(results, instantiated):
     # Ends up being a little slower than version in optimizer.py when not blocking shared
-    # TODO: add this to simultaneous
+
+    # TODO: the motivation for BLOCK_ADDITIONS was that an optimizer called on a disconnected subset of constraints
+    # might produce a solution but not all possible solutions. Blocking might prevent future things
+    # Instead, just jointly optimize for the full cluster
     import pddl
     results_from_instance = defaultdict(list)
     for result in results:

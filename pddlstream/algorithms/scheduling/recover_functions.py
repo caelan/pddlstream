@@ -21,14 +21,12 @@ def extract_function_results(results_from_head, action, pddl_args):
     return result
 
 
-def compute_function_plan(opt_evaluations, action_plan, unit_costs):
-    function_plan = set()
-    if unit_costs:
-        return function_plan
+def compute_function_plan(opt_evaluations, action_plan):
     results_from_head = defaultdict(list)
     for evaluation, stream_result in opt_evaluations.items():
         results_from_head[evaluation.head].append((evaluation.value, stream_result))
         #results_from_head[evaluation.head].append(stream_result)
+    function_plan = set()
     for action_instance in action_plan:
         action = action_instance.action
         if action is None:

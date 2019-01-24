@@ -219,7 +219,7 @@ def parse_goal(goal_expression, domain):
     return parse_condition(pddl_list_from_expression(goal_expression),
                            domain.type_dict, domain.predicate_dict).simplified()
 
-def get_problem(init_evaluations, goal_expression, domain, unit_costs):
+def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
     objects = objects_from_evaluations(init_evaluations)
     typed_objects = list({pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
