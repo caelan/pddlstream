@@ -99,7 +99,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
         if eager_disabled:
             push_disabled(eager_instantiator, disabled)
-        eager_calls += process_stream_queue(eager_instantiator, store, complexity_limit=complexity_limit, verbose=verbose)
+        eager_calls += process_stream_queue(eager_instantiator, store,
+                                            complexity_limit=complexity_limit, verbose=verbose)
 
         print('\nIteration: {} | Complexity: {} | Skeletons: {} | Skeleton Queue: {} | Disabled: {} | Evaluations: {} | '
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
@@ -110,7 +111,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                       unit_efforts=unit_efforts, max_effort=max_effort,
                                                       effort_weight=effort_weight, **search_kwargs)
         if (max_skeletons is not None) and (len(skeleton_queue.skeletons) < max_skeletons):
-            combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions),
+            combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
                                                          optimistic_solve_fn, complexity_limit,
                                                          unit_efforts=unit_efforts, max_effort=max_effort)
         else:
@@ -146,7 +147,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
         if max_skeletons is None:
             process_stream_plan(store, domain, disabled, stream_plan)
         else:
-            optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
+            #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
+            optimizer_plan = None
             if optimizer_plan is not None:
                 # TODO: post process a bound plan
                 print('Optimizer plan ({}, {:.3f}): {}'.format(

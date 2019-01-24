@@ -2,7 +2,7 @@ from collections import Counter
 
 from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, has_costs
+from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.exogenous import compile_to_exogenous
@@ -10,7 +10,7 @@ from pddlstream.language.external import DEBUG
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object
-from pddlstream.language.optimizer import parse_optimizer, VariableStream, ConstraintStream
+from pddlstream.language.optimizer import parse_optimizer, ConstraintStream
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 
@@ -62,10 +62,9 @@ def check_problem(domain, streams, obj_from_constant):
         print('Warning! Undeclared predicates: {}'.format(
             sorted(undeclared_predicates))) # Undeclared predicate: {}
 
-def set_unit_costs(domain, unit_costs):
-    if not unit_costs and has_costs(domain):
-        return False
-    # Set the cost scale to be one?
+def set_unit_costs(domain):
+    # Cost of None becomes zero if metric = True
+    set_cost_scale(1)
     for action in domain.actions:
         action.cost = make_cost(1)
     return True
@@ -76,7 +75,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
-    set_unit_costs(domain, unit_costs)
+    if unit_costs:
+        set_unit_costs(domain)
     obj_from_constant = parse_constants(domain, constant_map)
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info, unit_efforts=unit_efforts)
     check_problem(domain, streams, obj_from_constant)
@@ -114,11 +114,12 @@ def enforce_simultaneous(domain, externals):
     for axiom in domain.axioms:
         axiom_predicates.update(get_predicates(axiom.condition))
     for external in externals:
-        if (type(external) in [VariableStream, ConstraintStream]) and not external.info.simultaneous:
+        if (isinstance(external, ConstraintStream)) and not external.info.simultaneous:
+            # Only need for ConstraintStream because VariableStream used in action args
+            # TODO: apply recursively to domain conditions?
             predicates = {get_prefix(fact) for fact in external.certified}
             if predicates & axiom_predicates:
                 external.info.simultaneous = True
-                #print(external, (predicates & axiom_predicates))
 
 ##################################################
 
@@ -173,9 +174,7 @@ def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
             external.pddl_name = pddl_name # TODO: move within constructors
             streams.append(external)
 
-def set_unit_efforts(externals, unit_efforts):
-    if not unit_efforts:
-        return False
+def set_unit_efforts(externals):
     for external in externals:
         external.info.effort_fn = lambda *args: 1
     return True
@@ -195,7 +194,8 @@ def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts
     for pddl in pddl_list:
         parse_streams(externals, rules, pddl, stream_procedures, stream_info)
     apply_rules_to_streams(rules, externals)
-    set_unit_efforts(externals, unit_efforts)
+    if unit_efforts:
+        set_unit_efforts(externals)
     return externals
 
 ##################################################

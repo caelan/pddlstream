@@ -5,7 +5,7 @@ from pddlstream.algorithms.scheduling.utils import get_results_from_head, apply_
 from pddlstream.language.constants import Head, And, Not
 from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression, is_parameter
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result
+from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result, BLOCK_ADDITIONS
 from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.language.effort import compute_result_effort
 from pddlstream.utils import INF, find_unique
@@ -58,6 +58,7 @@ def add_stream_actions(domain, results, **kwargs):
     new_domain = make_domain(constants=new_constants, predicates=domain.predicates,
                              actions=domain.actions[:] + stream_actions, axioms=domain.axioms)
     #new_domain = copy.copy(domain)
+    # TODO: what was I trying here?
     """
     optimizer_results = list(filter(is_optimizer_result, stream_results))
     optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
@@ -106,10 +107,10 @@ def extract_function_plan(function_evaluations, action_plan, domain, unit_costs)
 
 ##################################################
 
-def add_unsatisfiable_to_goal(domain, goal_expression, negate_actions=False):
+def add_unsatisfiable_to_goal(domain, goal_expression):
     import pddl
     add_predicate(domain, make_predicate(UNSATISFIABLE, []))
-    if negate_actions:
+    if not BLOCK_ADDITIONS:
         negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
         for action in domain.actions:
             if negated_atom not in action.precondition.parts:

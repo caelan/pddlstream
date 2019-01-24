@@ -4,7 +4,7 @@ from itertools import product
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, get_literals, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost, fd_from_fact, parse_action, literal_holds
+    sas_from_instantiated, scale_cost, fd_from_fact, literal_holds, fd_from_evaluation
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, recover_negative_axioms
 from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
@@ -16,12 +16,13 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
     get_results_from_head, apply_streams, partition_external_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not, EQ, get_prefix
-from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object
-from pddlstream.language.object import UniqueOptValue, OptimisticObject
-from pddlstream.language.external import Result
+from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object, evaluation_from_fact
 from pddlstream.language.effort import compute_plan_effort
-from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE
+from pddlstream.language.external import Result
+from pddlstream.language.object import UniqueOptValue, OptimisticObject
+from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE, BLOCK_ADDITIONS
 from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders, apply_mapping
+
 
 def compute_function_plan(opt_evaluations, action_plan, unit_costs):
     function_plan = set()
@@ -140,11 +141,12 @@ def add_optimizer_effects(instantiated, instance, stream_plan):
     # TODO: fluent streams using conditional effects. Special fluent predicate for inputs to constraint
     # This strategy will only work for relaxed to ensure that the current state is applied
     # TODO: bug! The FD instantiator prunes the result.external.stream_fact
+    # TODO: FD deletes the unreachable axioms
     for result in stream_plan:
         if not is_optimizer_result(result):
             continue
         # TODO: need to make multiple versions if several ways of achieving the action
-        atom = fd_from_fact(substitute_expression(result.external.stream_fact, result.get_mapping()))
+        atom = fd_from_fact(get_stream_fact(result))
         instantiated.atoms.add(atom)
         effect = (tuple(), atom)
         instance.add_effects.append(effect)
@@ -171,6 +173,13 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
 
 ##################################################
 
+def get_stream_fact(result):
+    assert is_optimizer_result(result)
+    return substitute_expression(result.external.stream_fact, result.get_mapping())
+
+def get_stream_facts(results):
+    return [get_stream_fact(result) for result in results if is_optimizer_result(result)]
+
 def add_optimizer_axioms(results, instantiated):
     # Ends up being a little slower than version in optimizer.py when not blocking shared
     # TODO: add this to simultaneous
@@ -181,33 +190,40 @@ def add_optimizer_axioms(results, instantiated):
     optimizer_results = list(filter(is_optimizer_result, results))
     optimizers = {result.external.optimizer for result in optimizer_results}
     for optimizer in optimizers:
-        optimizer_facts = {substitute_expression(result.external.stream_fact, result.get_mapping())
-                           for result in optimizer_results if result.external.optimizer is optimizer}
         facts_from_arg = defaultdict(list)
-        for fact in optimizer_facts:
-            for arg in get_args(fact):
-                facts_from_arg[arg].append(fact)
+        if BLOCK_ADDITIONS:
+            optimizer_facts = {get_stream_fact(result) for result in optimizer_results
+                               if result.external.optimizer is optimizer}
+            for fact in optimizer_facts:
+                for arg in get_args(fact):
+                    facts_from_arg[arg].append(fact)
 
         for stream in optimizer.streams:
             if not stream.instance.disabled:
                 continue
-            constraints = stream.instance.get_constraints()
+            if stream.instance._disabled_axiom is not None:
+                # Avoids double blocking
+                continue
             output_variables = []
             for out in stream.output_objects:
                 assert isinstance(out.param, UniqueOptValue)
                 output_variables.append([r.output_objects[out.param.output_index]
                                          for r in results_from_instance[out.param.instance]])
+            constraints = stream.instance.get_constraints()
             for combo in product(*output_variables):
+                # TODO: add any static predicates?
+                # Instantiates axioms
                 mapping = get_mapping(stream.output_objects, combo)
                 name = '({})'.join(UNSATISFIABLE)
                 blocked = set(substitute_expression(constraints, mapping))
-                additional = {fact for arg in combo for fact in facts_from_arg[arg]} - blocked
-                # TODO: like a partial disable, if something has no outputs, then adding things isn't going to help
-                if stream.instance.enumerated and not stream.instance.successes:
-                    # Assumes the optimizer is submodular
-                    condition = list(map(fd_from_fact, blocked))
+                # TODO: partial disable, if something has no outputs, then adding things isn't going to help
+                if BLOCK_ADDITIONS and (not stream.instance.enumerated or stream.instance.successes):
+                    # In the event the optimizer gives different results with different inputs
+                    additional = {fact for arg in combo for fact in facts_from_arg[arg]} - blocked
                 else:
-                    condition = list(map(fd_from_fact, blocked | set(map(Not, additional))))
+                    # Assumes the optimizer is submodular
+                    additional = {}
+                condition = list(map(fd_from_fact, blocked | set(map(Not, additional))))
                 effect = fd_from_fact((UNSATISFIABLE,))
                 instantiated.axioms.append(pddl.PropositionalAxiom(name, condition, effect))
                 instantiated.atoms.add(effect)
@@ -272,7 +288,6 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negat
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
-    opt_evaluations = apply_streams(evaluations, applied_results) # if n.effort < INF
 
     if reachieve:
         achieved_results = {n.result for n in evaluations.values() if isinstance(n.result, Result)}
@@ -280,8 +295,11 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negat
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
     # TODO: could iteratively increase max_effort
-    node_from_atom = get_achieving_streams(evaluations, applied_results,
+    node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
                                            unit_efforts=unit_efforts, max_effort=max_effort)
+    opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
+    #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
+
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain, unit_costs) # begin_metric

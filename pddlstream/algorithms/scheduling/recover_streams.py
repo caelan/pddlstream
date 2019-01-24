@@ -1,7 +1,7 @@
 from collections import namedtuple, defaultdict
 from heapq import heappop, heappush
 
-from pddlstream.language.conversion import is_atom, fact_from_evaluation
+from pddlstream.language.conversion import is_atom, is_negated_atom, fact_from_evaluation
 from pddlstream.language.effort import compute_result_effort, EFFORT_OP
 from pddlstream.utils import HeapElement, INF
 
@@ -20,7 +20,7 @@ def get_achieving_streams(evaluations, stream_results, max_effort=INF, **effort_
         for atom in conditions_from_stream[result]:
             unprocessed_from_atom[atom].append(result)
     for atom in evaluations:
-        if is_atom(atom):
+        if not is_negated_atom(atom):
             node_from_atom[fact_from_evaluation(atom)] = Node(0, None)
 
     queue = [HeapElement(node.effort, atom) for atom, node in node_from_atom.items()]
