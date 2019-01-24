@@ -1,10 +1,9 @@
-from pddlstream.algorithms.downward import make_action, make_predicate, make_parameters, make_domain, \
-    add_predicate
-from pddlstream.language.constants import Head, And, Not
-from pddlstream.language.conversion import pddl_from_object, obj_from_pddl, substitute_expression, is_parameter
+from pddlstream.algorithms.downward import make_action, make_parameters, make_domain
+from pddlstream.language.constants import Not
+from pddlstream.language.conversion import pddl_from_object, substitute_expression
 from pddlstream.language.effort import compute_result_effort
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import UNSATISFIABLE, is_optimizer_result, BLOCK_ADDITIONS
+from pddlstream.language.optimizer import is_optimizer_result
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF
 
@@ -56,40 +55,3 @@ def add_stream_actions(domain, results, **kwargs):
                              actions=domain.actions[:] + stream_actions, axioms=domain.axioms)
     #new_domain = copy.copy(domain)
     return new_domain, result_from_name
-
-##################################################
-
-def extract_function_results(results_from_head, action, pddl_args):
-    import pddl
-    if action.cost is None:
-        return None
-    expression = action.cost.expression
-    if not isinstance(expression, pddl.PrimitiveNumericExpression):
-        return None
-    var_mapping = {p.name: a for p, a in zip(action.parameters, pddl_args)}
-    obj_args = tuple(obj_from_pddl(var_mapping[p] if is_parameter(p) else p)
-                     for p in expression.args)
-    head = Head(expression.symbol, obj_args)
-    [(_, result)] = results_from_head[head]
-    if result is None:
-        return None
-    return result
-
-def add_unsatisfiable_to_goal(domain, goal_expression):
-    import pddl
-    add_predicate(domain, make_predicate(UNSATISFIABLE, []))
-    if not BLOCK_ADDITIONS:
-        negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
-        for action in domain.actions:
-            if negated_atom not in action.precondition.parts:
-                action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
-    return And(goal_expression, Not((UNSATISFIABLE,)))
-
-def partition_plan(combined_plan, stream_result_from_name):
-    stream_plan, action_plan = [], []
-    for name, args in combined_plan:
-        if name in stream_result_from_name:
-            stream_plan.append(stream_result_from_name[name])
-        else:
-            action_plan.append((name, args))
-    return stream_plan, action_plan

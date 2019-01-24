@@ -1,5 +1,5 @@
-from collections import defaultdict
-
+from pddlstream.algorithms.downward import add_predicate, make_predicate
+from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
@@ -33,25 +33,27 @@ def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
                               for f, n in node_from_atom.items() if n.effort < max_effort}
     return result_from_evaluation
 
-##################################################
-
-def get_results_from_head(evaluations):
-    results_from_head = defaultdict(list)
-    for evaluation, stream_result in evaluations.items():
-        results_from_head[evaluation.head].append((evaluation.value, stream_result))
-        #results_from_head[evaluation.head].append(stream_result)
-    return results_from_head
-
-
-def apply_streams(evaluations, stream_results):
-    function_evaluations = {e: None for e in evaluations}
-    for result in stream_results:
-        for fact in result.get_certified():
-            function_evaluations[evaluation_from_fact(fact)] = result
-    return function_evaluations
-
-
 def partition_external_plan(external_plan):
     function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
     stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
     return stream_plan, function_plan
+
+def partition_combined_plan(combined_plan, stream_result_from_name):
+    stream_plan, action_plan = [], []
+    for name, args in combined_plan:
+        if name in stream_result_from_name:
+            stream_plan.append(stream_result_from_name[name])
+        else:
+            action_plan.append((name, args))
+    return stream_plan, action_plan
+
+def add_unsatisfiable_to_goal(domain, goal_expression):
+    import pddl
+    from pddlstream.language.optimizer import UNSATISFIABLE, BLOCK_ADDITIONS
+    add_predicate(domain, make_predicate(UNSATISFIABLE, []))
+    if not BLOCK_ADDITIONS:
+        negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
+        for action in domain.actions:
+            if negated_atom not in action.precondition.parts:
+                action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
+    return And(goal_expression, Not((UNSATISFIABLE,)))

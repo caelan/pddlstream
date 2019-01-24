@@ -4,90 +4,25 @@ from itertools import product
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, get_literals, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost, fd_from_fact, literal_holds, fd_from_evaluation
-from pddlstream.algorithms.reorder import get_partial_orders
+    sas_from_instantiated, scale_cost, fd_from_fact, literal_holds
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, recover_negative_axioms
 from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extraction_helper
+from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
+from pddlstream.algorithms.scheduling.recover_functions import compute_function_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
-from pddlstream.algorithms.scheduling.simultaneous import extract_function_results, \
-    add_stream_actions, partition_plan, add_unsatisfiable_to_goal
-from pddlstream.algorithms.scheduling.utils import partition_results, \
-    get_results_from_head, apply_streams, partition_external_plan
+from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
+from pddlstream.algorithms.scheduling.utils import partition_results, partition_external_plan, \
+    add_unsatisfiable_to_goal, partition_combined_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import get_args, Not, EQ, get_prefix
-from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, pddl_from_object, evaluation_from_fact
+from pddlstream.language.conversion import obj_from_pddl_plan, substitute_expression, evaluation_from_fact
 from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.external import Result
-from pddlstream.language.object import UniqueOptValue, OptimisticObject
+from pddlstream.language.object import UniqueOptValue
 from pddlstream.language.optimizer import is_optimizer_result, UNSATISFIABLE, BLOCK_ADDITIONS
-from pddlstream.utils import Verbose, INF, get_mapping, neighbors_from_orders, apply_mapping
+from pddlstream.utils import Verbose, INF, get_mapping, apply_mapping
 
-
-def compute_function_plan(opt_evaluations, action_plan, unit_costs):
-    function_plan = set()
-    if unit_costs:
-        return function_plan
-    results_from_head = get_results_from_head(opt_evaluations)
-    for action_instance in action_plan:
-        action = action_instance.action
-        if action is None:
-            continue
-        args = [action_instance.var_mapping[p.name] for p in action.parameters]
-        function_result = extract_function_results(results_from_head, action, args)
-        if function_result is not None:
-            function_plan.add(function_result)
-    return function_plan
-
-def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom):
-    import pddl
-    assert len(real_states) == len(action_plan) + 1
-    steps_from_stream = {}
-    for result in reversed(stream_plan):
-        steps_from_stream[result] = set()
-        for fact in result.get_certified():
-            if (fact in step_from_fact) and (node_from_atom[fact].result == result):
-                steps_from_stream[result].update(step_from_fact[fact])
-        for fact in result.instance.get_domain():
-            step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
-            # TODO: apply this recursively
-
-    # TODO: ensure that derived facts aren't in fluents?
-    # TODO: handle case where costs depend on the outputs
-    _, outgoing_edges = neighbors_from_orders(get_partial_orders(
-        stream_plan, init_facts=map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom), real_states[0]))))
-    static_plan = []
-    fluent_plan = []
-    for result in stream_plan:
-        external = result.external
-        if (result.opt_index != 0) or (not external.is_fluent()):
-            static_plan.append(result)
-            continue
-        if outgoing_edges[result]:
-            # No way of taking into account the binding of fluent inputs when preventing cycles
-            raise NotImplementedError('Fluent stream is required for another stream: {}'.format(result))
-        #if (len(steps_from_stream[result]) != 1) and result.output_objects:
-        #    raise NotImplementedError('Fluent stream required in multiple states: {}'.format(result))
-        for state_index in steps_from_stream[result]:
-            new_output_objects = [  # OptimisticObject.from_opt(out.value, object())
-                OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), i))
-                for i, out in enumerate(result.output_objects)]
-            if new_output_objects and (state_index < len(action_plan)):
-                # TODO: check that the objects aren't used in any effects
-                instance = copy.copy(action_plan[state_index])
-                action_plan[state_index] = instance
-                output_mapping = get_mapping(map(pddl_from_object, result.output_objects),
-                                             map(pddl_from_object, new_output_objects))
-                instance.var_mapping = {p: output_mapping.get(v, v)
-                                        for p, v in instance.var_mapping.items()}
-            fluent_facts = list(map(fact_from_fd, filter(
-                lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
-            new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
-            new_result = new_instance.get_result(new_output_objects, opt_index=result.opt_index)
-            fluent_plan.append(new_result)
-    return static_plan + fluent_plan
-
-##################################################
 
 def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, node_from_atom,
                         action_plan, axiom_plans, negative, unit_costs):
@@ -332,7 +267,7 @@ def relaxed_stream_plan(evaluations, goal_expression, domain, all_results, negat
     #action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
     action_plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
 
-    deferred_plan, action_plan = partition_plan(action_plan, result_from_name)
+    deferred_plan, action_plan = partition_combined_plan(action_plan, result_from_name)
     stream_plan = applied_plan + deferred_plan + function_plan
     combined_plan = stream_plan + action_plan
     return combined_plan, cost
