@@ -1,9 +1,10 @@
-from pddlstream.algorithms.downward import add_predicate, make_predicate
+from pddlstream.algorithms.downward import add_predicate, make_predicate, get_literals, fact_from_fd
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
-from pddlstream.utils import INF
+from pddlstream.utils import INF, apply_mapping
+
 
 def partition_results(evaluations, results, apply_now):
     applied_results = []
@@ -57,3 +58,17 @@ def add_unsatisfiable_to_goal(domain, goal_expression):
             if negated_atom not in action.precondition.parts:
                 action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
     return And(goal_expression, Not((UNSATISFIABLE,)))
+
+
+def get_instance_facts(instance, node_from_atom):
+    # TODO: ignores conditional effect conditions
+    facts = []
+    for precondition in get_literals(instance.action.precondition):
+        if precondition.negated:
+            continue
+        args = apply_mapping(precondition.args, instance.var_mapping)
+        literal = precondition.__class__(precondition.predicate, args)
+        fact = fact_from_fd(literal)
+        if fact in node_from_atom:
+            facts.append(fact)
+    return facts

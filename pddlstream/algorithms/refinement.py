@@ -5,7 +5,7 @@ from copy import deepcopy, copy
 
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
-from pddlstream.algorithms.scheduling.relaxed import relaxed_stream_plan
+from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
 from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
@@ -140,8 +140,8 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
     # TODO: apply to hierarchical actions representations (will need to instantiate more actions)
     def fn(evaluations, results, constraints):
         if constraints is None:
-            return relaxed_stream_plan(evaluations, goal_exp, domain, results, negative,
-                                       max_cost=max_cost, **kwargs)
+            return plan_streams(evaluations, goal_exp, domain, results, negative,
+                                max_cost=max_cost, **kwargs)
         #print(*relaxed_stream_plan(evaluations, goal_exp, domain, results, negative,
         #                               max_cost=max_cost, **kwargs))
         #constraints.dump()
@@ -149,8 +149,8 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
         evaluations2 = copy(evaluations)
         goal_exp2 = add_plan_constraints(constraints, domain2, evaluations2, goal_exp, internal=True)
         max_cost2 = max_cost if constraints is None else min(max_cost, constraints.max_cost)
-        combined_plan, cost = relaxed_stream_plan(evaluations2, goal_exp2, domain2, results, negative,
-                                                  max_cost=max_cost2, **kwargs)
+        combined_plan, cost = plan_streams(evaluations2, goal_exp2, domain2, results, negative,
+                                           max_cost=max_cost2, **kwargs)
         #print(combined_plan, cost)
         #raw_input('Continue?')
         return combined_plan, cost

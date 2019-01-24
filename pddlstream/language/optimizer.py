@@ -19,7 +19,7 @@ from pddlstream.utils import neighbors_from_orders, INF, get_mapping, safe_zip, 
 
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
-OPTIMIZER_AXIOM = True
+OPTIMIZER_AXIOM = False
 BLOCK_ADDITIONS = False
 
 class OptimizerOutput(object):
