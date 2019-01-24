@@ -16,7 +16,8 @@ from pddlstream.algorithms.visualization import reset_visualizations, create_vis
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
 from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
-from pddlstream.language.optimizer import combine_optimizers, replan_with_optimizers, OPTIMIZER_STREAMS
+from pddlstream.language.optimizer import OPTIMIZER_STREAMS
+from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_with_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics
 from pddlstream.language.effort import compute_plan_effort

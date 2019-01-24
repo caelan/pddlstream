@@ -1,12 +1,14 @@
 from collections import deque, Counter
 
-from pddlstream.utils import neighbors_from_orders
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import Minimize, is_plan
+from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import substitute_expression
-from pddlstream.language.function import PredicateResult, FunctionResult
+from pddlstream.language.function import FunctionResult
+from pddlstream.language.optimizer import get_cluster_values
 from pddlstream.language.statistics import Performance
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
+from pddlstream.utils import neighbors_from_orders
+
 
 def decompose_stream_plan(stream_plan):
     if not is_plan(stream_plan):
@@ -67,49 +69,6 @@ class SynthStream(Stream):
 
 ##################################################
 
-def add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects):
-    for param, obj in zip(result.instance.external.inputs, result.instance.input_objects):
-        # TODO: only do optimistic parameters?
-        if obj not in param_from_obj:
-            param_from_obj[obj] = '?i{}'.format(len(inputs)) # '?_i{}'
-            inputs.append(param_from_obj[obj])
-            input_objects.append(obj)
-        local_mapping[param] = param_from_obj[obj]
-
-def add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects):
-    for param, obj in zip(result.instance.external.outputs, result.output_objects):
-        if obj not in param_from_obj:
-            param_from_obj[obj] = '?o{}'.format(len(outputs))
-            outputs.append(param_from_obj[obj])
-            output_objects.append(obj)
-        local_mapping[param] = param_from_obj[obj]
-
-def get_cluster_values(stream_plan):
-    param_from_obj = {}
-    macro_from_micro = []
-    inputs, domain, outputs, certified, functions = [], set(), [], set(), set()
-    input_objects, output_objects = [], []
-    fluent_facts = []
-    for result in stream_plan:
-        local_mapping = {}  # global_from_local
-        stream = result.instance.external
-        add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects)
-        domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
-        if isinstance(result, PredicateResult):
-            # functions.append(Equal(stream.head, result.value))
-            # TODO: do I need the new mapping here?
-            mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
-            functions.update(substitute_expression(result.get_certified(), mapping))
-        elif isinstance(result, FunctionResult):
-            functions.add(substitute_expression(Minimize(stream.head), local_mapping))
-        else:
-            fluent_facts.extend(result.instance.fluent_facts)
-            add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
-            certified.update(substitute_expression(stream.certified, local_mapping))
-            macro_from_micro.append(local_mapping) # TODO: append for functions as well?
-    #assert not fluent_facts
-    return inputs, domain, outputs, certified, functions, \
-           macro_from_micro, input_objects, output_objects, fluent_facts
 
 class StreamSynthesizer(Performance): # JointStream | Stream Combiner
     def __init__(self, name, streams, gen_fn, post_only=False):

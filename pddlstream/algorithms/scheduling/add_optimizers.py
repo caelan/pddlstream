@@ -7,7 +7,8 @@ from pddlstream.algorithms.scheduling.utils import get_instance_facts
 from pddlstream.language.constants import get_args, Not
 from pddlstream.language.conversion import substitute_expression
 from pddlstream.language.object import UniqueOptValue
-from pddlstream.language.optimizer import is_optimizer_result, BLOCK_ADDITIONS, UNSATISFIABLE
+from pddlstream.language.optimizer import BLOCK_ADDITIONS, UNSATISFIABLE
+from pddlstream.algorithms.recover_optimizers import is_optimizer_result
 from pddlstream.utils import get_mapping
 
 

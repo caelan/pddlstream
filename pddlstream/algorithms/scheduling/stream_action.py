@@ -3,7 +3,7 @@ from pddlstream.language.constants import Not
 from pddlstream.language.conversion import pddl_from_object, substitute_expression
 from pddlstream.language.effort import compute_result_effort
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import is_optimizer_result
+from pddlstream.algorithms.recover_optimizers import is_optimizer_result
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF
 
