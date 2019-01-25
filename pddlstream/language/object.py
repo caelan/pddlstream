@@ -43,6 +43,11 @@ class Object(object):
     @staticmethod
     def from_name(name):
         return Object._obj_from_name[name]
+    @staticmethod
+    def reset():
+        Object._obj_from_id.clear()
+        Object._obj_from_value.clear()
+        Object._obj_from_name.clear()
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):
@@ -85,6 +90,11 @@ class OptimisticObject(object):
     @staticmethod
     def from_name(name):
         return OptimisticObject._obj_from_name[name]
+    @staticmethod
+    def reset():
+        OptimisticObject._obj_from_inputs.clear()
+        OptimisticObject._obj_from_name.clear()
+        OptimisticObject._count_from_prefix.clear()
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):

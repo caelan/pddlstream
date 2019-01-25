@@ -9,7 +9,7 @@ from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.external import DEBUG
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import parse_function, parse_predicate, Function
-from pddlstream.language.object import Object
+from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import parse_optimizer, ConstraintStream
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
@@ -69,8 +69,14 @@ def set_unit_costs(domain):
         action.cost = make_cost(1)
     return True
 
+def reset_globals():
+    # TODO: maintain these dictionaries in an object
+    Object.reset()
+    OptimisticObject.reset()
+
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
+    reset_globals()
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:

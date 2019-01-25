@@ -41,7 +41,7 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         # TODO: hint is a map from a subset of outputs to values to consider
         # The true test is placing two blocks in a tight region obstructed by one
 
-        #print(outputs, facts)
+        print('Constraints:', facts)
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
@@ -147,7 +147,7 @@ def identify_infeasibility(facts, model):
     assert model.IISMinimal # Otherwise return all facts
     #infeasible = set(range(len(facts)))
     infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
-    infeasible_facts = [facts[index] for index in infeasible]
+    infeasible_facts = [facts[index] for index in sorted(infeasible)]
     print('Infeasible:', infeasible_facts)
     return infeasible
 
@@ -164,7 +164,7 @@ def diagnose_infeasibility_test(outputs, facts, model, get_var):
     else:
         print('IIS is not minimal\n')
     iss_constraints = {c.constrName for c in model.getConstrs() if c.IISConstr}
-    iss_facts = [facts[int(name)] for name in iss_constraints]
+    iss_facts = [facts[int(name)] for name in sorted(iss_constraints)]
     print(iss_facts)
     for c in model.getConstrs():
         if c.constrName in iss_constraints:
@@ -185,14 +185,14 @@ def diagnose_infeasibility_test(outputs, facts, model, get_var):
     art_vars = [v for v in model.getVars() if (0 < v.x) and
                 (v.varname.startswith('ArtP_') or v.varname.startswith('ArtN_'))]
     violated_constraints = {v.varname[5:] for v in art_vars}
-    violated_facts = [facts[int(name)] for name in violated_constraints]
+    violated_facts = [facts[int(name)] for name in sorted(violated_constraints)]
     print(violated_facts)
     print(tuple(value_from_var(get_var(out)) for out in outputs))
     raw_input('Failure!')
 
 ##################################################
 
-def cfree_motion_fn(outputs, facts):
+def cfree_motion_fn(outputs, facts, hint={}):
     if not outputs:
         return None
     assert(len(outputs) == 1)

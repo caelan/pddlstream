@@ -1,7 +1,7 @@
 (define (stream pick-and-place)
-  ;(:function (Distance ?q1 ?q2)
-  ;  (and (Conf ?q1) (Conf ?q2))
-  ;)
+  (:function (Distance ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2))
+  )
   (:predicate (TrajCollision ?t ?b2 ?p2)
     (and (Traj ?t) (Pose ?b2 ?p2))
   )
@@ -27,8 +27,8 @@
     ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
     (:constraint (Kin ?b ?q ?p)
       :necessary (and (Pose ?b ?p) (Conf ?q)))
-    (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
-      :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
+    ;(:constraint (CFree ?b1 ?p1 ?b2 ?p2)
+    ;  :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
 
     ; Additive objective functions
     (:objective Distance)
@@ -38,7 +38,7 @@
   ;  (:variable ?t
   ;    :graph (Traj ?t))
   ;  (:constraint (Motion ?q1 ?t ?q2)
-  ;    :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)))
+  ;    :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
   ;
   ;  ; Treating predicate as objective
   ;  (:objective TrajCollision)
