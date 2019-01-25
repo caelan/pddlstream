@@ -13,7 +13,7 @@ from pddlstream.algorithms.scheduling.recover_functions import compute_function_
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, partition_external_plan, \
-    add_unsatisfiable_to_goal, partition_combined_plan, get_instance_facts
+    add_unsatisfiable_to_goal, partition_combined_plan, get_instance_facts, simplify_conditional_effects
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact
@@ -179,6 +179,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
+    simplify_conditional_effects(instantiated.task, action_instances)
     cost = get_plan_cost(action_instances, cost_from_action)
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 

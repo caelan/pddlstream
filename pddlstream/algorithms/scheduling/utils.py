@@ -1,4 +1,6 @@
-from pddlstream.algorithms.downward import add_predicate, make_predicate, get_literals, fact_from_fd
+from pddlstream.algorithms.downward import add_predicate, make_predicate, get_literals, fact_from_fd, conditions_hold, \
+    apply_action
+from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
@@ -72,3 +74,26 @@ def get_instance_facts(instance, node_from_atom):
         if fact in node_from_atom:
             facts.append(fact)
     return facts
+
+def simplify_conditional_effects(opt_task, action_instances):
+    # TODO: extract out the minimum set of conditional effects that are actually required
+    # TODO: handle more general case where can choose to achieve particular conditional effects
+    # will likely require planning with streams
+    axioms_from_name = get_derived_predicates(opt_task.axioms)
+    state = set(opt_task.init)
+    for action_instance in action_instances:
+        for effects in [action_instance.add_effects, action_instance.del_effects]:
+            for i, (conditions, effect) in reversed(list(enumerate(effects))):
+                if any(c.predicate in axioms_from_name for c in conditions):
+                    raise NotImplementedError('Conditional effects cannot currently involve derived predicates')
+                #if conditions_hold(real_state, conditions):
+                if conditions_hold(state, conditions):
+                    # Holds in optimistic state
+                    # Assuming that must achieve all possible conditional effects
+                    action_instance.precondition.extend(conditions)
+                    effects[i] = ([], effect)
+                #elif not conditions_hold(opt_state, conditions):
+                else:
+                    # Does not hold in optimistic state
+                    effects.pop(i)
+        apply_action(state, action_instance)

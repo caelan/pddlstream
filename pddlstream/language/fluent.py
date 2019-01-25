@@ -12,11 +12,11 @@ def compile_fluent_streams(domain, externals):
     state_streams = list(filter(lambda e: isinstance(e, Stream) and
                                           (e.is_negated() or e.is_fluent()), externals))
     predicate_map = {}
-    for stream in state_streams:
-        for fact in stream.certified:
+    for state_stream in state_streams:
+        for fact in state_stream.certified:
             predicate = get_prefix(fact)
             assert predicate not in predicate_map # TODO: could make a conjunction condition instead
-            predicate_map[predicate] = stream
+            predicate_map[predicate] = state_stream
     if not predicate_map:
         return state_streams
 
@@ -47,10 +47,7 @@ def compile_fluent_streams(domain, externals):
         action.precondition = replace_literals(fn, action.precondition).simplified()
         # TODO: throw an error if the effect would be altered
         for effect in action.effects:
-            if not isinstance(effect.condition, pddl.Truth):
-                raise NotImplementedError(effect.condition)
-            #assert(isinstance(effect, pddl.Effect))
-            #effect.condition = replace_literals(fn, effect.condition)
+            effect.condition = replace_literals(fn, effect.condition).simplified()
     for axiom in domain.axioms:
         axiom.condition = replace_literals(fn, axiom.condition).simplified()
     return state_streams
