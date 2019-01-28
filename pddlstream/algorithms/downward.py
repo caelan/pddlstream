@@ -251,6 +251,15 @@ def task_from_domain_problem(domain, problem):
 
 ##################################################
 
+def get_fluents(domain):
+    fluent_predicates = set()
+    for action in domain.actions:
+        for effect in action.effects:
+            fluent_predicates.add(effect.literal.predicate)
+    for axiom in domain.axioms:
+        fluent_predicates.add(axiom.name)
+    return fluent_predicates
+
 def get_literals(condition):
     if isinstance(condition, pddl.Truth):
         return []

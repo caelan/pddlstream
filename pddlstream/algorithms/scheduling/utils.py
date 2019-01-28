@@ -75,7 +75,7 @@ def get_instance_facts(instance, node_from_atom):
             facts.append(fact)
     return facts
 
-def simplify_conditional_effects(opt_task, action_instances):
+def simplify_conditional_effects(opt_task, action_instances, negative_from_name={}):
     # TODO: extract out the minimum set of conditional effects that are actually required
     # TODO: handle more general case where can choose to achieve particular conditional effects
     # will likely require planning with streams
@@ -86,13 +86,25 @@ def simplify_conditional_effects(opt_task, action_instances):
             for i, (conditions, effect) in reversed(list(enumerate(effects))):
                 if any(c.predicate in axioms_from_name for c in conditions):
                     raise NotImplementedError('Conditional effects cannot currently involve derived predicates')
-                #if conditions_hold(real_state, conditions):
-                if conditions_hold(state, conditions):
+                neg_conditions = [literal for literal in conditions
+                                  if literal.predicate in negative_from_name]
+                pos_conditions = [literal for literal in conditions
+                                  if literal not in neg_conditions]
+                #if conditions_hold(real_state, opt_conditions):
+                if conditions_hold(state, pos_conditions):
                     # Holds in optimistic state
                     # Assuming that must achieve all possible conditional effects
-                    action_instance.precondition.extend(conditions)
-                    effects[i] = ([], effect)
-                #elif not conditions_hold(opt_state, conditions):
+                    if neg_conditions:
+                        # Assuming that negative conditions should not be achieved
+                        if len(neg_conditions) != 1:
+                            raise NotImplementedError()
+                        action_instance.precondition.extend(
+                            l.negate() for l in neg_conditions)
+                        effects.pop(i)
+                    else:
+                        action_instance.precondition.extend(pos_conditions)
+                        effects[i] = ([], effect)
+                #elif not conditions_hold(opt_state, opt_conditions):
                 else:
                     # Does not hold in optimistic state
                     effects.pop(i)

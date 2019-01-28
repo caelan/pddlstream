@@ -2,10 +2,10 @@ from collections import defaultdict
 from itertools import count
 
 from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
-from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom
+from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom, get_fluents
+from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import evaluation_from_fact, \
     is_atom, fact_from_evaluation
-from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args, OBJECT
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
@@ -33,15 +33,6 @@ class FutureValue(object):
 #             return future_gen_fn(*input_values)
 #         return gen_fn(*input_values)
 #     stream.gen_fn = new_gen_fn
-
-def get_fluents(domain):
-    fluent_predicates = set()
-    for action in domain.actions:
-        for effect in action.effects:
-            fluent_predicates.add(effect.literal.predicate)
-    for axiom in domain.axioms:
-        fluent_predicates.add(axiom.name)
-    return fluent_predicates
 
 ##################################################
 
