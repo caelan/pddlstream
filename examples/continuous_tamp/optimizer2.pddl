@@ -34,13 +34,13 @@
     (:objective Distance)
   )
 
-  ;(:optimizer rrt
-  ;  (:variable ?t
-  ;    :graph (Traj ?t))
-  ;  (:constraint (Motion ?q1 ?t ?q2)
-  ;    :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
-  ;
-  ;  ; Treating predicate as objective
-  ;  (:objective TrajCollision)
-  ;)
+  (:optimizer rrt
+    (:variable ?t
+      :graph (Traj ?t))
+    (:constraint (Motion ?q1 ?t ?q2)
+      :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
+
+    ; Treating predicate as objective
+    (:objective TrajCollision)
+  )
 )

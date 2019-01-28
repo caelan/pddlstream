@@ -37,8 +37,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
     from gurobipy import Model, GRB, quicksum
 
     def fn(outputs, facts, fluents={}, hint={}):
+        # TODO: pass in the variables and constraint streams instead?
         # TODO: fluents is map from constraint to fluent inputs
-        # TODO: hint is a map from a subset of outputs to values to consider
         # The true test is placing two blocks in a tight region obstructed by one
 
         print('Constraints:', facts)
@@ -196,6 +196,7 @@ def cfree_motion_fn(outputs, facts, hint={}):
     if not outputs:
         return None
     assert(len(outputs) == 1)
+    # TODO: handle connected components
     q0, q1 = None, None
     placed = {}
     for fact in facts:
@@ -203,7 +204,7 @@ def cfree_motion_fn(outputs, facts, hint={}):
             if q0 is not None:
                 return None
             q0, _, q1 = fact[1:]
-        if fact[0] == 'not':
+        if fact[0] == NOT:
             _, b, p =  fact[1][1:]
             placed[b] = p
     if q0 is None:
@@ -220,7 +221,7 @@ def get_cfree_pose_fn(regions):
         for fact in certified:
             if fact[0] == 'contained':
                 b, _, r = fact[1:]
-            if fact[0] == 'not':
+            if fact[0] == NOT:
                 _, _, b2, p2 = fact[1][1:]
                 placed[b2] = p2
         p = sample_region(b, regions[r])

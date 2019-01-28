@@ -9,6 +9,7 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import OPTIMIZER_STREAMS, OptimizerStream, VariableStream, ConstraintStream
 from pddlstream.utils import neighbors_from_orders, get_mapping, get_connected_components
 
+CLUSTER = True
 
 def is_optimizer_result(result):
     return type(result.external) in OPTIMIZER_STREAMS
@@ -20,7 +21,7 @@ def get_optimizer(result):
 
 ##################################################
 
-def combine_optimizer_plan(stream_plan, functions, cluster=False):
+def combine_optimizer_plan(stream_plan, functions):
     if not stream_plan:
         return stream_plan
     optimizer = get_optimizer(stream_plan[-1])
@@ -29,7 +30,7 @@ def combine_optimizer_plan(stream_plan, functions, cluster=False):
     function_plan = list(filter(lambda r: get_prefix(r.instance.external.head)
                                           in optimizer.objectives, functions))
     external_plan = stream_plan + function_plan
-    if cluster:
+    if CLUSTER:
         partial_orders = get_partial_orders(external_plan)
         cluster_plans = get_connected_components(external_plan, partial_orders)
     else:

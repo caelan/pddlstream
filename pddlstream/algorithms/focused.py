@@ -28,9 +28,9 @@ INITIAL_COMPLEXITY = 0
 #INITIAL_COMPLEXITY = INF
 
 def partition_externals(externals, verbose=False):
-    functions = list(filter(lambda s: type(s) is Function, externals))
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: (type(s) is Stream) and s.is_negated(), externals))
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated(), externals))
     negative = negative_predicates + negated_streams
     optimizers = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, externals))
     streams = list(filter(lambda s: s not in (functions + negative + optimizers), externals))

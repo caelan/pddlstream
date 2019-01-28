@@ -60,6 +60,8 @@ class PartialInputs(object):
                 yield [tuple(OptValue(stream.name, inputs, selected_objects, out)
                              for out in stream.outputs)]
         return gen_fn
+    def __repr__(self):
+        return repr(self.__dict__)
 
 def get_constant_gen_fn(stream, constant):
     def gen_fn(*input_values):
@@ -105,6 +107,8 @@ class StreamInfo(ExternalInfo):
         self.negate = negate
         self.simultaneous = simultaneous
         #self.order = 0
+    def __repr__(self):
+        return repr(self.__dict__)
 
 ##################################################
 

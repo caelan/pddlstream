@@ -21,6 +21,7 @@
     (Holding ?b)
     (HandEmpty)
     (CanMove)
+    (Safe)
 
     ; Derived predicates
     (In ?b ?r)
@@ -35,14 +36,17 @@
   (:action move
     :parameters (?q1 ?t ?q2)
     :precondition (and (Motion ?q1 ?t ?q2)
-                       (AtConf ?q1) (CanMove) (not (UnsafeTraj ?t)))
+                       (AtConf ?q1) (Safe) (CanMove) (not (UnsafeTraj ?t)))
+    ;:parameters (?q1 ?q2)
+    ;:precondition (and (Conf ?q1) (Conf ?q2)
+    ;                   (AtConf ?q1) (CanMove))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))
                  (increase (total-cost) (Distance ?q1 ?q2))))
   (:action pick
     :parameters (?b ?p ?q)
     :precondition (and (Kin ?b ?q ?p)
-                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
+                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty) (Safe))
     :effect (and (Holding ?b) (CanMove)
                  (not (AtPose ?b ?p)) (not (HandEmpty))
                  (increase (total-cost) 10))
@@ -50,9 +54,15 @@
   (:action place
     :parameters (?b ?p ?q)
     :precondition (and (Kin ?b ?q ?p)
-                       (AtConf ?q) (Holding ?b)) ; (SafePose ?b ?p))
+                       (AtConf ?q) (Holding ?b) (Safe)) ; (SafePose ?b ?p))
     :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
                  (not (Holding ?b))
+                 (forall (?b2 ?p2)
+                    ; Semantically Collision Predicate makes more sense
+                    (when (and (AtPose ?b2 ?p2)
+                                ; (PoseCollision ?b ?p ?b2 ?p2))
+                                (not (CFree ?b ?p ?b2 ?p2))) ; TODO: requires negate=True
+                          (not (Safe))))
                  (increase (total-cost) 10))
   )
   ;(:derived (SafePose ?b1 ?p1)

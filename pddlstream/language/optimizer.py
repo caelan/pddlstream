@@ -78,7 +78,7 @@ class OptimizerInfo(StreamInfo):
         # TODO: post-processing
 
 class VariableStream(Stream):
-    def __init__(self, optimizer, variable, inputs, domain, certified, info):
+    def __init__(self, optimizer, variable, inputs, domain, certified, infos):
         self.optimizer = optimizer
         self.variable = variable
         self.infeasible = []
@@ -90,13 +90,16 @@ class VariableStream(Stream):
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         # Each stream could certify a stream-specific fact as well
         # TODO: will I need to adjust simultaneous here as well?
-        info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE), simultaneous=DEFAULT_SIMULTANEOUS)
+        info = infos.get(name, None)
+        if info is None:
+            info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE),
+                              simultaneous=DEFAULT_SIMULTANEOUS)
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
                                              outputs, certified, info)
 
 class ConstraintStream(Stream):
-    def __init__(self, optimizer, constraint, domain, fluents):
+    def __init__(self, optimizer, constraint, domain, fluents, infos):
         self.optimizer = optimizer
         self.constraint = constraint
         self.infeasible = []
@@ -106,7 +109,10 @@ class ConstraintStream(Stream):
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
         gen_fn = get_list_gen_fn(self, optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
-        info = StreamInfo(effort_fn=get_effort_fn(optimizer.name), simultaneous=DEFAULT_SIMULTANEOUS)
+        info = infos.get(name, None)
+        if info is None:
+            info = StreamInfo(effort_fn=get_effort_fn(optimizer.name),
+                              simultaneous=DEFAULT_SIMULTANEOUS)
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info, fluents=fluents)
@@ -115,36 +121,38 @@ OPTIMIZER_STREAMS = [VariableStream, ConstraintStream]
 
 ##################################################
 
-def parse_variable(optimizer, lisp_list, info):
+def parse_variable(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
     assert set(value_from_attribute) <= {':variable', ':inputs', ':domain', ':graph'}
     return VariableStream(optimizer,
                           value_from_attribute[':variable'], # TODO: assume unique?
                           value_from_attribute.get(':inputs', []),
                           list_from_conjunction(value_from_attribute.get(':domain')),
-                          list_from_conjunction(value_from_attribute.get(':graph')), info)
+                          list_from_conjunction(value_from_attribute.get(':graph')),
+                          infos)
 
-def parse_constraint(optimizer, lisp_list):
+def parse_constraint(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
     assert set(value_from_attribute) <= {':constraint', ':necessary', ':fluents'}
     return ConstraintStream(optimizer,
                             value_from_attribute[':constraint'],
                             list_from_conjunction(value_from_attribute[':necessary']),
-                            value_from_attribute.get(':fluents', []))
+                            value_from_attribute.get(':fluents', []),
+                            infos)
 
 # TODO: convert optimizer into a set of streams? Already present within test stream
 
 def parse_optimizer(lisp_list, procedures, infos):
     _, optimizer_name = lisp_list[:2]
     procedure = get_procedure_fn(procedures, optimizer_name)
-    info = infos.get(optimizer_name, OptimizerInfo())
-    optimizer = Optimizer(optimizer_name, procedure, info)
+    optimizer_info = infos.get(optimizer_name, OptimizerInfo())
+    optimizer = Optimizer(optimizer_name, procedure, optimizer_info)
     for sub_list in lisp_list[2:]:
         form = sub_list[0]
         if form == ':variable':
-            optimizer.variables.append(parse_variable(optimizer, sub_list, info))
+            optimizer.variables.append(parse_variable(optimizer, sub_list, infos))
         elif form == ':constraint':
-            optimizer.constraints.append(parse_constraint(optimizer, sub_list))
+            optimizer.constraints.append(parse_constraint(optimizer, sub_list, infos))
         elif form == ':objective':
             optimizer.objectives.append(sub_list[1])
         else:
@@ -198,6 +206,8 @@ class OptimizerInstance(StreamInstance):
         preconditions = substitute_expression(self.get_constraints(), get_mapping(free_objects, parameters))
         self._disabled_axiom = make_axiom(parameters, preconditions, (UNSATISFIABLE,))
         domain.axioms.append(self._disabled_axiom)
+        # TODO: need to block functions & predicates
+        # TODO: how do I block negative streams used in conditional effects?
     def enable(self, evaluations, domain):
         super(OptimizerInstance, self).enable(evaluations, domain)
         raise NotImplementedError()

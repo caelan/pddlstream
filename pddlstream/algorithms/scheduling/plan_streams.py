@@ -123,6 +123,7 @@ def get_plan_cost(action_plan, cost_from_action):
 
 def instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, results):
     # Needed for instantiating axioms before adding stream action effects
+    # Otherwise, FastDownward will prune these unreachable axioms
     # TODO: compute this first and then apply the eager actions
     #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
     stream_domain, result_from_name = add_stream_actions(domain, results)
