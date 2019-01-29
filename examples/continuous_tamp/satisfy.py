@@ -14,6 +14,7 @@ from examples.continuous_tamp.run import pddlstream_from_tamp
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.constants import Not, Minimize
 from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
+from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
 
 # Be careful about uniqueness here
 CONF0 = array([-7.5, 5.])
@@ -74,18 +75,21 @@ OBJECTIVES = [
     Minimize(('distance', '?q3', '?q2')),
 ]
 
-def main(success_cost=0, max_time=30):
+def set_deterministic(seed=0):
+    np.random.seed(seed)
+
+def main(success_cost=0):
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
     parser.add_argument('-o', '--optimizer', action='store_true', help='Uses the optimizers')
+    parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
     args = parser.parse_args()
     print('Arguments:', args)
 
     np.set_printoptions(precision=2)
     if args.deterministic:
-        seed = 0
-        np.random.seed(seed)
+        set_deterministic()
     print('Random seed:', get_random_seed())
     tamp_problem = get_tight_problem(n_blocks=2, n_goals=2)
     print(tamp_problem)
@@ -106,13 +110,15 @@ def main(success_cost=0, max_time=30):
                                                  incremental=False, stream_info=stream_info,
                                                  #search_sample_ratio=1,
                                                  #max_skeletons=1,
-                                                 success_cost=success_cost, max_time=max_time)
+                                                 success_cost=success_cost, max_time=args.max_time)
     elif args.algorithm == 'incremental':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 success_cost=success_cost, max_time=max_time,
+                                                 success_cost=success_cost, max_time=args.max_time,
                                                  verbose=False, debug=False)
     else:
-        raise ValueError(args.algorithm)
+        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms,
+                                           stream_info=stream_info, max_sample_time=args.max_time)
+        #raise ValueError(args.algorithm)
 
     dump_assignment(solution)
     pr.disable()
