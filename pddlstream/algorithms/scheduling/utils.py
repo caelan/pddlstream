@@ -32,23 +32,14 @@ def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
         assert(domain <= opt_evaluations)
         opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
     node_from_atom = get_achieving_streams(evaluations, stream_results)
-    result_from_evaluation = {evaluation_from_fact(f): n.result
-                              for f, n in node_from_atom.items() if n.effort < max_effort}
+    result_from_evaluation = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()
+                              if (max_effort is not None) and (n.effort < max_effort)}
     return result_from_evaluation
 
 def partition_external_plan(external_plan):
     function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
     stream_plan = list(filter(lambda r: r not in function_plan, external_plan))
     return stream_plan, function_plan
-
-def partition_combined_plan(combined_plan, stream_result_from_name):
-    stream_plan, action_plan = [], []
-    for name, args in combined_plan:
-        if name in stream_result_from_name:
-            stream_plan.append(stream_result_from_name[name])
-        else:
-            action_plan.append((name, args))
-    return stream_plan, action_plan
 
 def add_unsatisfiable_to_goal(domain, goal_expression):
     import pddl

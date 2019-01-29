@@ -2,10 +2,10 @@ from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, conditio
     get_goal_instance, GOAL_NAME, get_fluents
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
 from pddlstream.algorithms.scheduling.utils import simplify_conditional_effects
-from pddlstream.language.conversion import obj_from_pddl
+from pddlstream.language.constants import get_args
 from pddlstream.language.function import Predicate, PredicateResult
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import get_mapping, safe_zip, MockSet
+from pddlstream.utils import safe_zip, MockSet
 
 
 def get_negative_predicates(negative):
@@ -18,7 +18,8 @@ def get_negative_predicates(negative):
 ##################################################
 
 def convert_negative_predicate(negative, literal, negative_plan):
-    predicate_instance = negative.get_instance(map(obj_from_pddl, literal.args))
+    fact = fact_from_fd(literal)
+    predicate_instance = negative.get_instance(get_args(fact))
     value = not literal.negated
     if predicate_instance.enumerated:
         assert (predicate_instance.value == value)
@@ -26,6 +27,11 @@ def convert_negative_predicate(negative, literal, negative_plan):
         negative_plan.add(PredicateResult(predicate_instance, value,
                                           opt_index=predicate_instance.opt_index))
 
+def get_negative_result(negative, input_objects, fluent_facts=frozenset()):
+    instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
+    return StreamResult(instance, output_objects=tuple(),
+                        opt_index=instance.opt_index,
+                        call_index=instance.num_calls, optimistic=True)
 
 def convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan):
     import pddl
@@ -39,15 +45,11 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     else:
         fluent_facts_list.append(frozenset())
 
-    object_from_input = get_mapping(negative.inputs, map(obj_from_pddl, literal.args))
-    input_objects = tuple(object_from_input[inp] for inp in negative.inputs)
+    input_objects = get_args(fact_from_fd(literal))
     for fluent_facts in fluent_facts_list:
-        negative_instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
-        if not negative_instance.successes:
-            negative_plan.add(StreamResult(negative_instance, output_objects=tuple(),
-                                           opt_index=negative_instance.opt_index,
-                                           call_index=negative_instance.num_calls, optimistic=True))
-
+        result = get_negative_result(negative, input_objects, fluent_facts)
+        if not result.instance.successes:
+            negative_plan.append(result)
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()

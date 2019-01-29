@@ -439,9 +439,7 @@ def get_action_instances(task, action_plan):
 
 
 def get_goal_instance(goal):
-    precondition =  goal.parts if isinstance(goal, pddl.Conjunction) else [goal]
-    #precondition = get_literals(goal)
-    return pddl.PropositionalAction(GOAL_NAME, precondition, [], None)
+    return pddl.PropositionalAction(GOAL_NAME, instantiate_goal(goal), [], None)
 
 ##################################################
 

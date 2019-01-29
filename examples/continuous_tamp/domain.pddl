@@ -28,7 +28,6 @@
     (UnsafePose ?b ?p)
     (UnsafeTraj ?t)
     (Reachable ?q1 ?q2)
-    (SafePose ?b ?p)
   )
   (:functions
     (Distance ?q1 ?q2)
@@ -61,10 +60,10 @@
     (exists (?b2 ?p2) (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)
                            ; (Block ?b1) (Block ?b2)
                            (AtPose ?b2 ?p2)
-                           ;(or
-                               (not (CFree ?b1 ?p1 ?b2 ?p2))
-                           ;    (PoseCollision ?b1 ?p1 ?b2 ?p2)
-                           ;)
+                           (or
+                             (not (CFree ?b1 ?p1 ?b2 ?p2))
+                             ; (PoseCollision ?b1 ?p1 ?b2 ?p2)
+                           )
                        )))
   ;(:derived (UnsafeTraj ?t)
   ;  (exists (?b2 ?p2) (and (Traj ?t) (TrajCollision ?t ?b2 ?p2)

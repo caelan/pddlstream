@@ -153,9 +153,11 @@ class External(Performance):
             print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
-
+    def is_negated(self):
+        raise NotImplementedError()
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
+        assert len(input_objects) == len(self.inputs)
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]

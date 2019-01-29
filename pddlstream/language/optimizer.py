@@ -94,7 +94,6 @@ class VariableStream(Stream):
         if info is None:
             info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE),
                               simultaneous=DEFAULT_SIMULTANEOUS)
-        self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
                                              outputs, certified, info)
 
@@ -113,7 +112,6 @@ class ConstraintStream(Stream):
         if info is None:
             info = StreamInfo(effort_fn=get_effort_fn(optimizer.name),
                               simultaneous=DEFAULT_SIMULTANEOUS)
-        self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs))
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info, fluents=fluents)
 

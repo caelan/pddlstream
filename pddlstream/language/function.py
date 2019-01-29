@@ -114,6 +114,8 @@ class Function(External):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(
         #        self.name, list(self.inputs), arg_spec.args))
         self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
+    def is_negated(self):
+        return False
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 
@@ -121,10 +123,9 @@ class Function(External):
 
 class PredicateResult(FunctionResult):
     def get_certified(self):
+        # TODO: cache these results
         expression = self.instance.get_head()
-        if self.value:
-            return [expression]
-        return [Not(expression)]
+        return [expression if self.value else Not(expression)]
     def is_successful(self):
         opt_value = self.external.opt_fn(*self.instance.get_input_values())
         return self.value == opt_value
@@ -150,6 +151,8 @@ class Predicate(Function):
     def __init__(self, *args):
         super(Predicate, self).__init__(*args)
         assert(self.info.opt_fn is None)
+    def is_negated(self):
+        return True
 
 ##################################################
 

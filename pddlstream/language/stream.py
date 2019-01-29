@@ -4,7 +4,7 @@ from itertools import count
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
@@ -117,9 +117,11 @@ class StreamResult(Result):
                  call_index=None, list_index=None, optimistic=True):
         super(StreamResult, self).__init__(instance, opt_index, call_index, optimistic)
         self.output_objects = tuple(output_objects)
+        assert len(self.output_objects) == len(self.external.outputs)
         self.list_index = list_index
         self._mapping = None
         self._certified = None
+        self._stream_fact = None
     @property
     def mapping(self):
         if self._mapping is None:
@@ -128,6 +130,11 @@ class StreamResult(Result):
         return self._mapping
     def get_mapping(self):
         return self.mapping
+    @property
+    def stream_fact(self):
+        if self._stream_fact is None:
+            self._stream_fact = substitute_expression(self.external.stream_fact, self.mapping)
+        return self._stream_fact
     @property
     def certified(self):
         if self._certified is None:
@@ -359,6 +366,7 @@ class Stream(External):
             self.blocked_predicate = '~{}'.format(self.name)
         self.disabled_instances = []
         self.is_wild = is_wild
+        self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
 
         if self.is_negated():
             if self.outputs:

@@ -27,12 +27,15 @@ from pddlstream.utils import INF, elapsed_time
 INITIAL_COMPLEXITY = 0
 #INITIAL_COMPLEXITY = INF
 
-def partition_externals(externals, verbose=False):
+def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    functions = list(filter(lambda s: type(s) is Function, externals))
     negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated(), externals))
-    negative = negative_predicates + negated_streams
-    optimizers = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, externals))
+    return negative_predicates + negated_streams
+
+def partition_externals(externals, verbose=False):
+    functions = list(filter(lambda s: type(s) is Function, externals))
+    negative = get_negative_externals(externals)
+    optimizers = list(filter(lambda s: (type(s) in OPTIMIZER_STREAMS) and (s not in negative), externals))
     streams = list(filter(lambda s: s not in (functions + negative + optimizers), externals))
     if verbose:
         print('Streams: {}\nFunctions: {}\nNegated: {}\nOptimizers: {}'.format(

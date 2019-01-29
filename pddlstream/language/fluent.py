@@ -8,15 +8,21 @@ def ensure_no_fluent_streams(streams):
         if isinstance(stream, Stream) and stream.is_fluent():
             raise NotImplementedError('Algorithm does not support fluent stream: {}'.format(stream.name))
 
-def compile_fluent_streams(domain, externals):
-    state_streams = list(filter(lambda e: isinstance(e, Stream) and
-                                          (e.is_negated() or e.is_fluent()), externals))
+def get_predicate_map(state_streams):
     predicate_map = {}
     for state_stream in state_streams:
         for fact in state_stream.certified:
             predicate = get_prefix(fact)
-            assert predicate not in predicate_map # TODO: could make a conjunction condition instead
+            if predicate in predicate_map:
+                # TODO: could make a conjunction condition instead
+                raise NotImplementedError()
             predicate_map[predicate] = state_stream
+    return predicate_map
+
+def compile_fluent_streams(domain, externals):
+    state_streams = list(filter(lambda e: isinstance(e, Stream) and
+                                          (e.is_negated() or e.is_fluent()), externals))
+    predicate_map = get_predicate_map(state_streams)
     if not predicate_map:
         return state_streams
 

@@ -2,17 +2,18 @@ from collections import Counter
 
 from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale
+from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale, fd_from_fact
 from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact
+from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.external import DEBUG
-from pddlstream.language.fluent import compile_fluent_streams
+from pddlstream.language.fluent import compile_fluent_streams, get_predicate_map
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import parse_optimizer, ConstraintStream
+from pddlstream.language.optimizer import parse_optimizer, ConstraintStream, UNSATISFIABLE
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
+from pddlstream.utils import find_unique, get_mapping, apply_mapping
 
 
 # TODO: rename to parsing
@@ -95,8 +96,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
 
     # TODO: refactor the following?
     compile_to_exogenous(evaluations, domain, streams)
-    compile_fluent_streams(domain, streams)
     enforce_simultaneous(domain, streams)
+    compile_fluent_streams(domain, streams)
     return evaluations, goal_exp, domain, streams
 
 ##################################################
@@ -115,7 +116,55 @@ def get_predicates(expression):
         return {expression.predicate}
     raise ValueError(expression)
 
+def get_conjuctive_parts(condition):
+    import pddl
+    return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
+
+def universal_to_conditional(action):
+    import pddl
+    new_parts = []
+    for quant in get_conjuctive_parts(action.precondition):
+        if isinstance(quant, pddl.UniversalCondition):
+            condition = quant.parts[0]
+            # TODO: normalize first?
+            if isinstance(condition, pddl.Disjunction) or isinstance(condition, pddl.Literal):
+                action.effects.append(pddl.Effect(quant.parameters, condition.negate(),
+                                                  fd_from_fact((UNSATISFIABLE,))))
+                continue
+        new_parts.append(quant)
+    action.precondition = pddl.Conjunction(new_parts)
+
+def optimizer_conditional_effects(domain, externals):
+    import pddl
+    #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
+    # TODO: extend this to predicates
+    negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated(), externals))
+    negative_from_predicate = get_predicate_map(negative_streams)
+    if not negative_from_predicate:
+        return
+    for action in domain.actions:
+        universal_to_conditional(action)
+        for effect in action.effects:
+            if isinstance(effect, pddl.Effect) and (effect.literal.predicate == UNSATISFIABLE):
+                condition = effect.condition
+                new_parts = []
+                stream_fact = None
+                for literal in get_conjuctive_parts(condition):
+                    if isinstance(literal, pddl.Literal) and (literal.predicate in negative_from_predicate):
+                        if stream_fact is not None:
+                            raise NotImplementedError()
+                        stream = negative_from_predicate[literal.predicate]
+                        certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
+                        mapping = get_mapping(get_args(certified), literal.args)
+                        stream_fact = substitute_expression(stream.stream_fact, mapping)
+                    else:
+                        new_parts.append(literal)
+                if stream_fact is not None:
+                    effect.condition = pddl.Conjunction(new_parts)
+                    effect.literal = fd_from_fact(stream_fact)
+
 def enforce_simultaneous(domain, externals):
+    optimizer_conditional_effects(domain, externals)
     axiom_predicates = set()
     for axiom in domain.axioms:
         axiom_predicates.update(get_predicates(axiom.condition))

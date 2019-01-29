@@ -4,32 +4,35 @@ from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
     get_goal_instance, plan_preimage, instantiate_task, get_cost_scale, \
     sas_from_instantiated, scale_cost, literal_holds
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, add_optimizer_axioms, \
-    using_optimizers
+    using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
-from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, recover_negative_axioms
+from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, \
+    recover_negative_axioms
 from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extraction_helper
 from pddlstream.algorithms.scheduling.recover_functions import compute_function_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
-from pddlstream.algorithms.scheduling.utils import partition_results, partition_external_plan, \
-    add_unsatisfiable_to_goal, partition_combined_plan, get_instance_facts, simplify_conditional_effects
+from pddlstream.algorithms.scheduling.utils import partition_results, \
+    add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects, evaluations_from_stream_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact
 from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.external import Result
+from pddlstream.language.function import Function
 from pddlstream.utils import Verbose, INF
 
 
-def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, node_from_atom,
+def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_expression, domain, node_from_atom,
                         action_plan, axiom_plans, negative):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
     # Added effects cancel out removed effects
     # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
-    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
+    curr_evaluations = evaluations_from_stream_plan(evaluations, current_plan, max_effort=None)
+    real_task = task_from_domain_problem(domain, get_problem(curr_evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = get_negative_predicates(negative)
 
@@ -47,7 +50,13 @@ def recover_stream_plan(evaluations, opt_evaluations, goal_expression, domain, n
     target_facts = [fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ]
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
+
     stream_plan = []
+    for result in current_plan:
+        if isinstance(result.external, Function) or (result.external in negative):
+            function_plan.add(result) # Prevents these results from being pruned
+        else:
+            stream_plan.append(result)
     extract_stream_plan(node_from_atom, target_facts, stream_plan)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
     stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom)
@@ -142,7 +151,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
     # TODO: only consider axioms that have stream conditions?
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
-    stream_domain, result_from_name = add_stream_actions(domain, deferred_results)
+    stream_domain, deferred_from_name = add_stream_actions(domain, deferred_results)
 
     if reachieve and not using_optimizers(all_results):
         achieved_results = {n.result for n in evaluations.values() if isinstance(n.result, Result)}
@@ -181,16 +190,14 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
     simplify_conditional_effects(instantiated.task, action_instances)
+    stream_plan, action_instances = recover_simultaneous(applied_results, negative, deferred_from_name, action_instances)
     cost = get_plan_cost(action_instances, cost_from_action)
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 
-    applied_plan, function_plan = partition_external_plan(recover_stream_plan(
-        evaluations, opt_evaluations, goal_expression, stream_domain, node_from_atom,
-        action_instances, axiom_plans, negative))
+    stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression,
+                                      stream_domain, node_from_atom, action_instances, axiom_plans, negative)
     #action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
     action_plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
 
-    deferred_plan, action_plan = partition_combined_plan(action_plan, result_from_name)
-    stream_plan = applied_plan + deferred_plan + function_plan
     combined_plan = stream_plan + action_plan
     return combined_plan, cost
