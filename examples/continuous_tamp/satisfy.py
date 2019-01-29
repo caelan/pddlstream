@@ -41,26 +41,30 @@ INIT = [
 CONSTRAINTS = [
     ('cfree', 'b0', '?p0', 'b1', POSE1),
     ('cfree', 'b1', '?p1', 'b0', '?p0'),
-    ('conf', '?q0'),
-    ('conf', '?q1'),
-    ('conf', '?q2'),
-    ('conf', '?q3'),
+
     ('contained', 'b0', '?p0', 'red'),
     ('contained', 'b1', '?p1', 'red'),
+
     ('kin', 'b0', '?q0', POSE0),
     ('kin', 'b0', '?q1', '?p0'),
     ('kin', 'b1', '?q2', '?p1'),
     ('kin', 'b1', '?q3', POSE1),
+
     ('motion', '?q0', '?t1', '?q1'),
     ('motion', '?q1', '?t3', '?q3'),
     ('motion', '?q3', '?t2', '?q2'),
     ('motion', CONF0, '?t0', '?q0'),
-    ('pose', 'b0', '?p0'),
-    ('pose', 'b1', '?p1'),
-    ('traj', '?t0'),
-    ('traj', '?t1'),
-    ('traj', '?t2'),
-    ('traj', '?t3'),
+
+    #('conf', '?q0'),
+    #('conf', '?q1'),
+    #('conf', '?q2'),
+    #('conf', '?q3'),
+    #('pose', 'b0', '?p0'),
+    #('pose', 'b1', '?p1'),
+    #('traj', '?t0'),
+    #('traj', '?t1'),
+    #('traj', '?t2'),
+    #('traj', '?t3'),
 ]
 
 OBJECTIVES = [
@@ -101,11 +105,12 @@ def main(success_cost=0, max_time=30):
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
                                                  incremental=False, stream_info=stream_info,
                                                  #search_sample_ratio=1,
-                                                 max_skeletons=1,
+                                                 #max_skeletons=1,
                                                  success_cost=success_cost, max_time=max_time)
     elif args.algorithm == 'incremental':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 success_cost=success_cost, max_time=max_time, verbose=False)
+                                                 success_cost=success_cost, max_time=max_time,
+                                                 verbose=False, debug=False)
     else:
         raise ValueError(args.algorithm)
 

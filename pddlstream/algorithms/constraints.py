@@ -37,7 +37,7 @@ class PlanConstraints(object):
 
 def to_constant(parameter):
     name = parameter[1:]
-    return '@{}'.format(name)
+    return to_obj('@{}'.format(name))
 
 def to_obj(value):
     # Allows both raw values as well as objects to be specified
@@ -47,9 +47,16 @@ def to_obj(value):
 
 ##################################################
 
-def make_assignment_facts(predicate, local_from_global, parameters):
-    return [(predicate, to_obj(to_constant(p)), local_from_global[p])
+def make_assignment_facts(assigned_predicate, local_from_global, parameters):
+    return [(assigned_predicate, to_constant(p), local_from_global[p])
             for p in parameters]
+
+def make_order_facts(order_predicate, num, steps):
+    return [(order_predicate, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
+            for step in range(steps)]
+
+def get_internal_prefix(internal):
+    return '_' if internal else ''
 
 def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=False):
     if (constraints is None) or (constraints.skeletons is None):
@@ -58,7 +65,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
     # TODO: can search over skeletons first and then fall back
     # TODO: unify this with the constraint ordering
     # TODO: can constrain to use a plan prefix
-    prefix = '_' if internal else ''
+    prefix = get_internal_prefix(internal)
     assigned_predicate = ASSIGNED_PREDICATE.format(prefix)
     group_predicate = GROUP_PREDICATE.format(prefix)
     order_predicate = ORDER_PREDICATE.format(prefix)
@@ -70,9 +77,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
     new_actions = []
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
-        # TODO: change the prefix for these
-        order_facts = [(order_predicate, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
-                        for step in range(len(skeleton) + 1)]
+        order_facts = make_order_facts(order_predicate, num, len(skeleton) + 1)
         add_fact(evaluations, order_facts[0], result=INTERNAL_EVALUATION)
         new_goals.append(order_facts[-1])
         bound_parameters = set()

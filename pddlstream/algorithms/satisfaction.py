@@ -2,31 +2,14 @@ from __future__ import print_function
 
 from collections import namedtuple, Counter
 
-from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE
+from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE, \
+    get_internal_prefix
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
 from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
 from pddlstream.utils import str_from_object, safe_zip
-
-
-# TODO: investigate constraint satisfaction techniques for search instead
-
-def dump_assignment(solution):
-    bindings, cost, evaluations = solution
-    print()
-    print('Solved: {}'.format(bindings is not None))
-    print('Cost: {}'.format(cost))
-    print('Total facts: {}'.format(len(evaluations)))
-    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
-    if bindings is None:
-        return
-    print('Assignments:')
-    for param in sorted(bindings):
-        print('{} = {}'.format(param, str_from_object(bindings[param])))
-
-##################################################
 
 
 Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
@@ -90,7 +73,11 @@ def cluster_constraints(constraints):
 
 def planning_from_satisfaction(init, constraints):
     clusters = cluster_constraints(constraints)
-    order_value_facts = [(ORDER_PREDICATE, 't{}'.format(i)) for i in range(len(clusters)+1)]
+    prefix = get_internal_prefix(internal=False)
+    assigned_predicate = ASSIGNED_PREDICATE.format(prefix)
+    order_predicate = ORDER_PREDICATE.format(prefix)
+    #order_value_facts = make_order_facts(order_predicate, 0, len(clusters)+1)
+    order_value_facts = [(order_predicate, '_t{}'.format(i)) for i in range(len(clusters)+1)]
     init.append(order_value_facts[0])
     goal_expression = order_value_facts[-1]
     order_facts = list(map(obj_from_value_expression, order_value_facts))
@@ -105,28 +92,43 @@ def planning_from_satisfaction(init, constraints):
 
         name = 'cluster-{}'.format(i)
         parameters = list(sorted(cluster.parameters))
-        preconditions = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in sorted(existing_parameters)] + \
+        preconditions = [(assigned_predicate, to_constant(p), p) for p in sorted(existing_parameters)] + \
                         get_constraints(objectives) + [order_facts[i]]
-        effects = [(ASSIGNED_PREDICATE, to_constant(p), p) for p in parameters] + \
+        effects = [(assigned_predicate, to_constant(p), p) for p in parameters] + \
                   [order_facts[i+1], Not(order_facts[i])]
 
         costs = get_costs(objectives)
-        cost = None
         if costs:
             assert len(costs) == 1
             cost = get_args(costs[0])[0]
+        else:
+            cost = None
         actions.append(make_action(name, parameters, preconditions, effects, cost))
         #actions[-1].dump()
         bound_parameters.update(cluster.parameters)
 
-    predicates = [make_predicate(ORDER_PREDICATE, ['?x'])]
+    predicates = [make_predicate(order_predicate, ['?step'])] # '?num',
     domain = make_domain(predicates=predicates, actions=actions)
     return domain, goal_expression
+
+def dump_assignment(solution):
+    bindings, cost, evaluations = solution
+    print()
+    print('Solved: {}'.format(bindings is not None))
+    print('Cost: {}'.format(cost))
+    print('Total facts: {}'.format(len(evaluations)))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
+    if bindings is None:
+        return
+    print('Assignments:')
+    for param in sorted(bindings):
+        print('{} = {}'.format(param, str_from_object(bindings[param])))
 
 ##################################################
 
 def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
     # TODO: prune set of streams based on constraints
+    # TODO: investigate constraint satisfaction techniques for search instead
     domain, goal = planning_from_satisfaction(init, constraints)
     constant_map = {}
     problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)

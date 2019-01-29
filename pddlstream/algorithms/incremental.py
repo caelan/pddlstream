@@ -153,8 +153,9 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     instantiator = Instantiator(externals, evaluations)
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         num_iterations += 1
-        print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Cost: {} | Time: {:.3f}'.format(
-            num_iterations, complexity_limit, num_calls, len(evaluations), store.best_cost, store.elapsed_time()))
+        print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Solved: {} | Cost: {} | Time: {:.3f}'.format(
+            num_iterations, complexity_limit, num_calls, len(evaluations),
+            store.has_solution(), store.best_cost, store.elapsed_time()))
         num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
         plan, cost = solve_finite(evaluations, goal_expression, domain,
                                   max_cost=min(store.best_cost, constraints.max_cost), **search_args)

@@ -77,7 +77,7 @@ def reset_globals():
 
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
-    reset_globals()
+    #reset_globals() # Prevents use of satisfaction.py
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     domain = parse_domain(domain_pddl)
     if len(domain.types) != 1:
