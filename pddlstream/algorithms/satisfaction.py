@@ -7,7 +7,7 @@ from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSI
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT
+from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT, partition_facts
 from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
 from pddlstream.utils import str_from_object, safe_zip
 
@@ -36,16 +36,16 @@ def update_cluster(cluster1, cluster2):
     cluster1.parameters.update(cluster2.parameters)
 
 
-def cluster_constraints(constraints):
+def cluster_constraints(terms):
     # Can always combine clusters but leads to inefficient grounding
     # The extreme case of this making a single goal
     # Alternatively, can just keep each cluster separate (shouldn't slow down search much)
     clusters = sorted([Cluster([constraint], set(get_parameters(constraint)))
-                       for constraint in get_constraints(constraints)],
+                       for constraint in get_constraints(terms)],
                       key=lambda c: len(c.parameters), reverse=True)
     cost_clusters = sorted([Cluster([cost], set(get_parameters(cost)))
-                       for cost in get_costs(constraints)],
-                      key=lambda c: len(c.parameters))
+                            for cost in get_costs(terms)],
+                           key=lambda c: len(c.parameters))
     for c1 in cost_clusters:
         for c2 in reversed(clusters):
             if 1 < len(get_costs(c1.constraints)) + len(get_costs(c2.constraints)):
@@ -86,6 +86,9 @@ def planning_from_satisfaction(init, constraints):
     #constants = {}
     for i, cluster in enumerate(clusters):
         objectives = list(map(obj_from_value_expression, cluster.constraints))
+        constraints, negated, costs = partition_facts(objectives)
+        if negated:
+            raise NotImplementedError(negated)
         #free_parameters = cluster.parameters - bound_parameters
         existing_parameters = cluster.parameters & bound_parameters
         # TODO: confirm that negated predicates work as intended
@@ -93,14 +96,13 @@ def planning_from_satisfaction(init, constraints):
         name = 'cluster-{}'.format(i)
         parameters = list(sorted(cluster.parameters))
         preconditions = [(assigned_predicate, to_constant(p), p) for p in sorted(existing_parameters)] + \
-                        get_constraints(objectives) + [order_facts[i]]
+                        constraints + [order_facts[i]]
         effects = [(assigned_predicate, to_constant(p), p) for p in parameters] + \
                   [order_facts[i+1], Not(order_facts[i])]
 
-        costs = get_costs(objectives)
         if costs:
             assert len(costs) == 1
-            cost = get_args(costs[0])[0]
+            [cost] = costs
         else:
             cost = None
         actions.append(make_action(name, parameters, preconditions, effects, cost))
@@ -129,6 +131,8 @@ def dump_assignment(solution):
 def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
     # TODO: prune set of streams based on constraints
     # TODO: investigate constraint satisfaction techniques for search instead
+    # TODO: optimistic objects based on free parameters that prevent cycles
+    # TODO: disallow creation of new parameters / certifying new facts
     domain, goal = planning_from_satisfaction(init, constraints)
     constant_map = {}
     problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)

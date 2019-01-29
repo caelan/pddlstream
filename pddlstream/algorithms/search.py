@@ -14,14 +14,14 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 # TODO: allow switch to higher-level in heuristic
 # TODO: recursive application of these
 
-def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **search_args):
     # TODO: can solve using another planner and then still translate using FastDownward
     # Can apply plan constraints (skeleton constraints) here as well
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
         write_sas_task(sas_task, temp_dir)
-        solution = run_search(temp_dir, debug=True, **kwargs)
+        solution = run_search(temp_dir, debug=True, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
@@ -32,14 +32,14 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
     #    axiom.dump()
     return parse_solution(solution)
 
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: combine with solve_from_task
     start_time = time()
     with Verbose(debug):
         write_pddl(domain_pddl, problem_pddl, temp_dir)
         #run_translate(temp_dir, verbose)
         translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-        solution = run_search(temp_dir, debug=debug, **kwargs)
+        solution = run_search(temp_dir, debug=debug, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)

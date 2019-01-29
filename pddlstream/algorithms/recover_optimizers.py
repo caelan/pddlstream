@@ -118,6 +118,9 @@ def combine_optimizers(evaluations, external_plan):
 ##################################################
 
 def retrace_instantiation(fact, streams, evaluations, free_parameters, visited_facts, planned_results):
+    # Makes two assumptions:
+    # 1) Each stream achieves a "primary" fact that uses all of its inputs + outputs
+    # 2) Outputs are only free parameters (no constants)
     if (evaluation_from_fact(fact) in evaluations) or (fact in visited_facts):
         return
     visited_facts.add(fact)
