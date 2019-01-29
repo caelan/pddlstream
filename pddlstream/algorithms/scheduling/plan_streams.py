@@ -190,7 +190,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]
     simplify_conditional_effects(instantiated.task, action_instances)
-    stream_plan, action_instances = recover_simultaneous(applied_results, negative, deferred_from_name, action_instances)
+    stream_plan, action_instances = recover_simultaneous(
+        applied_results, negative, deferred_from_name, action_instances)
     cost = get_plan_cost(action_instances, cost_from_action)
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
 

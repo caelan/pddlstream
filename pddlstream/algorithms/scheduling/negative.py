@@ -3,6 +3,7 @@ from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, conditio
 from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extract_axiom_plan
 from pddlstream.algorithms.scheduling.utils import simplify_conditional_effects
 from pddlstream.language.constants import get_args
+from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.language.function import Predicate, PredicateResult
 from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.utils import safe_zip, MockSet
@@ -18,8 +19,8 @@ def get_negative_predicates(negative):
 ##################################################
 
 def convert_negative_predicate(negative, literal, negative_plan):
-    fact = fact_from_fd(literal)
-    predicate_instance = negative.get_instance(get_args(fact))
+    input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
+    predicate_instance = negative.get_instance(input_objects)
     value = not literal.negated
     if predicate_instance.enumerated:
         assert (predicate_instance.value == value)
@@ -45,11 +46,11 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     else:
         fluent_facts_list.append(frozenset())
 
-    input_objects = get_args(fact_from_fd(literal))
+    input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
     for fluent_facts in fluent_facts_list:
         result = get_negative_result(negative, input_objects, fluent_facts)
         if not result.instance.successes:
-            negative_plan.append(result)
+            negative_plan.add(result)
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()

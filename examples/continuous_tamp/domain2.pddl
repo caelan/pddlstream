@@ -22,7 +22,6 @@
     (HandEmpty)
     (CanMove)
     (Safe)
-    (Unsatisfiable-Negative) ; TODO: shorten this
 
     ; Derived predicates
     (In ?b ?r)
@@ -57,7 +56,7 @@
     :precondition (and (Kin ?b ?q ?p)
                        (AtConf ?q) (Holding ?b) (Safe)
                        (forall (?b2 ?p2)
-                         (imply (AtPose ?b2 ?p2) (CFree ?b ?p ?b2 ?p2)) ; Compiled away immediately
+                         (imply (AtPose ?b2 ?p2) (CFree ?b ?p ?b2 ?p2)) ; Compiled into below
                          ; (or (not (AtPose ?b2 ?p2)) (CFree ?b ?p ?b2 ?p2))
                        )
                        ; (SafePose ?b ?p)
@@ -69,8 +68,7 @@
                  ;   (when (and (AtPose ?b2 ?p2)
                  ;               ; (PoseCollision ?b ?p ?b2 ?p2))
                  ;               (not (CFree ?b ?p ?b2 ?p2))) ; TODO: requires negate=True
-                 ;         ; (not (Safe))))
-                 ;         (Unsatisfiable-Negative))) ; Terminal, dead-end, failure
+                 ;         ; (not (Safe)))) ; Terminal, dead-end, failure
                  (increase (total-cost) 10))
   )
   ;(:derived (SafePose ?b1 ?p1)
