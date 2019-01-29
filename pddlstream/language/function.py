@@ -114,6 +114,9 @@ class Function(External):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(
         #        self.name, list(self.inputs), arg_spec.args))
         self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
+    @property
+    def function(self):
+        return get_prefix(self.head)
     def is_negated(self):
         return False
     def __repr__(self):
@@ -151,6 +154,9 @@ class Predicate(Function):
     def __init__(self, *args):
         super(Predicate, self).__init__(*args)
         assert(self.info.opt_fn is None)
+    @property
+    def predicate(self):
+        return self.function
     def is_negated(self):
         return True
 

@@ -13,6 +13,12 @@ def get_unit_effort(effort):
     return 1
 
 
+def check_effort(effort, max_effort):
+    if max_effort is None:
+        return True
+    return effort < max_effort # Exclusive
+
+
 def compute_external_effort(external, unit_efforts=False, search_overhead=DEFAULT_SEARCH_OVERHEAD):
     effort_fn = external.info.effort_fn
     if effort_fn is None:

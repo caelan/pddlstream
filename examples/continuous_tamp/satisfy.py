@@ -9,10 +9,11 @@ import pstats
 import numpy as np
 from numpy import array
 
-from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem
-from examples.continuous_tamp.run import pddlstream_from_tamp
+from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem, MOVE_COST
+from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.constants import Not, Minimize
+from pddlstream.language.function import FunctionInfo
+from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
 
@@ -51,10 +52,10 @@ CONSTRAINTS = [
     ('kin', 'b1', '?q2', '?p1'),
     ('kin', 'b1', '?q3', POSE1),
 
+    ('motion', CONF0, '?t0', '?q0'),
     ('motion', '?q0', '?t1', '?q1'),
     ('motion', '?q1', '?t3', '?q3'),
     ('motion', '?q3', '?t2', '?q2'),
-    ('motion', CONF0, '?t0', '?q0'),
 
     #('conf', '?q0'),
     #('conf', '?q1'),
@@ -66,6 +67,18 @@ CONSTRAINTS = [
     #('traj', '?t1'),
     #('traj', '?t2'),
     #('traj', '?t3'),
+]
+
+SKELETON = [
+    ('move', [CONF0, '?t0', '?q0']),
+    ('pick', ['b0', POSE0, '?q0']),
+    ('move', ['?q0', '?t1', '?q1']),
+    ('place', ['b0', '?p0', '?q1']),
+
+    ('move', ['?q1', '?t3', '?q3']),
+    ('pick', ['b1', POSE1, '?q3']),
+    ('move', ['?q3', '?t2', '?q2']),
+    ('place', ['b1', '?p1', '?q2']),
 ]
 
 OBJECTIVES = [
@@ -100,6 +113,7 @@ def main(success_cost=0):
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'t-cfree': StreamInfo(eager=False, negate=True),
+        #'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST), # Doesn't make a difference
     }
 
     terms = CONSTRAINTS + OBJECTIVES
@@ -116,16 +130,22 @@ def main(success_cost=0):
                                                  success_cost=success_cost, max_time=args.max_time,
                                                  verbose=False, debug=False)
     else:
-        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms,
-                                           stream_info=stream_info, max_sample_time=args.max_time)
+        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
+                                           success_cost=success_cost, max_time=args.max_time,
+                                           planner='ff-astar', debug=True)
         #raise ValueError(args.algorithm)
 
     dump_assignment(solution)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    #if plan is not None:
-    #    display_plan(tamp_problem, plan)
-
+    bindings, cost, evaluations = solution
+    if bindings is None:
+        return
+    plan = []
+    for name, args in SKELETON:
+        new_args = [bindings[a] if is_parameter(a) else a for a in args]
+        plan.append((name, new_args))
+    display_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()

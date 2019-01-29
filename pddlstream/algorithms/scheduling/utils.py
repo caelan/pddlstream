@@ -4,6 +4,7 @@ from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicat
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
+from pddlstream.language.effort import check_effort
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
 from pddlstream.utils import INF, apply_mapping
 
@@ -33,7 +34,7 @@ def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
         opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
     node_from_atom = get_achieving_streams(evaluations, stream_results)
     result_from_evaluation = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()
-                              if (max_effort is not None) and (n.effort < max_effort)}
+                              if check_effort(n.effort, max_effort)}
     return result_from_evaluation
 
 def partition_external_plan(external_plan):

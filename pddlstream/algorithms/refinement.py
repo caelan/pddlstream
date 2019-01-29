@@ -12,7 +12,7 @@ from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
-from pddlstream.language.effort import compute_external_effort
+from pddlstream.language.effort import compute_external_effort, check_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import INF, safe_zip, get_mapping
 
@@ -49,7 +49,7 @@ def prune_high_effort_streams(streams, max_effort=INF, **effort_args):
     low_effort_streams = []
     for stream in streams:
         effort = compute_external_effort(stream, **effort_args)
-        if isinstance(stream, Function) or (effort < max_effort): # exclusive
+        if isinstance(stream, Function) or check_effort(effort, max_effort):
             low_effort_streams.append(stream)
     return low_effort_streams
 

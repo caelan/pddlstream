@@ -3,7 +3,7 @@ from __future__ import print_function
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
-from pddlstream.algorithms.recover_optimizers import retrace_instantiation
+from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
@@ -14,7 +14,7 @@ from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.stream import Stream
 from pddlstream.language.function import Function, Predicate
-from pddlstream.utils import INF, get_mapping, elapsed_time
+from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object
 
 import time
 
@@ -32,6 +32,37 @@ def create_domain(goal_facts):
         parameters = ['?x{}'.format(i) for i in range(len(get_args(fact)))]
         add_predicate(domain, make_predicate(name, parameters))
     return domain
+
+def plan_functions(functions, externals):
+    external_from_function = {}
+    for external in filter(lambda e: isinstance(e, Function), externals):
+        assert external.function not in external_from_function
+        external_from_function[external.function] = external
+    function_plan = set()
+    for term in functions:
+        if get_prefix(term) not in external_from_function:
+            raise ValueError('{} is not implemented'.format(get_prefix(term)))
+        external = external_from_function[get_prefix(term)]
+        instance = external.get_instance(get_args(term))
+        [result] = instance.next_optimistic()
+        function_plan.add(result)
+    print('Function plan:', str_from_object(function_plan))
+    return function_plan
+
+def get_parameters(goal_facts):
+    return {o for f in goal_facts for o in get_args(f) if isinstance(o, OptimisticObject)}
+
+def extract_streams(evaluations, externals, goal_facts):
+    streams = list(filter(lambda e: isinstance(e, Stream), externals))
+    free_parameters = get_parameters(goal_facts)
+    visited_facts = set()
+    stream_results = []
+    for fact in goal_facts:
+        # TODO: prune results that already exceed effort limit
+        retrace_instantiation(fact, streams, evaluations, free_parameters, visited_facts, stream_results)
+    print('Streams:', stream_results)
+    # TODO: express some of this pruning using effort (e.g. unlikely to sample bound value)
+    return stream_results
 
 ##################################################
 
@@ -54,39 +85,19 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     constraints, negated, functions = partition_facts(obj_terms)
     if not constraints:
         return {}, 0, init
-    externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    external_from_function = {}
-    for external in filter(lambda e: isinstance(e, Function), externals):
-        assert external.function not in external_from_function
-        external_from_function[external.function] = external
-    function_plan = set()
-    for term in (negated + functions):
-        if get_prefix(term) not in external_from_function:
-            raise ValueError('{} is not implemented'.format(get_prefix(term)))
-        external = external_from_function[get_prefix(term)]
-        instance = external.get_instance(get_args(term))
-        [result] = instance.next_optimistic()
-        function_plan.add(result)
-
-    streams = list(filter(lambda e: isinstance(e, Stream), externals))
-    #print('Streams:', streams)
     evaluations = evaluations_from_init(init)
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
+    free_parameters = sorted(get_parameters(goal_facts))
 
-    free_parameters = sorted({o for f in goal_facts for o in get_args(f) if isinstance(o, OptimisticObject)})
-    visited_facts = set()
-    stream_results = []
-    for fact in goal_facts:
-        # TODO: prune results that already exceed effort limit
-        retrace_instantiation(fact, streams, evaluations, free_parameters, visited_facts, stream_results)
-    print(stream_results)
-    # TODO: express some of this pruning using effort (e.g. unlikely to sample bound value)
+    externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
+    function_plan = plan_functions(negated + functions, externals)
+    stream_results = extract_streams(evaluations, externals, goal_facts)
 
     # TODO: consider other results if this fails
     domain = create_domain(goal_facts)
     init_evaluations = evaluations.copy()
     store = SolutionStore(evaluations, max_time=INF, success_cost=success_cost, verbose=True) # TODO: include other info here?
-    queue = SkeletonQueue(store, goal_expression=None, domain=None)
+    queue = SkeletonQueue(store, domain)
     num_iterations = search_time = sample_time = 0
     failure = False
     while not store.is_terminated() and not failure:
@@ -99,11 +110,16 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
         if len(queue.skeletons) < max_skeletons:
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, max_effort=max_effort, **search_args)
-            external_plan = reorder_stream_plan(stream_plan + list(function_plan))
+        else:
+            stream_plan = None
+        if stream_plan is None:
+            external_plan, action_plan, cost = None, None, INF
+        else:
+            external_plan = stream_plan + list(function_plan)
+            external_plan = combine_optimizers(init_evaluations, external_plan)
+            external_plan = reorder_stream_plan(external_plan)
             action_plan = [(BIND_ACTION, free_parameters)]
             cost = sum([0.] + [result.value for result in external_plan if type(result.external) == Function])
-        else:
-            external_plan, action_plan, cost = None, None, INF
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
         failure |= (external_plan is None)
@@ -114,14 +130,16 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             allocated_sample_time = INF
         else:
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
-        queue.process(external_plan, action_plan, cost=cost, complexity_limit=INF, max_time=allocated_sample_time)
+        queue.process(external_plan, action_plan, cost=cost,
+                      complexity_limit=INF,  max_time=allocated_sample_time)
         sample_time += elapsed_time(start_time)
+        # TODO: exhaustively compute all plan skeletons and add to queue within the focused algorithm
 
     #write_stream_statistics(externals + synthesizers, verbose)
-    plan, cost, init = revert_solution(store.best_plan, store.best_cost, evaluations)
+    plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
     if plan is None:
-        return plan, cost, init
+        return None, cost, facts
     parameter_names = [o.value for o in free_parameters]
     [(_, parameter_values)] = plan
     bindings = get_mapping(parameter_names, parameter_values)
-    return bindings, cost, init
+    return bindings, cost, facts

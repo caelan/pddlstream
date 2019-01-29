@@ -2,7 +2,7 @@ from collections import Counter
 
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, Fact, concatenate, Minimize
+from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, is_parameter, Minimize
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import PredicateResult, FunctionResult
@@ -62,9 +62,10 @@ def get_effort_fn(optimizer_name):
     # TODO: higher effort is the variable cannot be free for the testing process
     # This might happen if the variable is certified to have a property after construction
     def effort_fn(*input_values):
-        free_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
-                        and value.stream.startswith(optimizer_name)]
-        if not free_indices:
+        parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
+        optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
+                              if input_values[i].stream.startswith(optimizer_name)]
+        if not parameter_indices and not optimizer_indices:
             return INF
         return 1
     return effort_fn

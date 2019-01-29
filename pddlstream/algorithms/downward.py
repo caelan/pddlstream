@@ -285,7 +285,8 @@ def sas_from_pddl(task, debug=False):
     #normalize.normalize(task)
     #sas_task = translate.pddl_to_sas(task)
     with Verbose(debug):
-        sas_task = sas_from_instantiated(instantiate_task(task))
+        instantiated = instantiate_task(task)
+        sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = task.use_min_cost_metric # TODO: are these sometimes not equal?
     return sas_task
 

@@ -151,10 +151,9 @@ class SkeletonQueue(Sized):
     # TODO: update bindings given outcomes of eager streams
     # TODO: immediately evaluate eager streams in the queue
 
-    def __init__(self, store, goal_expression, domain):
+    def __init__(self, store, domain):
         self.store = store
         self.evaluations = store.evaluations
-        #self.goal_expression = goal_expression
         self.domain = domain
         self.skeletons = []
         self.queue = []
