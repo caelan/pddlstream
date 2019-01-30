@@ -142,9 +142,11 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
             domain.axioms[:] = axioms # TODO: avoid disabling
+            planner = 'ff-astar' # TODO: toggle within reschedule_stream_plan
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
-                                                 unit_efforts=False, max_effort=max_effort, **search_args)
+                                                 unit_efforts=False, max_effort=max_effort,
+                                                 planner=planner, **search_args)
             if stream_plan is not None:
                 axioms.append(create_disable_axiom(stream_plan))
                 external_plan = reorder_stream_plan(combine_optimizers(

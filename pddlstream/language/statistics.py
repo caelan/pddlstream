@@ -201,7 +201,7 @@ class Performance(object):
 
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
-            self.name, self.total_calls, self.get_p_success(), self.get_overhead()))
+            self.name, self.total_calls, self._estimate_p_success(), self._estimate_overhead()))
 
     def dump_online(self):
         if not self.online_calls:

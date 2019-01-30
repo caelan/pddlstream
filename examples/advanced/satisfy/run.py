@@ -73,7 +73,7 @@ def main(max_time=2, success_cost=0):
                                                  max_time=max_time, success_cost=success_cost)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=info,
-                                           planner='ff-astar', max_time=max_time, success_cost=success_cost)
+                                           max_time=max_time, success_cost=success_cost)
     dump_assignment(solution)
 
 if __name__ == '__main__':

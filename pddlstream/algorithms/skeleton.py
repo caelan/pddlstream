@@ -210,9 +210,11 @@ class SkeletonQueue(Sized):
         self.enabled_bindings.remove(binding)
         for result in binding.stream_plan:
             instance = result.instance
-            self.bindings_from_instance[instance].remove(binding)
-            if not self.bindings_from_instance[instance]:
-                del self.bindings_from_instance[instance]
+            if instance in self.bindings_from_instance:
+                if binding in self.bindings_from_instance[instance]:
+                    self.bindings_from_instance[instance].remove(binding)
+                if not self.bindings_from_instance[instance]:
+                    del self.bindings_from_instance[instance]
 
     ####################
 
