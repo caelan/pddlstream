@@ -26,6 +26,9 @@ def problem1(n=5):
         :domain (Integer ?x)
         :certified (Large ?x)
       )
+      (:function (Cost ?x) 
+                 (Integer ?x)
+      )
     )
     """
 
@@ -34,15 +37,17 @@ def problem1(n=5):
         'positive': from_gen_fn(lambda: ((x,) for x in range(100000))),
         'negative': from_gen_fn(lambda: ((-x,) for x in range(100000))),
         'test-large': from_test(lambda x: n <= x),
+        'cost': lambda x: 1./(abs(x) + 1),
     }
     init = []
-    terms = [('Integer', '?x'), ('Large', '?x')]
+    terms = [('Integer', '?x'), ('Large', '?x'),
+             ('minimize', ('Cost', '?x'))]
 
     return stream_pddl, stream_map, init, terms
 
 ##################################################
 
-def main():
+def main(max_time=2, success_cost=0):
     parser = argparse.ArgumentParser()
     #parser.add_argument('-p', '--problem', default='problem1', help='The name of the problem to solve')
     parser.add_argument('-a', '--algorithm', default=None, help='Specifies the algorithm')
@@ -61,14 +66,14 @@ def main():
         # Alternatively, can make the second stream called work
     }
     if args.algorithm == 'focused':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
-                                                 incremental=False, stream_info=info)
+        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=False,
+                                                 stream_info=info, max_time=max_time, success_cost=success_cost)
     elif args.algorithm == 'incremental':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 success_cost=info)
+                                                 max_time=max_time, success_cost=success_cost)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=info,
-                                           planner='ff-astar')
+                                           planner='ff-astar', max_time=max_time, success_cost=success_cost)
     dump_assignment(solution)
 
 if __name__ == '__main__':

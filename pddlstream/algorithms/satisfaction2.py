@@ -15,7 +15,8 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.stream import Stream
 from pddlstream.language.function import Function, Predicate
-from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object
+from pddlstream.language.statistics import write_stream_statistics
+from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 
 import time
 
@@ -65,11 +66,28 @@ def extract_streams(evaluations, externals, goal_facts):
     # TODO: express some of this pruning using effort (e.g. unlikely to sample bound value)
     return stream_results
 
-def get_axiom(stream_plan):
+def create_disable_axiom(stream_plan):
+    # TODO: disable only connected components
+    # TODO: express constraint mutexes upfront
+    # TODO: disable only subset that causes inconsistency via sampling
     parameters = []
     preconditions = [result.stream_fact for result in stream_plan]
     derived = (UNSATISFIABLE,)
     return make_axiom(parameters, preconditions, derived)
+
+def get_optimistic_cost(function_plan):
+    return sum([0.] + [result.value for result in function_plan
+                       if type(result.external) == Function])
+
+def bindings_from_plan(plan_skeleton, action_plan):
+    if action_plan is None:
+        return None
+    bindings = {}
+    for (name1, args1), (name2, args2) in safe_zip(plan_skeleton, action_plan):
+        assert name1 == name2
+        parameter_names = [o.value for o in args1]
+        bindings.update(get_mapping(parameter_names, args2))
+    return bindings
 
 ##################################################
 
@@ -99,8 +117,8 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
     stream_results = extract_streams(evaluations, externals, goal_facts)
     function_plan = plan_functions(negated + functions, externals)
-    action_plan = [(BIND_ACTION, free_parameters)]
-    cost = sum([0.] + [result.value for result in function_plan if type(result.external) == Function])
+    plan_skeleton = [(BIND_ACTION, free_parameters)]
+    cost = get_optimistic_cost(function_plan)
     if max_cost < cost:
         return None, INF, init
     # TODO: detect connected components
@@ -121,19 +139,16 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
               'Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue.skeletons), len(queue),
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
+        external_plan = None
         if len(queue.skeletons) < max_skeletons:
             domain.axioms[:] = axioms # TODO: avoid disabling
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
                                                  unit_efforts=False, max_effort=max_effort, **search_args)
-        else:
-            stream_plan = None
-        if stream_plan is None:
-            external_plan, action_plan, cost = None, None, INF
-        else:
-            axioms.append(get_axiom(stream_plan))
-            external_plan = reorder_stream_plan(combine_optimizers(
-                init_evaluations, stream_plan + list(function_plan)))
+            if stream_plan is not None:
+                axioms.append(create_disable_axiom(stream_plan))
+                external_plan = reorder_stream_plan(combine_optimizers(
+                    init_evaluations, stream_plan + list(function_plan)))
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
         failure |= (external_plan is None)
@@ -144,16 +159,12 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             allocated_sample_time = INF
         else:
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
-        queue.process(external_plan, action_plan, cost=cost,
+        queue.process(external_plan, plan_skeleton, cost=cost,
                       complexity_limit=INF,  max_time=allocated_sample_time)
         sample_time += elapsed_time(start_time)
         # TODO: exhaustively compute all plan skeletons and add to queue within the focused algorithm
 
-    #write_stream_statistics(externals + synthesizers, verbose)
-    plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
-    if plan is None:
-        return None, cost, facts
-    parameter_names = [o.value for o in free_parameters]
-    [(_, parameter_values)] = plan
-    bindings = get_mapping(parameter_names, parameter_values)
+    write_stream_statistics(externals, verbose)
+    action_plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
+    bindings = bindings_from_plan(plan_skeleton, action_plan)
     return bindings, cost, facts

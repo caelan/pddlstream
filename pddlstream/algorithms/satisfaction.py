@@ -113,6 +113,28 @@ def planning_from_satisfaction(init, constraints):
     domain = make_domain(predicates=predicates, actions=actions)
     return domain, goal_expression
 
+##################################################
+
+def pddl_from_csp(stream_pddl, stream_map, init, constraints):
+    domain, goal = planning_from_satisfaction(init, constraints)
+    constant_map = {}
+    return PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)
+
+def bindings_from_plan(problem, plan):
+    if plan is None:
+        return None
+    domain = problem[0]
+    bindings = {}
+    for action, (name, args) in safe_zip(domain.actions, plan):
+        assert action.name == name
+        for param, arg in safe_zip(action.parameters, args):
+            name = param.name
+            assert bindings.get(name, arg) is arg
+            bindings[name] = arg
+    return bindings
+
+##################################################
+
 def dump_assignment(solution):
     bindings, cost, evaluations = solution
     print()
@@ -133,23 +155,10 @@ def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, in
     # TODO: investigate constraint satisfaction techniques for search instead
     # TODO: optimistic objects based on free parameters that prevent cycles
     # TODO: disallow creation of new parameters / certifying new facts
-    domain, goal = planning_from_satisfaction(init, constraints)
-    constant_map = {}
-    problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)
-
+    problem = pddl_from_csp(stream_pddl, stream_map, init, constraints)
     if incremental:
         plan, cost, facts = solve_incremental(problem, **kwargs)
     else:
         plan, cost, facts = solve_focused(problem, **kwargs)
-    if plan is None:
-        return None, cost, facts
-    assert len(plan) == len(domain.actions)
-
-    bindings = {}
-    for action, (name, args) in safe_zip(domain.actions, plan):
-        assert action.name == name
-        for param, arg in safe_zip(action.parameters, args):
-            name = param.name
-            assert bindings.get(name, arg) is arg
-            bindings[name] = arg
+    bindings = bindings_from_plan(problem, plan)
     return bindings, cost, facts
