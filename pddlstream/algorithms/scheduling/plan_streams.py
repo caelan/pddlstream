@@ -2,8 +2,8 @@ import copy
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost, literal_holds, fd_from_evaluation
-from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, add_optimizer_axioms, \
+    sas_from_instantiated, scale_cost, literal_holds
+from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, \
@@ -178,7 +178,6 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
     add_stream_efforts(node_from_atom, instantiated, effort_weight, unit_efforts=unit_efforts)
     if using_optimizers(applied_results):
         add_optimizer_effects(instantiated, node_from_atom)
-    add_optimizer_axioms(all_results, instantiated)
     action_from_name = rename_instantiated_actions(instantiated)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)

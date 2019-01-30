@@ -44,13 +44,12 @@ def partition_external_plan(external_plan):
 
 def add_unsatisfiable_to_goal(domain, goal_expression):
     import pddl
-    from pddlstream.language.optimizer import UNSATISFIABLE, BLOCK_ADDITIONS
+    from pddlstream.language.optimizer import UNSATISFIABLE
     add_predicate(domain, make_predicate(UNSATISFIABLE, []))
-    if not BLOCK_ADDITIONS:
-        negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
-        for action in domain.actions:
-            if negated_atom not in action.precondition.parts:
-                action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
+    negated_atom = pddl.NegatedAtom(UNSATISFIABLE, tuple())
+    for action in domain.actions:
+        if negated_atom not in action.precondition.parts:
+            action.precondition = pddl.Conjunction([action.precondition, negated_atom]).simplified()
     return And(goal_expression, Not((UNSATISFIABLE,)))
 
 
@@ -87,6 +86,7 @@ def simplify_conditional_effects(opt_task, action_instances, negative_from_name=
                     # Holds in optimistic state
                     # Assuming that must achieve all possible conditional effects
                     if neg_conditions:
+                        # TODO: use unsatisfiable
                         # Assuming that negative conditions should not be achieved
                         if len(neg_conditions) != 1:
                             raise NotImplementedError()

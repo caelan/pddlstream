@@ -12,12 +12,9 @@ from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInsta
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object, get_connected_components
 from pddlstream.algorithms.reorder import get_partial_orders
 
-# TODO: could also just block a skeleton itself by adding it as a state variable
-
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
 OPTIMIZER_AXIOM = True
-BLOCK_ADDITIONS = False
 
 class OptimizerOutput(object):
     def __init__(self, assignments=[], facts=[], infeasible=[]): # infeasible=None
