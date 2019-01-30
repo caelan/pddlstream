@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
+from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate, make_axiom
 from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
@@ -12,6 +12,7 @@ from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
 from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
+from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.stream import Stream
 from pddlstream.language.function import Function, Predicate
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object
@@ -64,11 +65,17 @@ def extract_streams(evaluations, externals, goal_facts):
     # TODO: express some of this pruning using effort (e.g. unlikely to sample bound value)
     return stream_results
 
+def get_axiom(stream_plan):
+    parameters = []
+    preconditions = [result.stream_fact for result in stream_plan]
+    derived = (UNSATISFIABLE,)
+    return make_axiom(parameters, preconditions, derived)
+
 ##################################################
 
 def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={},
                             max_cost=INF, success_cost=INF, max_time=INF, max_effort=INF,
-                            max_skeletons=1, search_sample_ratio=1, **search_args):
+                            max_skeletons=INF, search_sample_ratio=1, verbose=True, **search_args):
     # Approaches
     # 1) Existential quantification of bindings in goal conditions
     # 2) Backtrack useful streams and then schedule. Create arbitrary outputs for not mentioned.
@@ -81,25 +88,32 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     # TODO: could also instantiate all possible free parameters even if not useful
     # TODO: effort that is a function of the number of output parameters (degrees of freedom)
     # TODO: max_iterations?
+    if not terms:
+        return {}, 0, init
     obj_terms = set(map(obj_from_existential_expression, terms))
     constraints, negated, functions = partition_facts(obj_terms)
-    if not constraints:
-        return {}, 0, init
     evaluations = evaluations_from_init(init)
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
     free_parameters = sorted(get_parameters(goal_facts))
 
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
-    function_plan = plan_functions(negated + functions, externals)
     stream_results = extract_streams(evaluations, externals, goal_facts)
+    function_plan = plan_functions(negated + functions, externals)
+    action_plan = [(BIND_ACTION, free_parameters)]
+    cost = sum([0.] + [result.value for result in function_plan if type(result.external) == Function])
+    if max_cost < cost:
+        return None, INF, init
+    # TODO: detect connected components
+    # TODO: eagerly evaluate fully bound constraints
 
     # TODO: consider other results if this fails
     domain = create_domain(goal_facts)
     init_evaluations = evaluations.copy()
-    store = SolutionStore(evaluations, max_time=INF, success_cost=success_cost, verbose=True) # TODO: include other info here?
+    store = SolutionStore(evaluations, max_time=max_time, success_cost=success_cost, verbose=verbose)
     queue = SkeletonQueue(store, domain)
     num_iterations = search_time = sample_time = 0
     failure = False
+    axioms = []
     while not store.is_terminated() and not failure:
         num_iterations += 1
         start_time = time.time()
@@ -108,18 +122,18 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             num_iterations, len(queue.skeletons), len(queue),
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
         if len(queue.skeletons) < max_skeletons:
+            domain.axioms[:] = axioms # TODO: avoid disabling
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
-                                                 unique_binding=True, max_effort=max_effort, **search_args)
+                                                 unique_binding=True, unsatisfiable=True,
+                                                 unit_efforts=False, max_effort=max_effort, **search_args)
         else:
             stream_plan = None
         if stream_plan is None:
             external_plan, action_plan, cost = None, None, INF
         else:
-            external_plan = stream_plan + list(function_plan)
-            external_plan = combine_optimizers(init_evaluations, external_plan)
-            external_plan = reorder_stream_plan(external_plan)
-            action_plan = [(BIND_ACTION, free_parameters)]
-            cost = sum([0.] + [result.value for result in external_plan if type(result.external) == Function])
+            axioms.append(get_axiom(stream_plan))
+            external_plan = reorder_stream_plan(combine_optimizers(
+                init_evaluations, stream_plan + list(function_plan)))
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
         failure |= (external_plan is None)

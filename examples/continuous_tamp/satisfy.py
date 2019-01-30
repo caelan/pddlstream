@@ -132,7 +132,7 @@ def main(success_cost=0):
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
                                            success_cost=success_cost, max_time=args.max_time,
-                                           planner='ff-astar', debug=True)
+                                           planner='ff-astar', debug=False)
         #raise ValueError(args.algorithm)
 
     dump_assignment(solution)
