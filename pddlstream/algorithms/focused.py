@@ -95,7 +95,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         reset_visualizations()
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
-    skeleton_queue = SkeletonQueue(store, goal_exp, domain)
+    skeleton_queue = SkeletonQueue(store, domain)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
