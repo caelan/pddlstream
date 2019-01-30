@@ -222,7 +222,7 @@ class StreamInstance(Instance):
         output, self.enumerated = get_next(self._generator, default=None)
         if output is None:
             output = []
-        if not self.external.is_wild and not isinstance(output, WildOutput):
+        if not isinstance(output, WildOutput):
             return WildOutput(output, [])
         if len(output) != 2:
             raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(
@@ -331,7 +331,7 @@ class StreamInstance(Instance):
 
 class Stream(External):
     _Instance = StreamInstance
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[], is_wild=False):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(certified)
@@ -365,7 +365,6 @@ class Stream(External):
         else:
             self.blocked_predicate = '~{}'.format(self.name)
         self.disabled_instances = []
-        self.is_wild = is_wild
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
 
         if self.is_negated():
@@ -398,10 +397,8 @@ class Stream(External):
 
 def parse_stream(lisp_list, stream_map, stream_info):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':stream', ':wild-stream', ':inputs',
-                                         ':domain', ':fluents', ':outputs', ':certified'}
-    is_wild = (':wild-stream' in value_from_attribute)
-    name = value_from_attribute[':wild-stream'] if is_wild else value_from_attribute[':stream']
+    assert set(value_from_attribute) <= {':stream', ':inputs', ':domain', ':fluents', ':outputs', ':certified'}
+    name = value_from_attribute[':stream']
     domain = value_from_attribute.get(':domain', None)
     # TODO: dnf_from_positive_formula(value_from_attribute.get(':domain', []))
     if not (get_formula_operators(domain) <= {AND}):
@@ -416,5 +413,4 @@ def parse_stream(lisp_list, stream_map, stream_info):
                   value_from_attribute.get(':outputs', []),
                   list_from_conjunction(certified),
                   stream_info.get(name, StreamInfo()),
-                  fluents=value_from_attribute.get(':fluents', []),
-                  is_wild=is_wild)
+                  fluents=value_from_attribute.get(':fluents', []))

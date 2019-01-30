@@ -36,9 +36,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
     from gurobipy import Model, GRB, quicksum
 
-    def fn(outputs, facts, fluents={}, hint={}):
+    def fn(outputs, facts, hint={}):
         # TODO: pass in the variables and constraint streams instead?
-        # TODO: fluents is map from constraint to fluent inputs
         # The true test is placing two blocks in a tight region obstructed by one
 
         print('Constraints:', facts)
@@ -148,7 +147,7 @@ def identify_infeasibility(facts, model):
     #infeasible = set(range(len(facts)))
     infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
     infeasible_facts = [facts[index] for index in sorted(infeasible)]
-    print('Infeasible:', infeasible_facts)
+    print('Inconsistent:', infeasible_facts)
     return infeasible
 
 def diagnose_infeasibility_test(outputs, facts, model, get_var):

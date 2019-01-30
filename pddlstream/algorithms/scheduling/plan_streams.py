@@ -137,7 +137,8 @@ def instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, dom
     # TODO: compute this first and then apply the eager actions
     #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
     stream_domain, result_from_name = add_stream_actions(domain, results)
-    problem = get_problem(evaluations, goal_expression, stream_domain)
+    # Need unit_costs=True otherwise obtain an instantiation error
+    problem = get_problem(evaluations, goal_expression, stream_domain, unit_costs=True)
     with Verbose():
         new_instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     instantiated.axioms[:] = new_instantiated.axioms
@@ -150,6 +151,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
                  simultaneous=False, reachieve=True, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
+    #reachieve = reachieve and not using_optimizers(all_results)
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, deferred_from_name = add_stream_actions(domain, deferred_results)

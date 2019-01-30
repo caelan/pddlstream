@@ -9,7 +9,7 @@ import pstats
 
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn, has_gurobi
+from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, \
     draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action
@@ -118,6 +118,11 @@ TIGHT_SKELETON = [
     ('pick', ['b0', '?p2', '?q3']),
     ('move', ['?q3', WILD, '?q4']),
     ('place', ['b0', '?p3', '?q4']),
+]
+
+MUTEXES = [
+    #[('kin', '?b1', '?p1', '?q'), ('kin', '?b2', '?p2', '?q')],
+    # TODO: add mutexes to reduce search over skeletons
 ]
 
 def main():

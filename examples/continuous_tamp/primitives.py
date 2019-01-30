@@ -121,12 +121,12 @@ INITIAL_CONF = np.array([-7.5, 5])
 GOAL_CONF = None
 #GOAL_CONF = INITIAL_CONF
 
-def get_tight_problem(n_blocks=2, n_goals=2):
-    regions = {
-        GROUND_NAME: (-15, 15),
-        REGION_NAME: (5, 10)
-    }
+REGIONS = {
+    GROUND_NAME: (-15, 15),
+    REGION_NAME: (5, 10),
+}
 
+def get_tight_problem(n_blocks=2, n_goals=2):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
@@ -135,29 +135,26 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
     goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
-    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 
-def get_blocked_problem(n_blocks=2, deterministic=True):
-    regions = {
-        GROUND_NAME: (-15, 15),
-        REGION_NAME: (5, 10)
-    }
-
+def get_blocked_problem(n_blocks=5, deterministic=True):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
-
     if deterministic:
         poses = [np.zeros(2), np.array([7.5, 0])]
+        poses.extend(np.array([-15 + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+                     for x in range(n_blocks-len(poses)))
         block_poses = dict(zip(blocks, poses))
     else:
         block_regions = {blocks[0]: GROUND_NAME}
-        block_regions.update({b: REGION_NAME for b in blocks[1:]})
-        block_poses = rejection_sample_placed(block_regions=block_regions, regions=regions)
+        block_regions.update({b: REGION_NAME for b in blocks[1:2]})
+        block_regions.update({b: GROUND_NAME for b in blocks[2:]})
+        block_poses = rejection_sample_placed(block_regions=block_regions, regions=REGIONS)
 
     initial = TAMPState(INITIAL_CONF, None, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
-    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 PROBLEMS = {
     'tight': get_tight_problem,

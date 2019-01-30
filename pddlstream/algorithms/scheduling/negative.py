@@ -49,8 +49,8 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
     for fluent_facts in fluent_facts_list:
         result = get_negative_result(negative, input_objects, fluent_facts)
-        if not result.instance.successes:
-            negative_plan.add(result)
+        #if not result.instance.successes: # Doesn't work with reachieve=True
+        negative_plan.add(result)
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = set()

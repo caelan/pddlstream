@@ -8,7 +8,7 @@ from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.object import OptimisticObject, Object
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
-    PartialInputs, NEGATIVE_SUFFIX
+    PartialInputs, NEGATIVE_SUFFIX, WildOutput
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object, get_connected_components
 from pddlstream.algorithms.reorder import get_partial_orders
 
@@ -21,6 +21,8 @@ class OptimizerOutput(object):
         self.assignments = assignments
         self.facts = facts
         self.infeasible = infeasible
+    def to_wild(self):
+        return WildOutput(self.assignments, self.facts)
     def __repr__(self):
         #return '{}{}'.format(self.__class__.__name__, str_from_object(self.__dict__))
         return str_from_object(self.__dict__)
@@ -50,7 +52,7 @@ def get_list_gen_fn(stream, procedure, inputs, outputs, certified, hint={}):
             if isinstance(output, OptimizerOutput):
                 # TODO: would be better to just extend StreamInstance
                 stream.infeasible.extend(output.infeasible)
-                yield output.assignments
+                yield output.to_wild()
             else:
                 yield output
     return list_gen_fn
@@ -176,30 +178,35 @@ class OptimizerInstance(StreamInstance):
             instance.num_optimistic = max(instance.num_optimistic, num + 1)
         if OPTIMIZER_AXIOM:
             self._add_disabled_axiom(domain)
-    def get_constraints(self):
+    def _get_constraints(self):
         output_mapping = get_mapping(self.external.outputs, self.external.output_objects)
         output_mapping.update(self.get_mapping())
         #constraints = substitute_expression(self.external.certified, output_mapping)
         constraints = []
         for i, result in enumerate(self.external.stream_plan):
-            macro_fact = substitute_expression(result.external.stream_fact, self.external.macro_from_micro[i])
-            constraints.append(substitute_expression(macro_fact, output_mapping))
+            #macro_fact = substitute_expression(result.external.stream_fact,
+            #                                   self.external.macro_from_micro[i])
+            #constraints.append(substitute_expression(macro_fact, output_mapping))
+            constraints.append(result.stream_fact) # These are equivalent
+            #constraints.extend(result.get_domain()) # Doesn't seem to simplify instantiation
+            #constraints.extend(result.get_certified())
         #print(self.external.infeasible)
         #print(self.external.certified)
         # TODO: I think I should be able to just disable the fluent fact from being used in that context
-        return constraints
+        return set(constraints)
     def _free_objects(self):
-       constraints = self.get_constraints()
+       constraints = self._get_constraints()
        objects = set()
        for fact in constraints:
            objects.update(get_args(fact))
+        # TODO: what if free parameter is a placeholder value
        return list(filter(lambda o: isinstance(o, OptimisticObject), objects))
     def _add_disabled_axiom(self, domain):
         # TODO: be careful about the shared objects as parameters
         #free_objects = self._free_objects()
         free_objects = self.external.output_objects
         parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
-        preconditions = substitute_expression(self.get_constraints(), get_mapping(free_objects, parameters))
+        preconditions = substitute_expression(self._get_constraints(), get_mapping(free_objects, parameters))
         self._disabled_axiom = make_axiom(parameters, preconditions, (UNSATISFIABLE,))
         domain.axioms.append(self._disabled_axiom)
         # TODO: need to block functions & predicates
