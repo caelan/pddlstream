@@ -44,7 +44,7 @@ class Optimizer(object):
 
 ##################################################
 
-def get_list_gen_fn(stream, procedure, inputs, outputs, certified, fluents={}, hint={}):
+def get_list_gen_fn(stream, procedure, inputs, outputs, certified, hint={}):
     # TODO: prevent outputs of the sampler from being used as inputs (only consider initial values)
     def list_gen_fn(*input_values):
         mapping = get_mapping(inputs, input_values)
@@ -99,7 +99,8 @@ class VariableStream(Stream):
                                              outputs, certified, info)
 
 class ConstraintStream(Stream):
-    def __init__(self, optimizer, constraint, domain, fluents, infos):
+    def __init__(self, optimizer, constraint, domain, infos):
+        # TODO: could support fluents and compile them into conditional effects
         self.optimizer = optimizer
         self.constraint = constraint
         self.infeasible = []
@@ -114,7 +115,7 @@ class ConstraintStream(Stream):
             info = StreamInfo(effort_fn=get_effort_fn(optimizer.name),
                               simultaneous=DEFAULT_SIMULTANEOUS)
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
-                                               outputs, certified, info, fluents=fluents)
+                                               outputs, certified, info)
 
 OPTIMIZER_STREAMS = [VariableStream, ConstraintStream]
 
@@ -132,11 +133,10 @@ def parse_variable(optimizer, lisp_list, infos):
 
 def parse_constraint(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':constraint', ':necessary', ':fluents'}
+    assert set(value_from_attribute) <= {':constraint', ':necessary'} # , ':fluents'}
     return ConstraintStream(optimizer,
                             value_from_attribute[':constraint'],
                             list_from_conjunction(value_from_attribute[':necessary']),
-                            value_from_attribute.get(':fluents', []),
                             infos)
 
 # TODO: convert optimizer into a set of streams? Already present within test stream

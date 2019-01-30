@@ -2,7 +2,7 @@ import copy
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost, literal_holds
+    sas_from_instantiated, scale_cost, literal_holds, fd_from_evaluation
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, add_optimizer_axioms, \
     using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
@@ -17,7 +17,7 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects, evaluations_from_stream_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import EQ, get_prefix
-from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact
+from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, fact_from_evaluation
 from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.external import Result
 from pddlstream.language.function import Function
@@ -31,8 +31,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
     # Added effects cancel out removed effects
     # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
-    curr_evaluations = evaluations_from_stream_plan(evaluations, current_plan, max_effort=None)
-    real_task = task_from_domain_problem(domain, get_problem(curr_evaluations, goal_expression, domain))
+    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = get_negative_predicates(negative)
 
@@ -43,11 +42,11 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     full_preimage = plan_preimage(combined_plan, [])
     stream_preimage = set(full_preimage) - real_states[0]
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
-    positive_preimage = stream_preimage - negative_preimage
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
+    positive_preimage = stream_preimage - negative_preimage
 
     step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
-    target_facts = [fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ]
+    target_facts = {fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ}
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
 
@@ -57,7 +56,9 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
             function_plan.add(result) # Prevents these results from being pruned
         else:
             stream_plan.append(result)
-    extract_stream_plan(node_from_atom, target_facts, stream_plan)
+    curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
+    extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
     stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom)
 
