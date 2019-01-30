@@ -2,14 +2,14 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
-  (:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
-    (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-  )
+  ;(:predicate (PoseCollision ?b1 ?p1 ?b2 ?p2)
+  ;  (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
+  ;)
   ;(:predicate (TrajCollision ?t ?b2 ?p2)
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
-  ; Creates more free variables than optimizer1.pddl
+  ; Creates more free variables than optimizer2.pddl
   (:optimizer gurobi
 
     ; Constructs a set of free variables
@@ -24,13 +24,8 @@
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
       :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
 
-    ; Constraint forms that can be optimized
-    ;(:constraint (SafePose ?b ?p)
-    ; :fluents (AtPose) ; Subset of the state is an input (functional STRIPS)
-    ; :necessary (and (Pose ?b ?p)))
-
     ; Treating predicates as objectives
-    (:objective PoseCollision)
+    ;(:objective PoseCollision)
     (:objective Distance)
   )
 

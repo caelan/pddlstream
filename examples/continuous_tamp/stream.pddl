@@ -15,6 +15,7 @@
     :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
     :certified (and (Traj ?t) (Motion ?q1 ?t ?q2)))
+
   (:stream t-cfree
     :inputs (?b1 ?p1 ?b2 ?p2)
     :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
@@ -35,11 +36,5 @@
   )
   ;(:predicate (TrajCollision ?t ?b2 ?p2)
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
-  ;)
-
-  ;(:stream reachable
-  ;  :inputs (?q1 ?q2)
-  ;  :fluents (AtPose Holding)
-  ;  :certified (Reachable ?q1 ?q2)
   ;)
 )

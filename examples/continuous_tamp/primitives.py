@@ -182,3 +182,25 @@ def draw_state(viewer, state, colors):
 
 def get_random_seed():
     return np.random.get_state()[1][0]
+
+##################################################
+
+def apply_action(state, action):
+    conf, holding, block_poses = state
+    # TODO: don't mutate block_poses?
+    name, args = action
+    if name == 'move':
+        _, traj, _ = args
+        for conf in traj[1:]:
+            yield TAMPState(conf, holding, block_poses)
+    elif name == 'pick':
+        holding, _, _ = args
+        del block_poses[holding]
+        yield TAMPState(conf, holding, block_poses)
+    elif name == 'place':
+        block, pose, _ = args
+        holding = None
+        block_poses[block] = pose
+        yield TAMPState(conf, holding, block_poses)
+    else:
+        raise ValueError(name)
