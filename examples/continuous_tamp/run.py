@@ -17,7 +17,7 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -29,7 +29,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     initial = tamp_problem.initial
     assert(initial.holding is None)
 
-    domain_pddl = read(get_file_path(__file__, 'domain2.pddl')) # domain | domain2
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     external_paths = []
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
@@ -39,7 +39,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     constant_map = {}
     init = [
-        ('Safe',),
         ('CanMove',),
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
@@ -52,7 +51,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()] + \
            [('Region', r) for r in tamp_problem.goal_regions.values() + [GROUND_NAME]]
 
-    goal_literals = [('Safe',)] # ('HandEmpty',)
+    goal_literals = [Not(('Unsafe',))] # ('HandEmpty',)
     goal_literals += [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
     if tamp_problem.goal_conf is not None:
         goal_literals += [('AtConf', tamp_problem.goal_conf)]
