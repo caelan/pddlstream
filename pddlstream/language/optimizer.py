@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
@@ -9,6 +9,7 @@ from pddlstream.language.function import PredicateResult, FunctionResult
 from pddlstream.language.object import OptimisticObject, Object
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
+from pddlstream.language.generator import get_next
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object, get_connected_components
 from pddlstream.algorithms.reorder import get_partial_orders
 
@@ -20,7 +21,7 @@ class OptimizerOutput(object):
     def __init__(self, assignments=[], facts=[], infeasible=[]): # infeasible=None
         self.assignments = assignments
         self.facts = facts
-        self.infeasible = infeasible
+        self.infeasible = infeasible # frozenset
     def to_wild(self):
         return WildOutput(self.assignments, self.facts)
     def __repr__(self):
@@ -43,18 +44,12 @@ class Optimizer(object):
 
 ##################################################
 
-def get_list_gen_fn(stream, procedure, inputs, outputs, certified, hint={}):
+def get_list_gen_fn(procedure, inputs, outputs, certified, hint={}):
     # TODO: prevent outputs of the sampler from being used as inputs (only consider initial values)
     def list_gen_fn(*input_values):
         mapping = get_mapping(inputs, input_values)
         targets = substitute_expression(certified, mapping)
-        for output in procedure(outputs, targets, hint=hint):
-            if isinstance(output, OptimizerOutput):
-                # TODO: would be better to just extend StreamInstance
-                stream.infeasible.extend(output.infeasible)
-                yield output.to_wild()
-            else:
-                yield output
+        return procedure(outputs, targets, hint=hint)
     return list_gen_fn
 
 def get_effort_fn(optimizer_name):
@@ -81,10 +76,9 @@ class VariableStream(Stream):
     def __init__(self, optimizer, variable, inputs, domain, certified, infos):
         self.optimizer = optimizer
         self.variable = variable
-        self.infeasible = []
         outputs = [variable]
         name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
-        gen_fn = get_list_gen_fn(self, optimizer.procedure, inputs, outputs, certified)
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
         #info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
@@ -102,12 +96,11 @@ class ConstraintStream(Stream):
         # TODO: could support fluents and compile them into conditional effects
         self.optimizer = optimizer
         self.constraint = constraint
-        self.infeasible = []
         inputs = get_args(constraint)
         outputs = []
         certified = [constraint]
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
-        gen_fn = get_list_gen_fn(self, optimizer.procedure, inputs, outputs, certified)
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
         #gen_fn = empty_gen()
         info = infos.get(name, None)
         if info is None:
@@ -164,7 +157,15 @@ UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
 class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
-        #self.disabled_axiom = None
+        all_constraints = frozenset(range(len(self.external.certified)))
+        self.infeasible = [all_constraints]
+    def _next_outputs(self):
+        self._create_generator()
+        output, self.enumerated = get_next(self._generator, default=[])
+        if not isinstance(output, OptimizerOutput):
+            output = OptimizerOutput(assignments=output)
+        self.infeasible.extend(output.infeasible)
+        return output.to_wild()
     def disable(self, evaluations, domain):
         #assert not self.disabled
         super(StreamInstance, self).disable(evaluations, domain) # StreamInstance instead of OptimizerInstance
@@ -178,39 +179,39 @@ class OptimizerInstance(StreamInstance):
             instance.num_optimistic = max(instance.num_optimistic, num + 1)
         if OPTIMIZER_AXIOM:
             self._add_disabled_axiom(domain)
-    def _get_constraints(self):
-        output_mapping = get_mapping(self.external.outputs, self.external.output_objects)
-        output_mapping.update(self.get_mapping())
-        #constraints = substitute_expression(self.external.certified, output_mapping)
-        constraints = []
-        for i, result in enumerate(self.external.stream_plan):
-            #macro_fact = substitute_expression(result.external.stream_fact,
-            #                                   self.external.macro_from_micro[i])
-            #constraints.append(substitute_expression(macro_fact, output_mapping))
-            constraints.append(result.stream_fact) # These are equivalent
-            #constraints.extend(result.get_domain()) # Doesn't seem to simplify instantiation
-            #constraints.extend(result.get_certified())
-        #print(self.external.infeasible)
-        #print(self.external.certified)
-        # TODO: I think I should be able to just disable the fluent fact from being used in that context
-        return set(constraints)
-    def _free_objects(self):
-       constraints = self._get_constraints()
-       objects = set()
-       for fact in constraints:
-           objects.update(get_args(fact))
-        # TODO: what if free parameter is a placeholder value
-       return list(filter(lambda o: isinstance(o, OptimisticObject), objects))
+    def _get_unsatisfiable(self):
+        if not self.infeasible:
+            yield set(self.external.stream_plan)
+        constraints = substitute_expression(self.external.certified, self.external.mapping)
+        index_from_constraint = {c: i for i, c in enumerate(constraints)}
+        # TODO: just prune any subsets
+        #sets = []
+        #for s1 in self.infeasible:
+        #    for s2 in self.infeasible:
+        #    else:
+        #        sets.append(s1)
+        # TODO: compute connected components
+        result_from_index = defaultdict(set)
+        for result in self.external.stream_plan:
+            for fact in result.get_certified():
+                if fact in index_from_constraint:
+                    result_from_index[index_from_constraint[fact]].add(result)
+        for cluster in self.infeasible:
+            yield {result for index in cluster for result in result_from_index[index]}
     def _add_disabled_axiom(self, domain):
         # TODO: be careful about the shared objects as parameters
-        #free_objects = self._free_objects()
-        free_objects = self.external.output_objects
-        parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
-        preconditions = substitute_expression(self._get_constraints(), get_mapping(free_objects, parameters))
-        self._disabled_axiom = make_axiom(parameters, preconditions, (UNSATISFIABLE,))
-        domain.axioms.append(self._disabled_axiom)
+        for results in self._get_unsatisfiable():
+            constraints = {r.stream_fact for r in results} # r.get_domain(), r.get_certified()
+            # TODO: what if free parameter is a placeholder value
+            #free_objects = list({o for f in constraints for o in get_args(f) if isinstance(o, OptimisticObject)})
+            free_objects = list({o for f in constraints for o in get_args(f)
+                                  if o in self.external.output_objects})
+            parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
+            preconditions = substitute_expression(constraints, get_mapping(free_objects, parameters))
+            disabled_axiom = make_axiom(parameters, preconditions, (UNSATISFIABLE,))
+            #self._disabled_axioms.append(disabled_axiom)
+            domain.axioms.append(disabled_axiom)
         # TODO: need to block functions & predicates
-        # TODO: how do I block negative streams used in conditional effects?
     def enable(self, evaluations, domain):
         super(OptimizerInstance, self).enable(evaluations, domain)
         raise NotImplementedError()
@@ -220,23 +221,25 @@ class OptimizerStream(Stream):
     def __init__(self, optimizer, external_plan):
         optimizer.streams.append(self)
         self.optimizer = optimizer
-        self.infeasible = []
         self.stream_plan, self.function_plan = partition_external_plan(external_plan)
         inputs, domain, outputs, certified, functions, self.macro_from_micro, \
             self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(external_plan)
 
-        self.hint = {}
+        hint = {}
         for result, mapping in safe_zip(self.stream_plan, self.macro_from_micro):
             if isinstance(result, StreamResult):
                 for param, obj in safe_zip(result.external.outputs, result.output_objects):
                     if isinstance(obj, Object):
-                        self.hint[mapping[param]] = obj.value
-        target_facts = sorted(certified | functions)
-        gen_fn = get_list_gen_fn(self, optimizer.procedure, inputs, outputs,
-                                 target_facts, hint=self.hint)
+                        hint[mapping[param]] = obj.value
+        target_facts = certified + functions
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, target_facts, hint=hint)
         #assert len(self.get_cluster_plans()) == 1
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)
+    @property
+    def mapping(self):
+        return get_mapping(self.inputs + self.outputs,
+                           self.input_objects + self.output_objects)
     def get_cluster_plans(self):
         # TODO: split the optimizer into clusters when provably independent
         external_plan = self.stream_plan + self.function_plan
@@ -290,5 +293,5 @@ def get_cluster_values(stream_plan):
             certified.update(substitute_expression(stream.certified, local_mapping))
             macro_from_micro.append(local_mapping) # TODO: append for functions as well?
     #assert not fluent_facts
-    return inputs, domain, outputs, certified, functions, \
+    return inputs, sorted(domain), outputs, sorted(certified), sorted(functions), \
            macro_from_micro, input_objects, output_objects, fluent_facts

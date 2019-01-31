@@ -219,14 +219,9 @@ class StreamInstance(Instance):
 
     def _next_outputs(self):
         self._create_generator()
-        output, self.enumerated = get_next(self._generator, default=None)
-        if output is None:
-            output = []
+        output, self.enumerated = get_next(self._generator, default=[])
         if not isinstance(output, WildOutput):
-            return WildOutput(output, [])
-        if len(output) != 2:
-            raise RuntimeError('Wild stream [{}] does not generate pairs of output values and wild facts'.format(
-                self.external.name))
+            output = WildOutput(output, [])
         return output
 
     def next_results(self, accelerate=1, verbose=False):
