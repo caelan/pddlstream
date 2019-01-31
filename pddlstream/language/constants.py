@@ -141,16 +141,31 @@ def print_solution(solution):
     #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
 
 
+def get_function(term):
+    if get_prefix(term) in (EQ, MINIMIZE, NOT):
+        return term[1]
+    return term
+
+
 def partition_facts(facts):
     functions = []
     negated = []
     positive = []
     for fact in facts:
         prefix = get_prefix(fact)
+        func = get_function(fact)
         if prefix in (EQ, MINIMIZE):
-            functions.append(fact[1])
+            functions.append(func)
         elif prefix == NOT:
-            negated.append(fact[1])
+            negated.append(func)
         else:
-            positive.append(fact)
+            positive.append(func)
     return positive, negated, functions
+
+
+def get_costs(objectives):
+    return [o for o in objectives if get_prefix(o) == MINIMIZE]
+
+
+def get_constraints(objectives):
+    return [o for o in objectives if get_prefix(o) != MINIMIZE]

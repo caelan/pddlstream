@@ -7,10 +7,10 @@ from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSI
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT, partition_facts
+from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT, partition_facts, get_costs, \
+    get_constraints
 from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
 from pddlstream.utils import str_from_object, safe_zip
-
 
 Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
 
@@ -20,14 +20,6 @@ def get_parameters(expression):
     if head in [NOT, MINIMIZE]:
         return get_parameters(get_args(expression)[0])
     return list(filter(is_parameter, get_args(expression)))
-
-
-def get_costs(objectives):
-    return [o for o in objectives if get_prefix(o) == MINIMIZE]
-
-
-def get_constraints(objectives):
-    return [o for o in objectives if get_prefix(o) != MINIMIZE]
 
 
 def update_cluster(cluster1, cluster2):
