@@ -3,7 +3,6 @@ from __future__ import print_function
 import numpy as np
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
-from pddlstream.utils import hash_or_id
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.language.optimizer import OptimizerOutput
 
@@ -90,34 +89,33 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         # TODO: pass in the variables and constraint streams instead?
         # The true test is placing two blocks in a tight region obstructed by one
         positive, negative, costs = partition_facts(facts)
-        print('Parameters:', outputs)
+        #print('Parameters:', outputs)
         print('Constraints:', positive + negative)
         print('Costs:', costs)
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
 
-        var_from_id = {}
+        var_from_param = {}
         for fact in facts:
             prefix, args = fact[0], fact[1:]
             if prefix == 'conf':
                 param, = args
-                if param not in var_from_id:
-                    var_from_id[hash_or_id(param)] = np_var(model)
+                if is_parameter(param):
+                    var_from_param[param] = np_var(model)
             elif prefix == 'pose':
                 _, param = args
-                if param not in var_from_id:
-                    var_from_id[hash_or_id(param)] = np_var(model)
+                if is_parameter(param):
+                    var_from_param[param] = np_var(model)
             elif prefix == 'traj':
                 raise NotImplementedError()
                 #param, = args
                 #if param not in var_from_id:
                 #    var_from_id[id(param)] = [np_var(model), np_var(model)]
 
-        def get_var(param):
-            return var_from_id.get(hash_or_id(param), param)
+        def get_var(p):
+            return var_from_param[p] if is_parameter(p) else p
 
-        #postive, negative, functions = partition_facts(facts)
         objective_terms = []
         for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
