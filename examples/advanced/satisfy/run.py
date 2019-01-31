@@ -8,6 +8,7 @@ from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream
 from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
 from pddlstream.language.generator import from_test, from_gen_fn
 from pddlstream.language.stream import StreamInfo
+from pddlstream.utils import INF
 
 
 def problem1(n=5):
@@ -40,17 +41,19 @@ def problem1(n=5):
         'cost': lambda x: 1./(abs(x) + 1),
     }
     init = []
-    terms = [('Integer', '?x'), ('Large', '?x'),
-             ('minimize', ('Cost', '?x'))]
+    terms = [('Integer', '?x1'), ('Large', '?x1'), ('Integer', '?x2'),
+             ('minimize', ('Cost', '?x1')), ('minimize', ('Cost', '?x2'))]
 
     return stream_pddl, stream_map, init, terms
 
 ##################################################
 
-def main(max_time=2, success_cost=0):
+def main():
     parser = argparse.ArgumentParser()
     #parser.add_argument('-p', '--problem', default='problem1', help='The name of the problem to solve')
     parser.add_argument('-a', '--algorithm', default=None, help='Specifies the algorithm')
+    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-t', '--max_time', default=2, type=int, help='The max time')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -65,15 +68,16 @@ def main(max_time=2, success_cost=0):
         'negative': StreamInfo(overhead=1),
         # Alternatively, can make the second stream called work
     }
+    success_cost = 0 if args.optimal else INF
     if args.algorithm == 'focused':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=False,
-                                                 stream_info=info, max_time=max_time, success_cost=success_cost)
+                                                 stream_info=info, max_time=args.max_time, success_cost=success_cost)
     elif args.algorithm == 'incremental':
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 max_time=max_time, success_cost=success_cost)
+                                                 max_time=args.max_time, success_cost=success_cost)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=info,
-                                           max_time=max_time, success_cost=success_cost)
+                                           max_time=args.max_time, success_cost=success_cost)
     dump_assignment(solution)
 
 if __name__ == '__main__':

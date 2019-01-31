@@ -56,6 +56,8 @@ class Skeleton(object):
         return [self.stream_plan[index].remap_inputs(mapping) for index in indices]
     def bind_action_plan(self, mapping):
         return [(name, apply_mapping(args, mapping)) for name, args in self.action_plan]
+    #def __repr__(self):
+    #    return repr(self.action_plan)
 
 ##################################################
 
@@ -65,9 +67,9 @@ class Binding(object):
     # TODO: maintain a tree instead. Propagate the best subtree upwards
     def __init__(self, queue, skeleton, stream_indices, stream_attempts,
                  bound_results, bindings, cost):
-        assert len(stream_indices) == len(stream_attempts)
         self.queue = queue
         self.skeleton = skeleton
+        assert len(stream_indices) == len(stream_attempts)
         self.stream_indices = list(stream_indices)
         self.stream_attempts = list(stream_attempts)
         self.bound_results = bound_results
@@ -75,20 +77,25 @@ class Binding(object):
         self.cost = cost
         self.children = []
         self.enumerated = False # What if result enumerated with zero calls?
-        self._stream_plan = None
+        self._remaining_results = None
         # Maybe just reset the indices for anything that isn't applicable
         # n+1 sample represented
         # TODO: store partial orders
         # TODO: store applied results
         # TODO: the problem is that I'm not actually doing all combinations because I'm passing attempted
     @property
-    def stream_plan(self):
-        if self._stream_plan is None:
-            self._stream_plan = self.skeleton.bind_stream_plan(self.bindings, self.stream_indices)
-        return self._stream_plan
+    def remaining_results(self):
+        if self._remaining_results is None:
+            self._remaining_results = self.skeleton.bind_stream_plan(self.bindings, self.stream_indices)
+        return self._remaining_results
     @property
     def action_plan(self):
         return self.skeleton.bind_action_plan(self.bindings)
+    @property
+    def next_result(self):
+        return self.remaining_results[0]
+    def is_bound(self):
+        return not self.stream_indices
     def is_dominated(self):
         # TODO: what should I do if the cost=inf (from incremental/exhaustive)
         return self.queue.store.has_solution() and (self.queue.store.best_cost <= self.cost)
@@ -109,7 +116,7 @@ class Binding(object):
     def _instantiate(self, index, new_result):
         if not new_result.is_successful():
             return None # TODO: check if satisfies target certified
-        opt_result = self.stream_plan[index]
+        opt_result = self.remaining_results[index]
         bound_results = self.bound_results.copy()
         bound_results[self.stream_indices[index]] = new_result
         binding = Binding(self.queue, self.skeleton,
@@ -125,7 +132,7 @@ class Binding(object):
         return binding
     def update_instances(self):
         updated = False
-        for index, (opt_result, attempt) in enumerate(safe_zip(self.stream_plan, self.stream_attempts)):
+        for index, (opt_result, attempt) in enumerate(safe_zip(self.remaining_results, self.stream_attempts)):
             if self.enumerated:
                 return updated
             if opt_result.instance.num_calls != attempt:
@@ -136,7 +143,7 @@ class Binding(object):
                 self.enumerated |= opt_result.instance.enumerated
         return updated
     def __repr__(self):
-        #return '{}({})'.format(self.__class__.__name__, str_from_object(self.stream_plan))
+        #return '{}({})'.format(self.__class__.__name__, str_from_object(self.remaining_stream_plan))
         return '{}({})'.format(self.__class__.__name__, str_from_object(self.action_plan))
 
 ##################################################
@@ -151,7 +158,7 @@ class SkeletonQueue(Sized):
     # TODO: update bindings given outcomes of eager streams
     # TODO: immediately evaluate eager streams in the queue
 
-    def __init__(self, store, domain):
+    def __init__(self, store, domain, disable=True):
         self.store = store
         self.evaluations = store.evaluations
         self.domain = domain
@@ -160,6 +167,7 @@ class SkeletonQueue(Sized):
         self.binding_from_key = {}
         self.bindings_from_instance = {}
         self.enabled_bindings = set()
+        self.disable = disable
 
     ####################
 
@@ -199,7 +207,7 @@ class SkeletonQueue(Sized):
     def enable_binding(self, binding):
         assert binding not in self.enabled_bindings
         self.enabled_bindings.add(binding)
-        for result in binding.stream_plan:
+        for result in binding.remaining_results:
             instance = result.instance
             if instance not in self.bindings_from_instance:
                 self.bindings_from_instance[instance] = set()
@@ -208,7 +216,7 @@ class SkeletonQueue(Sized):
     def disable_binding(self, binding):
         assert binding in self.enabled_bindings
         self.enabled_bindings.remove(binding)
-        for result in binding.stream_plan:
+        for result in binding.remaining_results:
             instance = result.instance
             if instance in self.bindings_from_instance:
                 if binding in self.bindings_from_instance[instance]:
@@ -247,7 +255,7 @@ class SkeletonQueue(Sized):
         # assert(instance.opt_index == 0)
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
-        is_new = process_instance(self.store, self.domain, instance)
+        is_new = process_instance(self.store, self.domain, instance, disable=self.disable)
         for i, binding in enumerate(list(self.bindings_from_instance[instance])):
             #print(i, binding)
             # Maybe this list grows but not all the things are accounted for
@@ -264,7 +272,7 @@ class SkeletonQueue(Sized):
         if not self.is_enabled(binding):
             return is_new
         assert not binding.update_instances() #self.update_enabled(binding)
-        is_new = self._generate_results(binding.stream_plan[0].instance)
+        is_new = self._generate_results(binding.next_result.instance)
         # _decompose_synthesizer_skeleton(queue, skeleton, stream_index)
         if self.is_enabled(binding):
             heappush(self.queue, binding.get_element())

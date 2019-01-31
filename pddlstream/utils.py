@@ -243,6 +243,12 @@ def neighbors_from_orders(orders):
         outgoing_edges[v1].add(v2)
     return incoming_edges, outgoing_edges
 
+def edges_from_orders(orders):
+    undirected_edges = defaultdict(set)
+    for v1, v2 in orders:
+        undirected_edges[v1].add(v2)
+        undirected_edges[v2].add(v1)
+    return undirected_edges
 
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
     # Can also do a DFS version
@@ -261,25 +267,31 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
                 heappush(queue, HeapElement(priority_fn(v2), v2))
     return ordering
 
+def grow_component(sources, undirected_edges, processed):
+    cluster = set()
+    queue = deque()
+    def add_cluster(v):
+        if v not in processed:
+            processed.add(v)
+            cluster.add(v)
+            queue.append(v)
+
+    for v0 in sources:
+        add_cluster(v0)
+    while queue:
+        v1 = queue.popleft()
+        for v2 in undirected_edges[v1]:
+            add_cluster(v2)
+    return cluster
 
 def get_connected_components(vertices, edges):
-    incoming, outgoing = neighbors_from_orders(edges)
+    undirected_edges = edges_from_orders(edges)
     clusters = []
     processed = set()
     for v0 in vertices:
-        if v0 in processed:
-            continue
-        processed.add(v0)
-        cluster = {v0}
-        queue = deque([v0])
-        while queue:
-            v1 = queue.popleft()
-            for v2 in (incoming[v1] | outgoing[v1]):
-                if v2 not in processed:
-                    processed.add(v2)
-                    cluster.add(v2)
-                    queue.append(v2)
-        clusters.append([v for v in vertices if v in cluster])
+        cluster = grow_component({v0}, undirected_edges, processed)
+        if cluster:
+            clusters.append([v for v in vertices if v in cluster])
     return clusters
 
 ##################################################

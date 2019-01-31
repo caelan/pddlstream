@@ -7,6 +7,7 @@ from pddlstream.algorithms.recover_optimizers import retrace_instantiation, comb
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import is_parameter, get_length, partition_facts
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
@@ -17,6 +18,8 @@ from pddlstream.language.stream import Stream
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import write_stream_statistics
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
+from pddlstream.algorithms.reorder import get_partial_orders
+from pddlstream.utils import get_connected_components, grow_component, edges_from_orders
 
 import time
 
@@ -66,15 +69,6 @@ def extract_streams(evaluations, externals, goal_facts):
     # TODO: express some of this pruning using effort (e.g. unlikely to sample bound value)
     return stream_results
 
-def create_disable_axiom(stream_plan):
-    # TODO: disable only connected components
-    # TODO: express constraint mutexes upfront
-    # TODO: disable only subset that causes inconsistency via sampling
-    parameters = []
-    preconditions = [result.stream_fact for result in stream_plan]
-    derived = (UNSATISFIABLE,)
-    return make_axiom(parameters, preconditions, derived)
-
 def get_optimistic_cost(function_plan):
     return sum([0.] + [result.value for result in function_plan
                        if type(result.external) == Function])
@@ -91,8 +85,43 @@ def bindings_from_plan(plan_skeleton, action_plan):
 
 ##################################################
 
+def create_disable_axiom(external_plan):
+    # TODO: express constraint mutexes upfront
+    stream_plan, _  = partition_external_plan(external_plan)
+    parameters = []
+    preconditions = [result.stream_fact for result in stream_plan]
+    derived = (UNSATISFIABLE,)
+    # TODO: add parameters in the event that the same skeleton can be blocked twice
+    return make_axiom(parameters, preconditions, derived)
+
+def create_disable_axioms(queue):
+    axioms = []
+    for skeleton in queue.skeletons:
+        # TODO: include costs within clustering?
+        #partial_orders = get_partial_orders(skeleton.stream_plan)
+        #cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
+        ##cluster_plans = [skeleton.stream_plan]
+        binding = skeleton.best_binding
+        if binding.is_bound():
+            # TODO: block if cost sensitive to possibly get cheaper solutions
+            continue
+        failed_index = binding.stream_indices[0]
+        assert 1 <= binding.stream_indices[0]
+        failed_result = binding.skeleton.stream_plan[failed_index]
+        successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
+                             if i not in binding.stream_indices]
+        stream_plan = successful_results + [failed_result]
+        partial_orders = get_partial_orders(stream_plan)
+        #cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
+        cluster_plans = [grow_component([failed_result], edges_from_orders(partial_orders), set())]
+        for cluster_plan in cluster_plans:
+            axioms.append(create_disable_axiom(cluster_plan))
+    return axioms
+
+##################################################
+
 def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={},
-                            max_cost=INF, success_cost=INF, max_time=INF, max_effort=INF,
+                            costs=True, max_cost=INF, success_cost=INF, max_time=INF, max_effort=INF,
                             max_skeletons=INF, search_sample_ratio=1, verbose=True, **search_args):
     # Approaches
     # 1) Existential quantification of bindings in goal conditions
@@ -108,8 +137,9 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     # TODO: max_iterations?
     if not terms:
         return {}, 0, init
-    obj_terms = set(map(obj_from_existential_expression, terms))
-    constraints, negated, functions = partition_facts(obj_terms)
+    constraints, negated, functions = partition_facts(set(map(obj_from_existential_expression, terms)))
+    if not costs:
+        functions = []
     evaluations = evaluations_from_init(init)
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
     free_parameters = sorted(get_parameters(goal_facts))
@@ -128,7 +158,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     domain = create_domain(goal_facts)
     init_evaluations = evaluations.copy()
     store = SolutionStore(evaluations, max_time=max_time, success_cost=success_cost, verbose=verbose)
-    queue = SkeletonQueue(store, domain)
+    queue = SkeletonQueue(store, domain, disable=False)
     num_iterations = search_time = sample_time = 0
     failure = False
     axioms = []
@@ -141,14 +171,13 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
-            domain.axioms[:] = axioms # TODO: avoid disabling
+            domain.axioms[:] = create_disable_axioms(queue)
             planner = 'ff-astar' # TODO: toggle within reschedule_stream_plan
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
                                                  unit_efforts=False, max_effort=max_effort,
                                                  planner=planner, **search_args)
             if stream_plan is not None:
-                axioms.append(create_disable_axiom(stream_plan))
                 external_plan = reorder_stream_plan(combine_optimizers(
                     init_evaluations, stream_plan + list(function_plan)))
         print('Stream plan ({}, {:.3f}): {}'.format(
