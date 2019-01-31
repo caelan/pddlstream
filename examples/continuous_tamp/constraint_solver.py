@@ -46,7 +46,34 @@ def collision_constraint(model, name, b1, p1, b2, p2):
     model.addConstr(BLOCK_WIDTH + MIN_CLEARANCE, GRB.LESS_EQUAL, abs_dist, name=name)
     model.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
 
-# TODO: partition these
+def kinematics_constraint(model, name, b, q, p):
+    from gurobipy import GRB
+    for i in range(len(q)):
+        model.addConstr(q[i] + GRASP[i], GRB.EQUAL, p[i], name=name)
+    model.addConstr(p[1], GRB.EQUAL, 0, name=name)  # IK vs pick/place semantics
+
+def contained_constraint(model, regions, name, b, p, r):
+    from gurobipy import GRB
+    px, py = p
+    x1, x2 = regions[r]
+    model.addConstr(x1, GRB.LESS_EQUAL, px - BLOCK_WIDTH / 2, name=name)
+    model.addConstr(px + BLOCK_WIDTH / 2, GRB.LESS_EQUAL, x2, name=name)
+    model.addConstr(py, GRB.EQUAL, 0, name=name)
+
+def motion_constraint(model, name, q1, t, q2):
+    from gurobipy import GRB
+    for i in range(len(q1)):
+       model.addConstr(t[0][i], GRB.EQUAL, q1[i], name=name)
+    for i in range(len(q2)):
+       model.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
+
+def distance_cost(q1, q2):
+    # TODO: cost on endpoints and subtract from total cost
+    terms = []
+    for i in range(len(q1)):
+        delta = q2[i] - q1[i]
+        terms.append(delta * delta)
+    return terms
 
 ##################################################
 
@@ -62,8 +89,10 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
     def fn(outputs, facts, hint={}):
         # TODO: pass in the variables and constraint streams instead?
         # The true test is placing two blocks in a tight region obstructed by one
-
-        print('Constraints:', facts)
+        positive, negative, costs = partition_facts(facts)
+        print('Parameters:', outputs)
+        print('Constraints:', positive + negative)
+        print('Costs:', costs)
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
@@ -94,17 +123,9 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             prefix, args = fact[0], fact[1:]
             name = str(index)
             if prefix == 'kin':
-                _, q, p = map(get_var, args)
-                for i in range(len(q)):
-                    model.addConstr(q[i] + GRASP[i], GRB.EQUAL, p[i], name=name)
-                model.addConstr(p[1], GRB.EQUAL, 0, name=name) # IK vs pick/place semantics
+                kinematics_constraint(model, name, *map(get_var, args))
             elif prefix == 'contained':
-                _, p, r = args
-                px, py = get_var(p)
-                x1, x2 = regions[r]
-                model.addConstr(x1, GRB.LESS_EQUAL, px - BLOCK_WIDTH / 2, name=name)
-                model.addConstr(px + BLOCK_WIDTH / 2, GRB.LESS_EQUAL, x2, name=name)
-                model.addConstr(py, GRB.EQUAL, 0, name=name)
+                contained_constraint(model, regions, name, *map(get_var, args))
             elif prefix == NOT:
                 fact = args[0]
                 predicate, args = fact[0], fact[1:]
@@ -113,21 +134,13 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             elif prefix == 'cfree':
                 collision_constraint(model, name, *map(get_var, args))
             elif prefix == 'motion':
+                #motion_constraint(model, name, *map(get_var, args))
                 raise NotImplementedError()
-                #q1, t, q2 = map(get_var, args)
-                #for i in range(len(q1)):
-                #    m.addConstr(t[0][i], GRB.EQUAL, q1[i], name=name)
-                #for i in range(len(q2)):
-                #    m.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
             elif prefix == MINIMIZE:
                 fact = args[0]
                 func, args = fact[0], fact[1:]
                 if func == 'distance':
-                    q1, q2 = map(get_var, args)
-                    for i in range(len(q1)):
-                        delta = q2[i] - q1[i]
-                        objective_terms.append(delta * delta)
-                        # TODO: cost on endpoints and subtract from total cost
+                    objective_terms.extend(distance_cost(*map(get_var, args)))
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
