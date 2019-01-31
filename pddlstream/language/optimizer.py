@@ -24,6 +24,9 @@ class OptimizerOutput(object):
         self.infeasible = infeasible # frozenset
     def to_wild(self):
         return WildOutput(self.assignments, self.facts)
+    def __bool__(self):
+        return bool(self.assignments)
+    __nonzero__ = __bool__
     def __repr__(self):
         #return '{}{}'.format(self.__class__.__name__, str_from_object(self.__dict__))
         return str_from_object(self.__dict__)

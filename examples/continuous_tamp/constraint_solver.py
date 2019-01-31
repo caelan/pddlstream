@@ -76,7 +76,7 @@ def distance_cost(q1, q2):
 
 ##################################################
 
-def get_optimize_fn(regions, max_time=5, verbose=False):
+def get_optimize_fn(regions, max_time=5, diagnose=True, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -91,7 +91,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         positive, negative, costs = partition_facts(facts)
         #print('Parameters:', outputs)
         print('Constraints:', positive + negative)
-        print('Costs:', costs)
+        if costs:
+            print('Costs:', costs)
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
@@ -117,6 +118,7 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
             return var_from_param[p] if is_parameter(p) else p
 
         objective_terms = []
+        constraint_from_name = {}
         for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
             name = str(index)
@@ -124,21 +126,23 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
                 kinematics_constraint(model, name, *map(get_var, args))
             elif prefix == 'contained':
                 contained_constraint(model, regions, name, *map(get_var, args))
-            elif prefix == NOT:
-                fact = args[0]
-                predicate, args = fact[0], fact[1:]
-                if predicate == 'posecollision':
-                    collision_constraint(model, name, *map(get_var, args))
             elif prefix == 'cfree':
                 collision_constraint(model, name, *map(get_var, args))
             elif prefix == 'motion':
                 #motion_constraint(model, name, *map(get_var, args))
                 raise NotImplementedError()
+            elif prefix == NOT:
+                fact = args[0]
+                predicate, args = fact[0], fact[1:]
+                if predicate == 'posecollision':
+                    collision_constraint(model, name, *map(get_var, args))
             elif prefix == MINIMIZE:
                 fact = args[0]
                 func, args = fact[0], fact[1:]
                 if func == 'distance':
                     objective_terms.extend(distance_cost(*map(get_var, args)))
+                continue
+            constraint_from_name[name] = fact
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
@@ -149,6 +153,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         model.optimize()
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
         if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
+            if not diagnose:
+                return OptimizerOutput()
             constraint_indices = {i for i, term in enumerate(facts) if term[0] != MINIMIZE}
             #infeasible = constraint_indices
             #infeasible = compute_inconsistent(model)
@@ -160,6 +166,8 @@ def get_optimize_fn(regions, max_time=5, verbose=False):
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
         return OptimizerOutput(assignments=[assignment])
     return fn
+    #return lambda outputs, facts, **kwargs: \
+    #    identify_infeasibility(fn, outputs, facts, diagnose=False, **kwargs)
 
 ##################################################
 
@@ -176,7 +184,6 @@ def constraints_from_indices(model, indices):
     return [c for c in model.getConstrs() if c.constrName in names]
 
 def deletion_filter(original_model, indices):
-    # TODO: apply to general constraint networks
     from gurobipy import GRB
     model = original_model.feasibility()
     prune_constraints = set(model.getConstrs()) - set(constraints_from_indices(model, indices))
@@ -200,19 +207,32 @@ def deletion_filter(original_model, indices):
             inconsistent.add(index)
     return inconsistent
 
+def identify_infeasibility(fn, parameters, terms, **kwargs):
+    # TODO: apply to general constraint networks
+    output = fn(parameters, terms, **kwargs)
+    if output:
+        return output
+    active_indices = {i for i, term in enumerate(terms) if term[0] != MINIMIZE}
+    for index in list(active_indices):
+        constraints = [terms[i] for i in active_indices - {index}]
+        output = fn(parameters, constraints, **kwargs)
+        if output:
+            active_indices.remove(index)
+    # TODO: be careful about removing variables
+    infeasible_facts = [terms[index] for index in sorted(active_indices)]
+    print('Inconsistent:', infeasible_facts)
+    return OptimizerOutput(infeasible=[infeasible_facts])
+
 ##################################################
 
 def relax_constraints(model, indices):
     from gurobipy import GRB
     # http://www.sce.carleton.ca/faculty/chinneck/docs/ChinneckDravnieks.pdf
     model.setObjective(0.0)
-    #model = model.feasibility()
     elastic_constraints = constraints_from_indices(model, indices)
-    objective = model.feasRelax(relaxobjtype=0,
+    objective = model.feasRelax(relaxobjtype=0, # feasRelaxS
                                 minrelax=True,
-                                vars=[],
-                                lbpen=[],
-                                ubpen=[],
+                                vars=[], lbpen=[], ubpen=[],
                                 constrs=elastic_constraints,
                                 rhspen=[1.]*len(elastic_constraints))
     model.optimize()
