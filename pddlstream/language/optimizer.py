@@ -82,6 +82,7 @@ class VariableStream(Stream):
         outputs = [variable]
         name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
+        # TODO: need to convert OptimizerOutput
         #gen_fn = empty_gen()
         #info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))

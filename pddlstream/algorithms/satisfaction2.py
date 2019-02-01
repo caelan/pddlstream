@@ -19,7 +19,7 @@ from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import write_stream_statistics
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.utils import get_connected_components, grow_component, edges_from_orders
+from pddlstream.utils import get_connected_components, grow_component, adjacent_from_edges, incoming_from_edges
 
 import time
 
@@ -88,34 +88,83 @@ def bindings_from_plan(plan_skeleton, action_plan):
 def create_disable_axiom(external_plan):
     # TODO: express constraint mutexes upfront
     stream_plan, _  = partition_external_plan(external_plan)
+    #print(stream_plan)
     parameters = []
     preconditions = [result.stream_fact for result in stream_plan]
     derived = (UNSATISFIABLE,)
     # TODO: add parameters in the event that the same skeleton can be blocked twice
     return make_axiom(parameters, preconditions, derived)
 
+def compute_failed_indices(skeleton):
+    failed_indices = set()
+    for binding in skeleton.root.post_order():
+        result = binding.next_result
+        if (result is not None) and result.instance.num_calls and (not result.instance.successes):
+            failed_indices.add(binding.stream_indices[0])
+            #assert not binding.children
+    return sorted(failed_indices)
+
+def current_failed_cluster(binding):
+    failed_index = binding.stream_indices[0]
+    assert 1 <= binding.stream_attempts[0]
+    failed_result = binding.skeleton.stream_plan[failed_index]
+    successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
+                          if i not in binding.stream_indices]
+    stream_plan = successful_results + [failed_result]
+    partial_orders = get_partial_orders(stream_plan)
+    # All connected components
+    #return get_connected_components(stream_plan, partial_orders)
+    # Only the failed connected component
+    return [grow_component([failed_result], adjacent_from_edges(partial_orders))]
+
+def current_failure_contributors(binding):
+    # Alternatively, find unsuccessful streams in cluster and add ancestors
+    failed_index = binding.stream_indices[0]
+    assert 1 <= binding.stream_attempts[0]
+    failed_result = binding.skeleton.stream_plan[failed_index]
+    failed_indices = compute_failed_indices(binding.skeleton)  # Use last index?
+    partial_orders = get_partial_orders(binding.skeleton.stream_plan)
+    incoming = incoming_from_edges(partial_orders)
+    failed_ancestors = grow_component([failed_result], incoming)
+    for index in reversed(failed_indices):
+        if index == failed_index:
+            continue
+        result = binding.skeleton.stream_plan[index]
+        ancestors = grow_component([result], incoming)
+        if ancestors & failed_ancestors:
+            failed_ancestors.update(ancestors)
+    return [failed_ancestors]
+
 def create_disable_axioms(queue):
     axioms = []
     for skeleton in queue.skeletons:
         # TODO: include costs within clustering?
+        # What is goal is to be below a cost threshold?
+        # In satisfaction, no need because costs are fixed
+        # Make stream_facts for externals to prevent use of the same ones
+        # This ordering is why it's better to put likely to fail first
+        # Branch on the different possible binding outcomes
+        # TODO: consider a nonlinear version of this that evaluates out of order
+        # Need extra sampling effort to identify infeasible subsets
+        # Treat unevaluated optimistically, as in always satisfiable
+        # Need to keep streams with outputs to connect if downstream is infeasible
+        # TODO: prune streams that always have at least one success
+        # TODO: CSP identification of irreducible unsatisfiable subsets
+        # TODO: take into consideration if a stream is enumerated to mark as a hard failure
+        # Decompose down optimizers
+
         #partial_orders = get_partial_orders(skeleton.stream_plan)
         #cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
-        ##cluster_plans = [skeleton.stream_plan]
+        #cluster_plans = [skeleton.stream_plan]
         binding = skeleton.best_binding
         if binding.is_bound():
             # TODO: block if cost sensitive to possibly get cheaper solutions
             continue
-        failed_index = binding.stream_indices[0]
-        assert 1 <= binding.stream_indices[0]
-        failed_result = binding.skeleton.stream_plan[failed_index]
-        successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
-                             if i not in binding.stream_indices]
-        stream_plan = successful_results + [failed_result]
-        partial_orders = get_partial_orders(stream_plan)
-        #cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
-        cluster_plans = [grow_component([failed_result], edges_from_orders(partial_orders), set())]
+        #cluster_plans = current_failed_cluster(binding)
+        cluster_plans = current_failure_contributors(binding)
         for cluster_plan in cluster_plans:
             axioms.append(create_disable_axiom(cluster_plan))
+        #raw_input('Continue?')
     return axioms
 
 ##################################################
@@ -161,8 +210,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     queue = SkeletonQueue(store, domain, disable=False)
     num_iterations = search_time = sample_time = 0
     failure = False
-    axioms = []
-    while not store.is_terminated() and not failure:
+    while not store.is_terminated(): # and not failure:
         num_iterations += 1
         start_time = time.time()
         print('\nIteration: {} | Skeletons: {} | Skeleton Queue: {} | Evaluations: {} | '
@@ -185,11 +233,13 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
         failure |= (external_plan is None)
         search_time += elapsed_time(start_time)
 
+        # TODO: keep track of last axiom set and only redo if it changes
+        # Once a constraint added for a skeleton, it should only be relaxed
         start_time = time.time()
-        if failure:
-            allocated_sample_time = INF
-        else:
-            allocated_sample_time = (search_sample_ratio * search_time) - sample_time
+        #if failure: # Only works if create_disable_axioms never changes
+        #    allocated_sample_time = INF
+        #else:
+        allocated_sample_time = (search_sample_ratio * search_time) - sample_time
         queue.process(external_plan, plan_skeleton, cost=cost,
                       complexity_limit=INF,  max_time=allocated_sample_time)
         sample_time += elapsed_time(start_time)

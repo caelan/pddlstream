@@ -235,17 +235,25 @@ def str_from_object(obj):  # str_object
 
 ##################################################
 
-def neighbors_from_orders(orders):
-    incoming_edges = defaultdict(set)
-    outgoing_edges = defaultdict(set)
-    for v1, v2 in orders:
-        incoming_edges[v2].add(v1)
-        outgoing_edges[v1].add(v2)
-    return incoming_edges, outgoing_edges
+def incoming_from_edges(edges):
+    incoming_vertices = defaultdict(set)
+    for v1, v2 in edges:
+        incoming_vertices[v2].add(v1)
+    return incoming_vertices
 
-def edges_from_orders(orders):
+def outgoing_from_edges(edges):
+    outgoing_vertices = defaultdict(set)
+    for v1, v2 in edges:
+        outgoing_vertices[v1].add(v2)
+    return outgoing_vertices
+
+def neighbors_from_orders(orders):
+    return incoming_from_edges(orders), \
+           outgoing_from_edges(orders)
+
+def adjacent_from_edges(edges):
     undirected_edges = defaultdict(set)
-    for v1, v2 in orders:
+    for v1, v2 in edges:
         undirected_edges[v1].add(v2)
         undirected_edges[v2].add(v1)
     return undirected_edges
@@ -267,7 +275,8 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
                 heappush(queue, HeapElement(priority_fn(v2), v2))
     return ordering
 
-def grow_component(sources, undirected_edges, processed):
+def grow_component(sources, edges, disabled=set()):
+    processed = set(disabled)
     cluster = set()
     queue = deque()
     def add_cluster(v):
@@ -280,16 +289,17 @@ def grow_component(sources, undirected_edges, processed):
         add_cluster(v0)
     while queue:
         v1 = queue.popleft()
-        for v2 in undirected_edges[v1]:
+        for v2 in edges[v1]:
             add_cluster(v2)
     return cluster
 
 def get_connected_components(vertices, edges):
-    undirected_edges = edges_from_orders(edges)
+    undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()
     for v0 in vertices:
         cluster = grow_component({v0}, undirected_edges, processed)
+        processed.update(cluster)
         if cluster:
             clusters.append([v for v in vertices if v in cluster])
     return clusters
