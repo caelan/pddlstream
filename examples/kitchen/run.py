@@ -71,7 +71,7 @@ def main():
     problem = create_problem(initial_poses)
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(problem, unit_costs=True, planner='ff-eager', debug=True) # max_planner_time=5,
+    solution = solve_focused(problem, unit_costs=True, planner='ff-lazy', debug=False) # max_planner_time=5,
     pr.disable()
     print_solution(solution)
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

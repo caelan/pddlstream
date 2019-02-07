@@ -373,6 +373,9 @@ class Stream(External):
     def is_fluent(self):
         return self.fluents
 
+    def get_complexity(self, num_calls):
+        return 1 + num_calls
+
     def is_negated(self):
         return self.info.negate
 

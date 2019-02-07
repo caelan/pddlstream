@@ -44,8 +44,8 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
                 # TODO: check that the objects aren't used in any effects
                 instance = copy.copy(action_plan[state_index])
                 action_plan[state_index] = instance
-                output_mapping = get_mapping(map(pddl_from_object, result.output_objects),
-                                             map(pddl_from_object, new_output_objects))
+                output_mapping = get_mapping(list(map(pddl_from_object, result.output_objects)),
+                                             list(map(pddl_from_object, new_output_objects)))
                 instance.var_mapping = {p: output_mapping.get(v, v)
                                         for p, v in instance.var_mapping.items()}
             fluent_facts = list(map(fact_from_fd, filter(

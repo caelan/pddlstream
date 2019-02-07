@@ -169,8 +169,8 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     new_results = []
     for fact in goal_facts:
         retrace_instantiation(fact, optimizers, initial_evaluations, free_parameters, visited_facts, new_results)
-    variable_results = filter(lambda r: isinstance(r.external, VariableStream), new_results)
-    constraint_results = filter(lambda r: isinstance(r.external, ConstraintStream), new_results)
+    variable_results = list(filter(lambda r: isinstance(r.external, VariableStream), new_results))
+    constraint_results = list(filter(lambda r: isinstance(r.external, ConstraintStream), new_results))
     new_results = variable_results + constraint_results # TODO: ensure correct ordering
 
     #from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan

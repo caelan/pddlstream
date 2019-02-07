@@ -2,7 +2,7 @@ from collections import defaultdict, namedtuple, Sized, deque
 from heapq import heappush, heappop
 from itertools import product
 
-from pddlstream.algorithms.common import COMPLEXITY_OP, compute_call_complexity
+from pddlstream.algorithms.common import COMPLEXITY_OP
 from pddlstream.algorithms.relation import compute_order, Relation, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import is_atom, head_from_fact
@@ -65,7 +65,7 @@ class Instantiator(Sized): # Dynamic Instantiator
     def compute_complexity(self, instance):
         domain_complexity = COMPLEXITY_OP([self.complexity_from_atom[head_from_fact(f)]
                                            for f in instance.get_domain()] + [0])
-        return domain_complexity + compute_call_complexity(instance.num_calls)
+        return domain_complexity + instance.external.get_complexity(instance.num_calls)
 
     def push_instance(self, instance):
         # TODO: flush stale priorities?

@@ -166,7 +166,7 @@ def get_synthetic_stream_plan(stream_plan, synthesizers):
             if synthesizer_result is None:
                 continue
             new_stream_plan.append(synthesizer_result)
-            new_stream_plan += filter(lambda s: isinstance(s, FunctionResult), ordered_cluster)
+            new_stream_plan.extend(filter(lambda s: isinstance(s, FunctionResult), ordered_cluster))
             break
         else:
             new_stream_plan.append(result)

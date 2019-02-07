@@ -87,10 +87,6 @@ def evaluations_from_init(init):
     return evaluations
 
 
-def compute_call_complexity(num_calls):
-    return num_calls + 1
-
-
 def compute_complexity(evaluations, facts):
     if not facts:
         return 0

@@ -294,10 +294,7 @@ def main(deterministic=False, observable=False, collisions=True, focused=True, f
                                      success_cost=MAX_COST, unit_costs=False, max_time=30)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-
     print_solution(solution)
-    plan, cost, init = solution
-    print('Real cost:', cost)
 
 if __name__ == '__main__':
     main(deterministic=False, observable=False, collisions=True, focused=True)

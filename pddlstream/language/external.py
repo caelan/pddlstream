@@ -1,6 +1,6 @@
 from collections import Counter
 
-from pddlstream.algorithms.common import compute_complexity, compute_call_complexity
+from pddlstream.algorithms.common import compute_complexity
 from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object
@@ -49,7 +49,7 @@ class Result(object):
     def compute_complexity(self, evaluations):
         # Should be constant
         return compute_complexity(evaluations, self.get_domain()) + \
-               compute_call_complexity(self.call_index)
+               self.external.get_complexity(self.call_index)
 
 ##################################################
 
@@ -117,7 +117,7 @@ class Instance(object):
     def compute_complexity(self, evaluations):
         # Will change as self.num_calls increases
         return compute_complexity(evaluations, self.get_domain()) + \
-               compute_call_complexity(self.num_calls)
+               self.external.get_complexity(self.num_calls)
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
@@ -154,6 +154,8 @@ class External(Performance):
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
     def is_negated(self):
+        raise NotImplementedError()
+    def get_complexity(self, num_calls):
         raise NotImplementedError()
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)

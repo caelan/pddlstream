@@ -117,6 +117,8 @@ class Function(External):
     @property
     def function(self):
         return get_prefix(self.head)
+    def get_complexity(self, num_calls):
+        return 0
     def is_negated(self):
         return False
     def __repr__(self):

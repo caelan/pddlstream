@@ -49,7 +49,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()] + \
-           [('Region', r) for r in tamp_problem.goal_regions.values() + [GROUND_NAME]]
+           [('Region', r) for r in list(tamp_problem.goal_regions.values()) + [GROUND_NAME]]
 
     goal_literals = [Not(('Unsafe',))] # ('HandEmpty',)
     goal_literals += [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
@@ -68,10 +68,13 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
         'posecollision': collision_test, # Redundant
         'trajcollision': lambda *args: False,
-
-        'gurobi': from_list_fn(get_optimize_fn(tamp_problem.regions)),
-        'rrt': from_fn(cfree_motion_fn),
     }
+    if use_optimizer:
+        # To avoid loading gurobi
+        stream_map.update({
+            'gurobi': from_list_fn(get_optimize_fn(tamp_problem.regions)),
+            'rrt': from_fn(cfree_motion_fn),
+        })
     #stream_map = 'debug'
 
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)

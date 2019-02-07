@@ -107,8 +107,8 @@ def recover_axioms_plans(instantiated, action_instances):
     for action_instance in action_instances + [get_goal_instance(task.goal)]:
         # TODO: apply all axiom_instances unaffected by negative conditions
         preimage = list(plan_preimage([action_instance], []))
-        axiom_instances = filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
-                                                for l in ax.condition), instantiated.axioms)
+        axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
+                                                 for l in ax.condition), instantiated.axioms))
         # Only instantiate if preimage has goal
         axiom_plan = extraction_helper(state, axiom_instances, preimage)
         assert axiom_plan is not None

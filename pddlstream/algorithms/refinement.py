@@ -24,9 +24,9 @@ def is_refined(stream_plan):
     # TODO: lazily expand the shared objects in some cases to prevent increase in size
     if not is_plan(stream_plan):
         return True
-    return max([0] + [r.opt_index for r in stream_plan]) == 0
-    #return all(result.opt_index == 0 for result in stream_plan)
     # TODO: some of these opt_index equal None
+    return all((result.opt_index is None) or (result.opt_index == 0)
+               for result in stream_plan)
 
 ##################################################
 
