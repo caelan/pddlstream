@@ -39,11 +39,6 @@ def optimistic_process_instance(instantiator, instance):
         if isinstance(result, FunctionResult) or new_facts:
             yield result
 
-def optimistic_process_function_queue(instantiator):
-    while instantiator.function_queue:
-        for result in optimistic_process_instance(instantiator, instantiator.pop_function()):
-            yield result
-
 def prune_high_effort_streams(streams, max_effort=INF, **effort_args):
     # TODO: convert streams to test streams with extremely high effort
     low_effort_streams = []
@@ -60,10 +55,9 @@ def optimistic_process_streams(evaluations, streams, complexity_limit, **effort_
         if node.complexity <= complexity_limit:
             instantiator.add_atom(evaluation, node.complexity)
     results = []
-    while instantiator.stream_queue and (instantiator.min_complexity() <= complexity_limit):
+    while instantiator and (instantiator.min_complexity() <= complexity_limit):
         results.extend(optimistic_process_instance(instantiator, instantiator.pop_stream()))
         # TODO: instantiate and solve to avoid repeated work
-    results.extend(optimistic_process_function_queue(instantiator))
     exhausted = not instantiator
     return results, exhausted
 

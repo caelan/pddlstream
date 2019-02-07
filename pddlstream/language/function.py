@@ -118,6 +118,7 @@ class Function(External):
     def function(self):
         return get_prefix(self.head)
     def get_complexity(self, num_calls):
+        #return 1 + num_calls
         return 0
     def is_negated(self):
         return False

@@ -1,4 +1,4 @@
-from collections import defaultdict, namedtuple, Sized, deque
+from collections import defaultdict, namedtuple, Sized
 from heapq import heappush, heappop
 from itertools import product
 
@@ -6,7 +6,6 @@ from pddlstream.algorithms.common import COMPLEXITY_OP
 from pddlstream.algorithms.relation import compute_order, Relation, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import is_atom, head_from_fact
-from pddlstream.language.function import FunctionInstance
 from pddlstream.utils import safe_zip, HeapElement
 
 # TODO: maybe store unit complexity here as well as a tiebreaker
@@ -28,24 +27,16 @@ def test_mapping(atoms1, atoms2):
                 return None
     return mapping
 
-def pop_queue(queue):
-    if isinstance(queue, deque):
-        return queue.popleft()
-    else:
-        return heappop(queue)
-
 ##################################################
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
 
 class Instantiator(Sized): # Dynamic Instantiator
-    def __init__(self, streams, evaluations={}, use_deque=False):
+    def __init__(self, streams, evaluations={}):
         # TODO: lazily instantiate upon demand
-        self.use_heap = use_deque
         self.streams = streams
         #self.streams_from_atom = defaultdict(list)
-        self.stream_queue = []
-        self.function_queue = []
+        self.queue = []
         self.num_pushes = 0 # shared between the queues
         # TODO: rename atom to head in most places
         self.complexity_from_atom = {}
@@ -60,7 +51,7 @@ class Instantiator(Sized): # Dynamic Instantiator
     #########################
 
     def __len__(self):
-        return len(self.stream_queue) + len(self.function_queue)
+        return len(self.queue)
 
     def compute_complexity(self, instance):
         domain_complexity = COMPLEXITY_OP([self.complexity_from_atom[head_from_fact(f)]
@@ -71,23 +62,15 @@ class Instantiator(Sized): # Dynamic Instantiator
         # TODO: flush stale priorities?
         complexity = self.compute_complexity(instance)
         priority = Priority(complexity, self.num_pushes)
-        queue = self.function_queue if isinstance(instance, FunctionInstance) else self.stream_queue
-        if isinstance(queue, deque):
-            queue.append(HeapElement(priority, instance))
-        else:
-            heappush(queue, HeapElement(priority, instance))
+        heappush(self.queue, HeapElement(priority, instance))
         self.num_pushes += 1
 
     def pop_stream(self):
-        priority, instance = pop_queue(self.stream_queue)
-        return instance
-
-    def pop_function(self):
-        priority, instance = pop_queue(self.function_queue)
+        priority, instance = heappop(self.queue)
         return instance
 
     def min_complexity(self):
-        priority, _ = self.stream_queue[0]
+        priority, _ = self.queue[0]
         return priority.complexity
 
     #########################

@@ -187,10 +187,11 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
     success_cost = 0 if args.optimal else INF
+    planner = 'ff-wastar1'
     if args.algorithm == 'focused':
         solution = solve_focused(pddlstream_problem, constraints=constraints,
                                  action_info=action_info, stream_info=stream_info,
-                                 planner='ff-wastar1', max_planner_time=10, hierarchy=hierarchy, debug=False,
+                                 planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  unit_efforts=False, effort_weight=0,
@@ -199,7 +200,7 @@ def main():
                                  visualize=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
-                                     complexity_step=2, hierarchy=hierarchy,
+                                     complexity_step=2, planner=planner, hierarchy=hierarchy,
                                      unit_costs=args.unit, success_cost=success_cost,
                                      max_time=args.max_time, verbose=False)
     else:
