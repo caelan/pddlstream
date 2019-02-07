@@ -1,6 +1,0 @@
-# ignore doc generation
-doc/html/**
-doc/manifest.yaml
-
-# dae files are too big to be uploaded.
-**.dae
