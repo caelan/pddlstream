@@ -11,7 +11,7 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object
+from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object, get_mapping
 
 
 # The motivation for immediately instantiating is to avoid unnecessary sampling
@@ -39,6 +39,8 @@ def update_cost(cost, opt_result, result):
 
 class Skeleton(object):
     def __init__(self, queue, stream_plan, action_plan, cost):
+        self.index = len(queue.skeletons)
+        queue.skeletons.append(self)
         self.queue = queue
         self.stream_plan = stream_plan
         self.action_plan = action_plan
@@ -84,6 +86,9 @@ class Binding(object):
         # TODO: store applied results
         # TODO: the problem is that I'm not actually doing all combinations because I'm passing attempted
     @property
+    def attempts_from_index(self):
+        return get_mapping(self.stream_indices, self.stream_attempts)
+    @property
     def remaining_results(self):
         if self._remaining_results is None:
             self._remaining_results = self.skeleton.bind_stream_plan(self.bindings, self.stream_indices)
@@ -101,6 +106,11 @@ class Binding(object):
         return self.queue.store.has_solution() and (self.queue.store.best_cost <= self.cost)
     def is_enabled(self):
         return not (self.enumerated or self.is_dominated())
+    def post_order(self):
+        for child in self.children:
+            for binding in child.post_order():
+                yield binding
+        yield self
     def get_priority(self):
         # Infinite cost if skeleton is exhausted
         # Attempted is equivalent to whether any stream result is disabled
@@ -144,7 +154,9 @@ class Binding(object):
         return updated
     def __repr__(self):
         #return '{}({})'.format(self.__class__.__name__, str_from_object(self.remaining_stream_plan))
-        return '{}({})'.format(self.__class__.__name__, str_from_object(self.action_plan))
+        #return '{}({})'.format(self.__class__.__name__, str_from_object(self.action_plan))
+        return '{}(skeleton={}, remaining={})'.format(
+            self.__class__.__name__, self.skeleton.index, self.stream_indices) #str_from_object(self.attempts_from_index))
 
 ##################################################
 
@@ -246,7 +258,6 @@ class SkeletonQueue(Sized):
 
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
-        self.skeletons.append(skeleton)
         self.new_binding(skeleton.root)
 
     ####################

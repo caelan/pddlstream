@@ -97,6 +97,7 @@ def main(success_cost=0):
     parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
     parser.add_argument('-o', '--optimizer', action='store_true', help='Uses the optimizers')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
+    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -131,8 +132,8 @@ def main(success_cost=0):
                                                  verbose=False, debug=False)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
-                                           success_cost=success_cost, max_time=args.max_time,
-                                           debug=False)
+                                           costs=not args.unit, success_cost=success_cost,
+                                           max_time=args.max_time, search_sample_ratio=1, debug=False)
         #raise ValueError(args.algorithm)
 
     dump_assignment(solution)

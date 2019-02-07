@@ -6,45 +6,70 @@ import argparse
 
 from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
-from pddlstream.language.generator import from_test, from_gen_fn
+from pddlstream.language.generator import from_test, from_gen_fn, from_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import INF
 
+STREAM_PDDL = """
+(define (stream satisfy)
+  (:stream positive
+    :outputs (?x)
+    :certified (and (Positive ?x) (Integer ?x))
+  )
+  (:stream negative
+    :outputs (?x)
+    :certified (and (Negative ?x) (Integer ?x))
+  )
+  (:stream test-large
+    :inputs (?x)
+    :domain (Integer ?x)
+    :certified (Large ?x)
+  )
+  (:stream addition
+    :inputs (?x1 ?x2)
+    :domain (and (Integer ?x1) (Integer ?x2))
+    :outputs (?x3)
+    :certified (and (Sum ?x1 ?x2 ?x3) (Integer ?x3))
+  )
+  
+  (:function (Cost ?x) 
+             (Integer ?x)
+  )
+)
+"""
 
-def problem1(n=5):
-    stream_pddl = """
-    (define (stream satisfy)
-      (:stream positive
-        :outputs (?x)
-        :certified (Integer ?x)
-      )
-      (:stream negative
-        :outputs (?x)
-        :certified (Integer ?x)
-      )
-      (:stream test-large
-        :inputs (?x)
-        :domain (Integer ?x)
-        :certified (Large ?x)
-      )
-      (:function (Cost ?x) 
-                 (Integer ?x)
-      )
-    )
-    """
+LARGE = 5
+#MAX_INT = 100000
+MAX_INT = 5
 
+pairs = set()
+
+def addition(x1, x2):
+    pairs.add((x1, x2))
+    x2 = x1 + x2
+    return (x2,)
+
+STREAM_MAP = {
+    'positive': from_gen_fn(lambda: ((x,) for x in range(1, MAX_INT + 1))),
+    'negative': from_gen_fn(lambda: ((-x,) for x in range(1, MAX_INT + 1))),
+    'addition': from_fn(addition),
+    'test-large': from_test(lambda x: LARGE <= x),
+    'cost': lambda x: 1. / (abs(x) + 1),
+}
+
+def problem1():
     #constant_map = {} # TODO: constant_map
-    stream_map = {
-        'positive': from_gen_fn(lambda: ((x,) for x in range(100000))),
-        'negative': from_gen_fn(lambda: ((-x,) for x in range(100000))),
-        'test-large': from_test(lambda x: n <= x),
-        'cost': lambda x: 1./(abs(x) + 1),
-    }
     init = []
     terms = [('Integer', '?x1'), ('Large', '?x1'), ('Integer', '?x2'),
              ('minimize', ('Cost', '?x1')), ('minimize', ('Cost', '?x2'))]
+    return STREAM_PDDL, STREAM_MAP, init, terms
 
-    return stream_pddl, stream_map, init, terms
+def problem2():
+    #constant_map = {}
+    init = []
+    terms = [('Sum', '?x1', '?x2', '?x3'), ('Positive', '?x1'), ('Negative', '?x2'),
+             ('minimize', ('Cost', '?x3'))]
+    return STREAM_PDDL, STREAM_MAP, init, terms
 
 ##################################################
 
@@ -57,8 +82,8 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    problem_fn = problem1 # get_problem1 | get_problem2
-    stream_pddl, stream_map, INIT, terms = problem_fn()
+    problem_fn = problem2 # problem1 | problem2
+    stream_pddl, stream_map, init, terms = problem_fn()
     #print('Init:', pddlstream_problem.init)
     #print('Goal:', pddlstream_problem.goal)
 
@@ -70,15 +95,16 @@ def main():
     }
     success_cost = 0 if args.optimal else INF
     if args.algorithm == 'focused':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=False,
+        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, incremental=False,
                                                  stream_info=info, max_time=args.max_time, success_cost=success_cost)
     elif args.algorithm == 'incremental':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
+        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, incremental=True,
                                                  max_time=args.max_time, success_cost=success_cost)
     else:
-        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=info,
+        solution = constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info=info,
                                            max_time=args.max_time, success_cost=success_cost)
     dump_assignment(solution)
+    #print(len(sorted(pairs)))
 
 if __name__ == '__main__':
     main()

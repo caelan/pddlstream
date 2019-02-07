@@ -11,7 +11,7 @@ import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, \
+    get_region_test, plan_motion, PROBLEMS, unreliable_ik_fn, \
     draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused

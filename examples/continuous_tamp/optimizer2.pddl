@@ -29,6 +29,7 @@
       :necessary (and (Pose ?b ?p) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
       :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
+    ; TODO: maybe prevent initial configurations from being considered
 
     ; Additive objective functions
     (:objective Distance)
@@ -39,6 +40,11 @@
       :graph (Traj ?t))
     (:constraint (Motion ?q1 ?t ?q2)
       :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
+    ;(:variable ?t
+    ;  :inputs (?q1 ?q2)
+    ;  :domain (and (Conf ?q1) (Conf ?q2))
+    ;  :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
+
 
     ; Treating predicate as objective
     ;(:objective TrajCollision)
