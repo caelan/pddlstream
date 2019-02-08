@@ -114,7 +114,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       unit_efforts=unit_efforts, max_effort=max_effort,
                                                       effort_weight=effort_weight, **search_kwargs)
-        if (max_skeletons is not None) and (len(skeleton_queue.skeletons) < max_skeletons):
+        if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
                                                          optimistic_solve_fn, complexity_limit,
                                                          unit_efforts=unit_efforts, max_effort=max_effort)
