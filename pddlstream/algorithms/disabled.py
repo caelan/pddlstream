@@ -42,6 +42,8 @@ def process_stream_plan(store, domain, disabled, stream_plan, max_failures=INF):
     for result in stream_plan:
         if max_failures < failures:
             break
+        if not result.optimistic:
+            continue # Should instead just filter all the already evaluated results
         instance = result.instance
         if instance.enumerated:
             raise RuntimeError(instance)

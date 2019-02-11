@@ -95,6 +95,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         reset_visualizations()
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
+    use_skeletons = max_skeletons is not None
     skeleton_queue = SkeletonQueue(store, domain)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):
@@ -110,7 +111,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
             len(evaluations), eager_calls, store.best_cost, search_time, sample_time, store.elapsed_time()))
-        optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
+        optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       unit_efforts=unit_efforts, max_effort=max_effort,
                                                       effort_weight=effort_weight, **search_kwargs)
@@ -148,9 +149,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         elif not stream_plan:
             store.add_plan(action_plan, cost)
 
-        if max_skeletons is None:
-            process_stream_plan(store, domain, disabled, stream_plan)
-        else:
+        if use_skeletons:
             #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
             optimizer_plan = None
             if optimizer_plan is not None:
@@ -160,6 +159,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
                 skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
             skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
+        else:
+            process_stream_plan(store, domain, disabled, stream_plan)
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals + synthesizers, verbose)
