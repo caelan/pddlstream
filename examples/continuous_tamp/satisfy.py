@@ -133,7 +133,8 @@ def main(success_cost=0):
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
                                            costs=not args.unit, success_cost=success_cost,
-                                           max_time=args.max_time, search_sample_ratio=1, debug=False)
+                                           max_time=args.max_time, search_sample_ratio=1,
+                                           debug=False)
         #raise ValueError(args.algorithm)
 
     dump_assignment(solution)

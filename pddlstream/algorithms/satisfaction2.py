@@ -135,8 +135,8 @@ def current_failure_contributors(binding):
             failed_ancestors.update(ancestors)
     return [failed_ancestors]
 
-def create_disable_axioms(queue):
-    axioms = []
+def extract_disabled_clusters(queue):
+    clusters = set()
     for skeleton in queue.skeletons:
         # TODO: include costs within clustering?
         # What is goal is to be below a cost threshold?
@@ -153,19 +153,20 @@ def create_disable_axioms(queue):
         # TODO: take into consideration if a stream is enumerated to mark as a hard failure
         # Decompose down optimizers
 
-        #partial_orders = get_partial_orders(skeleton.stream_plan)
-        #cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
         #cluster_plans = [skeleton.stream_plan]
+        partial_orders = get_partial_orders(skeleton.stream_plan)
+        cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
         binding = skeleton.best_binding
-        if binding.is_bound():
+        if not binding.is_bound():
             # TODO: block if cost sensitive to possibly get cheaper solutions
-            continue
-        #cluster_plans = current_failed_cluster(binding)
-        cluster_plans = current_failure_contributors(binding)
+            #cluster_plans = current_failed_cluster(binding)
+            cluster_plans = current_failure_contributors(binding)
         for cluster_plan in cluster_plans:
-            axioms.append(create_disable_axiom(cluster_plan))
-        #raw_input('Continue?')
-    return axioms
+            clusters.add(frozenset(cluster_plan))
+    return clusters
+
+def are_domainated(clusters1, clusters2):
+    return all(any(c1 <= c2 for c2 in clusters2) for c1 in clusters1)
 
 ##################################################
 
@@ -183,6 +184,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     # TODO: investigate constraint satisfaction techniques for binding instead
     # TODO: could also instantiate all possible free parameters even if not useful
     # TODO: effort that is a function of the number of output parameters (degrees of freedom)
+    # TODO: use a CSP solver instead of a planner internally
     # TODO: max_iterations?
     if not terms:
         return {}, 0, init
@@ -209,8 +211,9 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     store = SolutionStore(evaluations, max_time=max_time, success_cost=success_cost, verbose=verbose)
     queue = SkeletonQueue(store, domain, disable=False)
     num_iterations = search_time = sample_time = 0
-    failure = False
-    while not store.is_terminated(): # and not failure:
+    last_clusters = set()
+    last_success = True
+    while not store.is_terminated():
         num_iterations += 1
         start_time = time.time()
         print('\nIteration: {} | Skeletons: {} | Skeleton Queue: {} | Evaluations: {} | '
@@ -219,8 +222,12 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
-            domain.axioms[:] = create_disable_axioms(queue)
+            clusters = extract_disabled_clusters(queue)
+            domain.axioms[:] = [create_disable_axiom(cluster) for cluster in clusters]
+            dominated = are_domainated(last_clusters, clusters)
+            last_clusters = clusters
             planner = 'ff-astar' # TODO: toggle within reschedule_stream_plan
+            #if last_success or not dominated: # Could also keep a history of results
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
                                                  unit_efforts=False, max_effort=max_effort,
@@ -230,19 +237,20 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
                     init_evaluations, stream_plan + list(function_plan)))
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
-        failure |= (external_plan is None)
+        last_success = (external_plan is not None)
         search_time += elapsed_time(start_time)
 
-        # TODO: keep track of last axiom set and only redo if it changes
         # Once a constraint added for a skeleton, it should only be relaxed
         start_time = time.time()
-        #if failure: # Only works if create_disable_axioms never changes
-        #    allocated_sample_time = INF
-        #else:
-        allocated_sample_time = (search_sample_ratio * search_time) - sample_time
+        if last_success: # Only works if create_disable_axioms never changes
+            allocated_sample_time = (search_sample_ratio * search_time) - sample_time
+        else:
+            allocated_sample_time = INF
         queue.process(external_plan, plan_skeleton, cost=cost,
                       complexity_limit=INF,  max_time=allocated_sample_time)
         sample_time += elapsed_time(start_time)
+        if not last_success and not queue:
+            break
         # TODO: exhaustively compute all plan skeletons and add to queue within the focused algorithm
 
     write_stream_statistics(externals, verbose)
