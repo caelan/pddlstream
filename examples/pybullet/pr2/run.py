@@ -11,14 +11,16 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, ge
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, get_distance
+    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
+    get_distance, LockRenderer
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.constants import Equal, AND, print_solution
 from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.language.stream import StreamInfo, PartialInputs, OptValue
+from collections import namedtuple
 
 
 USE_SYNTHESIZERS = False
@@ -62,18 +64,44 @@ def extract_point2d(v):
         return v.values[:2]
     if isinstance(v, Pose):
         return point_from_pose(v.value)[:2]
-    if v.stream == 'sample-pose':
-        r, = v.values
-        return point_from_pose(get_pose(r))[:2]
-    if v.stream == 'inverse-kinematics':
-        p, = v.values
-        return extract_point2d(p)
+    if isinstance(v, OptValue):
+        if v.stream == 'sample-pose':
+            r, = v.values
+            print(r)
+            return point_from_pose(get_pose(r))[:2]
+        if v.stream == 'inverse-kinematics':
+            p, = v.values
+            return extract_point2d(p)
+    if isinstance(v, CustomValue):
+        if v.stream == 'p-sp':
+            r, = v.values
+            return point_from_pose(get_pose(r))[:2]
+        if v.stream == 'q-ik':
+            p, = v.values
+            return extract_point2d(p)
     raise ValueError(v.stream)
 
 def opt_move_cost_fn(t):
     q1, q2 = t.values
     distance = get_distance(extract_point2d(q1), extract_point2d(q2))
     return BASE_CONSTANT + distance / BASE_VELOCITY
+
+#######################################################
+
+CustomValue = namedtuple('OptValue', ['stream', 'values'])
+
+def opt_pose_fn(o, r):
+    p = CustomValue('p-sp', (r,))
+    return p,
+
+def opt_ik_fn(a, o, p, g):
+    q = CustomValue('q-ik', (p,))
+    t = CustomValue('t-ik', tuple())
+    return q, t
+
+def opt_motion_fn(q1, q2):
+    t = CustomValue('t-pbm', (q1, q2))
+    return t,
 
 #######################################################
 
@@ -178,7 +206,7 @@ def post_process(problem, plan):
 
 #######################################################
 
-def main(display=True, simulate=False, teleport=False):
+def main(display=True, simulate=False, teleport=False, partial=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     #parser.add_argument('-display', action='store_true', help='displays the solution')
@@ -201,6 +229,11 @@ def main(display=True, simulate=False, teleport=False):
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
         'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2')),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
+    } if partial else {
+        'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
+        'inverse-kinematics': StreamInfo(from_fn(opt_ik_fn)),
+        'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
+        'MoveCost': FunctionInfo(opt_move_cost_fn),
     }
 
     synthesizers = [
@@ -220,8 +253,9 @@ def main(display=True, simulate=False, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                             synthesizers=synthesizers, success_cost=INF)
+    with LockRenderer():
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+                                 synthesizers=synthesizers, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
@@ -232,7 +266,8 @@ def main(display=True, simulate=False, teleport=False):
         disconnect()
         return
 
-    commands = post_process(problem, plan)
+    with LockRenderer():
+        commands = post_process(problem, plan)
     if args.viewer:
         restore_state(state_id)
     else:
