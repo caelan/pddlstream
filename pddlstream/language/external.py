@@ -62,7 +62,7 @@ class Instance(object):
         self.disabled = False # TODO: perform disabled using complexity
         self.opt_index = 0
         self.results_history = []
-        self.successes = 0 # Different from total_successes
+        self.successes = 0
         self.opt_results = []
         self._mapping = None
         self._domain = None

@@ -17,7 +17,7 @@ INIT_EVALUATION = None
 INTERNAL_EVALUATION = False
 
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
-Solution = namedtuple('Solution', ['plan', 'cost'])
+Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose):
@@ -30,17 +30,19 @@ class SolutionStore(object):
         #self.cost_fn = get_length if unit_costs else None
         self.success_cost = success_cost # Inclusive
         self.verbose = verbose
-        self.best_plan = None
-        self.best_cost = INF
         #self.best_cost = self.cost_fn(self.best_plan)
         self.solutions = []
+    @property
+    def best_plan(self):
+        return self.solutions[-1].plan if self.solutions else None
+    @property
+    def best_cost(self):
+        return self.solutions[-1].cost if self.solutions else INF
     def add_plan(self, plan, cost):
         # TODO: double-check that plan is a solution
         if not is_plan(plan) or (self.best_cost <= cost):
             return
-        solution = Solution(plan, cost)
-        self.best_plan, self.best_cost = solution
-        self.solutions.append(solution)
+        self.solutions.append(Solution(plan, cost, elapsed_time(self.start_time)))
     def has_solution(self):
         return is_plan(self.best_plan)
     def is_solved(self):
