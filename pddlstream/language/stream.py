@@ -173,8 +173,10 @@ class StreamInstance(Instance):
         self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
             if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
         self.num_optimistic = 1
+        self.previous_outputs = set()
         self._axiom_predicate = None
         self._disabled_axiom = None
+        # TODO: keep track of unique outputs to prune repeated ones
 
     def _check_output_values(self, new_values):
         if not isinstance(new_values, Sequence):
@@ -224,39 +226,33 @@ class StreamInstance(Instance):
             output = WildOutput(output, [])
         return output
 
-    def next_results(self, accelerate=1, verbose=False):
-        # TODO: prune repeated values
-        all_new_values = []
-        all_new_facts = []
-        all_results = []
+    def next_results(self, verbose=False):
+        assert not self.enumerated
+        start_time = time.time()
         start_calls = self.num_calls
-        for attempt in range(accelerate):
-            if all_results or self.enumerated:
-                break
-            start_time = time.time()
-            new_values, new_facts = self._next_outputs()
-            self._check_output_values(new_values)
-            self._check_wild_facts(new_facts)
-            new_results = [self.get_result(map(Object.from_value, output_values),
-                                           list_index=list_index, optimistic=False)
-                           for list_index, output_values in enumerate(new_values)]
-            all_new_values.extend(new_values)
-            all_new_facts.extend(new_facts)
-            all_results.extend(new_results)
-            self.update_statistics(start_time, new_results)
+        new_values, new_facts = self._next_outputs()
+        self._check_output_values(new_values)
+        self._check_wild_facts(new_facts)
+        new_objects = [tuple(map(Object.from_value, output_values)) for output_values in new_values]
+        new_objects = list(filter(lambda o: o not in self.previous_outputs, new_objects))
+        self.previous_outputs.update(new_objects) # Only counting new outputs as successes
+        new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)
+                       for list_index, output_objects in enumerate(new_objects)]
+        self.update_statistics(start_time, new_results)
         if verbose:
-            end_calls = self.num_calls - 1
-            call_range = start_calls if start_calls == end_calls else \
-                '{}-{}'.format(start_calls, end_calls)
-            if VERBOSE_FAILURES or all_new_values:
-                print('{}) {}:{}->{}'.format(call_range, self.external.name,
+            if VERBOSE_FAILURES or new_values:
+                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
                                              str_from_object(self.get_input_values()),
-                                             str_from_object(all_new_values)))
-            if all_new_facts:
+                                             str_from_object(new_values)))
+            if new_facts:
                 # TODO: format all_new_facts
-                print('{}) {}:{}->{}'.format(call_range, self.external.name,
-                                             str_from_object(self.get_input_values()), all_new_facts))
-        return all_results, list(map(obj_from_value_expression, all_new_facts))
+                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
+                                             str_from_object(self.get_input_values()), new_facts))
+        facts = list(map(obj_from_value_expression, new_facts))
+        if not self.external.outputs and self.successes:
+            # Set of possible outputs is exhausted
+            self.enumerated = True
+        return new_results, facts
 
     def next_optimistic(self):
         # TODO: compute this just once and store

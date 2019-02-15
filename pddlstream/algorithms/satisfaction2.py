@@ -6,7 +6,8 @@ from pddlstream.algorithms.downward import make_domain, make_predicate, add_pred
 from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-from pddlstream.algorithms.skeleton import SkeletonQueue
+#from pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.algorithms.skeleton2 import SkeletonQueue
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import is_parameter, get_length, partition_facts
 from pddlstream.language.conversion import revert_solution, \

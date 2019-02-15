@@ -8,14 +8,27 @@ from heapq import heappush, heappop, heapreplace
 from pddlstream.algorithms.common import is_instance_ready, EvaluationNode
 from pddlstream.algorithms.disabled import process_instance
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult, StreamResult
+from pddlstream.language.stream import StreamResult
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object, get_mapping
 
 from pddlstream.algorithms.skeleton import Skeleton, update_bindings, update_cost
 
+# TODO: prioritize bindings using effort
 Priority = namedtuple('Priority', ['attempted', 'attempts', 'remaining'])
+
+def compute_affected(stream_plan, index):
+    affected_indices = []
+    if len(stream_plan) <= index:
+        return affected_indices
+    result = stream_plan[index]
+    output_objects = set(result.output_objects) if isinstance(result, StreamResult) else set()
+    for index2 in range(index + 1, len(stream_plan)):
+        result2 = stream_plan[index2]
+        if set(result2.instance.input_objects) & output_objects:
+            affected_indices.append(index2)
+    return affected_indices
 
 class Binding(object):
     def __init__(self, skeleton, cost, mapping={}, index=0):
@@ -29,11 +42,28 @@ class Binding(object):
         else:
             self.result = None
         self.attempts = 0
+        self.calls = 0
+        if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
+            self.skeleton.best_binding = self
+        self.affected_indices = compute_affected(skeleton.stream_plan, self.index) # TODO: compute in skeleton
+    #def is_terminal(self):
+    #    return (type(self.result) == FunctionResult) or (not self.attempts and not self.children)
+    def do_evaluate_helper(self, indices):
+        # TODO: update this online for speed purposes
+        if (self.index in indices) and (not self.children or type(self.result) == FunctionResult): # not self.attempts
+            return True
+        if not indices or (max(indices) < self.index):
+            return False
+        return all(binding.do_evaluate_helper(indices) for binding in self.children)
+    def do_evaluate(self):
+        return not self.children or self.do_evaluate_helper(self.affected_indices)
     def get_element(self):
         attempted = (self.attempts != 0)
         remaining = len(self.skeleton.stream_plan) - self.index
         priority = Priority(attempted, self.attempts, remaining)
         return HeapElement(priority, self)
+
+##################################################
 
 class SkeletonQueue(Sized):
     def __init__(self, store, domain, disable=True):
@@ -52,10 +82,9 @@ class SkeletonQueue(Sized):
 
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
-        #self.new_binding(skeleton.root)
-        binding = Binding(skeleton, cost)
-        heappush(self.queue, binding.get_element())
-        # TODO: handle case when the plan is empty
+        skeleton.best_binding = None
+        skeleton.root = Binding(skeleton, cost)
+        heappush(self.queue, skeleton.root.get_element())
 
     def _process_root(self):
         is_new = False
@@ -66,23 +95,26 @@ class SkeletonQueue(Sized):
             action_plan = binding.skeleton.bind_action_plan(binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
             return is_new
+        if not binding.do_evaluate():
+            binding.attempts += 1
+            heappush(self.queue, binding.get_element())
+            return
+
+        binding.attempts += 1
         instance = binding.result.instance
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
-        if binding.attempts == instance.num_calls:
+        if binding.calls == instance.num_calls:
             is_new = process_instance(self.store, self.domain, instance, disable=self.disable)
-        for new_result in instance.get_results(start=binding.attempts):
+        for new_result in instance.get_results(start=binding.calls):
             if new_result.is_successful():
                 new_mapping = update_bindings(binding.mapping, binding.result, new_result)
                 new_cost = update_cost(binding.cost, binding.result, new_result)
                 new_binding = Binding(binding.skeleton, new_cost, new_mapping, binding.index + 1)
                 binding.children.append(new_binding)
                 heappush(self.queue, new_binding.get_element())
-        binding.attempts = instance.num_calls
-        if isinstance(instance, StreamResult) and not instance.external.outputs and instance.successes:
-            # Set of possible output is exhausted
-            # More generally, keep track of results and prevent repeat bindings
-            return is_new
+        binding.calls = instance.num_calls
+        binding.attempts = max(binding.attempts, binding.calls)
         if not instance.enumerated:
             heappush(self.queue, binding.get_element())
         return is_new
@@ -93,6 +125,14 @@ class SkeletonQueue(Sized):
             if key.attempted:
                 break
             self._process_root()
+
+    def process_until_new(self):
+        # TODO: process the entire queue once instead
+        is_new = False
+        while self.is_active() and (not is_new):
+            is_new |= self._process_root()
+            self.greedily_process()
+        return is_new
 
     def timed_process(self, max_time):
         start_time = time.time()
@@ -106,8 +146,8 @@ class SkeletonQueue(Sized):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
         elif stream_plan is INFEASIBLE:
-            # TODO: use complexity_limit
             self.process_until_new()
+        # TODO: use complexity_limit
         self.timed_process(max_time - elapsed_time(start_time))
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()

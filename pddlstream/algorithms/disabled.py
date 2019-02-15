@@ -20,7 +20,7 @@ def process_instance(store, domain, instance, disable=True):
     success = False
     if instance.enumerated:
         return success
-    new_results, new_facts = instance.next_results(accelerate=1, verbose=store.verbose)
+    new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
         instance.disable(store.evaluations, domain)
     for result in new_results:

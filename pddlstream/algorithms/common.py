@@ -23,11 +23,11 @@ class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose):
         # TODO: store a map from head to value?
         # TODO: include other problem information here?
+        # TODO: determine when the plan converges
         self.evaluations = evaluations
         #self.initial_evaluations = copy.copy(evaluations)
         self.start_time = time.time()
         self.max_time = max_time
-        #self.cost_fn = get_length if unit_costs else None
         self.success_cost = success_cost # Inclusive
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
@@ -40,9 +40,8 @@ class SolutionStore(object):
         return self.solutions[-1].cost if self.solutions else INF
     def add_plan(self, plan, cost):
         # TODO: double-check that plan is a solution
-        if not is_plan(plan) or (self.best_cost <= cost):
-            return
-        self.solutions.append(Solution(plan, cost, elapsed_time(self.start_time)))
+        if is_plan(plan) and (cost < self.best_cost):
+            self.solutions.append(Solution(plan, cost, elapsed_time(self.start_time)))
     def has_solution(self):
         return is_plan(self.best_plan)
     def is_solved(self):

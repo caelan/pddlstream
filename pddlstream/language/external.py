@@ -105,7 +105,7 @@ class Instance(object):
     #def has_previous_success(self):
     #    return self.online_success != 0
 
-    def next_results(self, accelerate=1, verbose=False):
+    def next_results(self, verbose=False):
         raise NotImplementedError()
 
     def get_results(self, start=0):

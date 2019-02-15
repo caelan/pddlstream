@@ -61,7 +61,7 @@ class FunctionInstance(Instance):
         return self._head
     def get_head(self):
         return self.head
-    def next_results(self, accelerate=1, verbose=False):
+    def next_results(self, verbose=False):
         start_time = time.time()
         assert not self.enumerated
         self.enumerated = True
