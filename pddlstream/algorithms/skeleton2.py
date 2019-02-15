@@ -16,7 +16,8 @@ from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping,
 from pddlstream.algorithms.skeleton import Skeleton, update_bindings, update_cost
 
 # TODO: prioritize bindings using effort
-Priority = namedtuple('Priority', ['attempted', 'attempts', 'remaining'])
+# TODO: use complexity rather than attempts for ordering
+Priority = namedtuple('Priority', ['attempts', 'remaining'])
 
 def compute_affected(stream_plan, index):
     affected_indices = []
@@ -58,9 +59,8 @@ class Binding(object):
     def do_evaluate(self):
         return not self.children or self.do_evaluate_helper(self.affected_indices)
     def get_element(self):
-        attempted = (self.attempts != 0)
         remaining = len(self.skeleton.stream_plan) - self.index
-        priority = Priority(attempted, self.attempts, remaining)
+        priority = Priority(self.attempts, remaining)
         return HeapElement(priority, self)
 
 ##################################################
@@ -86,21 +86,17 @@ class SkeletonQueue(Sized):
         skeleton.root = Binding(skeleton, cost)
         heappush(self.queue, skeleton.root.get_element())
 
-    def _process_root(self):
+    def _process_binding(self, binding):
         is_new = False
-        _, binding = heappop(self.queue)
         if self.store.best_cost <= binding.cost:
-            return is_new
+            return False, is_new
         if binding.result is None:
             action_plan = binding.skeleton.bind_action_plan(binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
-            return is_new
-        if not binding.do_evaluate():
-            binding.attempts += 1
-            heappush(self.queue, binding.get_element())
-            return
-
+            return False, is_new
         binding.attempts += 1
+        if not binding.do_evaluate():
+            return True, is_new
         instance = binding.result.instance
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
@@ -115,14 +111,20 @@ class SkeletonQueue(Sized):
                 heappush(self.queue, new_binding.get_element())
         binding.calls = instance.num_calls
         binding.attempts = max(binding.attempts, binding.calls)
-        if not instance.enumerated:
+        readd = not instance.enumerated
+        return readd, is_new
+
+    def _process_root(self):
+        _, binding = heappop(self.queue)
+        readd, is_new = self._process_binding(binding)
+        if readd:
             heappush(self.queue, binding.get_element())
         return is_new
 
-    def greedily_process(self):
+    def greedily_process(self, max_attempts=0):
         while self.is_active():
             key, _ = self.queue[0]
-            if key.attempted:
+            if max_attempts < key.attempts:
                 break
             self._process_root()
 
@@ -147,7 +149,8 @@ class SkeletonQueue(Sized):
             self.greedily_process()
         elif stream_plan is INFEASIBLE:
             self.process_until_new()
-        # TODO: use complexity_limit
+        # TODO: could copy the queue and filter instances that exceed complexity_limit
+        self.greedily_process(max_attempts=complexity_limit) # This isn't quite the complexity limit
         self.timed_process(max_time - elapsed_time(start_time))
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()
