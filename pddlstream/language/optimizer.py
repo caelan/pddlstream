@@ -16,6 +16,7 @@ from pddlstream.algorithms.reorder import get_partial_orders
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
 OPTIMIZER_AXIOM = True
+# TODO: revert to my previous specification where streams can simply be fused
 
 class OptimizerOutput(object):
     def __init__(self, assignments=[], facts=[], infeasible=[]): # infeasible=None
@@ -76,6 +77,7 @@ class OptimizerInfo(StreamInfo):
         # TODO: post-processing
 
 class VariableStream(Stream):
+    # TODO: allow generation of two variables
     def __init__(self, optimizer, variable, inputs, domain, certified, infos):
         self.optimizer = optimizer
         self.variable = variable
@@ -163,6 +165,10 @@ class OptimizerInstance(StreamInstance):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
         all_constraints = frozenset(range(len(self.external.certified)))
         self.infeasible = [all_constraints]
+        # TODO: connected components on facts
+        # TODO: cluster connected components in the infeasible set
+        # TODO: compute things dependent on a stream and treat like an optimizer
+        # Also make an option to just treat everything like an optimizer
     def _next_outputs(self):
         self._create_generator()
         output, self.enumerated = get_next(self._generator, default=[])

@@ -47,6 +47,7 @@ class Instantiator(Sized): # Dynamic Instantiator
                 self.push_instance(stream.get_instance([]))
         for atom, node in evaluations.items():
             self.add_atom(atom, node.complexity)
+        # TODO: revisit deque and add functions to front
 
     #########################
 

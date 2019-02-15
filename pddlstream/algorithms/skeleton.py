@@ -30,6 +30,7 @@ def update_bindings(bindings, opt_result, result):
     return new_bindings
 
 def update_cost(cost, opt_result, result):
+    # TODO: recompute optimistic costs to attempt to produce a tighter bound
     new_cost = cost
     if type(result) is FunctionResult:
         new_cost += (result.value - opt_result.value)
@@ -62,6 +63,10 @@ class Skeleton(object):
     #    return repr(self.action_plan)
 
 ##################################################
+
+# TODO: only branch on new bindings caused by new stream outputs
+# TODO: delete a binding if a stream is exhausted
+# TODO: evaluate all stream instances in queue below a target effort
 
 Priority = namedtuple('Priority', ['attempted', 'effort'])
 
@@ -127,6 +132,15 @@ class Binding(object):
         if not new_result.is_successful():
             return None # TODO: check if satisfies target certified
         opt_result = self.remaining_results[index]
+        #if not isinstance(new_result, StreamResult) or not new_result.output_objects:
+        #    self.stream_indices = puncture(self.stream_indices, index)
+        #    self.stream_attempts = puncture(self.stream_attempts, index)
+        #    self.bound_results[self.stream_indices[index]] = new_result
+        #    self.cost = update_cost(self.cost, opt_result, new_result)
+        #    self._remaining_results = puncture(self._remaining_results, index)
+        #    self.queue.disable_binding(self)
+        #    self.queue.new_binding(self)
+        #    return self
         bound_results = self.bound_results.copy()
         bound_results[self.stream_indices[index]] = new_result
         binding = Binding(self.queue, self.skeleton,
@@ -135,10 +149,16 @@ class Binding(object):
                           bound_results,
                           update_bindings(self.bindings, opt_result, new_result),
                           update_cost(self.cost, opt_result, new_result))
+        #if not isinstance(new_result, StreamResult) or not new_result.output_objects:
+        #    binding._remaining_results = puncture(self._remaining_results, index)
         if len(binding.stream_indices) < len(self.skeleton.best_binding.stream_indices):
             self.skeleton.best_binding = binding
         self.children.append(binding)
         self.queue.new_binding(binding)
+        #if not isinstance(new_result, StreamResult) or not new_result.output_objects:
+        #    # The binding is dominated
+        #    self.enumerated = True
+        #    self.queue.update_enabled(self)
         return binding
     def update_instances(self):
         updated = False
@@ -342,6 +362,8 @@ class SkeletonQueue(Sized):
             self.process_until_new()
         self.timed_process(max_time - elapsed_time(start_time))
         self.accelerate_best_bindings()
+        #print(len(self.queue), len(self.skeletons),
+        #      len(self.bindings_from_instance), len(self.binding_from_key))
 
         # Only currently blocking streams with after called
         # Can always process streams with a certain complexity

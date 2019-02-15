@@ -67,7 +67,6 @@ def extract_point2d(v):
     if isinstance(v, OptValue):
         if v.stream == 'sample-pose':
             r, = v.values
-            print(r)
             return point_from_pose(get_pose(r))[:2]
         if v.stream == 'inverse-kinematics':
             p, = v.values
