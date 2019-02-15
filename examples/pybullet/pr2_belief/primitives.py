@@ -122,7 +122,7 @@ def move_look_trajectory(trajectory, max_tilt=np.pi / 6):  # max_tilt=INF):
     with BodySaver(robot):
         #current_conf = base_values_from_pose(get_pose(robot))
         for i, conf in enumerate(base_path): # TODO: just do two loops?
-            conf.step()
+            conf.assign()
             while index < len(target_path):
                 if i < index:
                     # Don't look at past or current conf

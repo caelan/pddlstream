@@ -199,7 +199,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
         saved_world.restore()
         for command in new_commands:
             if isinstance(command, Trajectory) and command.path:
-                command.path[-1].step()
+                command.path[-1].assign()
         commands += new_commands
     return commands
 
@@ -209,14 +209,14 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
 def plan_commands(state, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state and not the real world
+    sim_world = connect(use_gui=False)
+    #clone_world(client=sim_world)
     task = state.task
     robot_conf = get_configuration(task.robot)
     robot_pose = get_pose(task.robot)
-    sim_world = connect(use_gui=False)
     with ClientSaver(sim_world):
         with HideOutput():
             robot = create_pr2(use_drake=USE_DRAKE_PR2)
-            #robot = load_model(DRAKE_PR2_URDF, fixed_base=True)
         set_pose(robot, robot_pose)
         set_configuration(robot, robot_conf)
     clone_world(client=sim_world, exclude=[task.robot])

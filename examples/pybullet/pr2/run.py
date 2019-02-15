@@ -7,12 +7,13 @@ import pstats
 import argparse
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands, \
+    get_gripper_joints, GripperCommand
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
-    get_distance, LockRenderer
+    get_distance, LockRenderer, get_min_limit, get_max_limit
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.synthesizer import StreamSynthesizer
@@ -34,10 +35,10 @@ def place_movable(certified):
         fact = literal[1]
         if fact[0] == 'trajposecollision':
             _, b, p = fact[1:]
-            p.step()
+            p.assign()
         if fact[0] == 'trajarmcollision':
             _, a, q = fact[1:]
-            q.step()
+            q.assign()
         if fact[0] == 'trajgraspcollision':
             _, a, o, g = fact[1:]
             # TODO: finish this
@@ -174,18 +175,23 @@ def post_process(problem, plan):
         return None
     commands = []
     for i, (name, args) in enumerate(plan):
-        print(i, name, args)
         if name == 'move_base':
             t = args[-1]
             new_commands = [t]
         elif name == 'pick':
             a, b, p, g, _, t = args
+            gripper_joint = get_gripper_joints(problem.robot, a)[0]
+            position = get_min_limit(problem.robot, gripper_joint)
+            close_gripper = GripperCommand(problem.robot, a, position)
             attach = Attach(problem.robot, a, g, b)
-            new_commands = [t, attach, t.reverse()]
+            new_commands = [t, close_gripper, attach, t.reverse()]
         elif name == 'place':
             a, b, p, g, _, t = args
+            gripper_joint = get_gripper_joints(problem.robot, a)[0]
+            position = get_max_limit(problem.robot, gripper_joint)
+            open_gripper = GripperCommand(problem.robot, a, position)
             detach = Detach(problem.robot, a, b)
-            new_commands = [t, detach, t.reverse()]
+            new_commands = [t, detach, open_gripper, t.reverse()]
         elif name == 'clean': # TODO: add text or change color?
             body, sink = args
             new_commands = [Clean(body)]
@@ -200,6 +206,7 @@ def post_process(problem, plan):
             new_commands = [t, Cook(body), t.reverse()]
         else:
             raise ValueError(name)
+        print(i, name, args, new_commands)
         commands += new_commands
     return commands
 

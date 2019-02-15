@@ -53,7 +53,7 @@ class Binding(object):
         if self.result is None:
             return 0
         return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
-               self.result.external.get_complexity(self.attempts)
+               self.result.external.get_complexity(self.attempts) # attempts, calls
     def do_evaluate_helper(self, indices):
         # TODO: update this online for speed purposes
         if (self.index in indices) and (not self.children or type(self.result) == FunctionResult): # not self.attempts
@@ -87,7 +87,7 @@ class SkeletonQueue(Sized):
 
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
-        skeleton.best_binding = None
+        skeleton.best_binding = None # TODO: clean this up
         skeleton.root = Binding(skeleton, cost)
         heappush(self.queue, skeleton.root.get_element())
 
@@ -101,6 +101,7 @@ class SkeletonQueue(Sized):
             return False, is_new
         binding.attempts += 1
         if not binding.do_evaluate():
+            # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             return True, is_new
         instance = binding.result.instance
         if not is_instance_ready(self.evaluations, instance):
@@ -164,13 +165,13 @@ class SkeletonQueue(Sized):
             self.greedily_process()
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
+        # TODO: detect infeasibility when an intermediate stream fails
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
         elif stream_plan is INFEASIBLE:
-            #self.process_until_new()
-            pass
+            self.process_until_new()
         self.process_complexity(complexity_limit)
         self.timed_process(max_time - elapsed_time(start_time))
         # TODO: accelerate the best bindings

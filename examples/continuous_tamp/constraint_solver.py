@@ -76,7 +76,7 @@ def distance_cost(q1, q2):
 
 ##################################################
 
-def get_optimize_fn(regions, max_time=5, diagnose=True, verbose=False):
+def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -126,7 +126,7 @@ def get_optimize_fn(regions, max_time=5, diagnose=True, verbose=False):
                 kinematics_constraint(model, name, *map(get_var, args))
             elif prefix == 'contained':
                 contained_constraint(model, regions, name, *map(get_var, args))
-            elif prefix == 'cfree':
+            elif prefix == 'cfree' and collisions:
                 collision_constraint(model, name, *map(get_var, args))
             elif prefix == 'motion':
                 #motion_constraint(model, name, *map(get_var, args))
@@ -134,7 +134,7 @@ def get_optimize_fn(regions, max_time=5, diagnose=True, verbose=False):
             elif prefix == NOT:
                 fact = args[0]
                 predicate, args = fact[0], fact[1:]
-                if predicate == 'posecollision':
+                if predicate == 'posecollision' and collisions:
                     collision_constraint(model, name, *map(get_var, args))
             elif prefix == MINIMIZE:
                 fact = args[0]

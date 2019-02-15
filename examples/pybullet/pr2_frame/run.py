@@ -9,12 +9,14 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, ge
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
 from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, Pose, is_placement, \
+from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, is_placement, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
 from pddlstream.utils import read, INF, get_file_path
 from pddlstream.language.constants import print_solution
+
+from examples.pybullet.pr2.run import post_process
 
 
 # TODO: make a fixed body for each object (or one environment body)
@@ -94,45 +96,6 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
     # get_press_gen(problem, teleport=teleport)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
-
-#######################################################
-
-def post_process(problem, plan):
-    if plan is None:
-        return None
-    robot = problem.robot
-    commands = []
-    for i, (name, args) in enumerate(plan):
-        print(i, name, args)
-        if name == 'move_base':
-            t = args[-1]
-            new_commands = [t]
-        elif name == 'pick':
-            a, b, p, g, _, t = args
-            #link = link_from_name(robot, ARM_LINK_NAMES[a])
-            attach = Attach(robot, a, g, b)
-            new_commands = [t, attach, t.reverse()]
-        elif name == 'place':
-            a, b, p, g, _, t = args
-            #link = link_from_name(robot, ARM_LINK_NAMES[a])
-            detach = Detach(robot, a, b)
-            new_commands = [t, detach, t.reverse()]
-        elif name == 'clean': # TODO: add text or change color?
-            body, sink = args
-            new_commands = [Clean(body)]
-        elif name == 'cook':
-            body, stove = args
-            new_commands = [Cook(body)]
-        elif name == 'press_clean':
-            body, sink, arm, button, bq, t = args
-            new_commands = [t, Clean(body), t.reverse()]
-        elif name == 'press_cook':
-            body, sink, arm, button, bq, t = args
-            new_commands = [t, Cook(body), t.reverse()]
-        else:
-            raise ValueError(name)
-        commands += new_commands
-    return commands
 
 #######################################################
 

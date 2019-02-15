@@ -28,6 +28,10 @@ class BeliefTask(object):
         self.goal_registered = goal_registered
     def get_bodies(self):
         return self.movable + self.surfaces + self.rooms
+    @property
+    def fixed(self):
+        movable = [self.robot] + list(self.movable)
+        return list(filter(lambda b: b not in movable, get_bodies()))
     def get_supports(self, body):
         if body in self.movable:
             return self.surfaces
