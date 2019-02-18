@@ -6,11 +6,13 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity
 from pddlstream.algorithms.disabled import process_instance
-from pddlstream.algorithms.skeleton import Skeleton, update_bindings, update_cost
+from pddlstream.algorithms.skeleton import update_bindings, update_cost
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import elapsed_time, HeapElement
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping
+
+PRUNE_BINDINGS = True
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering
@@ -22,11 +24,31 @@ def compute_affected(stream_plan, index):
         return affected_indices
     result = stream_plan[index]
     output_objects = set(result.output_objects) if isinstance(result, StreamResult) else set()
+    if not output_objects:
+        return affected_indices
     for index2 in range(index + 1, len(stream_plan)):
         result2 = stream_plan[index2]
         if set(result2.instance.input_objects) & output_objects:
             affected_indices.append(index2)
     return affected_indices
+
+class Skeleton(object):
+    def __init__(self, queue, stream_plan, action_plan, cost):
+        self.index = len(queue.skeletons)
+        queue.skeletons.append(self)
+        self.queue = queue
+        self.stream_plan = stream_plan
+        self.action_plan = action_plan
+        self.cost = cost
+        self.best_binding = None
+        self.root = Binding(self, self.cost)
+        self.affected_indices = [compute_affected(self.stream_plan, index)
+                                 for index in range(len(self.stream_plan))]
+        # TODO: compute this all at once via hashing
+    def bind_action_plan(self, mapping):
+        return [(name, apply_mapping(args, mapping)) for name, args in self.action_plan]
+
+##################################################
 
 class Binding(object):
     def __init__(self, skeleton, cost, mapping={}, index=0):
@@ -43,12 +65,13 @@ class Binding(object):
         self.calls = 0
         if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
             self.skeleton.best_binding = self
-        self.affected_indices = compute_affected(skeleton.stream_plan, self.index) # TODO: compute in skeleton
     def up_to_date(self):
         if self.result is None:
             return True
-        #return self.result.instance.num_calls <= self.attempts
-        return self.calls == self.result.instance.num_calls
+        if PRUNE_BINDINGS:
+            return self.result.instance.num_calls <= self.attempts
+        else:
+            return self.calls == self.result.instance.num_calls
     def compute_complexity(self):
         if self.result is None:
             return 0
@@ -62,7 +85,7 @@ class Binding(object):
             return False
         return all(binding.do_evaluate_helper(indices) for binding in self.children) # TODO: all or any?
     def do_evaluate(self):
-        return not self.children or self.do_evaluate_helper(self.affected_indices)
+        return not self.children or self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
         remaining = len(self.skeleton.stream_plan) - self.index
         priority = Priority(self.attempts, remaining)
@@ -87,8 +110,6 @@ class SkeletonQueue(Sized):
 
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
-        skeleton.best_binding = None # TODO: clean this up
-        skeleton.root = Binding(skeleton, cost)
         heappush(self.queue, skeleton.root.get_element())
 
     def _process_binding(self, binding):
@@ -100,7 +121,7 @@ class SkeletonQueue(Sized):
             self.store.add_plan(action_plan, binding.cost)
             return False, is_new
         binding.attempts += 1
-        if not binding.do_evaluate():
+        if PRUNE_BINDINGS and not binding.do_evaluate():
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             return True, is_new
         instance = binding.result.instance

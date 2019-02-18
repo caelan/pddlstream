@@ -7,8 +7,8 @@ import pstats
 import argparse
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands, \
-    get_gripper_joints, GripperCommand
+    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
+    get_gripper_joints, GripperCommand, apply_commands, State
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
@@ -180,9 +180,7 @@ def post_process(problem, plan):
             new_commands = [t]
         elif name == 'pick':
             a, b, p, g, _, t = args
-            gripper_joint = get_gripper_joints(problem.robot, a)[0]
-            position = get_min_limit(problem.robot, gripper_joint)
-            close_gripper = GripperCommand(problem.robot, a, position)
+            close_gripper = GripperCommand(problem.robot, a, g.grasp_width)
             attach = Attach(problem.robot, a, g, b)
             new_commands = [t, close_gripper, attach, t.reverse()]
         elif name == 'place':
@@ -212,8 +210,9 @@ def post_process(problem, plan):
 
 #######################################################
 
-def main(display=True, simulate=False, teleport=False, partial=False):
+def main(display=True, teleport=False, partial=False):
     parser = argparse.ArgumentParser()
+    parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     #parser.add_argument('-display', action='store_true', help='displays the solution')
     args = parser.parse_args()
@@ -282,13 +281,13 @@ def main(display=True, simulate=False, teleport=False, partial=False):
         with HideOutput():
             problem_fn() # TODO: way of doing this without reloading?
 
-    if simulate:
-        enable_gravity()
+    if args.simulate:
         control_commands(commands)
     else:
-        step_commands(commands, time_step=0.01)
+        apply_commands(State(), commands, time_step=0.01)
     user_input('Finish?')
     disconnect()
+    # TODO: need to wrap circular joints
 
 if __name__ == '__main__':
     main()

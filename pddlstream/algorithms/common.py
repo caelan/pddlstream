@@ -19,6 +19,8 @@ INTERNAL_EVALUATION = False
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 
+SOLUTIONS = []
+
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose):
         # TODO: store a map from head to value?
@@ -55,6 +57,7 @@ class SolutionStore(object):
     #def __repr__(self):
     #    raise NotImplementedError()
     def extract_solution(self):
+        SOLUTIONS[:] = self.solutions
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
 
 ##################################################

@@ -6,7 +6,7 @@ import cProfile
 import pstats
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, step_commands
+    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, State, apply_commands
 from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, is_placement, \
@@ -150,10 +150,9 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
     user_input('Execute?')
     commands = post_process(problem, plan)
     if simulate:
-        enable_gravity()
         control_commands(commands)
     else:
-        step_commands(commands, time_step=0.01)
+        apply_commands(State(), commands, time_step=0.01)
     user_input('Finish?')
     disconnect()
 

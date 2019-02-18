@@ -138,7 +138,10 @@ def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negat
         preimage = list(plan_preimage(axiom_plan + [action_instance], []))
         assert conditions_hold(opt_task.init, (l for l in preimage if (l.predicate not in axioms_from_name and
                                                                       (l.predicate not in negative_from_name))))
-        new_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name, static_state=real_states[-1])
+        # TODO: only add derived facts and negative facts to fluent state to make normalizing easier
+        new_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name,
+                                            static_state=opt_task.init)
+                                            #static_state=real_states[-1])
         assert new_axiom_plan is not None
         preimage_plan.extend(new_axiom_plan + axiom_plan + [action_instance])
         if action_instance.name != GOAL_NAME:

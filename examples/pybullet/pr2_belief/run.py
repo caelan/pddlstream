@@ -219,7 +219,8 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
             robot = create_pr2(use_drake=USE_DRAKE_PR2)
         set_pose(robot, robot_pose)
         set_configuration(robot, robot_conf)
-    clone_world(client=sim_world, exclude=[task.robot])
+    mapping = clone_world(client=sim_world, exclude=[task.robot])
+    assert all(i1 == i2 for i1, i2 in mapping.items())
     set_client(sim_world)
     saved_world = WorldSaver() # StateSaver()
 
@@ -242,16 +243,16 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
     pr.enable()
     solution = solve_focused(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
                              success_cost=MAX_COST, verbose=verbose)
-    pr.disable()
     plan, cost, evaluations = solution
     if MAX_COST <= cost:
         plan = None
     print_solution(solution)
     print('Finite cost:', cost < MAX_COST)
-    if profile:
-        pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    saved_world.restore()
     commands = post_process(state, plan)
+    pr.disable()
+    if profile:
+        pstats.Stats(pr).sort_stats('cumtime').print_stats(10)
+    saved_world.restore()
     disconnect()
     return commands
 

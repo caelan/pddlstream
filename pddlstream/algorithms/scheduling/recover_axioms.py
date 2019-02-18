@@ -189,12 +189,11 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
     # TODO: maybe it would just be better to drop the negative throughout this process until this end
     with Verbose(False):
         model = build_model.compute_model(pddl_to_prolog.translate(task))  # Changes based on init
-    task.actions = original_actions
-    task.axioms = original_axioms
-
     opt_facts = instantiate.get_fluent_facts(task, model) | (task.init - static_state)
     mock_fluent = MockSet(lambda item: (item.predicate in negative_from_name) or (item in opt_facts))
     instantiated_axioms = instantiate_necessary_axioms(model, static_state, mock_fluent, axiom_from_action)
     axiom_plan = extraction_helper(task.init, instantiated_axioms, derived_goals, negative_from_name)
     task.init = original_init
+    task.actions = original_actions
+    task.axioms = original_axioms
     return axiom_plan

@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
     plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, \
-    INF, get_length
+    INF, get_length, multiply
 
 VIS_RANGE = (0.5, 1.5)
 REG_RANGE = (0.5, 1.5)
@@ -127,7 +127,7 @@ def move_look_trajectory(trajectory, max_tilt=np.pi / 6):  # max_tilt=INF):
                 if i < index:
                     # Don't look at past or current conf
                     target_point = target_path[index]
-                    head_conf = inverse_visibility(robot, target_point)
+                    head_conf = inverse_visibility(robot, target_point) # TODO: this is slightly slow
                     #print(index, target_point, head_conf)
                     if (head_conf is not None) and (head_conf[1] < max_tilt):
                         break
@@ -153,11 +153,15 @@ class AttachCone(Command): # TODO: make extend Attach?
     def __init__(self, robot):
         self.robot = robot
         self.group = 'head'
+        self.cone = None
     def apply(self, state, **kwargs):
         self.cone = get_viewcone(color=(1, 0, 0, 0.5))
         state.poses[self.cone] = None
-        attach = Attach(self.robot, self.group, Pose(self.cone, unit_pose()), self.cone)
-        attach.apply(state, **kwargs)
+        cone_pose = Pose(self.cone, unit_pose())
+        attach = Attach(self.robot, self.group, cone_pose, self.cone)
+        attach.assign()
+        for _ in attach.apply(state, **kwargs):
+            yield
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
 
@@ -167,7 +171,8 @@ class DetachCone(Command): # TODO: make extend Detach?
     def apply(self, state, **kwargs):
         cone = self.attach.cone
         detach = Detach(self.attach.robot, self.attach.group, cone)
-        detach.apply(state, **kwargs)
+        for _ in detach.apply(state, **kwargs):
+            yield
         del state.poses[cone]
         remove_body(cone)
     def __repr__(self):
@@ -217,6 +222,7 @@ class Scan(Command):
                 dist.obsUpdate(get_observation_fn(self.surface), obs)
         #state.localized.update(detections)
         # TODO: pose for each object that can be real or fake
+        yield
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, get_body_name(self.surface))
@@ -240,6 +246,7 @@ class ScanRoom(Command):
         #for body, dist in state.b_on.items():
         #    obs = (body in detections) and (is_center_stable(body, self.surface))
         #    dist.obsUpdate(obs_fn, obs)
+        yield
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, get_body_name(self.surface))
@@ -253,7 +260,7 @@ class Detect(Command):
         self.body = body
 
     def apply(self, state, **kwargs):
-        return
+        yield
         # TODO: need to be careful that we don't move in between this...
         # detections = get_visual_detections(self.robot)
         # print('Detections:', detections)
@@ -276,7 +283,7 @@ class Register(Command):
         self.body = body
         self.link = link_from_name(robot, HEAD_LINK_NAME)
 
-    def step(self):
+    def control(self, **kwargs):
         # TODO: filter for target object and location?
         return get_kinect_registrations(self.robot)
 
@@ -289,8 +296,7 @@ class Register(Command):
         # time.sleep(1.0)
         remove_body(cone)
         state.registered.add(self.body)
-
-    control = step
+        yield
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot),
