@@ -32,11 +32,15 @@ def process_instance(store, domain, instance, disable=True):
 
 ##################################################
 
-def process_stream_plan(store, domain, disabled, stream_plan, max_failures=INF):
+def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, max_failures=INF):
     # TODO: had old implementation of these
     # TODO: could do version that allows bindings and is able to return
     # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
     if not is_plan(stream_plan):
+        return
+    stream_plan = [result for result in stream_plan if result.optimistic]
+    if not stream_plan:
+        store.add_plan(action_plan, cost)
         return
     failures = 0
     for result in stream_plan:

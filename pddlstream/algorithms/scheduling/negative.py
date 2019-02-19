@@ -30,9 +30,9 @@ def convert_negative_predicate(negative, literal, negative_plan):
 
 def get_negative_result(negative, input_objects, fluent_facts=frozenset()):
     instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
-    return StreamResult(instance, output_objects=tuple(),
-                        opt_index=instance.opt_index,
-                        call_index=instance.num_calls, optimistic=True)
+    optimistic = not instance.successes # TODO: clean this up
+    return instance._Result(instance, output_objects=tuple(), opt_index=instance.opt_index,
+                            call_index=instance.num_calls, optimistic=optimistic)
 
 def convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan):
     import pddl

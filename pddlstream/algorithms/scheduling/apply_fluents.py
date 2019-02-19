@@ -51,6 +51,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
             fluent_facts = list(map(fact_from_fd, filter(
                 lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
             new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
+            # TODO: handle optimistic here
             new_result = new_instance.get_result(new_output_objects, opt_index=result.opt_index)
             fluent_plan.append(new_result)
     return static_plan + fluent_plan

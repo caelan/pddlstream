@@ -72,7 +72,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_optimizer:
         # To avoid loading gurobi
         stream_map.update({
-            'gurobi': from_list_fn(get_optimize_fn(tamp_problem.regions)),
+            'gurobi': from_list_fn(get_optimize_fn(tamp_problem.regions, collisions=collisions)),
             'rrt': from_fn(cfree_motion_fn),
         })
     #stream_map = 'debug'
@@ -161,7 +161,7 @@ def main():
         #'place': ActionInfo(terminal=True),
     }
     stream_info = {
-        't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
+        't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
         'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
@@ -195,7 +195,7 @@ def main():
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  unit_efforts=False, effort_weight=0,
-                                 search_sample_ratio=1,
+                                 search_sample_ratio=0,
                                  #max_skeletons=None,
                                  visualize=False)
     elif args.algorithm == 'incremental':

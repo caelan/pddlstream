@@ -12,10 +12,11 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping
 
-PRUNE_BINDINGS = True
+PRUNE_BINDINGS = False
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering
+# TODO: FIFO
 Priority = namedtuple('Priority', ['attempts', 'remaining'])
 
 def compute_affected(stream_plan, index):
@@ -193,7 +194,7 @@ class SkeletonQueue(Sized):
             self.greedily_process()
         elif stream_plan is INFEASIBLE:
             self.process_until_new()
-        self.process_complexity(complexity_limit)
+        #self.process_complexity(complexity_limit)
         self.timed_process(max_time - elapsed_time(start_time))
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()

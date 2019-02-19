@@ -138,7 +138,7 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 
-def get_blocked_problem(n_blocks=5, deterministic=True):
+def get_blocked_problem(n_blocks=2, deterministic=True):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     if deterministic:
         poses = [np.zeros(2), np.array([7.5, 0])]

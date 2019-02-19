@@ -54,7 +54,8 @@ def get_base_motion_synth(problem, teleport=False):
         return free_motion_fn(q0, q1)
     return fn
 
-def move_cost_fn(t):
+def move_cost_fn(c):
+    [t] = c.commands
     distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
     return BASE_CONSTANT + distance / BASE_VELOCITY
 
@@ -170,24 +171,26 @@ def pddlstream_from_problem(problem, teleport=False):
 
 # TODO: avoid copying this?
 
-def post_process(problem, plan):
+def post_process(problem, plan, teleport=False):
     if plan is None:
         return None
     commands = []
     for i, (name, args) in enumerate(plan):
         if name == 'move_base':
-            t = args[-1]
-            new_commands = [t]
+            c = args[-1]
+            new_commands = c.commands
         elif name == 'pick':
-            a, b, p, g, _, t = args
-            close_gripper = GripperCommand(problem.robot, a, g.grasp_width)
+            a, b, p, g, _, c = args
+            [t] = c.commands
+            close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
             attach = Attach(problem.robot, a, g, b)
             new_commands = [t, close_gripper, attach, t.reverse()]
         elif name == 'place':
-            a, b, p, g, _, t = args
+            a, b, p, g, _, c = args
+            [t] = c.commands
             gripper_joint = get_gripper_joints(problem.robot, a)[0]
             position = get_max_limit(problem.robot, gripper_joint)
-            open_gripper = GripperCommand(problem.robot, a, position)
+            open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
             detach = Detach(problem.robot, a, b)
             new_commands = [t, detach, open_gripper, t.reverse()]
         elif name == 'clean': # TODO: add text or change color?
@@ -197,10 +200,12 @@ def post_process(problem, plan):
             body, stove = args
             new_commands = [Cook(body)]
         elif name == 'press_clean':
-            body, sink, arm, button, bq, t = args
+            body, sink, arm, button, bq, c = args
+            [t] = c.commands
             new_commands = [t, Clean(body), t.reverse()]
         elif name == 'press_cook':
-            body, sink, arm, button, bq, t = args
+            body, sink, arm, button, bq, c = args
+            [t] = c.commands
             new_commands = [t, Cook(body), t.reverse()]
         else:
             raise ValueError(name)

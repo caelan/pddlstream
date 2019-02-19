@@ -132,7 +132,7 @@ def pddlstream_from_state(state, teleport=False):
 
 #######################################################
 
-def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True):
+def post_process(state, plan, replan_obs=True, replan_base=False, look_move=False):
     problem = state.task
     if plan is None:
         return None
@@ -146,11 +146,13 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
             break
         saved_world = WorldSaver() # StateSaver()
         if name == 'move_base':
-            t = args[-1]
+            c = args[-1]
+            [t] = c.commands
             # TODO: look at the trajectory (endpoint or path) to ensure fine
             # TODO: I should probably move base and keep looking at the path
             # TODO: I could keep updating the head goal as the base moves along the path
             if look_move:
+                # TODO: some sort of new bug here where the trajectory repeats
                 new_commands = [move_look_trajectory(t)]
                 #new_commands = [inspect_trajectory(t), t]
             else:
@@ -160,13 +162,15 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
         elif name == 'pick':
             if uncertain_base:
                 break
-            a, b, p, g, _, t = args
+            a, b, p, g, _, c = args
+            [t] = c.commands
             attach = Attach(robot, a, g, b)
             new_commands = [t, attach, t.reverse()]
         elif name == 'place':
             if uncertain_base:
                 break
-            a, b, p, g, _, t = args
+            a, b, p, g, _, c = args
+            [t] = c.commands
             detach = Detach(robot, a, b)
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
@@ -209,7 +213,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=True
 def plan_commands(state, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state and not the real world
-    sim_world = connect(use_gui=False)
+    sim_world = connect(use_gui=True)
     #clone_world(client=sim_world)
     task = state.task
     robot_conf = get_configuration(task.robot)
@@ -261,7 +265,7 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 
 def main(time_step=0.01):
     # TODO: closed world and open world
-    real_world = connect(use_gui=True)
+    real_world = connect(use_gui=False)
     add_data_path()
     task, state = get_problem1(localized='rooms', p_other=0.5) # surfaces | rooms
     for body in task.get_bodies():

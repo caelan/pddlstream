@@ -147,8 +147,6 @@ def solve_focused(problem, constraints=PlanConstraints(),
             complexity_limit += complexity_step
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
-        elif not stream_plan:
-            store.add_plan(action_plan, cost)
 
         if use_skeletons:
             #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
@@ -158,10 +156,11 @@ def solve_focused(problem, constraints=PlanConstraints(),
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
-            allocated_sample_time = (search_sample_ratio * search_time) - sample_time
+            allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
+                if len(skeleton_queue.skeletons) + 1 < max_skeletons else INF
             skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         else:
-            process_stream_plan(store, domain, disabled, stream_plan)
+            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost)
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals + synthesizers, verbose)
