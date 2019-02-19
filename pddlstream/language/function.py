@@ -15,8 +15,8 @@ from pddlstream.utils import str_from_object, apply_mapping
 #from inspect import signature
 
 class FunctionInfo(ExternalInfo):
-    def __init__(self, opt_fn=None, eager=False, p_success=None, overhead=None, effort_fn=None):
-        super(FunctionInfo, self).__init__(eager, p_success, overhead, effort_fn)
+    def __init__(self, opt_fn=None, **kwargs):
+        super(FunctionInfo, self).__init__(**kwargs)
         self.opt_fn = opt_fn
         #self.order = 0
 

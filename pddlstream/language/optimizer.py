@@ -86,7 +86,7 @@ class VariableStream(Stream):
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
         # TODO: need to convert OptimizerOutput
         #gen_fn = empty_gen()
-        #info = StreamInfo(effort_fn=get_effort_fn(optimizer_name, inputs, outputs))
+        #info = StreamInfo(effort=get_effort_fn(optimizer_name, inputs, outputs))
         #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         # Each stream could certify a stream-specific fact as well
         # TODO: will I need to adjust simultaneous here as well?
@@ -110,7 +110,7 @@ class ConstraintStream(Stream):
         #gen_fn = empty_gen()
         info = infos.get(name, None)
         if info is None:
-            info = StreamInfo(effort_fn=get_effort_fn(optimizer.name),
+            info = StreamInfo(effort=get_effort_fn(optimizer.name),
                               simultaneous=DEFAULT_SIMULTANEOUS)
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info)

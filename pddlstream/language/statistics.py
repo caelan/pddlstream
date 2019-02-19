@@ -3,10 +3,14 @@ from __future__ import print_function
 import os
 
 from collections import Counter
+
+from pddlstream.language.constants import is_plan
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
 
 DATA_DIR = 'statistics/py{:d}/'
+DEFAULT_SEARCH_OVERHEAD = 10 # TODO: update this over time
+# Can also include the overhead to process skeletons
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
@@ -17,6 +21,18 @@ def safe_ratio(numerator, denominator, undefined=None):
 
 def geometric_cost(cost, p):
     return safe_ratio(cost, p, undefined=INF)
+
+def check_effort(effort, max_effort):
+    if max_effort is None:
+        return True
+    return effort < max_effort # Exclusive
+
+def compute_plan_effort(stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return INF
+    if not stream_plan:
+        return 0
+    return sum(result.get_effort(**kwargs) for result in stream_plan)
 
 ##################################################
 
@@ -134,14 +150,17 @@ def hash_object(evaluations, obj):
 ##################################################
 
 class PerformanceInfo(object):
-    def __init__(self, p_success, overhead):
+    def __init__(self, p_success, overhead, effort):
         if p_success is not None:
             assert 0 <= p_success <= 1
         if overhead is not None:
             # TODO: overhead should never be zero (always some tiny overhead)
             assert 0 <= overhead
+        #if effort is not None:
+        #    assert 0 <= effort
         self.p_success = p_success
         self.overhead = overhead
+        self.effort = effort
 
 class Performance(object):
     def __init__(self, name, info):
@@ -190,6 +209,7 @@ class Performance(object):
                           undefined=reg_overhead)
 
     def get_p_success(self):
+        # TODO: could precompute and store
         if self.info.p_success is None:
             return self._estimate_p_success()
         return self.info.p_success
@@ -198,6 +218,15 @@ class Performance(object):
         if self.info.overhead is None:
             return self._estimate_overhead()
         return self.info.overhead
+
+    def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+        if self.info.overhead is None:
+            p_success = self.get_p_success()
+            return geometric_cost(self.get_overhead(), p_success) + \
+                   (1 - p_success) * geometric_cost(search_overhead, p_success)
+        elif callable(self.info.effort):
+            return 0  # This really is a bound on the effort
+        return self.info.effort
 
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(

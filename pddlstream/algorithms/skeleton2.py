@@ -12,7 +12,7 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping
 
-PRUNE_BINDINGS = False
+PRUNE_BINDINGS = True
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering

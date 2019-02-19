@@ -68,7 +68,6 @@ def set_unit_costs(domain):
     set_cost_scale(1)
     for action in domain.actions:
         action.cost = make_cost(1)
-    return True
 
 def reset_globals():
     # TODO: maintain these dictionaries in an object
@@ -231,8 +230,7 @@ def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
 
 def set_unit_efforts(externals):
     for external in externals:
-        external.info.effort_fn = lambda *args: 1
-    return True
+        external.info.effort = 1
 
 def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts=False):
     externals = []

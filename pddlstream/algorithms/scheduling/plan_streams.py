@@ -18,7 +18,7 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, fact_from_evaluation
-from pddlstream.language.effort import compute_plan_effort
+from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.external import Result
 from pddlstream.language.function import Function
 from pddlstream.utils import Verbose, INF
@@ -146,8 +146,7 @@ def instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, dom
 
 ##################################################
 
-def plan_streams(evaluations, goal_expression, domain, all_results, negative,
-                 unit_efforts, effort_weight, max_effort,
+def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
                  simultaneous=False, reachieve=True, debug=False, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
@@ -163,7 +162,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
         evaluations = init_evaluations # For clarity
     # TODO: could iteratively increase max_effort
     node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
-                                           unit_efforts=unit_efforts, max_effort=max_effort)
+                                           max_effort=max_effort)
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
@@ -177,7 +176,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
         # TODO: reachieve=False when using optimizers or should add applied facts
         instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, all_results)
     cost_from_action = {action: action.cost for action in instantiated.actions}
-    add_stream_efforts(node_from_atom, instantiated, effort_weight, unit_efforts=unit_efforts)
+    add_stream_efforts(node_from_atom, instantiated, effort_weight)
     if using_optimizers(applied_results):
         add_optimizer_effects(instantiated, node_from_atom)
     action_from_name = rename_instantiated_actions(instantiated)
@@ -187,7 +186,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative,
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    action_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
+    action_plan, raw_cost = solve_from_task(sas_task, debug=debug, **kwargs)
+    #print(raw_cost)
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]

@@ -4,7 +4,7 @@ from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicat
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.effort import check_effort
+from pddlstream.language.statistics import check_effort
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
 from pddlstream.utils import INF, apply_mapping
 

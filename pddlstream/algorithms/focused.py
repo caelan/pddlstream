@@ -20,8 +20,7 @@ from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import OPTIMIZER_STREAMS
 from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_with_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
-    write_stream_statistics
-from pddlstream.language.effort import compute_plan_effort
+    write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, elapsed_time
 
@@ -114,12 +113,11 @@ def solve_focused(problem, constraints=PlanConstraints(),
             len(evaluations), eager_calls, store.best_cost, search_time, sample_time, store.elapsed_time()))
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
-                                                      unit_efforts=unit_efforts, max_effort=max_effort,
-                                                      effort_weight=effort_weight, **search_kwargs)
+                                                      max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
+        # TODO: just set unit effort for each stream beforehand
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
-                                                         optimistic_solve_fn, complexity_limit,
-                                                         unit_efforts=unit_efforts, max_effort=max_effort)
+                                                         optimistic_solve_fn, complexity_limit, max_effort=max_effort)
         else:
             combined_plan, cost = INFEASIBLE, INF
         if action_info:

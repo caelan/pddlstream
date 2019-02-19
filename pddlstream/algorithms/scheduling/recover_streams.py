@@ -2,11 +2,10 @@ from collections import namedtuple, defaultdict
 from heapq import heappop, heappush
 
 from pddlstream.language.conversion import is_atom, is_negated_atom, fact_from_evaluation
-from pddlstream.language.effort import compute_result_effort, EFFORT_OP
 from pddlstream.utils import HeapElement, INF
 
 Node = namedtuple('Node', ['effort', 'result']) # TODO: include level
-
+EFFORT_OP = sum # max | sum
 NULL_COND = (None,)
 
 def get_achieving_streams(evaluations, stream_results, max_effort=INF, **effort_args):
@@ -32,7 +31,7 @@ def get_achieving_streams(evaluations, stream_results, max_effort=INF, **effort_
             remaining_from_stream[result] -= 1
             if remaining_from_stream[result]:
                 continue
-            effort = compute_result_effort(result, **effort_args)
+            effort = result.get_effort(**effort_args)
             total_effort = effort + EFFORT_OP(
                 node_from_atom[cond].effort for cond in conditions_from_stream[result])
             if max_effort <= total_effort:

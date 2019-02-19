@@ -4,18 +4,17 @@ from pddlstream.algorithms.common import compute_complexity
 from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object
-from pddlstream.language.statistics import Performance, PerformanceInfo
+from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
 from pddlstream.utils import elapsed_time, get_mapping
 
 DEBUG = 'debug'
 
 class ExternalInfo(PerformanceInfo):
-    def __init__(self, eager, p_success, overhead, effort_fn):
-        super(ExternalInfo, self).__init__(p_success, overhead)
+    def __init__(self, eager=False, p_success=None, overhead=None, effort=None):
+        super(ExternalInfo, self).__init__(p_success, overhead, effort)
         # TODO: enable eager=True for inexpensive test streams by default
         # TODO: make any info just a dict
         self.eager = eager
-        self.effort_fn = effort_fn
         #self.complexity_fn = complexity_fn
 
 ##################################################
@@ -50,6 +49,14 @@ class Result(object):
         # Should be constant
         return compute_complexity(evaluations, self.get_domain()) + \
                self.external.get_complexity(self.call_index)
+
+    def get_effort(self, **kwargs):
+        if not self.optimistic:
+            return 0  # Unit efforts?
+        if self.external.is_negated():
+            return 0
+        # TODO: this should be the min of all instances
+        return self.instance.get_effort(**kwargs)
 
 ##################################################
 
@@ -118,6 +125,14 @@ class Instance(object):
         # Will change as self.num_calls increases
         return compute_complexity(evaluations, self.get_domain()) + \
                self.external.get_complexity(self.num_calls)
+
+    def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+        # TODO: handle case where resampled several times before the next search (search every ith time)
+        replan_effort = self.opt_index * search_overhead  # By linearity of expectation
+        effort_fn = self.external.info.effort
+        if callable(effort_fn):
+            return replan_effort + effort_fn(*self.get_input_values())
+        return replan_effort + self.external.get_effort(search_overhead=search_overhead)
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)

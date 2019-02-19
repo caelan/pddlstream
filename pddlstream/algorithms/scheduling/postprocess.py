@@ -16,16 +16,15 @@ RESCHEDULE_PLANNER = 'lmcut-astar'
 
 def reschedule_stream_plan(evaluations, target_facts, domain, stream_results,
                            unique_binding=False, unsatisfiable=False,
-                           unit_efforts=True, max_effort=INF,
-                           planner=RESCHEDULE_PLANNER, debug=False):
+                           max_effort=INF, planner=RESCHEDULE_PLANNER, debug=False):
     # TODO: search in space of partially ordered plans
     # TODO: constrain selection order to be alphabetical?
     domain.actions[:], stream_result_from_name = get_stream_actions(
-        stream_results, unique_binding=unique_binding, unit_efforts=unit_efforts)
+        stream_results, unique_binding=unique_binding)
     goal_expression = And(*target_facts)
     if unsatisfiable: # TODO: ensure that the copy hasn't harmed anything
         goal_expression = add_unsatisfiable_to_goal(domain, goal_expression)
-    reschedule_problem = get_problem(evaluations, goal_expression, domain, unit_costs=unit_efforts)
+    reschedule_problem = get_problem(evaluations, goal_expression, domain, unit_costs=False)
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the event that axioms are needed?
     sas_task = sas_from_pddl(reschedule_task)

@@ -12,12 +12,11 @@ from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import is_parameter, get_length, partition_facts
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
-from pddlstream.language.effort import compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.stream import Stream
 from pddlstream.language.function import Function, Predicate
-from pddlstream.language.statistics import write_stream_statistics
+from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.utils import get_connected_components, grow_component, adjacent_from_edges, incoming_from_edges
@@ -231,8 +230,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             #if last_success or not dominated: # Could also keep a history of results
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
-                                                 unit_efforts=False, max_effort=max_effort,
-                                                 planner=planner, **search_args)
+                                                 max_effort=max_effort, planner=planner, **search_args)
             if stream_plan is not None:
                 external_plan = reorder_stream_plan(combine_optimizers(
                     init_evaluations, stream_plan + list(function_plan)))

@@ -3,7 +3,7 @@ from collections import OrderedDict
 from pddlstream.algorithms.downward import make_action, make_parameters, make_domain
 from pddlstream.language.constants import Not
 from pddlstream.language.conversion import pddl_from_object, substitute_expression
-from pddlstream.language.effort import compute_result_effort, check_effort
+from pddlstream.language.statistics import check_effort
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF
@@ -23,7 +23,7 @@ def get_stream_actions(results, unique_binding=False, effort_scale=1, max_effort
         #if not isinstance(stream_result, StreamResult):
         if type(result) == FunctionResult:
             continue
-        effort = compute_result_effort(result, **kwargs)
+        effort = result.get_effort(**kwargs)
         if not check_effort(effort, max_effort):
             continue
         name = '{}-{}'.format(result.external.name, len(result_from_name))

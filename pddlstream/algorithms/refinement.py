@@ -8,11 +8,11 @@ from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
-from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
+from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan, str_from_plan, get_length
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
-from pddlstream.language.effort import compute_external_effort, check_effort
+from pddlstream.language.statistics import check_effort, compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import INF, safe_zip, get_mapping
 
@@ -43,7 +43,7 @@ def prune_high_effort_streams(streams, max_effort=INF, **effort_args):
     # TODO: convert streams to test streams with extremely high effort
     low_effort_streams = []
     for stream in streams:
-        effort = compute_external_effort(stream, **effort_args)
+        effort = stream.get_effort(**effort_args)
         if isinstance(stream, Function) or check_effort(effort, max_effort):
             low_effort_streams.append(stream)
     return low_effort_streams
@@ -163,6 +163,16 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
     #print(depth, get_length(stream_plan))
+    print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
+        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
+        get_length(action_plan), cost, str_from_plan(action_plan)))
+    #if is_plan(stream_plan):
+    #    for result in stream_plan:
+    #        effort = compute_result_effort(result, unit_efforts=True)
+    #        if effort != 0:
+    #            print(result, effort)
+    #print()
+
     if is_refined(stream_plan):
         return combined_plan, cost, depth
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
@@ -195,3 +205,4 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
         if final_depth == 0:
             status = INFEASIBLE if exhausted else FAILED
             return status, cost
+    # TODO: should streams along the sampled path automatically have no optimistic value

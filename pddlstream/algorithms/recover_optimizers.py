@@ -187,8 +187,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     # TODO: can do the flexibly sized optimizers search
     from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
     optimizer_plan = reschedule_stream_plan(initial_evaluations, goal_facts, copy.copy(domain),
-                                           (stream_plan + optimizer_results),
-                                           unique_binding=True, unit_efforts=True)
+                                           (stream_plan + optimizer_results), unique_binding=True)
     if not is_plan(optimizer_plan):
         return None
     return optimizer_plan + function_plan
