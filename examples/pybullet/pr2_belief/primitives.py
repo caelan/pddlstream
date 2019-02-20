@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
     plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, \
-    INF, get_length, multiply
+    INF, get_length, multiply, wait_for_user, LockRenderer
 
 VIS_RANGE = (0.5, 1.5)
 REG_RANGE = (0.5, 1.5)
@@ -155,11 +155,13 @@ class AttachCone(Command): # TODO: make extend Attach?
         self.group = 'head'
         self.cone = None
     def apply(self, state, **kwargs):
-        self.cone = get_viewcone(color=(1, 0, 0, 0.5))
-        state.poses[self.cone] = None
-        cone_pose = Pose(self.cone, unit_pose())
-        attach = Attach(self.robot, self.group, cone_pose, self.cone)
-        attach.assign()
+        with LockRenderer():
+            self.cone = get_viewcone(color=(1, 0, 0, 0.5))
+            state.poses[self.cone] = None
+            cone_pose = Pose(self.cone, unit_pose())
+            attach = Attach(self.robot, self.group, cone_pose, self.cone)
+            attach.assign()
+            wait_for_duration(1e-2)
         for _ in attach.apply(state, **kwargs):
             yield
     def __repr__(self):
@@ -174,7 +176,9 @@ class DetachCone(Command): # TODO: make extend Detach?
         for _ in detach.apply(state, **kwargs):
             yield
         del state.poses[cone]
-        remove_body(cone)
+        with LockRenderer():
+            remove_body(cone)
+            wait_for_duration(1e-2)
     def __repr__(self):
         return '{}()'.format(self.__class__.__name__)
 
@@ -201,10 +205,11 @@ def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
 class Scan(Command):
     _duration = 0.5
 
-    def __init__(self, robot, surface):
+    def __init__(self, robot, surface, camera_frame=HEAD_LINK_NAME):
         self.robot = robot
         self.surface = surface
-        self.link = link_from_name(robot, HEAD_LINK_NAME)
+        self.camera_frame = camera_frame
+        self.link = link_from_name(robot, self.camera_frame)
 
     def apply(self, state, **kwargs):
         # TODO: identify surface automatically
@@ -213,7 +218,7 @@ class Scan(Command):
         wait_for_duration(self._duration) # TODO: don't sleep if no viewer?
         remove_body(cone)
 
-        detections = get_visual_detections(self.robot)
+        detections = get_visual_detections(self.robot, camera_link=self.camera_frame)
         print('Detections:', detections)
         for body, dist in state.b_on.items():
             obs = (body in detections) and (is_center_stable(body, self.surface))
@@ -278,23 +283,32 @@ class Detect(Command):
 class Register(Command):
     _duration = 1.0
 
-    def __init__(self, robot, body):
+    def __init__(self, robot, body, camera_frame=HEAD_LINK_NAME, max_depth=MAX_KINECT_DISTANCE):
         self.robot = robot
         self.body = body
-        self.link = link_from_name(robot, HEAD_LINK_NAME)
+        self.camera_frame = camera_frame
+        self.max_depth = max_depth
+        self.link = link_from_name(robot, camera_frame)
 
     def control(self, **kwargs):
         # TODO: filter for target object and location?
         return get_kinect_registrations(self.robot)
 
     def apply(self, state, **kwargs):
-        mesh, _ = get_detection_cone(self.robot, self.body, depth=MAX_KINECT_DISTANCE)
+        mesh, _ = get_detection_cone(self.robot, self.body, camera_link=self.camera_frame, depth=self.max_depth)
+        if mesh is None:
+            wait_for_user()
         assert(mesh is not None)
-        cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
-        set_pose(cone, get_link_pose(self.robot, self.link))
+        with LockRenderer():
+            cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
+            set_pose(cone, get_link_pose(self.robot, self.link))
+            wait_for_duration(1e-2)
         wait_for_duration(self._duration)
         # time.sleep(1.0)
-        remove_body(cone)
+        with LockRenderer():
+            # TODO: set as transparent before removing
+            remove_body(cone)
+            wait_for_duration(1e-2)
         state.registered.add(self.body)
         yield
 

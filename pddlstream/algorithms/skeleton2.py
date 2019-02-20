@@ -19,6 +19,8 @@ PRUNE_BINDINGS = True
 # TODO: FIFO
 Priority = namedtuple('Priority', ['attempts', 'remaining'])
 
+# TODO: automatically set the opt level to be zero for any streams that are bound here?
+
 def compute_affected(stream_plan, index):
     affected_indices = []
     if len(stream_plan) <= index:
@@ -194,7 +196,7 @@ class SkeletonQueue(Sized):
             self.greedily_process()
         elif stream_plan is INFEASIBLE:
             self.process_until_new()
-        #self.process_complexity(complexity_limit)
+        self.process_complexity(complexity_limit)
         self.timed_process(max_time - elapsed_time(start_time))
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()

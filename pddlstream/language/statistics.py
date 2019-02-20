@@ -7,6 +7,8 @@ from collections import Counter
 from pddlstream.language.constants import is_plan
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
 
+LOAD_STATISTICS = True
+SAVE_STATISTICS = True
 
 DATA_DIR = 'statistics/py{:d}/'
 DEFAULT_SEARCH_OVERHEAD = 10 # TODO: update this over time
@@ -44,6 +46,8 @@ def get_data_path(stream_name):
     return os.path.join(data_dir, file_name)
 
 def load_data(pddl_name):
+    if not LOAD_STATISTICS:
+        return {}
     filename = get_data_path(pddl_name)
     if not os.path.exists(filename):
         return {}
@@ -132,6 +136,8 @@ def write_stream_statistics(externals, verbose):
         previous_statistics = previous_data.get(external.name, {})
         data[external.name] = merge_data(external, previous_statistics)
 
+    if not SAVE_STATISTICS:
+        return
     filename = get_data_path(pddl_name)
     ensure_dir(filename)
     write_pickle(filename, data)
