@@ -1,6 +1,6 @@
 from collections import Counter
 
-from pddlstream.algorithms.common import evaluations_from_init
+from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale, fd_from_fact
 from pddlstream.language.constants import get_prefix, get_args
@@ -73,6 +73,7 @@ def reset_globals():
     # TODO: maintain these dictionaries in an object
     Object.reset()
     OptimisticObject.reset()
+    SOLUTIONS[:] = []
 
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
