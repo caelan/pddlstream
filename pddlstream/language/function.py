@@ -100,10 +100,11 @@ class Function(External):
     """
     codomain = float # int | float
     _Instance = FunctionInstance
-    _default_p_success = 0.99 # 1 | 0.99  # Might be pruned using cost threshold
+    _default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     _default_overhead = None
     def __init__(self, head, fn, domain, info):
         if info is None:
+            # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
             info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head

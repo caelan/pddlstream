@@ -1,17 +1,15 @@
 from __future__ import print_function
 
 import time
-from operator import itemgetter
 from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
+from operator import itemgetter
 
 from pddlstream.algorithms.common import is_instance_ready, EvaluationNode
-from pddlstream.algorithms.disabled import process_instance
-from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult
+from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping, str_from_object, get_mapping
+from pddlstream.utils import elapsed_time, HeapElement, safe_zip, get_mapping
 
 
 # The motivation for immediately instantiating is to avoid unnecessary sampling
@@ -20,21 +18,6 @@ from pddlstream.utils import elapsed_time, HeapElement, safe_zip, apply_mapping,
 
 def puncture(sequence, index):
     return sequence[:index] + sequence[index+1:]
-
-def update_bindings(bindings, opt_result, result):
-    new_bindings = bindings.copy()
-    if isinstance(result, StreamResult):
-        for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
-            assert (opt not in new_bindings)  # TODO: return failure if conflicting bindings
-            new_bindings[opt] = obj
-    return new_bindings
-
-def update_cost(cost, opt_result, result):
-    # TODO: recompute optimistic costs to attempt to produce a tighter bound
-    new_cost = cost
-    if type(result) is FunctionResult:
-        new_cost += (result.value - opt_result.value)
-    return new_cost
 
 ##################################################
 
@@ -57,8 +40,6 @@ class Skeleton(object):
         if indices is None:
             indices = range(len(self.stream_plan))
         return [self.stream_plan[index].remap_inputs(mapping) for index in indices]
-    def bind_action_plan(self, mapping):
-        return [(name, apply_mapping(args, mapping)) for name, args in self.action_plan]
     #def __repr__(self):
     #    return repr(self.action_plan)
 
@@ -100,7 +81,7 @@ class Binding(object):
         return self._remaining_results
     @property
     def action_plan(self):
-        return self.skeleton.bind_action_plan(self.bindings)
+        return bind_action_plan(self.skeleton.action_plan, self.bindings)
     @property
     def next_result(self):
         return self.remaining_results[0]
@@ -286,7 +267,7 @@ class SkeletonQueue(Sized):
         # assert(instance.opt_index == 0)
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
-        is_new = process_instance(self.store, self.domain, instance, disable=self.disable)
+        is_new = bool(process_instance(self.store, self.domain, instance, disable=self.disable))
         for i, binding in enumerate(list(self.bindings_from_instance[instance])):
             #print(i, binding)
             # Maybe this list grows but not all the things are accounted for

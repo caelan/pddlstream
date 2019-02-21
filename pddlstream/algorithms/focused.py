@@ -44,9 +44,9 @@ def partition_externals(externals, verbose=False):
 
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={}, synthesizers=[],
-                  max_time=INF, max_iterations=INF, max_skeletons=INF,
+                  max_time=INF, max_iterations=INF, complexity_step=1,
+                  bind=True, max_skeletons=INF,
                   unit_costs=False, success_cost=INF,
-                  complexity_step=1,
                   unit_efforts=False, max_effort=INF, effort_weight=None,
                   reorder=True, search_sample_ratio=0,
                   visualize=False, verbose=True, **search_kwargs):
@@ -81,6 +81,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
     # TODO: replan with a better search algorithm after feasible
     num_iterations = search_time = sample_time = eager_calls = 0
     complexity_limit = float(INITIAL_COMPLEXITY)
+    # TODO: make effort_weight be a function of the current cost
+    # TODO: change the search algorithm and unit costs based on the best cost
     eager_disabled = effort_weight is None  # No point if no stream effort biasing
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
@@ -155,10 +157,10 @@ def solve_focused(problem, constraints=PlanConstraints(),
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
-                if len(skeleton_queue.skeletons) + 1 < max_skeletons else INF
+                if len(skeleton_queue.skeletons) <= max_skeletons else INF
             skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         else:
-            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost)
+            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=bind)
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals + synthesizers, verbose)

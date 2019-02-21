@@ -163,9 +163,9 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
     #print(depth, get_length(stream_plan))
-    print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
-        get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
-        get_length(action_plan), cost, str_from_plan(action_plan)))
+    #print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
+    #    get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
+    #    get_length(action_plan), cost, str_from_plan(action_plan)))
     #if is_plan(stream_plan):
     #    for result in stream_plan:
     #        effort = compute_result_effort(result, unit_efforts=True)

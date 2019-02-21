@@ -34,6 +34,7 @@ def get_identity_fn(indices):
 ##################################################
 
 # TODO: make wild the default output
+# TODO: allow wild to report back whether the problem has changed in order to discard the stream plan
 WildOutput = namedtuple('WildOutput', ['values', 'facts'])
 
 class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
@@ -106,8 +107,6 @@ class StreamInfo(ExternalInfo):
         self.negate = negate
         self.simultaneous = simultaneous
         #self.order = 0
-    def __repr__(self):
-        return repr(self.__dict__)
 
 ##################################################
 

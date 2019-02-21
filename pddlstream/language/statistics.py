@@ -30,6 +30,7 @@ def check_effort(effort, max_effort):
     return effort < max_effort # Exclusive
 
 def compute_plan_effort(stream_plan, **kwargs):
+    # TODO: compute effort in the delete relaxation way
     if not is_plan(stream_plan):
         return INF
     if not stream_plan:
@@ -167,6 +168,8 @@ class PerformanceInfo(object):
         self.p_success = p_success
         self.overhead = overhead
         self.effort = effort
+    def __repr__(self):
+        return '{}{}'.format(self.__class__.__name__, repr(self.__dict__))
 
 class Performance(object):
     def __init__(self, name, info):

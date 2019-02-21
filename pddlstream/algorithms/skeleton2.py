@@ -5,8 +5,7 @@ from collections import namedtuple, Sized
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity
-from pddlstream.algorithms.disabled import process_instance
-from pddlstream.algorithms.skeleton import update_bindings, update_cost
+from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
@@ -48,8 +47,6 @@ class Skeleton(object):
         self.affected_indices = [compute_affected(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
         # TODO: compute this all at once via hashing
-    def bind_action_plan(self, mapping):
-        return [(name, apply_mapping(args, mapping)) for name, args in self.action_plan]
 
 ##################################################
 
@@ -78,6 +75,7 @@ class Binding(object):
     def compute_complexity(self):
         if self.result is None:
             return 0
+        # TODO: propagate the complexity to prune skeletons that exceed the threshold
         return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
                self.result.external.get_complexity(self.attempts) # attempts, calls
     def do_evaluate_helper(self, indices):
@@ -120,7 +118,7 @@ class SkeletonQueue(Sized):
         if self.store.best_cost <= binding.cost:
             return False, is_new
         if binding.result is None:
-            action_plan = binding.skeleton.bind_action_plan(binding.mapping)
+            action_plan = bind_action_plan(binding.skeleton.action_plan, binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
             return False, is_new
         binding.attempts += 1
@@ -131,7 +129,7 @@ class SkeletonQueue(Sized):
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
         if binding.up_to_date():
-            is_new = process_instance(self.store, self.domain, instance, disable=self.disable)
+            is_new = bool(process_instance(self.store, self.domain, instance, disable=self.disable))
         for new_result in instance.get_results(start=binding.calls):
             if new_result.is_successful():
                 new_mapping = update_bindings(binding.mapping, binding.result, new_result)
