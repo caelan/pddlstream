@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import SolutionStore
+from pddlstream.algorithms.common import SolutionStore, stream_plan_complexity
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.incremental import process_stream_queue
@@ -132,8 +132,10 @@ def solve_focused(problem, constraints=PlanConstraints(),
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
             stream_plan = reorder_stream_plan(stream_plan) # This may be redundant when using reorder_combined_plan
-        print('Stream plan ({}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
-            get_length(stream_plan), compute_plan_effort(stream_plan), stream_plan,
+
+        num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
+        print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
+            get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan,
             get_length(action_plan), cost, str_from_plan(action_plan)))
         if is_plan(stream_plan) and visualize:
             log_plans(stream_plan, action_plan, num_iterations)
@@ -148,6 +150,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
+        #print(stream_plan_complexity(evaluations, stream_plan))
         if use_skeletons:
             #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
             optimizer_plan = None

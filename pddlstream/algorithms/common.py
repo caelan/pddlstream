@@ -96,6 +96,32 @@ def compute_complexity(evaluations, facts):
         return 0
     return COMPLEXITY_OP(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
 
+def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
+    if not is_plan(stream_plan):
+        return INF
+    # TODO: difference between a result having a particular complexity and the next result having something
+    optimistic_facts = {}
+    total_complexity = 0
+    for i, result in enumerate(stream_plan):
+        result_complexity = 0
+        for fact in result.get_domain():
+            evaluation = evaluation_from_fact(fact)
+            if evaluation in evaluations:
+                fact_complexity = evaluations[evaluation].complexity
+            else:
+                fact_complexity = optimistic_facts[fact]
+            result_complexity = COMPLEXITY_OP(result_complexity, fact_complexity)
+        if stream_calls is None:
+            result_complexity += result.instance.num_calls + 1
+        elif i < len(stream_calls):
+            result_complexity += stream_calls[i] + 1
+        else:
+            result_complexity += 1
+        for fact in result.get_certified():
+            if fact not in optimistic_facts:
+                optimistic_facts[fact] = result_complexity
+        total_complexity = COMPLEXITY_OP(total_complexity, result_complexity)
+    return total_complexity
 
 def is_instance_ready(evaluations, instance):
     return all(evaluation_from_fact(f) in evaluations
