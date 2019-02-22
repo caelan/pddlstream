@@ -66,6 +66,7 @@ class Binding(object):
         self.calls = 0
         if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
             self.skeleton.best_binding = self
+        self.complexity = None
         #self.parent_complexity = parent_complexity
     #@property
     #def complexity(self):
@@ -81,11 +82,13 @@ class Binding(object):
     def compute_complexity(self):
         if self.result is None:
             return 0
-        full_history = self.history + [self.calls]
-        complexity = stream_plan_complexity(self.skeleton.queue.evaluations,
-                                            self.skeleton.stream_plan, full_history)
+        # TODO: intelligently compute/cache this
+        if self.complexity is None:
+            full_history = self.history + [self.calls]
+            self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations,
+                                                     self.skeleton.stream_plan, full_history)
         #raw_input('Complexity: {} {}'.format(self.result, complexity))
-        return complexity
+        return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.attempts) # attempts, calls
     def do_evaluate_helper(self, indices):
@@ -152,6 +155,7 @@ class SkeletonQueue(Sized):
                     heappush(self.queue, new_binding.get_element())
         binding.calls = instance.num_calls
         binding.attempts = max(binding.attempts, binding.calls)
+        binding.complexity = None
         readd = not instance.enumerated
         return readd, is_new
 
@@ -208,8 +212,9 @@ class SkeletonQueue(Sized):
             self.greedily_process()
         elif stream_plan is INFEASIBLE: # Move this after process_complexity
             self.process_until_new()
-        print('Complexity:', complexity_limit)
-        self.process_complexity(complexity_limit)
+        if not is_plan(stream_plan):
+            print('Complexity:', complexity_limit)
+            self.process_complexity(complexity_limit)
         remaining_time = max_time - elapsed_time(start_time)
         print('Time:', remaining_time)
         self.timed_process(remaining_time)
