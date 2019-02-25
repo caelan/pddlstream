@@ -85,7 +85,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     if unit_costs:
         set_unit_costs(domain)
     obj_from_constant = parse_constants(domain, constant_map)
-    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info, unit_efforts=unit_efforts)
+    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,
+                                unit_costs=unit_costs, unit_efforts=unit_efforts)
     check_problem(domain, streams, obj_from_constant)
 
     evaluations = evaluations_from_init(init)
@@ -202,7 +203,7 @@ def get_non_producers(externals):
 
 ##################################################
 
-def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
+def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info, use_functions=True):
     stream_iter = iter(parse_lisp(stream_pddl))
     assert('define' == next(stream_iter))
     pddl_type, pddl_name = next(stream_iter)
@@ -214,6 +215,8 @@ def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info):
         elif name == ':rule':
             externals = [parse_rule(lisp_list, procedure_map, procedure_info)]
         elif name == ':function':
+            if not use_functions:
+                continue
             externals = [parse_function(lisp_list, procedure_map, procedure_info)]
         elif name == ':predicate': # Cannot just use args if want a bound
             externals = [parse_predicate(lisp_list, procedure_map, procedure_info)]
@@ -233,7 +236,7 @@ def set_unit_efforts(externals):
     for external in externals:
         external.info.effort = 1
 
-def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts=False):
+def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_costs=False, unit_efforts=False):
     externals = []
     if pddl_list is None:
         return externals
@@ -246,7 +249,8 @@ def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_efforts
     stream_info = {k.lower(): v for k, v in stream_info.items()}
     rules = []
     for pddl in pddl_list:
-        parse_streams(externals, rules, pddl, stream_procedures, stream_info)
+        # TODO: check which functions are actually used and prune the rest
+        parse_streams(externals, rules, pddl, stream_procedures, stream_info, use_functions=not unit_costs)
     apply_rules_to_streams(rules, externals)
     if unit_efforts:
         set_unit_efforts(externals)

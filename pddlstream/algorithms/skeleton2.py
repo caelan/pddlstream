@@ -11,12 +11,12 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping
 
-PRUNE_BINDINGS = False # Disable when using costs
+PRUNE_BINDINGS = True
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering
 # TODO: FIFO
-Priority = namedtuple('Priority', ['attempts', 'remaining'])
+Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost'])
 
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
@@ -103,6 +103,7 @@ class Binding(object):
         return self.compute_complexity() <= complexity_limit
     def do_evaluate_helper(self, indices):
         # TODO: update this online for speed purposes
+        # TODO: store the result
         if (self.index in indices) and (not self.children or type(self.result) == FunctionResult): # not self.attempts
             return True
         if not indices or (max(indices) < self.index):
@@ -111,8 +112,9 @@ class Binding(object):
     def do_evaluate(self):
         return not self.children or self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
+        # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         remaining = len(self.skeleton.stream_plan) - self.index
-        priority = Priority(self.attempts, remaining)
+        priority = Priority(self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
 
 ##################################################
@@ -170,7 +172,7 @@ class SkeletonQueue(Sized):
         return readd, is_new
 
     def _process_root(self):
-        _, binding = heappop(self.queue)
+        key, binding = heappop(self.queue)
         readd, is_new = self._process_binding(binding)
         if readd is not False:
             heappush(self.queue, binding.get_element())
