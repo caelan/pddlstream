@@ -25,20 +25,20 @@ Affected = namedtuple('Affected', ['indices', 'has_cost'])
 def compute_affected(stream_plan, index):
     affected_indices = [index]
     if len(stream_plan) <= index:
-        return affected_indices
+        return Affected(affected_indices, False)
     # TODO: if the cost is pruned, then add everything that contributes, not just the last function
-    #has_cost = False
     result = stream_plan[index]
-    if type(result) is FunctionResult:
-        # This only prunes when the end is reached
-        affected_indices.append(len(stream_plan))
+    has_cost = type(result) is FunctionResult
     output_objects = set(result.output_objects) if isinstance(result, StreamResult) else set()
-    if output_objects:
+    if output_objects: # TODO: should do conditions instead
         for index2 in range(index + 1, len(stream_plan)):
             result2 = stream_plan[index2]
             if set(result2.instance.input_objects) & output_objects:
+                if isinstance(result2, StreamResult):
+                    output_objects.update(result2.output_objects)
                 affected_indices.append(index2)
-    return affected_indices
+                has_cost |= type(result2) is FunctionResult
+    return Affected(affected_indices, has_cost)
 
 class Skeleton(object):
     def __init__(self, queue, stream_plan, action_plan, cost):
@@ -107,16 +107,20 @@ class Binding(object):
         if (complexity_limit < self.max_history) or (complexity_limit < self.calls):
             return False
         return self.compute_complexity() <= complexity_limit
-    def do_evaluate_helper(self, indices):
+    def is_dominated(self):
+        return self.skeleton.queue.store.best_cost <= self.cost
+    def do_evaluate_helper(self, affected):
         # TODO: update this online for speed purposes
         # TODO: store the result
+        if self.is_dominated():
+            return affected.has_cost
         if not self.children: # or type(self.result) == FunctionResult): # not self.attempts
-            return self.index in indices
+            return self.index in affected.indices
         # TODO: only prune functions here if the reset of the plan is feasible
         #if not indices or (max(indices) < self.index):
         #    return False
         # TODO: discard bindings that have been pruned by their cost
-        return any(binding.do_evaluate_helper(indices) for binding in self.children)
+        return all(binding.do_evaluate_helper(affected) for binding in self.children)
     def do_evaluate(self):
         return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
@@ -148,7 +152,7 @@ class SkeletonQueue(Sized):
 
     def _process_binding(self, binding):
         is_new = False
-        if self.store.best_cost <= binding.cost:
+        if binding.is_dominated():
             return False, is_new
         if binding.result is None:
             action_plan = bind_action_plan(binding.skeleton.action_plan, binding.mapping)
@@ -159,7 +163,6 @@ class SkeletonQueue(Sized):
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to reenable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
-            print('Pruned!')
             return None, is_new
         instance = binding.result.instance
         #if not is_instance_ready(self.evaluations, instance):
