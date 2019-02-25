@@ -64,6 +64,7 @@ class Binding(object):
         if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
             self.skeleton.best_binding = self
         self.complexity = None
+        self.max_history = max(self.history) if self.history else 0
         #self.parent_complexity = parent_complexity
     @property
     def result(self):
@@ -96,6 +97,10 @@ class Binding(object):
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.attempts) # attempts, calls
+    def check_complexity(self, complexity_limit):
+        if (complexity_limit < self.max_history) or (complexity_limit < self.calls):
+            return False
+        return self.compute_complexity() <= complexity_limit
     def do_evaluate_helper(self, indices):
         # TODO: update this online for speed purposes
         if (self.index in indices) and (not self.children or type(self.result) == FunctionResult): # not self.attempts
@@ -145,12 +150,12 @@ class SkeletonQueue(Sized):
             # Do I need to reenable this stream in case another skeleton needs it?
             return None, is_new
         instance = binding.result.instance
-        if not is_instance_ready(self.evaluations, instance):
-            raise RuntimeError(instance)
+        #if not is_instance_ready(self.evaluations, instance):
+        #    raise RuntimeError(instance)
         if binding.up_to_date():
             is_new = bool(process_instance(self.store, self.domain, instance, disable=self.disable))
         for call_idx in range(binding.calls, instance.num_calls):
-            for new_result in instance.results_history[call_idx]:
+            for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
                 if new_result.is_successful():
                     new_mapping = update_bindings(binding.mapping, binding.result, new_result)
                     new_cost = update_cost(binding.cost, binding.result, new_result)
@@ -192,7 +197,7 @@ class SkeletonQueue(Sized):
         disabled_bindings = []
         while self.is_active():
             _, binding = heappop(self.queue)
-            if binding.compute_complexity() <= complexity_limit: # not binding.up_to_date() or
+            if binding.check_complexity(complexity_limit): # not binding.up_to_date() or
                 readd, _ = self._process_binding(binding)
                 if readd is True:
                     heappush(self.queue, binding.get_element())
@@ -217,9 +222,9 @@ class SkeletonQueue(Sized):
             self.greedily_process()
         elif stream_plan is INFEASIBLE: # Move this after process_complexity
             self.process_until_new()
-        if not is_plan(stream_plan):
-            print('Complexity:', complexity_limit)
-            self.process_complexity(complexity_limit)
+        #if not is_plan(stream_plan):
+        #    print('Complexity:', complexity_limit)
+        #    self.process_complexity(complexity_limit)
         remaining_time = max_time - elapsed_time(start_time)
         print('Time:', remaining_time)
         self.timed_process(remaining_time)

@@ -12,19 +12,19 @@ from itertools import product
 # Well actually, if this was true wouldn't it have already been sampled on a lower level?
 
 def update_bindings(bindings, opt_result, result):
+    if not isinstance(result, StreamResult):
+        return bindings
     new_bindings = bindings.copy()
-    if isinstance(result, StreamResult):
-        for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
-            assert (opt not in new_bindings)  # TODO: return failure if conflicting bindings
-            new_bindings[opt] = obj
+    for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
+        assert (opt not in new_bindings)  # TODO: return failure if conflicting bindings
+        new_bindings[opt] = obj
     return new_bindings
 
 def update_cost(cost, opt_result, result):
     # TODO: recompute optimistic costs to attempt to produce a tighter bound
-    new_cost = cost
-    if type(result) is FunctionResult:
-        new_cost += (result.value - opt_result.value)
-    return new_cost
+    if type(result) is not FunctionResult:
+        return cost
+    return cost + (result.value - opt_result.value)
 
 def bind_action_plan(action_plan, mapping):
     return [(name, apply_mapping(args, mapping)) for name, args in action_plan]
