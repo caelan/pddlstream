@@ -21,7 +21,8 @@ Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost'])
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
 def compute_affected(stream_plan, index):
-    affected_indices = []
+    # This only prunes when the end is reached
+    affected_indices = [len(stream_plan)] # TODO: only enable this for cost-sensitive planning
     if len(stream_plan) <= index:
         return affected_indices
     result = stream_plan[index]
@@ -104,11 +105,15 @@ class Binding(object):
     def do_evaluate_helper(self, indices):
         # TODO: update this online for speed purposes
         # TODO: store the result
-        if (self.index in indices) and (not self.children or type(self.result) == FunctionResult): # not self.attempts
-            return True
-        if not indices or (max(indices) < self.index):
-            return False
-        return all(binding.do_evaluate_helper(indices) for binding in self.children) # TODO: all or any?
+        if not self.children: # or type(self.result) == FunctionResult): # not self.attempts
+            return self.index in indices
+        # TODO: only prune functions here if the reset of the plan is feasible
+        #if not indices or (max(indices) < self.index):
+        #    return False
+        # TODO: all or any? The only difference seems to be the return behavior when no children
+        # No the behavior changes for cost sensitive
+        # TODO: discard bindings that have been pruned by their cost
+        return any(binding.do_evaluate_helper(indices) for binding in self.children)
     def do_evaluate(self):
         return not self.children or self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
@@ -150,6 +155,7 @@ class SkeletonQueue(Sized):
         if PRUNE_BINDINGS and not binding.do_evaluate():
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to reenable this stream in case another skeleton needs it?
+            # TODO: should I perform this when deciding to sample something new instead?
             return None, is_new
         instance = binding.result.instance
         #if not is_instance_ready(self.evaluations, instance):

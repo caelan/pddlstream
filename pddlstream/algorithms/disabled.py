@@ -102,6 +102,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
     bound_plan = []
     for i, opt_result in enumerate(stream_plan):
         if (store.best_cost <= cost) or (max_failures < (i - len(bound_plan))):
+            # TODO: this terminates early when bind=False
             break
         opt_inputs = [inp for inp in opt_result.instance.input_objects if inp in free_objects]
         if (not bind and opt_inputs) or not all(inp in bindings for inp in opt_inputs):
