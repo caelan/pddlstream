@@ -120,7 +120,7 @@ class Binding(object):
         #if not indices or (max(indices) < self.index):
         #    return False
         # TODO: discard bindings that have been pruned by their cost
-        return all(binding.do_evaluate_helper(affected) for binding in self.children)
+        return any(binding.do_evaluate_helper(affected) for binding in self.children) # TODO: any or all
     def do_evaluate(self):
         return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
