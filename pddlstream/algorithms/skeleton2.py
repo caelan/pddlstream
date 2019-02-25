@@ -20,19 +20,24 @@ Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost'])
 
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
+Affected = namedtuple('Affected', ['indices', 'has_cost'])
+
 def compute_affected(stream_plan, index):
-    # This only prunes when the end is reached
-    affected_indices = [len(stream_plan)] # TODO: only enable this for cost-sensitive planning
+    affected_indices = [index]
     if len(stream_plan) <= index:
         return affected_indices
+    # TODO: if the cost is pruned, then add everything that contributes, not just the last function
+    #has_cost = False
     result = stream_plan[index]
+    if type(result) is FunctionResult:
+        # This only prunes when the end is reached
+        affected_indices.append(len(stream_plan))
     output_objects = set(result.output_objects) if isinstance(result, StreamResult) else set()
-    if not output_objects:
-        return affected_indices
-    for index2 in range(index + 1, len(stream_plan)):
-        result2 = stream_plan[index2]
-        if set(result2.instance.input_objects) & output_objects:
-            affected_indices.append(index2)
+    if output_objects:
+        for index2 in range(index + 1, len(stream_plan)):
+            result2 = stream_plan[index2]
+            if set(result2.instance.input_objects) & output_objects:
+                affected_indices.append(index2)
     return affected_indices
 
 class Skeleton(object):
@@ -110,12 +115,10 @@ class Binding(object):
         # TODO: only prune functions here if the reset of the plan is feasible
         #if not indices or (max(indices) < self.index):
         #    return False
-        # TODO: all or any? The only difference seems to be the return behavior when no children
-        # No the behavior changes for cost sensitive
         # TODO: discard bindings that have been pruned by their cost
         return any(binding.do_evaluate_helper(indices) for binding in self.children)
     def do_evaluate(self):
-        return not self.children or self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
+        return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         remaining = len(self.skeleton.stream_plan) - self.index
@@ -156,6 +159,7 @@ class SkeletonQueue(Sized):
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to reenable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
+            print('Pruned!')
             return None, is_new
         instance = binding.result.instance
         #if not is_instance_ready(self.evaluations, instance):
