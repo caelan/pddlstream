@@ -58,16 +58,21 @@ class Binding(object):
         self.mapping = mapping
         self.index = index
         self.children = []
-        if self.index < len(skeleton.stream_plan):
-            self.result = skeleton.stream_plan[self.index].remap_inputs(self.mapping)
-        else:
-            self.result = None
+        self._result = False
         self.attempts = 0
         self.calls = 0
         if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
             self.skeleton.best_binding = self
         self.complexity = None
         #self.parent_complexity = parent_complexity
+    @property
+    def result(self):
+        if self._result is False:
+            if self.index < len(self.skeleton.stream_plan):
+                self._result = self.skeleton.stream_plan[self.index].remap_inputs(self.mapping)
+            else:
+                self._result = None
+        return self._result
     #@property
     #def complexity(self):
     #    # This does a plan linearization version of complexity
