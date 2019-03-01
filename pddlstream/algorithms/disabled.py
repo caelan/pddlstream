@@ -16,7 +16,7 @@ def update_bindings(bindings, opt_result, result):
         return bindings
     new_bindings = bindings.copy()
     for opt, obj in safe_zip(opt_result.output_objects, result.output_objects):
-        assert (opt not in new_bindings)  # TODO: return failure if conflicting bindings
+        assert new_bindings.get(opt, obj) == obj  # TODO: return failure if conflicting bindings
         new_bindings[opt] = obj
     return new_bindings
 

@@ -152,7 +152,7 @@ def pddlstream_from_problem(problem, teleport=False):
                      [('Cooked', b)  for b in problem.goal_cooked]
 
     stream_map = {
-        'sample-pose': get_stable_gen(problem),
+        'sample-pose': from_gen_fn(get_stable_gen(problem)),
         'sample-grasp': from_list_fn(get_grasp_gen(problem)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
