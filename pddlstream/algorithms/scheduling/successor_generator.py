@@ -23,23 +23,25 @@ class SuccessorNode(object):
                 instances.extend(node.get_successors(atom_order, state))
         return instances
 
+def get_fluents(init, action_instances):
+    fluents = set()
+    for action in action_instances:  # TODO: just actions if no action_instances
+        for cond, eff in action.add_effects:
+            assert not cond
+            if not literal_holds(init, eff):
+                fluents.add(eff)
+        for cond, eff in action.del_effects:
+            assert not cond
+            if not literal_holds(init, eff.negate()):
+                fluents.add(eff)
+    return fluents
 
 class SuccessorGenerator(object):
     def __init__(self, instantiated, action_instances=[]):
         derived_predicates = get_derived_predicates(instantiated.task.axioms)
         conditions = {literal.positive() for axiom in instantiated.axioms for literal in axiom.condition}
-        fluents = set()
         state = set(instantiated.task.init)
-        for action in action_instances: # TODO: just actions if no action_instances
-            for cond, eff in action.add_effects:
-                assert not cond
-                if not literal_holds(state, eff):
-                    fluents.add(eff)
-            for cond, eff in action.del_effects:
-                assert not cond
-                if not literal_holds(state, eff.negate()):
-                    fluents.add(eff)
-        fluents &= conditions
+        fluents = get_fluents(state, action_instances) & conditions
         self.fluent_order = list(fluents)
 
         applicable_axioms = []

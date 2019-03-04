@@ -9,7 +9,8 @@ from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, pro
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
-from pddlstream.algorithms.reorder import separate_plan, reorder_combined_plan, reorder_stream_plan
+from pddlstream.algorithms.reorder import separate_plan, reorder_stream_plan
+from pddlstream.algorithms.reorder_actions import reorder_combined_plan
 #from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton2 import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
