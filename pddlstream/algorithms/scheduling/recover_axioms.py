@@ -159,7 +159,7 @@ def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
     axiom_plan = []  # Could always add all conditions
     success = extract_axioms(axiom_from_atom, derived_goals, axiom_plan, negative_from_name)
     if not success:
-        print('Warning! Could extract an axiom plan')
+        print('Warning! Could not extract an axiom plan')
         #return None
     return axiom_plan
 

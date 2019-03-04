@@ -14,6 +14,7 @@ from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
+VERBOSE_WILD = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
 NEGATIVE_SUFFIX = '-negative'
@@ -34,9 +35,15 @@ def get_identity_fn(indices):
 ##################################################
 
 # TODO: make wild the default output
-# TODO: allow wild to report back whether the problem has changed in order to discard the stream plan
-# TODO: augment wild outputs to report enumerated
-WildOutput = namedtuple('WildOutput', ['values', 'facts'])
+
+class WildOutput(object):
+    def __init__(self, values=[], facts=[], enumerated=False, replan=False):
+        self.values = values
+        self.facts = facts
+        self.enumerated = enumerated
+        self.replan = replan # Reports back whether the problem has changed substantially
+    def __iter__(self):
+        return iter([self.values, self.facts])
 
 class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
@@ -243,7 +250,7 @@ class StreamInstance(Instance):
                 print('{}) {}:{}->{}'.format(start_calls, self.external.name,
                                              str_from_object(self.get_input_values()),
                                              str_from_object(new_values)))
-            if new_facts:
+            if VERBOSE_WILD and new_facts:
                 # TODO: format all_new_facts
                 print('{}) {}:{}->{}'.format(start_calls, self.external.name,
                                              str_from_object(self.get_input_values()), new_facts))

@@ -81,10 +81,13 @@ SEARCH_OPTIONS = {
     'add-random-lazy': '--heuristic "h=add(transform=adapt_costs(cost_type=PLUSONE))" '
                        '--search "lazy_greedy([h],randomize_successors=True,max_time=%s,bound=%s)"',
 
-    'ff-lazy-tiebreak': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
-                  '--search "lazy(tiebreaking([h, g()]),preferred=[h],reopen_closed=false,'
-                  'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    
+    'ff-eager-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
+                         '--search "eager(tiebreaking([h, g()]),reopen_closed=false,'
+                         'cost_type=NORMAL,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
+    'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
+                         '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
+                         'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
+
     'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
               'cost_type=NORMAL,max_time=%s,bound=%s)"',
