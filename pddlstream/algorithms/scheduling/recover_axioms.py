@@ -87,6 +87,7 @@ def filter_negated(conditions, negated_from_name):
 
 def get_achieving_axioms(state, axioms, negated_from_name={}):
     # TODO: order by stream effort
+    # marking algorithm for propositional Horn logic
     unprocessed_from_atom = defaultdict(list)
     axiom_from_atom = {}
     remaining_from_stream = {}

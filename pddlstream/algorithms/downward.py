@@ -586,6 +586,13 @@ def instantiate_task(task):
 
 ##################################################
 
+def normalize_axioms(instantiated_task):
+    import axiom_rules
+    _, _, actions, axioms, _, goal_list = instantiated_task
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+        actions, axioms, goal_list)
+    return axioms, axiom_init
+
 def sas_from_instantiated(instantiated_task):
     import timers
     import fact_groups
