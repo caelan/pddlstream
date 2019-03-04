@@ -1,15 +1,10 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import get_literals
+from pddlstream.algorithms.downward import get_literals, get_goal_instance, plan_preimage, apply_action, \
+    get_derived_predicates
+from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
-
-
-def get_derived_predicates(axioms):
-    axioms_from_name = defaultdict(list)
-    for axiom in axioms:
-        axioms_from_name[axiom.name].append(axiom)
-    return axioms_from_name
 
 
 def get_necessary_axioms(conditions, axioms, negative_from_name):
@@ -198,3 +193,22 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
     task.actions = original_actions
     task.axioms = original_axioms
     return axiom_plan
+
+##################################################
+
+def recover_axioms_plans(instantiated, action_instances):
+    state = set(instantiated.task.init)
+    axiom_plans = []
+    generator = SuccessorGenerator(instantiated, action_instances)
+    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
+        # TODO: apply all axiom_instances unaffected by negative conditions
+        axiom_instances = generator.get_successors(state)
+        #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
+        #                                         for l in ax.condition), applicable_axioms))
+        # Only instantiate if preimage has goal
+        preimage = list(plan_preimage([action], []))
+        axiom_plan = extraction_helper(state, axiom_instances, preimage)
+        assert axiom_plan is not None
+        axiom_plans.append(axiom_plan)
+        apply_action(state, action)
+    return axiom_plans

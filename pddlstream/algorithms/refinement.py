@@ -6,7 +6,7 @@ from copy import deepcopy, copy
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
-from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
 from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan, str_from_plan, get_length
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression

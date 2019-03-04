@@ -3,7 +3,7 @@ from __future__ import print_function
 import os
 import re
 import sys
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from time import time
 
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
@@ -655,3 +655,10 @@ def sas_from_instantiated(instantiated_task):
 
     translate.dump_statistics(sas_task)
     return sas_task
+
+
+def get_derived_predicates(axioms):
+    axioms_from_name = defaultdict(list)
+    for axiom in axioms:
+        axioms_from_name[axiom.name].append(axiom)
+    return axioms_from_name

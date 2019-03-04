@@ -1,71 +1,20 @@
 import copy
 
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
-    get_goal_instance, plan_preimage, instantiate_task, get_cost_scale, \
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, instantiate_task, get_cost_scale, \
     sas_from_instantiated, scale_cost
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
-from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
-from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, \
-    recover_negative_axioms
-from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
-from pddlstream.algorithms.scheduling.recover_axioms import extraction_helper
-from pddlstream.algorithms.scheduling.recover_functions import compute_function_plan
-from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
+from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
+from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan, \
+    recover_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
-from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator
 from pddlstream.algorithms.scheduling.utils import partition_results, \
-    add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects, evaluations_from_stream_plan
+    add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects
 from pddlstream.algorithms.search import solve_from_task
-from pddlstream.language.constants import EQ, get_prefix
-from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, fact_from_evaluation
+from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact
 from pddlstream.language.external import Result
-from pddlstream.language.function import Function
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.utils import Verbose, INF
-
-
-def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_expression, domain, node_from_atom,
-                        action_plan, axiom_plans, negative):
-    # Universally quantified conditions are converted into negative axioms
-    # Existentially quantified conditions are made additional preconditions
-    # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
-    # Added effects cancel out removed effects
-    # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
-    real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
-    opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
-    negative_from_name = get_negative_predicates(negative)
-
-    real_states, combined_plan = recover_negative_axioms(
-        real_task, opt_task, axiom_plans, action_plan, negative_from_name)
-    function_plan = compute_function_plan(opt_evaluations, action_plan)
-
-    full_preimage = plan_preimage(combined_plan, [])
-    stream_preimage = set(full_preimage) - real_states[0]
-    negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
-    function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
-    positive_preimage = stream_preimage - negative_preimage
-
-    step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
-    target_facts = {fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ}
-    #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
-    # visualize_constraints(map(fact_from_fd, target_facts))
-
-    stream_plan = []
-    for result in current_plan:
-        if isinstance(result.external, Function) or (result.external in negative):
-            function_plan.add(result) # Prevents these results from being pruned
-        else:
-            stream_plan.append(result)
-    curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
-    extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan)
-    stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
-    stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom)
-
-    return stream_plan + list(function_plan)
-
-##################################################
 
 def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
     if effort_weight is None:
@@ -99,24 +48,6 @@ def rename_instantiated_actions(instantiated):
         action_from_name[renamed_name] = action # Change reachable_action_params?
     instantiated.actions[:] = renamed_actions
     return action_from_name
-
-
-def recover_axioms_plans(instantiated, action_instances):
-    state = set(instantiated.task.init)
-    axiom_plans = []
-    generator = SuccessorGenerator(instantiated, action_instances)
-    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
-        # TODO: apply all axiom_instances unaffected by negative conditions
-        axiom_instances = generator.get_successors(state)
-        #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
-        #                                         for l in ax.condition), applicable_axioms))
-        # Only instantiate if preimage has goal
-        preimage = list(plan_preimage([action], []))
-        axiom_plan = extraction_helper(state, axiom_instances, preimage)
-        assert axiom_plan is not None
-        axiom_plans.append(axiom_plan)
-        apply_action(state, action)
-    return axiom_plans
 
 def pddl_from_instance(instance):
     action = instance.action

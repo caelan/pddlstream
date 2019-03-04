@@ -1,7 +1,6 @@
 from collections import defaultdict
 
-from pddlstream.algorithms.downward import literal_holds
-from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates
+from pddlstream.algorithms.downward import literal_holds, get_derived_predicates
 
 
 class SuccessorNode(object):

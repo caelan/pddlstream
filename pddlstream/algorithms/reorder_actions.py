@@ -2,7 +2,7 @@ from pddlstream.algorithms.downward import fd_from_fact, substitute_derived, is_
     fd_from_evaluation, task_from_domain_problem, get_problem, get_action_instances
 from pddlstream.algorithms.reorder import separate_plan, get_stream_stats, dynamic_programming
 from pddlstream.algorithms.scheduling.recover_axioms import instantiate_axioms, get_achieving_axioms, extract_axioms
-from pddlstream.algorithms.scheduling.utils import evaluations_from_stream_plan
+from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.language.constants import get_prefix, EQ, is_plan, And
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.external import Result

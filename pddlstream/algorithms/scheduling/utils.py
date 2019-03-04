@@ -1,12 +1,9 @@
 from pddlstream.algorithms.downward import add_predicate, make_predicate, get_literals, fact_from_fd, conditions_hold, \
-    apply_action
-from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates
+    apply_action, get_derived_predicates
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.statistics import check_effort
-from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams
-from pddlstream.utils import INF, apply_mapping
+from pddlstream.utils import apply_mapping
 
 
 def partition_results(evaluations, results, apply_now):
@@ -23,19 +20,6 @@ def partition_results(evaluations, results, apply_now):
         else:
             deferred_results.append(result)
     return applied_results, deferred_results
-
-def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
-    opt_evaluations = set(evaluations)
-    for result in stream_results:
-        assert(not result.instance.disabled)
-        assert(not result.instance.enumerated)
-        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
-        assert(domain <= opt_evaluations)
-        opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
-    node_from_atom = get_achieving_streams(evaluations, stream_results)
-    result_from_evaluation = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()
-                              if check_effort(n.effort, max_effort)}
-    return result_from_evaluation
 
 def partition_external_plan(external_plan):
     function_plan = list(filter(lambda r: isinstance(r, FunctionResult), external_plan))
