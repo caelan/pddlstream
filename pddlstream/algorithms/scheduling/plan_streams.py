@@ -2,25 +2,26 @@ import copy
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, apply_action, fact_from_fd, \
     get_goal_instance, plan_preimage, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost, literal_holds
+    sas_from_instantiated, scale_cost
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
 from pddlstream.algorithms.scheduling.negative import get_negative_predicates, convert_negative, \
     recover_negative_axioms
 from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
-from pddlstream.algorithms.scheduling.recover_axioms import get_derived_predicates, extraction_helper
+from pddlstream.algorithms.scheduling.recover_axioms import extraction_helper
 from pddlstream.algorithms.scheduling.recover_functions import compute_function_plan
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
+from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects, evaluations_from_stream_plan
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import EQ, get_prefix
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, fact_from_evaluation
-from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.external import Result
 from pddlstream.language.function import Function
+from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.utils import Verbose, INF
 
 
@@ -99,21 +100,22 @@ def rename_instantiated_actions(instantiated):
     instantiated.actions[:] = renamed_actions
     return action_from_name
 
+
 def recover_axioms_plans(instantiated, action_instances):
-    task = instantiated.task
-    derived_predicates = get_derived_predicates(task.axioms)
-    state = set(task.init)
+    state = set(instantiated.task.init)
     axiom_plans = []
-    for action_instance in action_instances + [get_goal_instance(task.goal)]:
+    generator = SuccessorGenerator(instantiated, action_instances)
+    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
         # TODO: apply all axiom_instances unaffected by negative conditions
-        preimage = list(plan_preimage([action_instance], []))
-        axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
-                                                 for l in ax.condition), instantiated.axioms))
+        axiom_instances = generator.get_successors(state)
+        #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
+        #                                         for l in ax.condition), applicable_axioms))
         # Only instantiate if preimage has goal
+        preimage = list(plan_preimage([action], []))
         axiom_plan = extraction_helper(state, axiom_instances, preimage)
         assert axiom_plan is not None
         axiom_plans.append(axiom_plan)
-        apply_action(state, action_instance)
+        apply_action(state, action)
     return axiom_plans
 
 def pddl_from_instance(instance):

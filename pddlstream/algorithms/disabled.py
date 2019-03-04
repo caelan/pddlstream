@@ -91,11 +91,15 @@ def process_stream_plan_branch(store, domain, disabled, stream_plan, action_plan
 
 ##################################################
 
-def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=True, max_failures=0):
+def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=True):
     # Bad old implementation of this method
     # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
     if not is_plan(stream_plan):
         return
+    if not stream_plan:
+        store.add_plan(action_plan, cost)
+        return
+    max_failures = 0 if bind else INF
     stream_plan = [result for result in stream_plan if result.optimistic]
     free_objects = get_free_objects(stream_plan)
     bindings = {}
@@ -120,6 +124,6 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
         bound_plan.append(new_results[0])
         bindings = update_bindings(bindings, bound_result, bound_plan[-1])
         cost = update_cost(cost, opt_result, bound_plan[-1])
-    if len(stream_plan) == len(bound_plan):
+    if bind and (len(stream_plan) == len(bound_plan)):
         store.add_plan(bind_action_plan(action_plan, bindings), cost)
     # TODO: report back whether to try w/o optimistic values in the event that wild
