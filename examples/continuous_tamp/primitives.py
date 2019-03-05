@@ -126,7 +126,7 @@ REGIONS = {
     REGION_NAME: (5, 10),
 }
 
-def tight(n_blocks=2, n_goals=2):
+def tight(n_blocks=3, n_goals=2):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]

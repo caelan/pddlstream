@@ -61,7 +61,7 @@ def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negat
     action_plan = reinstantiate_action_instances(opt_task, action_plan)
     simplify_conditional_effects(opt_task, action_plan, negative_from_name)
     axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
-    #axioms_from_name = get_derived_predicates(opt_task.axioms)
+    axioms_from_name = get_derived_predicates(opt_task.axioms)
 
     # TODO: could instead just accumulate difference between real and opt
     opt_task.init = set(opt_task.init)
@@ -69,10 +69,10 @@ def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negat
     preimage_plan = []
     for axiom_plan, action_instance in safe_zip(axiom_plans, action_plan):
         preimage = list(plan_preimage(axiom_plan + [action_instance], []))
-        #conditions = [l for l in preimage if (l.predicate not in axioms_from_name) and (l.predicate not in negative_from_name)]
+        conditions = [l for l in preimage if (l.predicate not in axioms_from_name)] # and (l.predicate not in negative_from_name)]
         #assert conditions_hold(opt_task.init, conditions)
         # TODO: only add derived facts and negative facts to fluent state to make normalizing easier
-        negative_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name,
+        negative_axiom_plan = extract_axiom_plan(opt_task, conditions, negative_from_name,
                                                  static_state=opt_task.init)
                                                  #static_state=real_states[-1])
         assert negative_axiom_plan is not None
