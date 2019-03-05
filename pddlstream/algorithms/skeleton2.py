@@ -80,19 +80,21 @@ class Binding(object):
             else:
                 self._result = None
         return self._result
+    def is_bound(self):
+        return self.result is None
     #@property
     #def complexity(self):
     #    # This does a plan linearization version of complexity
     #    return self.parent_complexity + self.calls
     def up_to_date(self):
-        if self.result is None:
+        if self.is_bound():
             return True
         #if PRUNE_BINDINGS:
         #    return self.result.instance.num_calls <= self.attempts
         #else:
         return self.calls == self.result.instance.num_calls
     def compute_complexity(self):
-        if self.result is None:
+        if self.is_bound():
             return 0
         # TODO: intelligently compute/cache this
         if self.complexity is None:
@@ -128,6 +130,11 @@ class Binding(object):
         remaining = len(self.skeleton.stream_plan) - self.index
         priority = Priority(self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
+    def post_order(self):
+        for child in self.children:
+            for binding in child.post_order():
+                yield binding
+        yield self
 
 ##################################################
 
@@ -154,7 +161,7 @@ class SkeletonQueue(Sized):
         is_new = False
         if binding.is_dominated():
             return False, is_new
-        if binding.result is None:
+        if binding.is_bound():
             action_plan = bind_action_plan(binding.skeleton.action_plan, binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
             return False, True

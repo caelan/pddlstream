@@ -6,7 +6,7 @@
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
-  ; Creates fewer free variables than optimizer1.pddl
+  ; Creates fewer free variables than optimizer.pddl
   (:optimizer gurobi
 
     ; Constructs a set of free variables
@@ -40,11 +40,6 @@
       :graph (Traj ?t))
     (:constraint (Motion ?q1 ?t ?q2)
       :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
-    ;(:variable ?t
-    ;  :inputs (?q1 ?q2)
-    ;  :domain (and (Conf ?q1) (Conf ?q2))
-    ;  :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
-
 
     ; Treating predicate as objective
     ;(:objective TrajCollision)

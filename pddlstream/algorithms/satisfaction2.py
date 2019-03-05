@@ -98,16 +98,15 @@ def create_disable_axiom(external_plan):
 def compute_failed_indices(skeleton):
     failed_indices = set()
     for binding in skeleton.root.post_order():
-        result = binding.next_result
+        result = binding.result
         if (result is not None) and result.instance.num_calls and (not result.instance.successes):
-            failed_indices.add(binding.stream_indices[0])
+            failed_indices.add(binding.index)
             #assert not binding.children
     return sorted(failed_indices)
 
 def current_failed_cluster(binding):
-    failed_index = binding.stream_indices[0]
-    assert 1 <= binding.stream_attempts[0]
-    failed_result = binding.skeleton.stream_plan[failed_index]
+    assert 1 <= binding.attempts
+    failed_result = binding.skeleton.stream_plan[binding.index]
     successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
                           if i not in binding.stream_indices]
     stream_plan = successful_results + [failed_result]
@@ -119,15 +118,14 @@ def current_failed_cluster(binding):
 
 def current_failure_contributors(binding):
     # Alternatively, find unsuccessful streams in cluster and add ancestors
-    failed_index = binding.stream_indices[0]
-    assert 1 <= binding.stream_attempts[0]
-    failed_result = binding.skeleton.stream_plan[failed_index]
+    assert 1 <= binding.attempts
+    failed_result = binding.skeleton.stream_plan[binding.index]
     failed_indices = compute_failed_indices(binding.skeleton)  # Use last index?
     partial_orders = get_partial_orders(binding.skeleton.stream_plan)
     incoming = incoming_from_edges(partial_orders)
     failed_ancestors = grow_component([failed_result], incoming)
     for index in reversed(failed_indices):
-        if index == failed_index:
+        if index == binding.index:
             continue
         result = binding.skeleton.stream_plan[index]
         ancestors = grow_component([result], incoming)

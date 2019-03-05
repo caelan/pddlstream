@@ -83,8 +83,14 @@ class Binding(object):
     def action_plan(self):
         return bind_action_plan(self.skeleton.action_plan, self.bindings)
     @property
-    def next_result(self):
+    def result(self):
         return self.remaining_results[0]
+    @property
+    def index(self):
+        return self.stream_indices[0]
+    @property
+    def attempts(self):
+        return self.stream_attempts[0]
     def is_bound(self):
         return not self.stream_indices
     def is_dominated(self):
@@ -284,7 +290,7 @@ class SkeletonQueue(Sized):
         if not self.is_enabled(binding):
             return is_new
         assert not binding.update_instances() #self.update_enabled(binding)
-        is_new = self._generate_results(binding.next_result.instance)
+        is_new = self._generate_results(binding.result.instance)
         # _decompose_synthesizer_skeleton(queue, skeleton, stream_index)
         if self.is_enabled(binding):
             heappush(self.queue, binding.get_element())
