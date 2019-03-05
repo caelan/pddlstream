@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from collections import namedtuple, Counter
+from collections import namedtuple
 
 from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE, \
     get_internal_prefix
@@ -10,7 +10,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT, partition_facts, get_costs, \
     get_constraints
 from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
-from pddlstream.utils import str_from_object, safe_zip
+from pddlstream.utils import safe_zip
 
 Cluster = namedtuple('Cluster', ['constraints', 'parameters'])
 
@@ -124,21 +124,6 @@ def bindings_from_plan(problem, plan):
             assert bindings.get(name, arg) is arg
             bindings[name] = arg
     return bindings
-
-##################################################
-
-def dump_assignment(solution):
-    bindings, cost, evaluations = solution
-    print()
-    print('Solved: {}'.format(bindings is not None))
-    print('Cost: {}'.format(cost))
-    print('Total facts: {}'.format(len(evaluations)))
-    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
-    if bindings is None:
-        return
-    print('Assignments:')
-    for param in sorted(bindings):
-        print('{} = {}'.format(param, str_from_object(bindings[param])))
 
 ##################################################
 

@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from collections import Counter
+
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate, make_axiom
@@ -9,7 +11,7 @@ from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 #from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton2 import SkeletonQueue
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import is_parameter, get_length, partition_facts
+from pddlstream.language.constants import is_parameter, get_length, partition_facts, get_prefix
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
 from pddlstream.language.object import Object, OptimisticObject
@@ -169,7 +171,8 @@ def are_domainated(clusters1, clusters2):
 ##################################################
 
 def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={},
-                            costs=True, max_cost=INF, success_cost=INF, max_time=INF, max_effort=INF,
+                            costs=True, max_cost=INF, success_cost=INF, max_time=INF,
+                            unit_efforts=False, max_effort=INF,
                             max_skeletons=INF, search_sample_ratio=1, verbose=True, **search_args):
     # Approaches
     # 1) Existential quantification of bindings in goal conditions
@@ -193,7 +196,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
     free_parameters = sorted(get_parameters(goal_facts))
 
-    externals = parse_stream_pddl(stream_pddl, stream_map, stream_info)
+    externals = parse_stream_pddl(stream_pddl, stream_map, stream_info, unit_efforts=unit_efforts)
     stream_results = extract_streams(evaluations, externals, goal_facts)
     function_plan = plan_functions(negated + functions, externals)
     plan_skeleton = [(BIND_ACTION, free_parameters)]
@@ -254,3 +257,19 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     action_plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
     bindings = bindings_from_plan(plan_skeleton, action_plan)
     return bindings, cost, facts
+
+##################################################
+
+def dump_assignment(solution):
+    bindings, cost, evaluations = solution
+    print()
+    print('Solved: {}'.format(bindings is not None))
+    print('Cost: {}'.format(cost))
+    print('Total facts: {}'.format(len(evaluations)))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
+    if bindings is None:
+        return
+    print('Assignments:')
+    for param in sorted(bindings):
+        print('{} = {}'.format(param, str_from_object(bindings[param])))
+

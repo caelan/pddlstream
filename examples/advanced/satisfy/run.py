@@ -4,8 +4,8 @@ from __future__ import print_function
 
 import argparse
 
-from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
+from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
+from pddlstream.algorithms.satisfaction2 import constraint_satisfaction, dump_assignment
 from pddlstream.language.generator import from_test, from_gen_fn, from_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import INF
@@ -113,7 +113,7 @@ def main():
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, incremental=True,
                                                  max_time=args.max_time, success_cost=success_cost)
     else:
-        solution = constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info=info,
+        solution = constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info=info, #unit_efforts=True,
                                            max_time=args.max_time, success_cost=success_cost)
     dump_assignment(solution)
     #print(len(sorted(pairs)))

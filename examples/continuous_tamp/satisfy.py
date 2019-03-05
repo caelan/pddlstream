@@ -14,8 +14,8 @@ from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
-from pddlstream.algorithms.satisfaction import dump_assignment, solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction2 import constraint_satisfaction
+from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
+from pddlstream.algorithms.satisfaction2 import constraint_satisfaction, dump_assignment
 
 # Be careful about uniqueness here
 CONF0 = array([-7.5, 5.])

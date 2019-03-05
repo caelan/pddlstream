@@ -229,7 +229,7 @@ class Performance(object):
         return self.info.overhead
 
     def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
-        if self.info.overhead is None:
+        if self.info.effort is None:
             p_success = self.get_p_success()
             return geometric_cost(self.get_overhead(), p_success) + \
                    (1 - p_success) * geometric_cost(search_overhead, p_success)
