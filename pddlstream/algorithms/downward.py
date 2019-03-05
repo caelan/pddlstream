@@ -263,11 +263,14 @@ def get_fluents(domain):
         fluent_predicates.add(axiom.name)
     return fluent_predicates
 
+def is_literal(condition):
+    return isinstance(condition, pddl.Literal)
+
 def get_literals(condition):
+    if is_literal(condition):
+        return [condition]
     if isinstance(condition, pddl.Truth):
         return []
-    if isinstance(condition, pddl.Literal):
-        return [condition]
     if isinstance(condition, pddl.Conjunction):
         literals = []
         for c in condition.parts:
@@ -592,8 +595,9 @@ def instantiate_task(task):
 def normalize_axioms(instantiated_task):
     import axiom_rules
     _, _, actions, axioms, _, goal_list = instantiated_task
-    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
-        actions, axioms, goal_list)
+    with Verbose(False):
+        axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+            actions, axioms, goal_list)
     return axioms, axiom_init
 
 def sas_from_instantiated(instantiated_task):

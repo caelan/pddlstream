@@ -17,8 +17,9 @@ from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.utils import Verbose, INF
 
 def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
+    cost_from_action = {action: action.cost for action in instantiated.actions}
     if effort_weight is None:
-        return
+        return cost_from_action
     # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
     #efforts = [] # TODO: regularize & normalize across the problem?
     for instance in instantiated.actions:
@@ -33,6 +34,7 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
             instance.cost += scale_cost(effort_weight*effort)
             #efforts.append(effort)
     #print(min(efforts), efforts)
+    return cost_from_action
 
 ##################################################
 
@@ -108,8 +110,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if using_optimizers(all_results):
         # TODO: reachieve=False when using optimizers or should add applied facts
         instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, all_results)
-    cost_from_action = {action: action.cost for action in instantiated.actions}
-    add_stream_efforts(node_from_atom, instantiated, effort_weight)
+    cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
     if using_optimizers(applied_results):
         add_optimizer_effects(instantiated, node_from_atom)
     action_from_name = rename_instantiated_actions(instantiated)
@@ -119,8 +120,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    action_plan, raw_cost = solve_from_task(sas_task, debug=debug, **kwargs)
-    #print(raw_cost)
+    action_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if action_plan is None:
         return None, INF
     action_instances = [action_from_name[name] for name, _ in action_plan]

@@ -1,8 +1,8 @@
 from collections import defaultdict, deque
 
 from pddlstream.algorithms.downward import get_literals, get_goal_instance, plan_preimage, apply_action, \
-    get_derived_predicates
-from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator
+    get_derived_predicates, normalize_axioms, literal_holds, is_literal
+from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator, get_fluents
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
 
@@ -196,7 +196,7 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
 
 ##################################################
 
-def recover_axioms_plans(instantiated, action_instances):
+def recover_axioms_plans_old(instantiated, action_instances):
     state = set(instantiated.task.init)
     axiom_plans = []
     generator = SuccessorGenerator(instantiated, action_instances)
@@ -210,5 +210,75 @@ def recover_axioms_plans(instantiated, action_instances):
         axiom_plan = extraction_helper(state, axiom_instances, preimage)
         assert axiom_plan is not None
         axiom_plans.append(axiom_plan)
+        apply_action(state, action)
+    return axiom_plans
+
+##################################################
+
+def mark_axiom(queue, remaining_from_axiom, axiom, axiom_from_atom):
+    if not remaining_from_axiom[id(axiom)]:
+        axiom_from_atom[axiom.effect].append(axiom)
+        queue.append(axiom.effect)
+
+def mark_iteration(state, fluents, unprocessed_from_atom, fluents_from_axiom, remaining_from_axiom, static_axioms):
+    axioms_from_atom = defaultdict(list)
+    for atom in fluents:
+        if literal_holds(state, atom):  # TODO: only check things that are false
+            axioms_from_atom[atom].append(None)
+        else:
+            axioms_from_atom[atom.negate()].append(None)
+    queue = deque(axioms_from_atom.keys())
+    for axiom in static_axioms:
+        mark_axiom(queue, remaining_from_axiom, axiom, axioms_from_atom)
+    while queue:
+        atom = queue.popleft()
+        for axiom in unprocessed_from_atom[atom]:
+            remaining_from_axiom[id(axiom)] -= 1
+            mark_axiom(queue, remaining_from_axiom, axiom, axioms_from_atom)
+    for atom, axes in axioms_from_atom.items():
+        for axiom in axes:
+            if axiom is not None:
+                remaining_from_axiom[id(axiom)] = fluents_from_axiom[id(axiom)]
+    # TODO: could process these layer by layer instead
+    return {atom: axes[0] for atom, axes in axioms_from_atom.items()}
+
+def recover_axioms_plans(instantiated, action_instances):
+    normalized_axioms, axiom_init = normalize_axioms(instantiated)
+    state = set(instantiated.task.init + axiom_init)
+    fluents = get_fluents(state, action_instances)
+
+    unprocessed_from_atom = defaultdict(list)
+    fluents_from_axiom = {}
+    remaining_from_axiom = {}
+    for axiom in normalized_axioms:
+        fluent_conditions = []
+        for literal in axiom.condition:
+            if literal.positive() in fluents:
+                fluent_conditions.append(literal)
+            elif not literal_holds(state, literal):
+                fluent_conditions = None
+                break
+        if fluent_conditions is None:
+            continue
+        for literal in fluent_conditions:
+            unprocessed_from_atom[literal].append(axiom)
+        fluents_from_axiom[id(axiom)] = len(fluent_conditions)
+        remaining_from_axiom[id(axiom)] = fluents_from_axiom[id(axiom)]
+    static_axioms = [axiom for axiom, num in fluents_from_axiom.items() if num == 0]
+
+    axiom_plans = []
+    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
+        axiom_from_atom = mark_iteration(state, fluents, unprocessed_from_atom,
+                                         fluents_from_axiom, remaining_from_axiom, static_axioms)
+        preimage = []
+        for literal in action.precondition:
+            if not literal_holds(state, literal):
+                preimage.append(literal)
+                assert literal in axiom_from_atom
+        for cond, eff in (action.add_effects + action.del_effects):
+            # TODO: add conditional effects that must hold here
+            assert not cond
+        axiom_plans.append([])
+        assert extract_axioms(axiom_from_atom, preimage, axiom_plans[-1])
         apply_action(state, action)
     return axiom_plans
