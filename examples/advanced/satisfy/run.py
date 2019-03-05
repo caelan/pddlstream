@@ -5,7 +5,7 @@ from __future__ import print_function
 import argparse
 
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction2 import constraint_satisfaction, dump_assignment
+from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
 from pddlstream.language.generator import from_test, from_gen_fn, from_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import INF

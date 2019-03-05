@@ -12,7 +12,7 @@ from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimis
 from pddlstream.algorithms.reorder import separate_plan, reorder_stream_plan
 from pddlstream.algorithms.reorder_actions import reorder_combined_plan
 #from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.algorithms.skeleton2 import SkeletonQueue
+from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
