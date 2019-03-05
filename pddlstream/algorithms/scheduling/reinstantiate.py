@@ -1,4 +1,4 @@
-from pddlstream.algorithms.downward import get_fluents, apply_action, get_goal_instance
+from pddlstream.algorithms.downward import get_fluents, apply_action, get_goal_instance, has_conditional_effects
 from pddlstream.utils import MockSet
 
 
@@ -35,8 +35,12 @@ def reinstantiate_action_instances(task, old_instances):
     for old_instance in old_instances:
         # TODO: better way of instantiating conditional effects (when not fluent)
         #new_instance = reinstantiate_action(old_instance)
-        predicate_to_atoms = instantiate.get_atoms_by_predicate(
-            {a for a in state if isinstance(a, pddl.Atom) and (a.predicate in fluents)})
+        if has_conditional_effects(old_instance):
+            # TODO: don't recompute this
+            predicate_to_atoms = instantiate.get_atoms_by_predicate(
+                {a for a in state if isinstance(a, pddl.Atom) and (a.predicate in fluents)})
+        else:
+            predicate_to_atoms = {}
         action = old_instance.action
         var_mapping = old_instance.var_mapping
         new_instance = action.instantiate(var_mapping, init_facts, fluent_facts, type_to_objects,

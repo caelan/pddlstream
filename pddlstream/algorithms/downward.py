@@ -464,6 +464,13 @@ def add_preimage_effect(effect, preimage):
     #    preimage.remove(effect)
 
 
+def has_conditional_effects(action_instance):
+    for conditions, effect in (action_instance.add_effects + action_instance.del_effects):
+        if conditions:
+            return True
+    return False
+
+
 def action_preimage(action, preimage, i):
     for conditions, effect in (action.add_effects + action.del_effects):
         assert(not conditions)
