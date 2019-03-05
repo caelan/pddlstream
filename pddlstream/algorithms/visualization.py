@@ -6,7 +6,6 @@ from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_pla
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
 from pddlstream.utils import clear_dir, ensure_dir
 
 # https://www.graphviz.org/doc/info/
@@ -42,13 +41,14 @@ def reset_visualizations():
 
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
-    decomposed_plan = decompose_stream_plan(stream_plan)
+    #from pddlstream.language.synthesizer import decompose_stream_plan
+    #decomposed_plan = decompose_stream_plan(stream_plan)
     with open(PLAN_LOG_FILE, 'a+') as f:
         f.write('Iteration: {}\n'
                 'Stream plan: {}\n'
-                'Synthesizer plan: {}\n'
+                #'Synthesizer plan: {}\n'
                 'Action plan: {}\n\n'.format(
-                iteration, decomposed_plan,
+                iteration, #decomposed_plan,
                 stream_plan, str_from_plan(action_plan)))
 
 def create_synthesizer_visualizations(result, iteration):
@@ -64,16 +64,17 @@ def create_synthesizer_visualizations(result, iteration):
 def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
     # TODO: decompose any joint streams
-    for result in stream_plan:
-        if isinstance(result, SynthStreamResult):
-            create_synthesizer_visualizations(result, iteration)
+    #from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
+    #for result in stream_plan:
+    #    if isinstance(result, SynthStreamResult):
+    #        create_synthesizer_visualizations(result, iteration)
     filename = ITERATION_TEMPLATE.format(POST_PROCESS if iteration is None else iteration)
     # visualize_stream_plan(stream_plan, path)
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
+    #visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################

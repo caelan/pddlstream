@@ -15,11 +15,8 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     disconnect, DRAKE_IIWA_URDF, get_bodies, user_input, HideOutput
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
-from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.constants import print_solution
-
-USE_SYNTHESIZERS = False
 
 def get_fixed(robot, movable):
     rigid = [body for body in get_bodies() if body != robot]
@@ -112,12 +109,6 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, grasp_name='top')
         'TrajCollision': get_movable_collision_test(),
     }
 
-    if USE_SYNTHESIZERS:
-        stream_map.update({
-            'plan-free-motion': empty_gen(),
-            'plan-holding-motion': empty_gen(),
-        })
-
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 
@@ -174,12 +165,6 @@ def main(display=True, teleport=False):
 
     pddlstream_problem = pddlstream_from_problem(robot, movable=movable, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
-    synthesizers = [
-        StreamSynthesizer('safe-free-motion', {'plan-free-motion': 1, 'trajcollision': 0},
-                          from_fn(get_free_motion_synth(robot, movable, teleport))),
-        StreamSynthesizer('safe-holding-motion', {'plan-holding-motion': 1, 'trajcollision': 0},
-                          from_fn(get_holding_motion_synth(robot, movable, teleport))),
-    ] if USE_SYNTHESIZERS else []
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
@@ -188,7 +173,7 @@ def main(display=True, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, success_cost=INF)
+    solution = solve_focused(pddlstream_problem, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

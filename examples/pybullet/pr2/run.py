@@ -16,15 +16,12 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_p
     get_distance, LockRenderer, get_min_limit, get_max_limit
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
-from pddlstream.language.synthesizer import StreamSynthesizer
 from pddlstream.language.constants import Equal, AND, print_solution
 from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, PartialInputs, OptValue
 from collections import namedtuple
 
-
-USE_SYNTHESIZERS = False
 BASE_CONSTANT = 1
 BASE_VELOCITY = 0.5
 
@@ -43,16 +40,16 @@ def place_movable(certified):
             _, a, o, g = fact[1:]
             # TODO: finish this
 
-def get_base_motion_synth(problem, teleport=False):
-    # TODO: could factor the safety checks if desired (but no real point)
-    #fixed = get_fixed(robot, movable)
-    def fn(outputs, certified):
-        assert(len(outputs) == 1)
-        q0, _, q1 = find_unique(lambda f: f[0] == 'basemotion', certified)[1:]
-        place_movable(certified)
-        free_motion_fn = get_motion_gen(problem, teleport)
-        return free_motion_fn(q0, q1)
-    return fn
+# def get_base_motion_synth(problem, teleport=False):
+#     # TODO: could factor the safety checks if desired (but no real point)
+#     #fixed = get_fixed(robot, movable)
+#     def fn(outputs, certified):
+#         assert(len(outputs) == 1)
+#         q0, _, q1 = find_unique(lambda f: f[0] == 'basemotion', certified)[1:]
+#         place_movable(certified)
+#         free_motion_fn = get_motion_gen(problem, teleport)
+#         return free_motion_fn(q0, q1)
+#     return fn
 
 def move_cost_fn(c):
     [t] = c.commands
@@ -161,8 +158,6 @@ def pddlstream_from_problem(problem, teleport=False):
         'TrajArmCollision': fn_from_constant(False),
         'TrajGraspCollision': fn_from_constant(False),
     }
-    if USE_SYNTHESIZERS:
-        stream_map['plan-base-motion'] = empty_gen(),
     # get_press_gen(problem, teleport=teleport)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
@@ -245,27 +240,15 @@ def main(display=True, teleport=False, partial=False):
         'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     }
-
-    synthesizers = [
-        StreamSynthesizer('safe-base-motion', {
-            'plan-base-motion': 1,
-            'TrajPoseCollision': 0,
-            'TrajGraspCollision': 0,
-            'TrajArmCollision': 0,
-        }, from_fn(get_base_motion_synth(problem, teleport))),
-    ] if USE_SYNTHESIZERS else []
-
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
-    print('Synthesizers:', synthesizers)
 
     pr = cProfile.Profile()
     pr.enable()
     with LockRenderer():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 synthesizers=synthesizers, success_cost=INF)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

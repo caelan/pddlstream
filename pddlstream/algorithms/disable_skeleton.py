@@ -85,3 +85,7 @@ def extract_disabled_clusters(queue):
         for cluster_plan in cluster_plans:
             clusters.add(frozenset(cluster_plan))
     return clusters
+
+def create_disabled_axioms(queue, last_clusters=None):
+    clusters = extract_disabled_clusters(queue)
+    return [create_disable_axiom(cluster) for cluster in clusters]

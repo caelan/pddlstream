@@ -44,42 +44,21 @@ def combine_optimizer_plan(stream_plan, functions):
         optimizer_plan.append(result)
     return optimizer_plan
 
-
-def combine_optimizers_greedy(evaluations, external_plan):
+def combine_optimizers(evaluations, external_plan):
     if not is_plan(external_plan):
         return external_plan
-    # The key thing is that a variable must be grounded before it can used in a non-stream thing
-    # TODO: construct variables in order
-    # TODO: graph cut algorithm to minimize the number of constraints that are excluded
-    # TODO: reorder to ensure that constraints are done first since they are likely to fail as tests
-    incoming_edges, outgoing_edges = neighbors_from_orders(get_partial_orders(external_plan))
-    queue = []
-    functions = []
-    for v in external_plan:
-        if not incoming_edges[v]:
-            (functions if isinstance(v, FunctionResult) else queue).append(v)
-    current = []
-    ordering = []
-    while queue:
-        optimizer = get_optimizer(current[-1]) if current else None
-        for v in queue:
-            if optimizer == get_optimizer(v):
-                current.append(v)
-                break
-        else:
-            ordering.extend(combine_optimizer_plan(current, functions))
-            current = [queue[0]]
-        v1 = current[-1]
-        queue.remove(v1)
-        for v2 in outgoing_edges[v1]:
-            incoming_edges[v2].remove(v1)
-            if not incoming_edges[v2]:
-                (functions if isinstance(v2, FunctionResult) else queue).append(v2)
-    ordering.extend(combine_optimizer_plan(current, functions))
-    return ordering + functions
+    stream_plan, function_plan = partition_external_plan(external_plan)
+    optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
+    if len(optimizers - {None}) == 0:
+        return external_plan
 
+    print('Constraint plan: {}'.format(external_plan))
+    combined_results = []
+    for optimizer in optimizers:
+        relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
+        combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
+    combined_results.extend(function_plan)
 
-def sequence_results(evaluations, combined_results):
     current_facts = set()
     for result in combined_results:
         current_facts.update(filter(lambda f: evaluation_from_fact(f) in evaluations, result.get_domain()))
@@ -94,22 +73,6 @@ def sequence_results(evaluations, combined_results):
         else: # TODO: can also just try one cluster and return
             return None
     return combined_plan
-
-
-def combine_optimizers(evaluations, external_plan):
-    if not is_plan(external_plan):
-        return external_plan
-    stream_plan, function_plan = partition_external_plan(external_plan)
-    optimizers = {get_optimizer(r) for r in stream_plan} # None is like a unique optimizer
-    if len(optimizers - {None}) == 0:
-        return external_plan
-
-    print('Constraint plan: {}'.format(external_plan))
-    combined_results = []
-    for optimizer in optimizers:
-        relevant_results = [r for r in stream_plan if get_optimizer(r) == optimizer]
-        combined_results.extend(combine_optimizer_plan(relevant_results, function_plan))
-    return sequence_results(evaluations, combined_results + function_plan)
 
 ##################################################
 
@@ -187,3 +150,38 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     if not is_plan(optimizer_plan):
         return None
     return optimizer_plan + function_plan
+
+##################################################
+
+def combine_optimizers_greedy(evaluations, external_plan):
+    if not is_plan(external_plan):
+        return external_plan
+    # The key thing is that a variable must be grounded before it can used in a non-stream thing
+    # TODO: construct variables in order
+    # TODO: graph cut algorithm to minimize the number of constraints that are excluded
+    # TODO: reorder to ensure that constraints are done first since they are likely to fail as tests
+    incoming_edges, outgoing_edges = neighbors_from_orders(get_partial_orders(external_plan))
+    queue = []
+    functions = []
+    for v in external_plan:
+        if not incoming_edges[v]:
+            (functions if isinstance(v, FunctionResult) else queue).append(v)
+    current = []
+    ordering = []
+    while queue:
+        optimizer = get_optimizer(current[-1]) if current else None
+        for v in queue:
+            if optimizer == get_optimizer(v):
+                current.append(v)
+                break
+        else:
+            ordering.extend(combine_optimizer_plan(current, functions))
+            current = [queue[0]]
+        v1 = current[-1]
+        queue.remove(v1)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1)
+            if not incoming_edges[v2]:
+                (functions if isinstance(v2, FunctionResult) else queue).append(v2)
+    ordering.extend(combine_optimizer_plan(current, functions))
+    return ordering + functions

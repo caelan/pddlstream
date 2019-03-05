@@ -5,7 +5,7 @@ from collections import Counter
 
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.disable_skeleton import create_disable_axiom, extract_disabled_clusters
+from pddlstream.algorithms.disable_skeleton import create_disabled_axioms, extract_disabled_clusters
 from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
 from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
 from pddlstream.algorithms.reorder import reorder_stream_plan
@@ -153,8 +153,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
-            clusters = extract_disabled_clusters(queue)
-            domain.axioms[:] = [create_disable_axiom(cluster) for cluster in clusters]
+            domain.axioms[:] = create_disabled_axioms(queue)
             #dominated = are_domainated(last_clusters, clusters)
             #last_clusters = clusters
             #if last_success or not dominated: # Could also keep a history of results
