@@ -11,7 +11,7 @@ from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, Bod
     get_holding_motion_gen, get_movable_collision_test
 from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, \
     Point, set_default_camera, stable_z, \
-    BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
+    BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, user_input, HideOutput
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
@@ -131,18 +131,21 @@ def load_world():
         floor = load_model('models/short_floor.urdf')
         sink = load_model(SINK_URDF, pose=Pose(Point(x=-0.5)))
         stove = load_model(STOVE_URDF, pose=Pose(Point(x=+0.5)))
-        block = load_model(BLOCK_URDF, fixed_base=False)
+        celery = load_model(BLOCK_URDF, fixed_base=False)
+        radish = load_model(SMALL_BLOCK_URDF, fixed_base=False)
         #cup = load_model('models/dinnerware/cup/cup_small.urdf',
         # Pose(Point(x=+0.5, y=+0.5, z=0.5)), fixed_base=False)
 
     body_names = {
         sink: 'sink',
         stove: 'stove',
-        block: 'celery',
+        celery: 'celery',
+        radish: 'radish',
     }
-    movable_bodies = [block]
+    movable_bodies = [celery, radish]
 
-    set_pose(block, Pose(Point(y=0.5, z=stable_z(block, floor))))
+    set_pose(celery, Pose(Point(y=0.5, z=stable_z(celery, floor))))
+    set_pose(radish, Pose(Point(y=-0.5, z=stable_z(radish, floor))))
     set_default_camera()
 
     return robot, body_names, movable_bodies

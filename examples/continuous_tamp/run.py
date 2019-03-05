@@ -195,7 +195,7 @@ def main():
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
                                  unit_efforts=False, effort_weight=0,
-                                 search_sample_ratio=0,
+                                 search_sample_ratio=1,
                                  #max_skeletons=None,
                                  visualize=False)
     elif args.algorithm == 'incremental':

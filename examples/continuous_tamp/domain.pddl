@@ -52,7 +52,7 @@
                        (AtConf ?q) (Holding ?b) (not (Unsafe))
                        (not (UnsafePose ?b ?p))
                        ;(forall (?b2 ?p2) ; TODO: makes incremental slow
-                       ;  (imply (AtPose ?b2 ?p2)) (CFree ?b ?p ?b2 ?p2)))
+                       ;  (imply (AtPose ?b2 ?p2) (CFree ?b ?p ?b2 ?p2)))
                   )
     :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
                  (not (Holding ?b))
