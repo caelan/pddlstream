@@ -36,6 +36,9 @@ class Result(object):
     def get_certified(self):
         raise NotImplementedError()
 
+    def get_components(self):
+        return [self]
+
     def get_tuple(self):
         raise NotImplementedError()
 

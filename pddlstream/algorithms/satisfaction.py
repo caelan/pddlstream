@@ -153,7 +153,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
-            domain.axioms[:] = create_disabled_axioms(queue)
+            domain.axioms[:] = create_disabled_axioms(queue, use_parameters=False)
             #dominated = are_domainated(last_clusters, clusters)
             #last_clusters = clusters
             #if last_success or not dominated: # Could also keep a history of results

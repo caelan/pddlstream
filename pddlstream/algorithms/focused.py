@@ -6,12 +6,12 @@ from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import SolutionStore, stream_plan_complexity
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
+from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
 from pddlstream.algorithms.reorder import separate_plan, reorder_stream_plan
 from pddlstream.algorithms.reorder_actions import reorder_combined_plan
-#from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
@@ -44,7 +44,7 @@ def partition_externals(externals, verbose=False):
     return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(),
-                  stream_info={}, action_info={}, synthesizers=[],
+                  stream_info={}, action_info={},
                   max_time=INF, max_iterations=INF, complexity_step=1,
                   bind=True, max_skeletons=INF,
                   unit_costs=False, success_cost=INF,
@@ -57,7 +57,6 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param action_info: a dictionary from stream name to ActionInfo for planning and execution
-    :param synthesizers: a list of StreamSynthesizer objects
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
     :param max_skeletons: the maximum number of plan skeletons to consider
@@ -90,7 +89,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
         unit_costs=unit_costs, unit_efforts=unit_efforts)
     store = SolutionStore(evaluations, max_time, success_cost, verbose)
     full_action_info = get_action_info(action_info)
-    load_stream_statistics(externals + synthesizers)
+    load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
         print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
@@ -99,7 +98,9 @@ def solve_focused(problem, constraints=PlanConstraints(),
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     use_skeletons = max_skeletons is not None
-    skeleton_queue = SkeletonQueue(store, domain)
+    #has_optimizers = bool(optimizers)
+    has_optimizers = False
+    skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
@@ -119,8 +120,13 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                       max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
+            original_axioms = domain.axioms[:]
+            if has_optimizers:
+                assert use_skeletons
+                domain.axioms.extend(create_disabled_axioms(skeleton_queue))
             combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
                                                          optimistic_solve_fn, complexity_limit, max_effort=max_effort)
+            domain.axioms[:] = original_axioms
         else:
             combined_plan, cost = INFEASIBLE, INF
         if action_info:
@@ -167,5 +173,5 @@ def solve_focused(problem, constraints=PlanConstraints(),
             process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=bind)
         sample_time += elapsed_time(start_time)
 
-    write_stream_statistics(externals + synthesizers, verbose)
+    write_stream_statistics(externals, verbose)
     return store.extract_solution()

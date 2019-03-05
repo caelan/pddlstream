@@ -95,7 +95,7 @@ def main(success_cost=0):
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
-    parser.add_argument('-o', '--optimizer', action='store_true', help='Uses the optimizers')
+    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     args = parser.parse_args()
@@ -108,8 +108,8 @@ def main(success_cost=0):
     tamp_problem = tight(n_blocks=2, n_goals=2)
     print(tamp_problem)
 
-    pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.optimizer,
-                                              use_optimizer=args.optimizer)
+    pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.gurobi,
+                                              use_optimizer=args.gurobi)
     stream_pddl, stream_map = pddlstream_problem[2:4]
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None

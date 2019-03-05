@@ -43,9 +43,9 @@ def apply_rules_to_streams(rules, streams):
         for stream in streams:
             if not isinstance(stream, Stream):
                 continue
-            for stream_fact in stream.certified:
-                if get_prefix(rule_fact) == get_prefix(stream_fact):
-                    mapping = get_mapping(get_args(rule_fact), get_args(stream_fact))
+            for certified_fact in stream.certified:
+                if get_prefix(rule_fact) == get_prefix(certified_fact):
+                    mapping = get_mapping(get_args(rule_fact), get_args(certified_fact))
                     new_facts = set(substitute_expression(rule.certified, mapping)) - set(stream.certified)
                     stream.certified = stream.certified + tuple(new_facts)
                     if new_facts and (stream in rules):

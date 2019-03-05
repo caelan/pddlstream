@@ -2,18 +2,28 @@ from pddlstream.algorithms.downward import make_axiom
 from pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.optimizer import UNSATISFIABLE
-from pddlstream.utils import grow_component, adjacent_from_edges, incoming_from_edges
+from pddlstream.language.conversion import get_args, substitute_expression
+from pddlstream.utils import grow_component, adjacent_from_edges, incoming_from_edges, get_mapping, user_input, flatten
 
 
-def create_disable_axiom(external_plan):
+def create_disable_axiom(external_plan, use_parameters=True):
     # TODO: express constraint mutexes upfront
+    # TODO: investigate why use_parameters=True hurts satisfaction
+    # TODO: better mix optimization and sampling by determining a splitting point
     stream_plan, _  = partition_external_plan(external_plan)
-    #print(stream_plan)
-    parameters = []
-    preconditions = [result.stream_fact for result in stream_plan]
-    derived = (UNSATISFIABLE,)
-    # TODO: add parameters in the event that the same skeleton can be blocked twice
-    return make_axiom(parameters, preconditions, derived)
+    #component_plan = stream_plan
+    component_plan = list(flatten(r.get_components() for r in stream_plan))
+    output_objects = set(flatten(r.output_objects for r in component_plan)) if use_parameters else set()
+    constraints = [result.stream_fact for result in component_plan]
+    free_objects = list({o for f in constraints for o in get_args(f)} & output_objects)
+    parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
+    param_from_obj = get_mapping(free_objects, parameters)
+    preconditions = substitute_expression(constraints, param_from_obj)
+    effect = (UNSATISFIABLE,)
+    axiom = make_axiom(parameters, preconditions, effect)
+    #axiom.dump()
+    #user_input('Continue?')
+    return axiom
 
 
 def compute_failed_indices(skeleton):
@@ -57,35 +67,35 @@ def current_failure_contributors(binding):
     return [failed_ancestors]
 
 
-def extract_disabled_clusters(queue):
+def extract_disabled_clusters(queue, full_cluster=False):
+    # TODO: include costs within clustering?
+    # What is goal is to be below a cost threshold?
+    # In satisfaction, no need because costs are fixed
+    # Make stream_facts for externals to prevent use of the same ones
+    # This ordering is why it's better to put likely to fail first
+    # Branch on the different possible binding outcomes
+    # TODO: consider a nonlinear version of this that evaluates out of order
+    # Need extra sampling effort to identify infeasible subsets
+    # Treat unevaluated optimistically, as in always satisfiable
+    # Need to keep streams with outputs to connect if downstream is infeasible
+    # TODO: prune streams that always have at least one success
+    # TODO: CSP identification of irreducible unsatisfiable subsets
+    # TODO: take into consideration if a stream is enumerated to mark as a hard failure
+    # Decompose down optimizers
+
     clusters = set()
     for skeleton in queue.skeletons:
-        # TODO: include costs within clustering?
-        # What is goal is to be below a cost threshold?
-        # In satisfaction, no need because costs are fixed
-        # Make stream_facts for externals to prevent use of the same ones
-        # This ordering is why it's better to put likely to fail first
-        # Branch on the different possible binding outcomes
-        # TODO: consider a nonlinear version of this that evaluates out of order
-        # Need extra sampling effort to identify infeasible subsets
-        # Treat unevaluated optimistically, as in always satisfiable
-        # Need to keep streams with outputs to connect if downstream is infeasible
-        # TODO: prune streams that always have at least one success
-        # TODO: CSP identification of irreducible unsatisfiable subsets
-        # TODO: take into consideration if a stream is enumerated to mark as a hard failure
-        # Decompose down optimizers
-
+        # TODO: consider all up to the most progress
         #cluster_plans = [skeleton.stream_plan]
         cluster_plans = get_stream_plan_components(skeleton.stream_plan)
         binding = skeleton.best_binding
         if not binding.is_bound():
             # TODO: block if cost sensitive to possibly get cheaper solutions
-            #cluster_plans = current_failed_cluster(binding)
-            cluster_plans = current_failure_contributors(binding)
+            cluster_plans = current_failed_cluster(binding) if full_cluster else current_failure_contributors(binding)
         for cluster_plan in cluster_plans:
             clusters.add(frozenset(cluster_plan))
     return clusters
 
-def create_disabled_axioms(queue, last_clusters=None):
+def create_disabled_axioms(queue, last_clusters=None, **kwargs):
     clusters = extract_disabled_clusters(queue)
-    return [create_disable_axiom(cluster) for cluster in clusters]
+    return [create_disable_axiom(cluster, **kwargs) for cluster in clusters]
