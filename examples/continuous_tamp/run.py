@@ -6,7 +6,7 @@ import argparse
 import cProfile
 import os
 import pstats
-
+import random
 import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
@@ -66,8 +66,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         'distance': distance_fn,
 
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
-        'posecollision': collision_test, # Redundant
-        'trajcollision': lambda *args: False,
     }
     if use_optimizer:
         # To avoid loading gurobi
@@ -144,14 +142,15 @@ def main():
 
     np.set_printoptions(precision=2)
     if args.deterministic:
-        seed = 0
-        np.random.seed(seed)
+        random.seed(seed=0)
+        np.random.seed(seed=0)
     print('Random seed:', get_random_seed())
 
-    if args.problem not in PROBLEMS:
+    problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
+    if args.problem not in problem_from_name:
         raise ValueError(args.problem)
     print('Problem:', args.problem)
-    problem_fn = PROBLEMS[args.problem]
+    problem_fn = problem_from_name[args.problem]
     tamp_problem = problem_fn()
     print(tamp_problem)
 

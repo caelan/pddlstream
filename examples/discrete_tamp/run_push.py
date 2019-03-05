@@ -11,9 +11,11 @@ from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, Fact
 from pddlstream.language.generator import from_test, from_list_fn
 from pddlstream.language.stream import WildOutput
-from pddlstream.utils import read
-from examples.discrete_tamp.run import DiscreteTAMPState, DiscreteTAMPProblem, apply_plan, GRASP, \
-    distance_fn, collision_test, get_length, get_difference, is_valid
+from pddlstream.utils import read, safe_zip
+from examples.discrete_tamp.run import apply_plan
+from examples.discrete_tamp.primitives import GRASP, is_valid, get_length, get_difference, collision_test, distance_fn, \
+    DiscreteTAMPState, DiscreteTAMPProblem
+from pddlstream.language.stream import StreamInfo
 from examples.discrete_tamp.viewer import MAX_COLS
 
 #array = np.array
@@ -54,10 +56,9 @@ def get_push_facts(poses, confs):
 def push_target_fn(p1, p2):
     poses = get_push_poses(p1, p2)
     confs = get_push_confs(poses)
-    facts = get_push_facts(poses, confs)
-    if 2 <= len(poses):
-        return WildOutput([], facts)
-    return WildOutput([tuple(confs)], facts)
+    if len(poses) == 2:
+        return WildOutput(values=[tuple(confs)])
+    return WildOutput(facts=get_push_facts(poses, confs))
 
 def push_direction_gen_fn(p1):
     # TODO: if any movable objects collide with the route, activate them by adding a predicate
@@ -66,9 +67,12 @@ def push_direction_gen_fn(p1):
         poses = get_push_poses(p1, p2)
         confs = get_push_confs(poses)
         #facts = get_push_facts(poses, confs)
-        facts = []
+        #facts = []
         #yield [], facts
-        yield WildOutput([(confs[0], poses[1], confs[1])], facts)
+        value = (confs[0], poses[1], confs[1])
+        yield WildOutput([value])
+
+##################################################
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
@@ -128,9 +132,13 @@ def main(focused=True, unit_costs=False):
     tamp_problem = problem_fn()
     print(tamp_problem)
 
+    stream_info = {
+        # TODO: be careful when negate=False. Might produce a colliding solution
+        'test-cfree': StreamInfo(negate=True),
+    }
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, unit_costs=unit_costs)
     else:
         solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
     print_solution(solution)

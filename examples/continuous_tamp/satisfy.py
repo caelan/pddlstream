@@ -9,7 +9,7 @@ import pstats
 import numpy as np
 from numpy import array
 
-from examples.continuous_tamp.primitives import get_random_seed, get_tight_problem, MOVE_COST
+from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST
 from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
@@ -105,7 +105,7 @@ def main(success_cost=0):
     if args.deterministic:
         set_deterministic()
     print('Random seed:', get_random_seed())
-    tamp_problem = get_tight_problem(n_blocks=2, n_goals=2)
+    tamp_problem = tight(n_blocks=2, n_goals=2)
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.optimizer,

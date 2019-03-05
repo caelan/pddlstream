@@ -9,7 +9,7 @@ import numpy as np
 from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
-    get_tight_problem, draw_state, \
+    tight, draw_state, \
     get_random_seed, TAMPState
 from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
 from examples.discrete_tamp.viewer import COLORS
@@ -130,7 +130,7 @@ def main(focused=False, deterministic=False, unit_costs=True):
         np.random.seed(seed)
     print('Seed:', get_random_seed())
 
-    problem_fn = get_tight_problem  # get_tight_problem | get_blocked_problem
+    problem_fn = tight  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 

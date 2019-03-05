@@ -126,7 +126,7 @@ REGIONS = {
     REGION_NAME: (5, 10),
 }
 
-def get_tight_problem(n_blocks=2, n_goals=2):
+def tight(n_blocks=2, n_goals=2):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
@@ -138,7 +138,7 @@ def get_tight_problem(n_blocks=2, n_goals=2):
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 
-def get_blocked_problem(n_blocks=2, deterministic=True):
+def blocked(n_blocks=3, deterministic=True):
     blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     if deterministic:
         poses = [np.zeros(2), np.array([7.5, 0])]
@@ -156,10 +156,10 @@ def get_blocked_problem(n_blocks=2, deterministic=True):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-PROBLEMS = {
-    'tight': get_tight_problem,
-    'blocked': get_blocked_problem,
-}
+PROBLEMS = [
+    tight,
+    blocked,
+]
 
 ##################################################
 
