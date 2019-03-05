@@ -1,29 +1,25 @@
 from __future__ import print_function
 
+import time
 from collections import Counter
 
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate, make_axiom
+from pddlstream.algorithms.disable_skeleton import create_disable_axiom, extract_disabled_clusters
+from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
 from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-#from pddlstream.algorithms.skeleton import SkeletonQueue
+# from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import is_parameter, get_length, partition_facts, get_prefix
+from pddlstream.language.constants import is_parameter, get_length, partition_facts
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
+from pddlstream.language.function import Function
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import UNSATISFIABLE
-from pddlstream.language.stream import Stream
-from pddlstream.language.function import Function, Predicate
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
+from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
-from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.utils import get_connected_components, grow_component, adjacent_from_edges, incoming_from_edges
-
-import time
 
 BIND_ACTION = 'bindings'
 
@@ -85,88 +81,21 @@ def bindings_from_plan(plan_skeleton, action_plan):
         bindings.update(get_mapping(parameter_names, args2))
     return bindings
 
-##################################################
-
-def create_disable_axiom(external_plan):
-    # TODO: express constraint mutexes upfront
-    stream_plan, _  = partition_external_plan(external_plan)
-    #print(stream_plan)
-    parameters = []
-    preconditions = [result.stream_fact for result in stream_plan]
-    derived = (UNSATISFIABLE,)
-    # TODO: add parameters in the event that the same skeleton can be blocked twice
-    return make_axiom(parameters, preconditions, derived)
-
-def compute_failed_indices(skeleton):
-    failed_indices = set()
-    for binding in skeleton.root.post_order():
-        result = binding.result
-        if (result is not None) and result.instance.num_calls and (not result.instance.successes):
-            failed_indices.add(binding.index)
-            #assert not binding.children
-    return sorted(failed_indices)
-
-def current_failed_cluster(binding):
-    assert 1 <= binding.attempts
-    failed_result = binding.skeleton.stream_plan[binding.index]
-    successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
-                          if i not in binding.stream_indices]
-    stream_plan = successful_results + [failed_result]
-    partial_orders = get_partial_orders(stream_plan)
-    # All connected components
-    #return get_connected_components(stream_plan, partial_orders)
-    # Only the failed connected component
-    return [grow_component([failed_result], adjacent_from_edges(partial_orders))]
-
-def current_failure_contributors(binding):
-    # Alternatively, find unsuccessful streams in cluster and add ancestors
-    assert 1 <= binding.attempts
-    failed_result = binding.skeleton.stream_plan[binding.index]
-    failed_indices = compute_failed_indices(binding.skeleton)  # Use last index?
-    partial_orders = get_partial_orders(binding.skeleton.stream_plan)
-    incoming = incoming_from_edges(partial_orders)
-    failed_ancestors = grow_component([failed_result], incoming)
-    for index in reversed(failed_indices):
-        if index == binding.index:
-            continue
-        result = binding.skeleton.stream_plan[index]
-        ancestors = grow_component([result], incoming)
-        if ancestors & failed_ancestors:
-            failed_ancestors.update(ancestors)
-    return [failed_ancestors]
-
-def extract_disabled_clusters(queue):
-    clusters = set()
-    for skeleton in queue.skeletons:
-        # TODO: include costs within clustering?
-        # What is goal is to be below a cost threshold?
-        # In satisfaction, no need because costs are fixed
-        # Make stream_facts for externals to prevent use of the same ones
-        # This ordering is why it's better to put likely to fail first
-        # Branch on the different possible binding outcomes
-        # TODO: consider a nonlinear version of this that evaluates out of order
-        # Need extra sampling effort to identify infeasible subsets
-        # Treat unevaluated optimistically, as in always satisfiable
-        # Need to keep streams with outputs to connect if downstream is infeasible
-        # TODO: prune streams that always have at least one success
-        # TODO: CSP identification of irreducible unsatisfiable subsets
-        # TODO: take into consideration if a stream is enumerated to mark as a hard failure
-        # Decompose down optimizers
-
-        #cluster_plans = [skeleton.stream_plan]
-        partial_orders = get_partial_orders(skeleton.stream_plan)
-        cluster_plans = get_connected_components(skeleton.stream_plan, partial_orders)
-        binding = skeleton.best_binding
-        if not binding.is_bound():
-            # TODO: block if cost sensitive to possibly get cheaper solutions
-            #cluster_plans = current_failed_cluster(binding)
-            cluster_plans = current_failure_contributors(binding)
-        for cluster_plan in cluster_plans:
-            clusters.add(frozenset(cluster_plan))
-    return clusters
-
 def are_domainated(clusters1, clusters2):
     return all(any(c1 <= c2 for c2 in clusters2) for c1 in clusters1)
+
+def dump_assignment(solution):
+    bindings, cost, evaluations = solution
+    print()
+    print('Solved: {}'.format(bindings is not None))
+    print('Cost: {}'.format(cost))
+    print('Total facts: {}'.format(len(evaluations)))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
+    if bindings is None:
+        return
+    print('Assignments:')
+    for param in sorted(bindings):
+        print('{} = {}'.format(param, str_from_object(bindings[param])))
 
 ##################################################
 
@@ -212,8 +141,9 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     store = SolutionStore(evaluations, max_time=max_time, success_cost=success_cost, verbose=verbose)
     queue = SkeletonQueue(store, domain, disable=False)
     num_iterations = search_time = sample_time = 0
-    last_clusters = set()
-    last_success = True
+    planner = 'ff-astar'  # TODO: toggle within reschedule_stream_plan
+    #last_clusters = set()
+    #last_success = True
     while not store.is_terminated():
         num_iterations += 1
         start_time = time.time()
@@ -225,9 +155,8 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
         if len(queue.skeletons) < max_skeletons:
             clusters = extract_disabled_clusters(queue)
             domain.axioms[:] = [create_disable_axiom(cluster) for cluster in clusters]
-            dominated = are_domainated(last_clusters, clusters)
-            last_clusters = clusters
-            planner = 'ff-astar' # TODO: toggle within reschedule_stream_plan
+            #dominated = are_domainated(last_clusters, clusters)
+            #last_clusters = clusters
             #if last_success or not dominated: # Could also keep a history of results
             stream_plan = reschedule_stream_plan(init_evaluations, goal_facts, domain, stream_results,
                                                  unique_binding=True, unsatisfiable=True,
@@ -257,19 +186,3 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     action_plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
     bindings = bindings_from_plan(plan_skeleton, action_plan)
     return bindings, cost, facts
-
-##################################################
-
-def dump_assignment(solution):
-    bindings, cost, evaluations = solution
-    print()
-    print('Solved: {}'.format(bindings is not None))
-    print('Cost: {}'.format(cost))
-    print('Total facts: {}'.format(len(evaluations)))
-    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
-    if bindings is None:
-        return
-    print('Assignments:')
-    for param in sorted(bindings):
-        print('{} = {}'.format(param, str_from_object(bindings[param])))
-

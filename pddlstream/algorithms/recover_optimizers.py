@@ -1,13 +1,13 @@
 import copy
 
 from pddlstream.algorithms.common import INIT_EVALUATION
-from pddlstream.algorithms.reorder import get_partial_orders
+from pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import get_prefix, is_plan, get_args
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import OPTIMIZER_STREAMS, OptimizerStream, VariableStream, ConstraintStream
-from pddlstream.utils import neighbors_from_orders, get_mapping, get_connected_components
+from pddlstream.utils import neighbors_from_orders, get_mapping
 
 CLUSTER = True
 
@@ -30,11 +30,7 @@ def combine_optimizer_plan(stream_plan, functions):
     function_plan = list(filter(lambda r: get_prefix(r.instance.external.head)
                                           in optimizer.objectives, functions))
     external_plan = stream_plan + function_plan
-    if CLUSTER:
-        partial_orders = get_partial_orders(external_plan)
-        cluster_plans = get_connected_components(external_plan, partial_orders)
-    else:
-        cluster_plans = [external_plan]
+    cluster_plans = get_stream_plan_components(external_plan) if CLUSTER else [external_plan]
     optimizer_plan = []
     for cluster_plan in cluster_plans:
         if all(isinstance(r, FunctionResult) for r in cluster_plan):

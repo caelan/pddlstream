@@ -3,7 +3,7 @@ from collections import namedtuple, deque
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort
+from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components
 
 
 # TODO: should I use the product of all future probabilities?
@@ -21,6 +21,12 @@ def get_partial_orders(stream_plan, init_facts=set()):
                     (set(stream1.output_objects) & set(stream2.instance.input_objects)):
                 partial_orders.add((stream1, stream2))
     return partial_orders
+
+def get_stream_plan_components(external_plan):
+    partial_orders = get_partial_orders(external_plan)
+    return get_connected_components(external_plan, partial_orders)
+
+##################################################
 
 # Extract streams required to do one action
 # Compute streams that strongly depend on these. Evaluate these.
