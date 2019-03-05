@@ -3,7 +3,7 @@ from heapq import heappop, heappush
 
 from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, plan_preimage, fact_from_fd
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
-from pddlstream.algorithms.scheduling.negative import get_negative_predicates, recover_negative_axioms, convert_negative
+from pddlstream.algorithms.scheduling.negative import recover_negative_axioms, convert_negative
 from pddlstream.algorithms.scheduling.recover_functions import compute_function_plan
 from pddlstream.language.constants import get_prefix, EQ
 
@@ -52,6 +52,18 @@ def get_achieving_streams(evaluations, stream_results, max_effort=INF, **effort_
     del node_from_atom[NULL_COND]
     return node_from_atom
 
+def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
+    opt_evaluations = set(evaluations)
+    for result in stream_results:
+        assert(not result.instance.disabled)
+        assert(not result.instance.enumerated)
+        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
+        assert(domain <= opt_evaluations)
+        opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
+    node_from_atom = get_achieving_streams(evaluations, stream_results)
+    result_from_evaluation = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()
+                              if check_effort(n.effort, max_effort)}
+    return result_from_evaluation
 
 def extract_stream_plan(node_from_atom, target_facts, stream_plan):
     # TODO: prune with rules
@@ -68,19 +80,6 @@ def extract_stream_plan(node_from_atom, target_facts, stream_plan):
 
 ##################################################
 
-def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
-    opt_evaluations = set(evaluations)
-    for result in stream_results:
-        assert(not result.instance.disabled)
-        assert(not result.instance.enumerated)
-        domain = set(map(evaluation_from_fact, result.instance.get_domain()))
-        assert(domain <= opt_evaluations)
-        opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))
-    node_from_atom = get_achieving_streams(evaluations, stream_results)
-    result_from_evaluation = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()
-                              if check_effort(n.effort, max_effort)}
-    return result_from_evaluation
-
 def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_expression, domain, node_from_atom,
                         action_plan, axiom_plans, negative):
     from pddlstream.algorithms.scheduling.postprocess import postprocess_stream_plan
@@ -91,8 +90,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
     real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
-    negative_from_name = get_negative_predicates(negative)
-
+    negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
     real_states, combined_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_plan = compute_function_plan(opt_evaluations, action_plan)

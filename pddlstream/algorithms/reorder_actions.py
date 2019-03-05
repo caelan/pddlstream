@@ -1,7 +1,7 @@
 from pddlstream.algorithms.downward import fd_from_fact, substitute_derived, is_applicable, apply_action, \
     fd_from_evaluation, task_from_domain_problem, get_problem, get_action_instances
 from pddlstream.algorithms.reorder import separate_plan, get_stream_stats, dynamic_programming
-from pddlstream.algorithms.scheduling.recover_axioms import instantiate_axioms, get_achieving_axioms, extract_axioms
+from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.language.constants import get_prefix, EQ, is_plan, And
 from pddlstream.language.conversion import evaluation_from_fact
@@ -23,6 +23,18 @@ def get_stream_instances(stream_plan):
         stream_instances.append(instance)
     return stream_instances
 
+def instantiate_axioms(model, static_facts, fluent_facts, axiom_remap={}):
+    import pddl
+    instantiated_axioms = []
+    for atom in model:
+        if isinstance(atom.predicate, pddl.Axiom):
+            axiom = axiom_remap.get(atom.predicate, atom.predicate)
+            variable_mapping = dict([(par.name, arg)
+                                     for par, arg in zip(axiom.parameters, atom.args)])
+            inst_axiom = axiom.instantiate(variable_mapping, static_facts, fluent_facts)
+            if inst_axiom:
+                instantiated_axioms.append(inst_axiom)
+    return instantiated_axioms
 
 def replace_derived(task, negative_init, action_instances):
     import pddl_to_prolog
@@ -58,7 +70,6 @@ def replace_derived(task, negative_init, action_instances):
         apply_action(task.init, instance)
     task.actions = original_actions
     task.init = original_init
-
 
 def get_combined_orders(evaluations, stream_plan, action_plan, domain):
     if not is_plan(action_plan):

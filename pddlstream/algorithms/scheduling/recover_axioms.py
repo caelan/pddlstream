@@ -1,8 +1,8 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import get_literals, get_goal_instance, plan_preimage, apply_action, \
-    get_derived_predicates, normalize_axioms, literal_holds, is_literal
-from pddlstream.algorithms.scheduling.successor_generator import SuccessorGenerator, get_fluents
+from pddlstream.algorithms.downward import get_literals, get_goal_instance, apply_action, \
+    get_derived_predicates, literal_holds
+from pddlstream.algorithms.scheduling.successor_generator import get_fluents
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
 
@@ -47,19 +47,6 @@ def get_necessary_axioms(conditions, axioms, negative_from_name):
     return axiom_from_action
 
 ##################################################
-
-def instantiate_axioms(model, static_facts, fluent_facts, axiom_remap={}):
-    import pddl
-    instantiated_axioms = []
-    for atom in model:
-        if isinstance(atom.predicate, pddl.Axiom):
-            axiom = axiom_remap.get(atom.predicate, atom.predicate)
-            variable_mapping = dict([(par.name, arg)
-                                     for par, arg in zip(axiom.parameters, atom.args)])
-            inst_axiom = axiom.instantiate(variable_mapping, static_facts, fluent_facts)
-            if inst_axiom:
-                instantiated_axioms.append(inst_axiom)
-    return instantiated_axioms
 
 def instantiate_necessary_axioms(model, static_facts, fluent_facts, axiom_remap={}):
     import pddl
@@ -138,22 +125,18 @@ def is_useful_atom(atom, conditions_from_predicate):
 def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
     import axiom_rules
     # TODO: filter instantiated_axioms that aren't applicable?
-    derived_predicates = {instance.effect.predicate for instance in instantiated_axioms}
-    derived_goals = {l for l in goals if l.predicate in derived_predicates}
-    if not derived_goals:
-        return []
     with Verbose(False):
         helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
-            [], instantiated_axioms, derived_goals)
+            [], instantiated_axioms, goals)
     axiom_init = set(axiom_init)
     axiom_effects = {axiom.effect for axiom in helpful_axioms}
     #assert len(axiom_effects) == len(axiom_init)
-    for pre in list(derived_goals) + list(axiom_effects):
+    for pre in list(goals) + list(axiom_effects):
         if pre.positive() not in axiom_init:
             axiom_init.add(pre.positive().negate())
     axiom_from_atom = get_achieving_axioms(init | axiom_init, helpful_axioms, negative_from_name)
     axiom_plan = []  # Could always add all conditions
-    success = extract_axioms(axiom_from_atom, derived_goals, axiom_plan, negative_from_name)
+    success = extract_axioms(axiom_from_atom, goals, axiom_plan, negative_from_name)
     if not success:
         print('Warning! Could not extract an axiom plan')
         #return None
@@ -164,8 +147,12 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
     import build_model
     import instantiate
     # TODO: only reinstantiate the negative axioms
+    if not negative_from_name:
+        return []
     axioms_from_name = get_derived_predicates(task.axioms)
     derived_goals = {l for l in goals if l.predicate in axioms_from_name}
+    assert all(literal_holds(task.init, l) # or (l.predicate in negative_from_name)
+               for l in set(goals) - derived_goals)
     axiom_from_action = get_necessary_axioms(derived_goals, task.axioms, negative_from_name)
     if not axiom_from_action:
         return []
@@ -196,55 +183,40 @@ def extract_axiom_plan(task, goals, negative_from_name, static_state=set()):
 
 ##################################################
 
-def recover_axioms_plans_old(instantiated, action_instances):
-    state = set(instantiated.task.init)
-    axiom_plans = []
-    generator = SuccessorGenerator(instantiated, action_instances)
-    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
-        # TODO: apply all axiom_instances unaffected by negative conditions
-        axiom_instances = generator.get_successors(state)
-        #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
-        #                                         for l in ax.condition), applicable_axioms))
-        # Only instantiate if preimage has goal
-        preimage = list(plan_preimage([action], []))
-        axiom_plan = extraction_helper(state, axiom_instances, preimage)
-        assert axiom_plan is not None
-        axiom_plans.append(axiom_plan)
-        apply_action(state, action)
-    return axiom_plans
-
-##################################################
-
 def mark_axiom(queue, remaining_from_axiom, axiom, axiom_from_atom):
     if not remaining_from_axiom[id(axiom)]:
         axiom_from_atom[axiom.effect].append(axiom)
         queue.append(axiom.effect)
 
-def mark_iteration(state, fluents, unprocessed_from_atom, fluents_from_axiom, remaining_from_axiom, static_axioms):
+def mark_iteration(state, axioms_from_literal, fluents_from_axiom, remaining_from_axiom, static_axioms):
     axioms_from_atom = defaultdict(list)
-    for atom in fluents:
-        if literal_holds(state, atom):  # TODO: only check things that are false
-            axioms_from_atom[atom].append(None)
-        else:
-            axioms_from_atom[atom.negate()].append(None)
+    for literal in axioms_from_literal:
+        if literal_holds(state, literal):
+            axioms_from_atom[literal].append(None)
     queue = deque(axioms_from_atom.keys())
     for axiom in static_axioms:
         mark_axiom(queue, remaining_from_axiom, axiom, axioms_from_atom)
     while queue:
-        atom = queue.popleft()
-        for axiom in unprocessed_from_atom[atom]:
+        literal = queue.popleft()
+        for axiom in axioms_from_literal[literal]:
             remaining_from_axiom[id(axiom)] -= 1
             mark_axiom(queue, remaining_from_axiom, axiom, axioms_from_atom)
-    for atom, axes in axioms_from_atom.items():
-        for axiom in axes:
+    for literal, axioms in axioms_from_atom.items():
+        for axiom in axioms:
             if axiom is not None:
                 remaining_from_axiom[id(axiom)] = fluents_from_axiom[id(axiom)]
+    # TODO: still some overhead here
     # TODO: could process these layer by layer instead
-    return {atom: axes[0] for atom, axes in axioms_from_atom.items()}
+    return {atom: axioms[0] for atom, axioms in axioms_from_atom.items()}
 
 def recover_axioms_plans(instantiated, action_instances):
-    normalized_axioms, axiom_init = normalize_axioms(instantiated)
-    state = set(instantiated.task.init + axiom_init)
+    #import axiom_rules
+    #with Verbose(False):
+    #    normalized_axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(
+    #        [], instantiated.axioms, instantiated.goal_list)
+    #state = set(instantiated.task.init + axiom_init)
+    normalized_axioms = instantiated.axioms # TODO: ignoring negated because cannot reinstantiate correctly
+    state = set(instantiated.task.init)
     fluents = get_fluents(state, action_instances)
 
     unprocessed_from_atom = defaultdict(list)
@@ -268,7 +240,7 @@ def recover_axioms_plans(instantiated, action_instances):
 
     axiom_plans = []
     for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
-        axiom_from_atom = mark_iteration(state, fluents, unprocessed_from_atom,
+        axiom_from_atom = mark_iteration(state, unprocessed_from_atom,
                                          fluents_from_axiom, remaining_from_axiom, static_axioms)
         preimage = []
         for literal in action.precondition:

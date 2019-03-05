@@ -1,21 +1,13 @@
 from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, apply_action, \
-    get_goal_instance, GOAL_NAME, get_fluents, get_derived_predicates
+    GOAL_NAME, get_derived_predicates, literal_holds
 from pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
+from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_action_instances, reinstantiate_axiom_instances
 from pddlstream.algorithms.scheduling.utils import simplify_conditional_effects
 from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.language.function import Predicate, PredicateResult
 from pddlstream.language.stream import Stream
-from pddlstream.utils import safe_zip, MockSet
+from pddlstream.utils import safe_zip
 
-
-def get_negative_predicates(negative):
-    negative_from_name = {external.name: external for external in negative
-                          if isinstance(external, Predicate)}
-    negative_from_name.update({external.blocked_predicate: external for external in negative
-                               if isinstance(external, Stream) and external.is_negated()})
-    return negative_from_name
-
-##################################################
 
 def convert_negative_predicate(negative, literal, negative_plan):
     input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
@@ -65,69 +57,11 @@ def convert_negative(negative_preimage, negative_from_name, step_from_atom, real
 
 ##################################################
 
-# def reinstantiate_action(instance):
-#     # Recomputes the instances with without any pruned preconditions
-#     import pddl
-#     action = instance.action
-#     var_mapping = instance.var_mapping
-#     init_facts = set()
-#     fluent_facts = MockSet()
-#     precondition = []
-#     try:
-#         action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
-#     except pddl.conditions.Impossible:
-#         return None
-#     effects = []
-#     for eff, effect_mapping in instance.effect_mappings:
-#         eff._instantiate(effect_mapping, init_facts, fluent_facts, effects)
-#     return pddl.PropositionalAction(instance.name, precondition, effects, instance.cost, action, var_mapping)
-
-def reinstantiate_action_instances(task, old_instances):
-    import pddl
-    import instantiate
-    # Recomputes the instances with without any pruned preconditions
-    fluents = get_fluents(task)
-    function_assignments = {fact.fluent: fact.expression for fact in task.init
-                            if isinstance(fact, pddl.f_expression.FunctionAssignment)}
-    type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    init_facts = set()
-    fluent_facts = MockSet()
-    new_instances = []
-    state = set(task.init)
-    for old_instance in old_instances:
-        # TODO: better way of instantiating conditional effects (when not fluent)
-        #new_instance = reinstantiate_action(old_instance)
-        predicate_to_atoms = instantiate.get_atoms_by_predicate(
-            {a for a in state if isinstance(a, pddl.Atom) and (a.predicate in fluents)})
-        action = old_instance.action
-        var_mapping = old_instance.var_mapping
-        new_instance = action.instantiate(var_mapping, init_facts, fluent_facts, type_to_objects,
-                                          task.use_min_cost_metric, function_assignments, predicate_to_atoms)
-        assert (new_instance is not None)
-        new_instances.append(new_instance)
-        apply_action(state, new_instance)
-    new_instances.append(get_goal_instance(task.goal)) # TODO: move this?
-    return new_instances
-
-def reinstantiate_axiom_instances(old_instances):
-    init_facts = set()
-    fluent_facts = MockSet()
-    new_instances = []
-    for old_instance in old_instances:
-        axiom = old_instance.axiom
-        var_mapping = old_instance.var_mapping
-        new_instance = axiom.instantiate(var_mapping, init_facts, fluent_facts)
-        assert (new_instance is not None)
-        new_instances.append(new_instance)
-    return new_instances
-
-##################################################
-
 def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name):
     action_plan = reinstantiate_action_instances(opt_task, action_plan)
     simplify_conditional_effects(opt_task, action_plan, negative_from_name)
     axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
-    axioms_from_name = get_derived_predicates(opt_task.axioms)
+    #axioms_from_name = get_derived_predicates(opt_task.axioms)
 
     # TODO: could instead just accumulate difference between real and opt
     opt_task.init = set(opt_task.init)
@@ -138,14 +72,11 @@ def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negat
         #conditions = [l for l in preimage if (l.predicate not in axioms_from_name) and (l.predicate not in negative_from_name)]
         #assert conditions_hold(opt_task.init, conditions)
         # TODO: only add derived facts and negative facts to fluent state to make normalizing easier
-        if negative_from_name:
-            new_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name,
-                                                static_state=opt_task.init)
-                                                #static_state=real_states[-1])
-        else:
-            new_axiom_plan = []
-        assert new_axiom_plan is not None
-        preimage_plan.extend(new_axiom_plan + axiom_plan + [action_instance])
+        negative_axiom_plan = extract_axiom_plan(opt_task, preimage, negative_from_name,
+                                                 static_state=opt_task.init)
+                                                 #static_state=real_states[-1])
+        assert negative_axiom_plan is not None
+        preimage_plan.extend(negative_axiom_plan + axiom_plan + [action_instance])
         if action_instance.name != GOAL_NAME:
             apply_action(opt_task.init, action_instance)
             real_states.append(set(real_states[-1]))

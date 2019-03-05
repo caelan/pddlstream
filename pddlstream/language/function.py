@@ -158,6 +158,7 @@ class Predicate(Function):
     def __init__(self, *args):
         super(Predicate, self).__init__(*args)
         assert(self.info.opt_fn is None)
+        self.blocked_predicate = self.name
     @property
     def predicate(self):
         return self.function
