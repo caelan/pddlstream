@@ -3,7 +3,7 @@ from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.constants import is_plan
-from pddlstream.utils import INF, safe_zip, apply_mapping
+from pddlstream.utils import INF, safe_zip, apply_mapping, flatten
 
 # TODO: disabled isn't quite like complexity. Stream instances below the complexity threshold might be called again
 # Well actually, if this was true wouldn't it have already been sampled on a lower level?
@@ -27,7 +27,8 @@ def bind_action_plan(action_plan, mapping):
     return [(name, apply_mapping(args, mapping)) for name, args in action_plan]
 
 def get_free_objects(stream_plan):
-    return {out for result in stream_plan if isinstance(result, StreamResult) for out in result.output_objects}
+    return set(flatten(result.output_objects for result in stream_plan
+                       if isinstance(result, StreamResult)))
 
 ##################################################
 
@@ -47,11 +48,15 @@ def reenable_disabled(evaluations, domain, disabled):
 def process_instance(store, domain, instance, disable=True):
     if instance.enumerated:
         return []
+    evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
-        instance.disable(store.evaluations, domain)
+        instance.disable(evaluations, domain)
     for result in new_results:
-        add_certified(store.evaluations, result) # TODO: only add if the fact is actually new?
+        #add_certified(evaluations, result)  # TODO: only add if the fact is actually new?
+        complexity = INF if result.external.is_special() or not disable else \
+            result.compute_complexity(store.evaluations)
+        add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
         remove_blocked(store.evaluations, instance, new_results)
     add_facts(store.evaluations, new_facts, result=None, complexity=0) # TODO: record the instance

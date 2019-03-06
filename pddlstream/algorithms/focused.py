@@ -98,8 +98,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     use_skeletons = max_skeletons is not None
-    #has_optimizers = bool(optimizers)
-    has_optimizers = False
+    has_optimizers = bool(optimizers)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):

@@ -39,6 +39,9 @@ class Result(object):
     def get_components(self):
         return [self]
 
+    def get_unsatisfiable(self):
+        return [self.get_components()]
+
     def get_tuple(self):
         raise NotImplementedError()
 
@@ -171,8 +174,12 @@ class External(Performance):
             print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
+    def is_fluent(self):
+        raise NotImplementedError()
     def is_negated(self):
         raise NotImplementedError()
+    def is_special(self):
+        return False
     def get_complexity(self, num_calls):
         raise NotImplementedError()
     def get_instance(self, input_objects):

@@ -1,19 +1,35 @@
 from pddlstream.algorithms.downward import make_axiom
+from pddlstream.algorithms.disabled import get_free_objects
+
 from pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.optimizer import UNSATISFIABLE
+from pddlstream.language.optimizer import UNSATISFIABLE, VariableStream
 from pddlstream.language.conversion import get_args, substitute_expression
 from pddlstream.utils import grow_component, adjacent_from_edges, incoming_from_edges, get_mapping, user_input, flatten
 
+from collections import Counter
+
+def increase_free_variables(stream_plan):
+    # TODO: could decrease the number of variables if a cluster is removed
+    instance_counts = Counter(r.instance for r in stream_plan)
+    for instance, num in instance_counts.items():
+        # TODO: wait until the full plan has failed (accomplished through levels)
+        if isinstance(instance, VariableStream):
+            instance.num_optimistic = max(instance.num_optimistic, num + 1)
 
 def create_disable_axiom(external_plan, use_parameters=True):
     # TODO: express constraint mutexes upfront
     # TODO: investigate why use_parameters=True hurts satisfaction
     # TODO: better mix optimization and sampling by determining a splitting point
+    # TODO: be careful about the shared objects as parameters
+    # TODO: need to block functions & predicates
     stream_plan, _  = partition_external_plan(external_plan)
+    assert stream_plan
     #component_plan = stream_plan
-    component_plan = list(flatten(r.get_components() for r in stream_plan))
-    output_objects = set(flatten(r.output_objects for r in component_plan)) if use_parameters else set()
+    [unsatisfiable] = stream_plan[-1].get_unsatisfiable()
+    component_plan = list(flatten(r.get_components() for r in stream_plan[:-1])) + list(unsatisfiable)
+    increase_free_variables(component_plan)
+    output_objects = get_free_objects(component_plan) if use_parameters else set()
     constraints = [result.stream_fact for result in component_plan]
     free_objects = list({o for f in constraints for o in get_args(f)} & output_objects)
     parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
@@ -81,9 +97,9 @@ def extract_disabled_clusters(queue, full_cluster=False):
     # TODO: prune streams that always have at least one success
     # TODO: CSP identification of irreducible unsatisfiable subsets
     # TODO: take into consideration if a stream is enumerated to mark as a hard failure
-    # Decompose down optimizers
 
-    clusters = set()
+    #clusters = set()
+    ordered_clusters = []
     for skeleton in queue.skeletons:
         # TODO: consider all up to the most progress
         #cluster_plans = [skeleton.stream_plan]
@@ -93,8 +109,10 @@ def extract_disabled_clusters(queue, full_cluster=False):
             # TODO: block if cost sensitive to possibly get cheaper solutions
             cluster_plans = current_failed_cluster(binding) if full_cluster else current_failure_contributors(binding)
         for cluster_plan in cluster_plans:
-            clusters.add(frozenset(cluster_plan))
-    return clusters
+            ordered_clusters.append(cluster_plan)
+            #clusters.add(frozenset(cluster_plan))
+    # TODO: could instead prune at this stage
+    return ordered_clusters
 
 def create_disabled_axioms(queue, last_clusters=None, **kwargs):
     clusters = extract_disabled_clusters(queue)

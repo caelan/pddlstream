@@ -14,14 +14,13 @@ from pddlstream.algorithms.reorder import get_stream_plan_components
 
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
-OPTIMIZER_AXIOM = True
 # TODO: revert to my previous specification where streams can simply be fused
 
 class OptimizerOutput(object):
     def __init__(self, assignments=[], facts=[], infeasible=[]): # infeasible=None
-        self.assignments = assignments
-        self.facts = facts
-        self.infeasible = infeasible # frozenset
+        self.assignments = list(assignments)
+        self.facts = list(facts)
+        self.infeasible = list(map(frozenset, infeasible))
     def to_wild(self):
         return WildOutput(self.assignments, self.facts)
     def __bool__(self):
@@ -66,6 +65,12 @@ def get_effort_fn(optimizer_name):
             return INF
         return 1
     return effort_fn
+
+def prune_dominated(collections):
+    for i, collection1 in enumerate(collections):
+        if all((i == j) or not (collection2 <= collection1)
+               for j, collection2 in enumerate(collections)):
+            yield collection1
 
 ##################################################
 
@@ -160,13 +165,15 @@ UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
 class OptimizerResult(StreamResult):
     def get_components(self):
         return self.external.stream_plan
+    def get_unsatisfiable(self):
+        return self.instance.get_unsatisfiable()
 
 class OptimizerInstance(StreamInstance):
     _Result = OptimizerResult
     def __init__(self, stream, input_objects, fluent_facts):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
         all_constraints = frozenset(range(len(self.external.certified)))
-        self.infeasible = [all_constraints]
+        self.infeasible = {all_constraints}
         # TODO: connected components on facts
         # TODO: cluster connected components in the infeasible set
         # TODO: compute things dependent on a stream and treat like an optimizer
@@ -176,44 +183,23 @@ class OptimizerInstance(StreamInstance):
         output, self.enumerated = get_next(self._generator, default=[])
         if not isinstance(output, OptimizerOutput):
             output = OptimizerOutput(assignments=output)
-        self.infeasible.extend(output.infeasible)
+        self.infeasible.update(output.infeasible)
+        # TODO: instead replace each time
         return output.to_wild()
     def disable(self, evaluations, domain):
-        #assert not self.disabled
-        super(StreamInstance, self).disable(evaluations, domain) # StreamInstance instead of OptimizerInstance
-        # TODO: re-enable?
+        raise RuntimeError()
         # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
-        #index = len(self.external.disabled_instances)
-        #self.external.disabled_instances.append(self)
-        instance_counts = Counter(r.instance for r in self.external.stream_plan
-                                  if isinstance(r.external, VariableStream))
-        for instance, num in instance_counts.items(): # TODO: wait until the full plan has failed
-            instance.num_optimistic = max(instance.num_optimistic, num + 1)
-        if OPTIMIZER_AXIOM:
-            from pddlstream.algorithms.disable_skeleton import create_disable_axiom
-            for results in self._get_unsatisfiable():
-                # TODO: be careful about the shared objects as parameters
-                # TODO: need to block functions & predicates
-                domain.axioms.append(create_disable_axiom(results))
-    def _get_unsatisfiable(self):
-        if not self.infeasible:
-            yield set(self.external.stream_plan)
+    def get_unsatisfiable(self):
         constraints = substitute_expression(self.external.certified, self.external.mapping)
         index_from_constraint = {c: i for i, c in enumerate(constraints)}
-        # TODO: just prune any subsets
-        #sets = []
-        #for s1 in self.infeasible:
-        #    for s2 in self.infeasible:
-        #    else:
-        #        sets.append(s1)
         # TODO: compute connected components
         result_from_index = defaultdict(set)
         for result in self.external.stream_plan:
             for fact in result.get_certified():
                 if fact in index_from_constraint:
                     result_from_index[index_from_constraint[fact]].add(result)
-        for cluster in self.infeasible:
-            yield {result for index in cluster for result in result_from_index[index]}
+        return [{result for index in cluster for result in result_from_index[index]}
+                for cluster in prune_dominated(self.infeasible)]
     def enable(self, evaluations, domain):
         super(OptimizerInstance, self).enable(evaluations, domain)
         raise NotImplementedError()

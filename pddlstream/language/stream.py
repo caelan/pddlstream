@@ -11,7 +11,7 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
     parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, INF
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -291,21 +291,15 @@ class StreamInstance(Instance):
             return Fact(self._axiom_predicate, self.input_objects)
         return Fact(self.external.blocked_predicate, self.input_objects)
 
-    def disable(self, evaluations, domain):
-        #assert not self.disabled
-        super(StreamInstance, self).disable(evaluations, domain)
-        if not self.external.is_fluent(): # self.fluent_facts:
-            if self.external.is_negated() and not self.successes:
-                add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
-            return
-
-        if self._axiom_predicate is not None:
+    def _disable_fluent(self, evaluations, domain):
+        assert self.external.is_fluent()
+        if self.successes or (self._axiom_predicate is not None):
             return
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
         self._axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
         add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
-        # TODO: allow reporting back which components lead to failure
+        # TODO: allow reporting back minimum unsatisfiable subset
 
         static_fact = Fact(self._axiom_predicate, self.external.inputs)
         preconditions = [static_fact] + list(self.fluent_facts)
@@ -315,6 +309,19 @@ class StreamInstance(Instance):
             preconditions=preconditions,
             derived=derived_fact)
         domain.axioms.append(self._disabled_axiom)
+
+    def _disable_negated(self, evaluations):
+        assert self.external.is_negated()
+        if not self.successes:
+            add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
+
+    def disable(self, evaluations, domain):
+        #assert not self.disabled
+        super(StreamInstance, self).disable(evaluations, domain)
+        if self.external.is_fluent():
+            self._disable_fluent(evaluations, domain)
+        elif self.external.is_negated():
+            self._disable_negated(evaluations)
 
     def enable(self, evaluations, domain):
         super(StreamInstance, self).enable(evaluations, domain)
@@ -375,11 +382,16 @@ class Stream(External):
     def is_fluent(self):
         return self.fluents
 
-    def get_complexity(self, num_calls):
-        return 1 + num_calls
-
     def is_negated(self):
         return self.info.negate
+
+    def get_complexity(self, num_calls):
+        #if self.is_negated():
+        #    return INF
+        return 1 + num_calls
+
+    def is_special(self):
+        return self.is_fluent() or self.is_negated()
 
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         assert all(isinstance(obj, Object) or isinstance(obj, OptimisticObject) for obj in input_objects)
