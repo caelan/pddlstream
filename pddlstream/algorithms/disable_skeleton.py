@@ -1,20 +1,22 @@
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.algorithms.disabled import get_free_objects
-
 from pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.optimizer import UNSATISFIABLE, VariableStream
 from pddlstream.language.conversion import get_args, substitute_expression
+from pddlstream.language.object import OptimisticObject, UniqueOptValue
 from pddlstream.utils import grow_component, adjacent_from_edges, incoming_from_edges, get_mapping, user_input, flatten
 
 from collections import Counter
 
 def increase_free_variables(stream_plan):
     # TODO: could decrease the number of variables if a cluster is removed
-    instance_counts = Counter(r.instance for r in stream_plan)
-    for instance, num in instance_counts.items():
+    free_objects = Counter(flatten(result.instance.input_objects for result in stream_plan))
+    for obj, num in free_objects.items():
         # TODO: wait until the full plan has failed (accomplished through levels)
-        if isinstance(instance, VariableStream):
+        if isinstance(obj, OptimisticObject):
+            assert isinstance(obj.param, UniqueOptValue)
+            instance = obj.param.instance
             instance.num_optimistic = max(instance.num_optimistic, num + 1)
 
 def create_disable_axiom(external_plan, use_parameters=True):
