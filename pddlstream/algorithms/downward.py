@@ -384,9 +384,10 @@ def is_applicable(state, action):
 
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
+    # TODO: signed literals
     for conditions, effect in action.del_effects:
-        if conditions_hold(state, conditions) and (effect in state):
-            state.remove(effect)
+        if conditions_hold(state, conditions):
+            state.discard(effect)
     for conditions, effect in action.add_effects:
         if conditions_hold(state, conditions):
             state.add(effect)

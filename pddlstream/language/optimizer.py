@@ -1,11 +1,11 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, is_parameter, Minimize
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import PredicateResult, FunctionResult
-from pddlstream.language.object import OptimisticObject, Object
+from pddlstream.language.object import Object
 from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
 from pddlstream.language.generator import get_next
@@ -174,6 +174,7 @@ class OptimizerInstance(StreamInstance):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
         all_constraints = frozenset(range(len(self.external.certified)))
         self.infeasible = {all_constraints}
+        # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         # TODO: connected components on facts
         # TODO: cluster connected components in the infeasible set
         # TODO: compute things dependent on a stream and treat like an optimizer
@@ -186,9 +187,6 @@ class OptimizerInstance(StreamInstance):
         self.infeasible.update(output.infeasible)
         # TODO: instead replace each time
         return output.to_wild()
-    def disable(self, evaluations, domain):
-        raise RuntimeError()
-        # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
     def get_unsatisfiable(self):
         constraints = substitute_expression(self.external.certified, self.external.mapping)
         index_from_constraint = {c: i for i, c in enumerate(constraints)}
@@ -200,9 +198,6 @@ class OptimizerInstance(StreamInstance):
                     result_from_index[index_from_constraint[fact]].add(result)
         return [{result for index in cluster for result in result_from_index[index]}
                 for cluster in prune_dominated(self.infeasible)]
-    def enable(self, evaluations, domain):
-        super(OptimizerInstance, self).enable(evaluations, domain)
-        raise NotImplementedError()
 
 class OptimizerStream(Stream):
     _Instance = OptimizerInstance

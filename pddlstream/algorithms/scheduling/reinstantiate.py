@@ -1,6 +1,8 @@
 from pddlstream.algorithms.downward import get_fluents, apply_action, get_goal_instance, has_conditional_effects
 from pddlstream.utils import MockSet
 
+from collections import defaultdict
+
 
 # def reinstantiate_action(instance):
 #     # Recomputes the instances with without any pruned preconditions
@@ -24,23 +26,20 @@ def reinstantiate_action_instances(task, old_instances):
     import pddl
     import instantiate
     # Recomputes the instances with without any pruned preconditions
-    fluents = get_fluents(task)
+    state = set(task.init)
     function_assignments = {fact.fluent: fact.expression for fact in task.init
                             if isinstance(fact, pddl.f_expression.FunctionAssignment)}
+    predicate_to_atoms = defaultdict(set)
+    for atom in state:
+        if isinstance(atom, pddl.Atom):
+            predicate_to_atoms[atom.predicate].add(atom)
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     init_facts = set()
     fluent_facts = MockSet()
     new_instances = []
-    state = set(task.init)
     for old_instance in old_instances:
         # TODO: better way of instantiating conditional effects (when not fluent)
         #new_instance = reinstantiate_action(old_instance)
-        if has_conditional_effects(old_instance):
-            # TODO: don't recompute this
-            predicate_to_atoms = instantiate.get_atoms_by_predicate(
-                {a for a in state if isinstance(a, pddl.Atom) and (a.predicate in fluents)})
-        else:
-            predicate_to_atoms = {}
         action = old_instance.action
         var_mapping = old_instance.var_mapping
         new_instance = action.instantiate(var_mapping, init_facts, fluent_facts, type_to_objects,
@@ -48,6 +47,10 @@ def reinstantiate_action_instances(task, old_instances):
         assert (new_instance is not None)
         new_instances.append(new_instance)
         apply_action(state, new_instance)
+        for cond, eff in new_instance.del_effects:
+            predicate_to_atoms[eff.predicate].discard(eff)
+        for cond, eff in new_instance.add_effects:
+            predicate_to_atoms[eff.predicate].add(eff)
     new_instances.append(get_goal_instance(task.goal)) # TODO: move this?
     return new_instances
 

@@ -3,6 +3,8 @@ try:
 except ImportError:
     from tkinter import Tk, Canvas, Toplevel
 
+import colorsys
+
 
 # NOTE - this will overwrite (but remember) existing drawings
 # TODO - try PyGame, PyCairo, or Pyglet
@@ -10,7 +12,16 @@ except ImportError:
 MAX_ROWS = 5
 MAX_COLS = 9
 
-COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'violet']
+COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'violet', 'white', 'black']
+
+#def spaced_colors(n, s=1, v=1):
+#    return [colorsys.hsv_to_rgb(h, s, v) for h in np.linspace(0, 1, n, endpoint=False)]
+
+def tk_from_rgb(rgb):
+    assert all(0 <= c < 256 for c in rgb)
+    return "#%02x%02x%02x" % rgb
+
+#COLORS = list(map(tk_from_rgb, [(255, 0, 0)]))
 
 class DiscreteTAMPViewer(object):
     def __init__(self, rows, cols, width=500, height=250, side=25,

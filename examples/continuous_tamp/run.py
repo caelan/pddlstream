@@ -34,7 +34,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer_hard.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}
@@ -209,7 +209,7 @@ def main():
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+    pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     if plan is not None:
         display_plan(tamp_problem, plan)
 
