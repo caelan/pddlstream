@@ -34,7 +34,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, 'optimizer_hard.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}
@@ -133,6 +133,7 @@ def main():
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
+    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
@@ -151,7 +152,7 @@ def main():
         raise ValueError(args.problem)
     print('Problem:', args.problem)
     problem_fn = problem_from_name[args.problem]
-    tamp_problem = problem_fn()
+    tamp_problem = problem_fn(args.number)
     print(tamp_problem)
 
     action_info = {
