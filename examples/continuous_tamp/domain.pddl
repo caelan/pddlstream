@@ -73,8 +73,4 @@
                            (AtPose ?b2 ?p2)
                            (not (CFree ?b1 ?p1 ?b2 ?p2))
                        )))
-  ;(:derived (UnsafeTraj ?t)
-  ;  (exists (?b2 ?p2) (and (Traj ?t) (TrajCollision ?t ?b2 ?p2)
-  ;                         (AtPose ?b2 ?p2)))
-  ;)
 )

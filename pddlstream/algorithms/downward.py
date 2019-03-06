@@ -250,6 +250,7 @@ def task_from_domain_problem(domain, problem):
     task = pddl.Task(domain_name, task_name, requirements, types, objects,
                      predicates, functions, init, goal, actions, axioms, use_metric)
     normalize.normalize(task)
+    # task.add_axiom
     return task
 
 ##################################################
@@ -487,7 +488,7 @@ def axiom_preimage(axiom, preimage, i):
     add_preimage_condition(axiom.condition, preimage, i)
 
 
-def plan_preimage(combined_plan, goal):
+def plan_preimage(combined_plan, goal=[]):
     #preimage = set(goal)
     action_plan = [action for action in combined_plan if isinstance(action, pddl.PropositionalAction)]
     step = len(action_plan)

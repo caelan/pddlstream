@@ -23,7 +23,7 @@ from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.utils import INF, elapsed_time, implies
 
 INITIAL_COMPLEXITY = 0
 #INITIAL_COMPLEXITY = INF
@@ -99,6 +99,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     use_skeletons = max_skeletons is not None
     has_optimizers = bool(optimizers)
+    assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations):
@@ -119,13 +120,12 @@ def solve_focused(problem, constraints=PlanConstraints(),
                                                       max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
-            original_axioms = domain.axioms[:]
-            if has_optimizers:
-                assert use_skeletons
-                domain.axioms.extend(create_disabled_axioms(skeleton_queue))
+            disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
+            domain.axioms.extend(disabled_axioms)
             combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
                                                          optimistic_solve_fn, complexity_limit, max_effort=max_effort)
-            domain.axioms[:] = original_axioms
+            for axiom in disabled_axioms:
+                domain.axioms.remove(axiom)
         else:
             combined_plan, cost = INFEASIBLE, INF
         if action_info:
