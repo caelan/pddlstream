@@ -10,15 +10,15 @@
   (:optimizer gurobi
 
     ; Constructs a set of free variables
-    ;(:variable ?p
+    ;(:variables (?p)
     ;  :inputs (?b) ; TODO: input-domain, variable-domain, codomain, image
     ;  :domain (Block ?b)
     ;  :graph (Pose ?b ?p))
-    (:variable ?p
+    (:variables (?p)
       :inputs (?b ?r)
       :domain (Placeable ?b ?r)
       :graph (and (Contained ?b ?p ?r) (Pose ?b ?p)))
-    (:variable ?q
+    (:variables (?q)
       :graph (Conf ?q))
 
     ; Constraint forms that can be optimized
@@ -36,7 +36,7 @@
   )
 
   (:optimizer rrt
-    (:variable ?t
+    (:variables (?t)
       :graph (Traj ?t))
     (:constraint (Motion ?q1 ?t ?q2)
       :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));

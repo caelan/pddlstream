@@ -12,11 +12,11 @@
   (:optimizer gurobi
 
     ; Constructs a set of free variables
-    (:variable ?p
+    (:variables (?p)
       :inputs (?b ?r)
       :domain (Placeable ?b ?r)
       :graph (and (Contained ?b ?p ?r) (Pose ?b ?p)))
-    (:variable ?q
+    (:variables (?q)
       :inputs (?b ?p)
       :domain (Pose ?b ?p)
       :graph (and (Kin ?b ?q ?p) (Conf ?q)))
@@ -27,7 +27,7 @@
   )
 
   (:optimizer rrt
-    (:variable ?t
+    (:variables (?t)
       :inputs (?q1 ?q2)
       :domain (and (Conf ?q1) (Conf ?q2))
       :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))

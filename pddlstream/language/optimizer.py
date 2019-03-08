@@ -44,8 +44,10 @@ class Optimizer(object):
     def __repr__(self):
         return '{}'.format(self.name) #, self.streams)
 
-class OptimizerTerm(Stream):
-    pass
+class ComponentStream(Stream):
+    def __init__(self, optimizer, *args):
+        self.optimizer = optimizer
+        super(ComponentStream, self).__init__(*args)
 
 ##################################################
 
@@ -83,14 +85,11 @@ class OptimizerInfo(StreamInfo):
         self.planable = planable # TODO: this isn't currently used
         # TODO: post-processing
 
-class VariableStream(OptimizerTerm):
+class VariableStream(ComponentStream):
     # TODO: allow generation of two variables
-    def __init__(self, optimizer, variable, inputs, domain, certified, infos):
-        self.optimizer = optimizer
-        self.variable = variable
-        outputs = [variable]
-        name = '{}-{}'.format(optimizer.name, get_parameter_name(variable))
-        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
+    def __init__(self, optimizer, variables, inputs, domain, certified, infos):
+        name = '{}-{}'.format(optimizer.name, get_parameter_name(variables))
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, variables, certified)
         # TODO: need to convert OptimizerOutput
         #gen_fn = empty_gen()
         #info = StreamInfo(effort=get_effort_fn(optimizer_name, inputs, outputs))
@@ -99,14 +98,12 @@ class VariableStream(OptimizerTerm):
         if info is None:
             info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE),
                               simultaneous=DEFAULT_SIMULTANEOUS)
-        super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
-                                             outputs, certified, info)
+        super(VariableStream, self).__init__(optimizer, name, gen_fn, inputs, domain,
+                                             variables, certified, info)
 
-class ConstraintStream(OptimizerTerm):
+class ConstraintStream(ComponentStream):
     def __init__(self, optimizer, constraint, domain, infos):
         # TODO: could support fluents and compile them into conditional effects
-        self.optimizer = optimizer
-        self.constraint = constraint
         inputs = get_args(constraint)
         outputs = []
         certified = [constraint]
@@ -117,16 +114,19 @@ class ConstraintStream(OptimizerTerm):
         if info is None:
             info = StreamInfo(effort=get_effort_fn(optimizer.name),
                               simultaneous=DEFAULT_SIMULTANEOUS)
-        super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
+        super(ConstraintStream, self).__init__(optimizer, name, gen_fn, inputs, domain,
                                                outputs, certified, info)
 
 ##################################################
 
+VARIABLES = ':variables'
+CONSTRAINT = ':constraint'
+
 def parse_variable(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':variable', ':inputs', ':domain', ':graph'}
+    assert set(value_from_attribute) <= {VARIABLES, ':inputs', ':domain', ':graph'}
     return VariableStream(optimizer,
-                          value_from_attribute[':variable'], # TODO: assume unique?
+                          value_from_attribute[VARIABLES], # TODO: assume unique?
                           value_from_attribute.get(':inputs', []),
                           list_from_conjunction(value_from_attribute.get(':domain')),
                           list_from_conjunction(value_from_attribute.get(':graph')),
@@ -134,9 +134,9 @@ def parse_variable(optimizer, lisp_list, infos):
 
 def parse_constraint(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
-    assert set(value_from_attribute) <= {':constraint', ':necessary'} # , ':fluents'}
+    assert set(value_from_attribute) <= {CONSTRAINT, ':necessary'} # , ':fluents'}
     return ConstraintStream(optimizer,
-                            value_from_attribute[':constraint'],
+                            value_from_attribute[CONSTRAINT],
                             list_from_conjunction(value_from_attribute[':necessary']),
                             infos)
 
@@ -149,9 +149,9 @@ def parse_optimizer(lisp_list, procedures, infos):
     optimizer = Optimizer(optimizer_name, procedure, optimizer_info)
     for sub_list in lisp_list[2:]:
         form = sub_list[0]
-        if form == ':variable':
+        if form == VARIABLES:
             optimizer.variables.append(parse_variable(optimizer, sub_list, infos))
-        elif form == ':constraint':
+        elif form == CONSTRAINT:
             optimizer.constraints.append(parse_constraint(optimizer, sub_list, infos))
         elif form == ':objective':
             optimizer.objectives.append(sub_list[1])

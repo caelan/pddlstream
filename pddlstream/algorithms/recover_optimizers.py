@@ -6,13 +6,13 @@ from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import get_prefix, is_plan, get_args
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import OptimizerTerm, OptimizerStream
+from pddlstream.language.optimizer import ComponentStream, OptimizerStream
 from pddlstream.utils import neighbors_from_orders, get_mapping
 
 CLUSTER = True
 
 def get_optimizer(result):
-    return result.external.optimizer if isinstance(result.external, OptimizerTerm) else None
+    return result.external.optimizer if isinstance(result.external, ComponentStream) else None
 
 ##################################################
 
@@ -106,7 +106,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     # TODO: can replan using samplers as well
     if not is_plan(external_plan):
         return None
-    optimizers = list(filter(lambda s: isinstance(s, OptimizerTerm), optimizers))
+    optimizers = list(filter(lambda s: isinstance(s, ComponentStream), optimizers))
     if not optimizers:
         return None
     stream_plan, function_plan = partition_external_plan(external_plan)
@@ -124,7 +124,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     for fact in goal_facts:
         retrace_instantiation(fact, optimizers, initial_evaluations, free_parameters, visited_facts, new_results)
     # TODO: ensure correct ordering
-    new_results = list(filter(lambda r: isinstance(r, OptimizerTerm), new_results))
+    new_results = list(filter(lambda r: isinstance(r, ComponentStream), new_results))
 
     #from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
     #node_from_atom = get_achieving_streams(evaluations, stream_results) # TODO: make these lower effort

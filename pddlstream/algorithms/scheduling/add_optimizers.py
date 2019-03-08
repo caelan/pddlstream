@@ -2,13 +2,13 @@ from pddlstream.algorithms.downward import fd_from_fact, fact_from_fd
 from pddlstream.algorithms.scheduling.negative import get_negative_result
 from pddlstream.algorithms.scheduling.recover_streams import extract_stream_plan
 from pddlstream.algorithms.scheduling.utils import get_instance_facts
-from pddlstream.language.optimizer import OptimizerTerm
+from pddlstream.language.optimizer import ComponentStream
 from pddlstream.language.constants import get_args, get_prefix
 from pddlstream.language.stream import Stream
 
 
 def using_optimizers(results):
-    return any(isinstance(result.external, OptimizerTerm) for result in results)
+    return any(isinstance(result.external, ComponentStream) for result in results)
 
 def add_optimizer_effects(instantiated, node_from_atom):
     # TODO: instantiate axioms with negative on effects for blocking
@@ -26,7 +26,7 @@ def add_optimizer_effects(instantiated, node_from_atom):
         extract_stream_plan(node_from_atom, facts, stream_plan)
         # TODO: can detect if some of these are simultaneous and add them as preconditions
         for result in stream_plan:
-            if isinstance(result.external, OptimizerTerm):
+            if isinstance(result.external, ComponentStream):
                 # TODO: need to make multiple versions if several ways of achieving the action
                 atom = fd_from_fact(result.stream_fact)
                 instantiated.atoms.add(atom)
