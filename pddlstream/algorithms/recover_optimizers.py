@@ -6,18 +6,13 @@ from pddlstream.algorithms.scheduling.utils import partition_external_plan
 from pddlstream.language.constants import get_prefix, is_plan, get_args
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import OPTIMIZER_STREAMS, OptimizerStream, VariableStream, ConstraintStream
+from pddlstream.language.optimizer import OptimizerTerm, OptimizerStream
 from pddlstream.utils import neighbors_from_orders, get_mapping
 
 CLUSTER = True
 
-def is_optimizer_result(result):
-    return type(result.external) in OPTIMIZER_STREAMS
-
-
 def get_optimizer(result):
-    return result.external.optimizer if is_optimizer_result(result) else None
-
+    return result.external.optimizer if isinstance(result.external, OptimizerTerm) else None
 
 ##################################################
 
@@ -111,7 +106,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     # TODO: can replan using samplers as well
     if not is_plan(external_plan):
         return None
-    optimizers = list(filter(lambda s: type(s) in OPTIMIZER_STREAMS, optimizers))
+    optimizers = list(filter(lambda s: isinstance(s, OptimizerTerm), optimizers))
     if not optimizers:
         return None
     stream_plan, function_plan = partition_external_plan(external_plan)
@@ -128,9 +123,8 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     new_results = []
     for fact in goal_facts:
         retrace_instantiation(fact, optimizers, initial_evaluations, free_parameters, visited_facts, new_results)
-    variable_results = list(filter(lambda r: isinstance(r.external, VariableStream), new_results))
-    constraint_results = list(filter(lambda r: isinstance(r.external, ConstraintStream), new_results))
-    new_results = variable_results + constraint_results # TODO: ensure correct ordering
+    # TODO: ensure correct ordering
+    new_results = list(filter(lambda r: isinstance(r, OptimizerTerm), new_results))
 
     #from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
     #node_from_atom = get_achieving_streams(evaluations, stream_results) # TODO: make these lower effort

@@ -1,14 +1,14 @@
 from pddlstream.algorithms.downward import fd_from_fact, fact_from_fd
-from pddlstream.algorithms.recover_optimizers import is_optimizer_result
 from pddlstream.algorithms.scheduling.negative import get_negative_result
 from pddlstream.algorithms.scheduling.recover_streams import extract_stream_plan
 from pddlstream.algorithms.scheduling.utils import get_instance_facts
+from pddlstream.language.optimizer import OptimizerTerm
 from pddlstream.language.constants import get_args, get_prefix
 from pddlstream.language.stream import Stream
 
 
-def using_optimizers(stream_results):
-    return any(map(is_optimizer_result, stream_results))
+def using_optimizers(results):
+    return any(isinstance(result.external, OptimizerTerm) for result in results)
 
 def add_optimizer_effects(instantiated, node_from_atom):
     # TODO: instantiate axioms with negative on effects for blocking
@@ -26,16 +26,15 @@ def add_optimizer_effects(instantiated, node_from_atom):
         extract_stream_plan(node_from_atom, facts, stream_plan)
         # TODO: can detect if some of these are simultaneous and add them as preconditions
         for result in stream_plan:
-            if not is_optimizer_result(result):
-                continue
-            # TODO: need to make multiple versions if several ways of achieving the action
-            atom = fd_from_fact(result.stream_fact)
-            instantiated.atoms.add(atom)
-            effect = (tuple(), atom)
-            instance.add_effects.append(effect)
-            # domain = {fact for result in stream_plan if result.external.info.simultaneous
-            #          for fact in result.instance.get_domain()}
-            # TODO: can streams depending on these be used if dependent preconditions are added to the action
+            if isinstance(result.external, OptimizerTerm):
+                # TODO: need to make multiple versions if several ways of achieving the action
+                atom = fd_from_fact(result.stream_fact)
+                instantiated.atoms.add(atom)
+                effect = (tuple(), atom)
+                instance.add_effects.append(effect)
+                # domain = {fact for result in stream_plan if result.external.info.simultaneous
+                #          for fact in result.instance.get_domain()}
+                # TODO: can streams depending on these be used if dependent preconditions are added to the action
 
 def recover_simultaneous(results, negative, deferred_from_name, instances):
     result_from_stream_fact = {}

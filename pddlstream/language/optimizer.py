@@ -44,6 +44,9 @@ class Optimizer(object):
     def __repr__(self):
         return '{}'.format(self.name) #, self.streams)
 
+class OptimizerTerm(Stream):
+    pass
+
 ##################################################
 
 def get_list_gen_fn(procedure, inputs, outputs, certified, hint={}):
@@ -80,7 +83,7 @@ class OptimizerInfo(StreamInfo):
         self.planable = planable # TODO: this isn't currently used
         # TODO: post-processing
 
-class VariableStream(Stream):
+class VariableStream(OptimizerTerm):
     # TODO: allow generation of two variables
     def __init__(self, optimizer, variable, inputs, domain, certified, infos):
         self.optimizer = optimizer
@@ -99,7 +102,7 @@ class VariableStream(Stream):
         super(VariableStream, self).__init__(name, gen_fn, inputs, domain,
                                              outputs, certified, info)
 
-class ConstraintStream(Stream):
+class ConstraintStream(OptimizerTerm):
     def __init__(self, optimizer, constraint, domain, infos):
         # TODO: could support fluents and compile them into conditional effects
         self.optimizer = optimizer
@@ -116,8 +119,6 @@ class ConstraintStream(Stream):
                               simultaneous=DEFAULT_SIMULTANEOUS)
         super(ConstraintStream, self).__init__(name, gen_fn, inputs, domain,
                                                outputs, certified, info)
-
-OPTIMIZER_STREAMS = [VariableStream, ConstraintStream]
 
 ##################################################
 
