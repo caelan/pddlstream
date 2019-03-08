@@ -88,7 +88,7 @@ class OptimizerInfo(StreamInfo):
 class VariableStream(ComponentStream):
     # TODO: allow generation of two variables
     def __init__(self, optimizer, variables, inputs, domain, certified, infos):
-        name = '{}-{}'.format(optimizer.name, get_parameter_name(variables))
+        name = '{}-{}'.format(optimizer.name, '-'.join(map(get_parameter_name, variables)))
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, variables, certified)
         # TODO: need to convert OptimizerOutput
         #gen_fn = empty_gen()

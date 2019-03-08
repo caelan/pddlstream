@@ -66,7 +66,8 @@ def combine_optimizers(evaluations, external_plan):
                 combined_results.remove(result)
                 break
         else: # TODO: can also just try one cluster and return
-            return None
+            raise RuntimeError()
+            #return None
     return combined_plan
 
 ##################################################
