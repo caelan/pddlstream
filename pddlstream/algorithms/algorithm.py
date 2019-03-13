@@ -10,7 +10,7 @@ from pddlstream.language.external import DEBUG
 from pddlstream.language.fluent import compile_fluent_streams, get_predicate_map
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import parse_optimizer, ConstraintStream, UNSATISFIABLE
+from pddlstream.language.optimizer import parse_optimizer, ComponentStream, ConstraintStream, UNSATISFIABLE
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 from pddlstream.utils import find_unique, get_mapping, apply_mapping
@@ -121,16 +121,20 @@ def get_conjuctive_parts(condition):
     import pddl
     return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
 
+def get_disjunctive_parts(condition):
+    import pddl
+    return condition.parts if isinstance(condition, pddl.Disjunction) else [condition]
+
 def universal_to_conditional(action):
     import pddl
     new_parts = []
+    unsatisfiable = fd_from_fact((UNSATISFIABLE,))
     for quant in get_conjuctive_parts(action.precondition):
         if isinstance(quant, pddl.UniversalCondition):
             condition = quant.parts[0]
             # TODO: normalize first?
             if isinstance(condition, pddl.Disjunction) or isinstance(condition, pddl.Literal):
-                action.effects.append(pddl.Effect(quant.parameters, condition.negate(),
-                                                  fd_from_fact((UNSATISFIABLE,))))
+                action.effects.append(pddl.Effect(quant.parameters, condition.negate(), unsatisfiable))
                 continue
         new_parts.append(quant)
     action.precondition = pddl.Conjunction(new_parts)
@@ -145,24 +149,30 @@ def optimizer_conditional_effects(domain, externals):
         return
     for action in domain.actions:
         universal_to_conditional(action)
+        new_effects = []
         for effect in action.effects:
-            if isinstance(effect, pddl.Effect) and (effect.literal.predicate == UNSATISFIABLE):
-                condition = effect.condition
-                new_parts = []
-                stream_fact = None
-                for literal in get_conjuctive_parts(condition):
+            if effect.literal.predicate != UNSATISFIABLE:
+                new_effects.append(effect)
+                continue
+            new_parts = []
+            stream_facts = []
+            for disjunctive in get_conjuctive_parts(effect.condition):
+                for literal in get_disjunctive_parts(disjunctive):
+                    # TODO: assert only one disjunctive part
                     if isinstance(literal, pddl.Literal) and (literal.predicate in negative_from_predicate):
-                        if stream_fact is not None:
-                            raise NotImplementedError()
                         stream = negative_from_predicate[literal.predicate]
                         certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
                         mapping = get_mapping(get_args(certified), literal.args)
-                        stream_fact = substitute_expression(stream.stream_fact, mapping)
+                        stream_facts.append(fd_from_fact(substitute_expression(stream.stream_fact, mapping)))
+                        # TODO: add the negated literal as precondition here?
                     else:
                         new_parts.append(literal)
-                if stream_fact is not None:
-                    effect.condition = pddl.Conjunction(new_parts)
-                    effect.literal = fd_from_fact(stream_fact)
+            if not stream_facts:
+                new_effects.append(effect)
+            for stream_fact in stream_facts:
+                new_effects.append(pddl.Effect(effect.parameters, pddl.Conjunction(new_parts), stream_fact))
+        action.effects = new_effects
+        #action.dump()
 
 def enforce_simultaneous(domain, externals):
     optimizer_conditional_effects(domain, externals)
@@ -170,7 +180,8 @@ def enforce_simultaneous(domain, externals):
     for axiom in domain.axioms:
         axiom_predicates.update(get_predicates(axiom.condition))
     for external in externals:
-        if (isinstance(external, ConstraintStream)) and not external.info.simultaneous:
+        if isinstance(external, ConstraintStream) and not external.info.simultaneous:
+            #isinstance(external, ComponentStream) and not external.outputs
             # Only need for ConstraintStream because VariableStream used in action args
             # TODO: apply recursively to domain conditions?
             predicates = {get_prefix(fact) for fact in external.certified}

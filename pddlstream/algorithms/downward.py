@@ -9,7 +9,7 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil, elapsed_time
 
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
@@ -592,11 +592,17 @@ def instantiate_goal(goal):
 
 def instantiate_task(task):
     # TODO: my own action instantiation
+    start_time = time()
+    print()
     normalize.normalize(task)
     relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     if not relaxed_reachable:
         return None
+    #for action in actions:
+    #    action.dump()
     goal_list = instantiate_goal(task.goal)
+    print('Instantiation time:', elapsed_time(start_time))
+    #input('Continue?')
     return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
 
 ##################################################
@@ -609,6 +615,8 @@ def sas_from_instantiated(instantiated_task):
     import variable_order
     from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
         build_implied_facts, build_mutex_key, solvable_sas_task
+    start_time = time()
+    print()
 
     if not instantiated_task:
         return unsolvable_sas_task("No relaxed solution")
@@ -659,6 +667,7 @@ def sas_from_instantiated(instantiated_task):
                 options.filter_unimportant_vars)
 
     translate.dump_statistics(sas_task)
+    print('Translation time:', elapsed_time(start_time))
     return sas_task
 
 
