@@ -1,7 +1,7 @@
 import copy
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    scale_cost
+    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -12,8 +12,11 @@ from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects
 from pddlstream.algorithms.search import solve_from_task
-from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact
+from pddlstream.language.constants import And, Not
+from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, get_prefix
 from pddlstream.language.external import Result
+from pddlstream.language.stream import StreamResult
+from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.utils import Verbose, INF
 
@@ -67,17 +70,19 @@ def get_plan_cost(action_plan, cost_from_action):
     scaled_cost = sum([0.] + [cost_from_action[instance] for instance in action_plan])
     return scaled_cost / get_cost_scale()
 
-def instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, results):
+def instantiate_optimizer_axioms(instantiated, domain, results):
     # Needed for instantiating axioms before adding stream action effects
     # Otherwise, FastDownward will prune these unreachable axioms
     # TODO: compute this first and then apply the eager actions
-    #stream_evaluations = set(map(evaluation_from_fact, get_stream_facts(applied_results)))
-    stream_domain, result_from_name = add_stream_actions(domain, results)
-    # Need unit_costs=True otherwise obtain an instantiation error
-    problem = get_problem(evaluations, goal_expression, stream_domain, unit_costs=True)
+    stream_init = {fd_from_fact(result.stream_fact)
+                   for result in results if isinstance(result, StreamResult)}
+    evaluations = list(map(evaluation_from_fd, stream_init | instantiated.atoms))
+    temp_domain = make_domain(predicates=[make_predicate(UNSATISFIABLE, [])],
+                              axioms=[ax for ax in domain.axioms if ax.name == UNSATISFIABLE])
+    temp_problem = get_problem(evaluations, Not((UNSATISFIABLE,)), temp_domain)
     with Verbose():
-        new_instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
-    instantiated.axioms[:] = new_instantiated.axioms
+        new_instantiated = instantiate_task(task_from_domain_problem(temp_domain, temp_problem), prune_static=False)
+    instantiated.axioms.extend(new_instantiated.axioms)
     instantiated.atoms.update(new_instantiated.atoms)
 
 ##################################################
@@ -108,12 +113,11 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if instantiated is None:
         return None, INF
 
-    if using_optimizers(all_results):
-        # TODO: reachieve=False when using optimizers or should add applied facts
-        instantiate_optimizer_axioms(instantiated, evaluations, goal_expression, domain, all_results)
     cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
     if using_optimizers(applied_results):
         add_optimizer_effects(instantiated, node_from_atom)
+        # TODO: reachieve=False when using optimizers or should add applied facts
+        instantiate_optimizer_axioms(instantiated, domain, all_results)
     action_from_name = rename_instantiated_actions(instantiated)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)

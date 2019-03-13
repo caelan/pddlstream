@@ -1,10 +1,12 @@
 from collections import defaultdict
 
 from pddlstream.algorithms.downward import get_literals, apply_action, \
-    get_derived_predicates, literal_holds
+    get_derived_predicates, literal_holds, GOAL_NAME
 from pddlstream.algorithms.instantiate_task import get_goal_instance, filter_negated, get_achieving_axioms
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
+
+import pddl
 
 
 def get_necessary_axioms(conditions, axioms, negative_from_name):
@@ -68,6 +70,7 @@ def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}
     success = True
     for fact in filter_negated(conditions, negated_from_name):
         if fact not in axiom_from_atom:
+            #print(fact)
             success = False
             continue
         axiom = axiom_from_atom[fact]
@@ -101,7 +104,8 @@ def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
     for pre in list(goals) + list(axiom_effects):
         if pre.positive() not in axiom_init:
             axiom_init.add(pre.positive().negate())
-    axiom_from_atom, _ = get_achieving_axioms(init | axiom_init, helpful_axioms, negative_from_name)
+    goal_action = pddl.PropositionalAction(GOAL_NAME, goals, [], None)
+    axiom_from_atom, _ = get_achieving_axioms(init | axiom_init, helpful_axioms + [goal_action], negative_from_name)
     axiom_plan = []  # Could always add all conditions
     success = extract_axioms(axiom_from_atom, goals, axiom_plan, negative_from_name)
     if not success:

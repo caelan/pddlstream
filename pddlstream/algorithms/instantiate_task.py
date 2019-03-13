@@ -33,29 +33,26 @@ def get_goal_instance(goal):
 
 ##################################################
 
-def instantiate_atoms(atoms_from_cond):
+def get_constants(atom):
+    return tuple((i, a) for i, a in enumerate(atom.args) if not is_parameter(a))
+
+def instantiate_condition(action, is_static, args_from_predicate):
+    parameters = {p.name for p in action.parameters}
+    #if not parameters:
+    #    yield {}
+    #    return
+    static_conditions = list(filter(is_static, get_literals(get_precondition(action))))
+    static_parameters = set(filter(is_parameter, flatten(atom.args for atom in static_conditions)))
+    if not (parameters <= static_parameters):
+        raise NotImplementedError(parameters)
+    atoms_from_cond = {condition: args_from_predicate[condition.predicate, get_constants(condition)]
+                       for condition in static_conditions}
     conditions, atoms = zip(*atoms_from_cond.items())
     relations = [Relation(conditions[index].args, atoms[index])
                  for index in compute_order(conditions, atoms)]
     solution = solve_satisfaction(relations)
     for element in solution.body:
         yield solution.get_mapping(element)
-
-
-def instantiate_condition(action, is_static, args_from_predicate):
-    static_conditions = list(filter(is_static, get_literals(get_precondition(action))))
-    static_objects = set(flatten(atom.args for atom in static_conditions))
-    static_parameters = set(filter(is_parameter, static_objects))
-    static_constants = static_objects - static_parameters
-    if static_constants:
-        raise NotImplementedError(static_constants)
-    parameters = {p.name for p in action.parameters}
-    if not (parameters <= static_parameters):
-        raise NotImplementedError(parameters)
-    atoms_from_cond = {condition: args_from_predicate[condition.predicate]
-                       for condition in static_conditions}
-    return instantiate_atoms(atoms_from_cond)
-
 
 def get_reachable_action_params(instantiated_actions):
     reachable_action_params = defaultdict(list)
@@ -114,33 +111,40 @@ def get_achieving_axioms(state, axioms, negated_from_name={}):
 
 ##################################################
 
-def instantiate_domain(task):
+def instantiate_domain(task, prune_static=True):
     fluent_predicates = get_fluents(task)
     is_static = lambda a: isinstance(a, pddl.Atom) and (a.predicate not in fluent_predicates)
 
-    fluent_facts = MockSet(lambda a: not is_static(a))
+    fluent_facts = MockSet(lambda a: not prune_static or not is_static(a))
     init_facts = set(task.init)
     function_assignments = get_function_assignments(task)
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
+
+    constants_from_predicate = defaultdict(set)
+    for action in task.actions + task.axioms:
+        for atom in filter(is_static, get_literals(get_precondition(action))):
+            constants = tuple((i, a) for i, a in enumerate(atom.args) if not is_parameter(a))
+            constants_from_predicate[atom.predicate].add(constants)
 
     predicate_to_atoms = defaultdict(set)
     args_from_predicate = defaultdict(set)
     for atom in filter(is_static, task.init):  # TODO: compute which predicates might involve constants
         predicate_to_atoms[atom.predicate].add(atom)
         args_from_predicate[atom.predicate].add(atom.args)
+        for constants in constants_from_predicate[atom.predicate]:
+            if all(atom.args[i] == o for i, o in constants):
+                args_from_predicate[atom.predicate, constants].add(atom.args)
 
     instantiated_actions = []
     for action in task.actions:
-        for variable_mapping in instantiate_condition(action, is_static,
-                                                      args_from_predicate):
+        for variable_mapping in instantiate_condition(action, is_static, args_from_predicate):
             inst_action = action.instantiate(variable_mapping, init_facts, fluent_facts, type_to_objects,
                                              task.use_min_cost_metric, function_assignments, predicate_to_atoms)
             if inst_action:
                 instantiated_actions.append(inst_action)
     instantiated_axioms = []
     for axiom in task.axioms:
-        for variable_mapping in instantiate_condition(axiom, is_static,
-                                                      args_from_predicate):
+        for variable_mapping in instantiate_condition(axiom, is_static, args_from_predicate):
             inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
             if inst_axiom:
                 instantiated_axioms.append(inst_axiom)
@@ -154,20 +158,20 @@ def instantiate_domain(task):
 
 ##################################################
 
-def instantiate_task(task):
+def instantiate_task(task, **kwargs):
     start_time = time()
     print()
     normalize.normalize(task)
     if FD_INSTANTIATE:
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
-        relaxed_reachable, actions, axioms = instantiate_domain(task)
+        relaxed_reachable, actions, axioms = instantiate_domain(task, **kwargs)
         atoms = get_reachable_atoms(task.init, actions + axioms)
         reachable_action_params = get_reachable_action_params(actions)
+    print('Instantiation time:', elapsed_time(start_time))
     if not relaxed_reachable:
         return None
     goal_list = instantiate_goal(task.goal)
-    print('Instantiation time:', elapsed_time(start_time))
     return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
 
 ##################################################
