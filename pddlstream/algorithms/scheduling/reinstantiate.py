@@ -1,4 +1,5 @@
-from pddlstream.algorithms.downward import get_fluents, apply_action, get_goal_instance, has_conditional_effects
+from pddlstream.algorithms.downward import get_fluents, apply_action, has_conditional_effects
+from pddlstream.algorithms.instantiate_task import get_goal_instance
 from pddlstream.utils import MockSet
 
 from collections import defaultdict

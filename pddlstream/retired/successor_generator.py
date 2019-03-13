@@ -1,7 +1,7 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import literal_holds, get_derived_predicates, get_goal_instance, \
-    apply_action
+from pddlstream.algorithms.downward import literal_holds, get_derived_predicates, apply_action
+from pddlstream.algorithms.instantiate_task import get_goal_instance
 from pddlstream.algorithms.scheduling.recover_axioms import extract_axioms
 
 

@@ -1,7 +1,8 @@
 import copy
 
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, instantiate_task, get_cost_scale, \
-    sas_from_instantiated, scale_cost
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
+    scale_cost
+from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
@@ -102,7 +103,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain) # begin_metric
-    with Verbose(debug):
+    with Verbose(True):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return None, INF

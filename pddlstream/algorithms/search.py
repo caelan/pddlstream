@@ -3,8 +3,8 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import write_sas_task, parse_solution, run_search, TEMP_DIR, sas_from_pddl, write_pddl, \
-    translate_and_write_pddl
+from pddlstream.algorithms.downward import parse_solution, run_search, TEMP_DIR, write_pddl
+from pddlstream.algorithms.instantiate_task import write_sas_task, sas_from_pddl, translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
 # TODO: manual_patterns

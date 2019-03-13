@@ -1,7 +1,8 @@
 from pddlstream.algorithms.algorithm import parse_problem, remove_blocked
 from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, sas_from_pddl
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
+from pddlstream.algorithms.instantiate_task import sas_from_pddl
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_plan

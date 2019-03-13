@@ -9,7 +9,7 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, Verbose, clear_dir, get_file_path, MockSet, find_unique, int_ceil, elapsed_time
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
 
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
@@ -35,7 +35,6 @@ sys.path.append(TRANSLATE_PATH)
 # TODO: max translate time
 
 import pddl.f_expression
-import translate
 import pddl
 import instantiate
 import pddl_parser.lisp_parser
@@ -255,13 +254,17 @@ def task_from_domain_problem(domain, problem):
 
 ##################################################
 
+def get_derived_predicates(axioms):
+    axioms_from_name = defaultdict(list)
+    for axiom in axioms:
+        axioms_from_name[axiom.name].append(axiom)
+    return axioms_from_name
+
 def get_fluents(domain):
-    fluent_predicates = set()
+    fluent_predicates = set(get_derived_predicates(domain.axioms))
     for action in domain.actions:
         for effect in action.effects:
             fluent_predicates.add(effect.literal.predicate)
-    for axiom in domain.axioms:
-        fluent_predicates.add(axiom.name)
     return fluent_predicates
 
 def is_literal(condition):
@@ -281,36 +284,10 @@ def get_literals(condition):
 
 ##################################################
 
-def write_sas_task(sas_task, temp_dir):
-    clear_dir(temp_dir)
-    translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
-    with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
-        sas_task.output(output_file)
-    return translate_path
-
-def sas_from_pddl(task, debug=False):
-    #normalize.normalize(task)
-    #sas_task = translate.pddl_to_sas(task)
-    with Verbose(debug):
-        instantiated = instantiate_task(task)
-        sas_task = sas_from_instantiated(instantiated)
-        sas_task.metric = task.use_min_cost_metric # TODO: are these sometimes not equal?
-    return sas_task
-
-def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
-    domain = parse_domain(domain_pddl)
-    problem = parse_problem(domain, problem_pddl)
-    task = task_from_domain_problem(domain, problem)
-    sas_task = sas_from_pddl(task)
-    write_sas_task(sas_task, temp_dir)
-    return task
-
 #def normalize_domain_goal(domain, goal):
 #    task = pddl.Task(None, None, None, None, None,
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
-
-##################################################
 
 def convert_cost(cost):
     if cost == INF:
@@ -376,12 +353,15 @@ def literal_holds(state, literal):
 def conditions_hold(state, conditions):
     return all(literal_holds(state, cond) for cond in conditions)
 
+def get_precondition(operator):
+    if isinstance(operator, pddl.Action) or isinstance(operator, pddl.PropositionalAction):
+        return operator.precondition
+    elif isinstance(operator, pddl.Axiom) or isinstance(operator, pddl.PropositionalAxiom):
+        return operator.condition
+    raise ValueError(operator)
+
 def is_applicable(state, action):
-    if isinstance(action, pddl.PropositionalAction):
-        return conditions_hold(state, action.precondition)
-    elif isinstance(action, pddl.PropositionalAxiom):
-        return conditions_hold(state, action.condition)
-    raise ValueError(action)
+    return conditions_hold(state, get_precondition(action))
 
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
@@ -425,10 +405,13 @@ def substitute_derived(axiom_plan, action_instance):
 
 ##################################################
 
+def get_function_assignments(task):
+    return {f.fluent: f.expression for f in task.init
+            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+
 def get_action_instances(task, action_plan):
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
-    function_assignments = {f.fluent: f.expression for f in task.init
-                            if isinstance(f, pddl.f_expression.FunctionAssignment)}
+    function_assignments = get_function_assignments(task)
     fluent_facts = MockSet()
     init_facts = set()
     action_instances = []
@@ -445,10 +428,6 @@ def get_action_instances(task, action_plan):
         assert (instance is not None)
         action_instances.append(instance)
     return action_instances
-
-
-def get_goal_instance(goal):
-    return pddl.PropositionalAction(GOAL_NAME, instantiate_goal(goal), [], None)
 
 ##################################################
 
@@ -567,112 +546,9 @@ def make_axiom(parameters, preconditions, derived):
 
 
 def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]):
-    import pddl_parser
     types = [pddl.Type(OBJECT)]
     pddl_parser.parsing_functions.set_supertypes(types)
     return Domain(name='', requirements=pddl.Requirements([]),
              types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
              predicates=predicates, predicate_dict={p.name: p for p in predicates},
              functions=functions, actions=actions, axioms=axioms)
-
-##################################################
-
-InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
-                                                   'reachable_action_params', 'goal_list'])
-
-def instantiate_goal(goal):
-    # HACK! Goals should be treated differently.
-    if isinstance(goal, pddl.Conjunction):
-        goal_list = goal.parts
-    else:
-        goal_list = [goal]
-    for item in goal_list:
-        assert isinstance(item, pddl.Literal)
-    return goal_list
-
-def instantiate_task(task):
-    # TODO: my own action instantiation
-    start_time = time()
-    print()
-    normalize.normalize(task)
-    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
-    if not relaxed_reachable:
-        return None
-    #for action in actions:
-    #    action.dump()
-    goal_list = instantiate_goal(task.goal)
-    print('Instantiation time:', elapsed_time(start_time))
-    #input('Continue?')
-    return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
-
-##################################################
-
-def sas_from_instantiated(instantiated_task):
-    import timers
-    import fact_groups
-    import options
-    import simplify
-    import variable_order
-    from translate import translate_task, unsolvable_sas_task, strips_to_sas_dictionary, \
-        build_implied_facts, build_mutex_key, solvable_sas_task
-    start_time = time()
-    print()
-
-    if not instantiated_task:
-        return unsolvable_sas_task("No relaxed solution")
-    task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
-
-    with timers.timing("Computing fact groups", block=True):
-        groups, mutex_groups, translation_key = fact_groups.compute_groups(
-            task, atoms, reachable_action_params)
-
-    with timers.timing("Building STRIPS to SAS dictionary"):
-        ranges, strips_to_sas = strips_to_sas_dictionary(
-            groups, assert_partial=options.use_partial_encoding)
-
-    with timers.timing("Building dictionary for full mutex groups"):
-        mutex_ranges, mutex_dict = strips_to_sas_dictionary(
-            mutex_groups, assert_partial=False)
-
-    if options.add_implied_preconditions:
-        with timers.timing("Building implied facts dictionary..."):
-            implied_facts = build_implied_facts(strips_to_sas, groups,
-                                                mutex_groups)
-    else:
-        implied_facts = {}
-
-    with timers.timing("Building mutex information", block=True):
-        mutex_key = build_mutex_key(strips_to_sas, mutex_groups)
-
-    with timers.timing("Translating task", block=True):
-        sas_task = translate_task(
-            strips_to_sas, ranges, translation_key,
-            mutex_dict, mutex_ranges, mutex_key,
-            task.init, goal_list, actions, axioms, task.use_min_cost_metric,
-            implied_facts)
-
-    if options.filter_unreachable_facts:
-        with timers.timing("Detecting unreachable propositions", block=True):
-            try:
-                simplify.filter_unreachable_propositions(sas_task)
-            except simplify.Impossible:
-                return unsolvable_sas_task("Simplified to trivially false goal")
-            except simplify.TriviallySolvable:
-                return solvable_sas_task("Simplified to empty goal")
-
-    if options.reorder_variables or options.filter_unimportant_vars:
-        with timers.timing("Reordering and filtering variables", block=True):
-            variable_order.find_and_apply_variable_order(
-                sas_task, options.reorder_variables,
-                options.filter_unimportant_vars)
-
-    translate.dump_statistics(sas_task)
-    print('Translation time:', elapsed_time(start_time))
-    return sas_task
-
-
-def get_derived_predicates(axioms):
-    axioms_from_name = defaultdict(list)
-    for axiom in axioms:
-        axioms_from_name[axiom.name].append(axiom)
-    return axioms_from_name

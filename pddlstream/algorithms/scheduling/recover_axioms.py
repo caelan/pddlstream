@@ -1,7 +1,8 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import get_literals, get_goal_instance, apply_action, \
+from pddlstream.algorithms.downward import get_literals, apply_action, \
     get_derived_predicates, literal_holds
+from pddlstream.algorithms.instantiate_task import get_goal_instance
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
 

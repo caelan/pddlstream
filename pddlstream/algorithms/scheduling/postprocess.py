@@ -1,4 +1,5 @@
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, sas_from_pddl
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
+from pddlstream.algorithms.instantiate_task import sas_from_pddl
 from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import get_stream_actions
 from pddlstream.algorithms.scheduling.utils import add_unsatisfiable_to_goal
