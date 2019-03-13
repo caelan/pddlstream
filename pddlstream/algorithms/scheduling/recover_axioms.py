@@ -1,8 +1,8 @@
-from collections import defaultdict, deque
+from collections import defaultdict
 
 from pddlstream.algorithms.downward import get_literals, apply_action, \
     get_derived_predicates, literal_holds
-from pddlstream.algorithms.instantiate_task import get_goal_instance
+from pddlstream.algorithms.instantiate_task import get_goal_instance, filter_negated, get_achieving_axioms
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip
 
@@ -64,38 +64,6 @@ def instantiate_necessary_axioms(model, static_facts, fluent_facts, axiom_remap=
 
 ##################################################
 
-def filter_negated(conditions, negated_from_name):
-    return list(filter(lambda a: a.predicate not in negated_from_name, conditions))
-
-def get_achieving_axioms(state, axioms, negated_from_name={}):
-    # TODO: order by stream effort
-    # marking algorithm for propositional Horn logic
-    unprocessed_from_atom = defaultdict(list)
-    axiom_from_atom = {}
-    remaining_from_stream = {}
-
-    def process_axiom(axiom):
-        if (not remaining_from_stream[id(axiom)]) and (axiom.effect not in axiom_from_atom):
-            axiom_from_atom[axiom.effect] = axiom
-            queue.append(axiom.effect)
-
-    # TODO: could produce a list of all derived conditions
-    queue = deque(axiom_from_atom.keys())
-    for axiom in axioms:
-        remaining_from_stream[id(axiom)] = 0
-        for atom in filter_negated(axiom.condition, negated_from_name):
-            if not literal_holds(state, atom):
-                remaining_from_stream[id(axiom)] += 1
-                unprocessed_from_atom[atom].append(axiom)
-        process_axiom(axiom)
-
-    while queue:
-        atom = queue.popleft()
-        for axiom in unprocessed_from_atom[atom]:
-            remaining_from_stream[id(axiom)] -= 1
-            process_axiom(axiom)
-    return axiom_from_atom
-
 def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}):
     success = True
     for fact in filter_negated(conditions, negated_from_name):
@@ -133,7 +101,7 @@ def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
     for pre in list(goals) + list(axiom_effects):
         if pre.positive() not in axiom_init:
             axiom_init.add(pre.positive().negate())
-    axiom_from_atom = get_achieving_axioms(init | axiom_init, helpful_axioms, negative_from_name)
+    axiom_from_atom, _ = get_achieving_axioms(init | axiom_init, helpful_axioms, negative_from_name)
     axiom_plan = []  # Could always add all conditions
     success = extract_axioms(axiom_from_atom, goals, axiom_plan, negative_from_name)
     if not success:
@@ -207,7 +175,7 @@ def recover_axioms_plans(instantiated, action_instances):
         #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
         #                                             for l in ax.condition), axioms))
         derived_goals = {literal for literal in action.precondition if not literal_holds(state, literal)}
-        axiom_from_atom = get_achieving_axioms(state, axioms)
+        axiom_from_atom, _ = get_achieving_axioms(state, axioms)
         axiom_plans.append([])
         assert extract_axioms(axiom_from_atom, derived_goals, axiom_plans[-1])
         apply_action(state, action)

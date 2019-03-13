@@ -103,7 +103,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain) # begin_metric
-    with Verbose(True):
+    with Verbose():
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return None, INF

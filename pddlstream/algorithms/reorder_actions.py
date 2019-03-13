@@ -1,7 +1,8 @@
 from pddlstream.algorithms.downward import fd_from_fact, substitute_derived, is_applicable, apply_action, \
     fd_from_evaluation, task_from_domain_problem, get_problem, get_action_instances
 from pddlstream.algorithms.reorder import separate_plan, get_stream_stats, dynamic_programming
-from pddlstream.algorithms.scheduling.recover_axioms import get_achieving_axioms, extract_axioms
+from pddlstream.algorithms.scheduling.recover_axioms import extract_axioms
+from pddlstream.algorithms.instantiate_task import get_achieving_axioms
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.language.constants import get_prefix, EQ, is_plan, And
 from pddlstream.language.conversion import evaluation_from_fact
@@ -60,7 +61,7 @@ def replace_derived(task, negative_init, action_instances):
         goal_list = [] # TODO: include the goal?
         with Verbose(False):  # TODO: helpful_axioms prunes axioms that are already true (e.g. not Unsafe)
             helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms([instance], instantiated_axioms, goal_list)
-        axiom_from_atom = get_achieving_axioms(task.init | negative_init | set(axiom_init), helpful_axioms)
+        axiom_from_atom, _ = get_achieving_axioms(task.init | negative_init | set(axiom_init), helpful_axioms)
         # negated_from_name=negated_from_name)
         axiom_plan = []
         extract_axioms(axiom_from_atom, instance.precondition, axiom_plan)

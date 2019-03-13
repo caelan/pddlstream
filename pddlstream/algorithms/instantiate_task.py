@@ -1,9 +1,12 @@
+from __future__ import print_function
+
 import os
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
-    TRANSLATE_OUTPUT, parse_domain, parse_problem, task_from_domain_problem, GOAL_NAME
+    TRANSLATE_OUTPUT, parse_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
+    get_effects, get_conjuctive_parts
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose
@@ -13,25 +16,22 @@ import instantiate
 import translate
 import normalize
 
+FD_INSTANTIATE = False
+
 InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
                                                    'reachable_action_params', 'goal_list'])
 
 
 def instantiate_goal(goal):
-    # HACK! Goals should be treated differently.
-    if isinstance(goal, pddl.Conjunction):
-        goal_list = goal.parts
-    else:
-        goal_list = [goal]
-    for item in goal_list:
-        assert isinstance(item, pddl.Literal)
+    goal_list = get_conjuctive_parts(goal)
+    assert all(isinstance(item, pddl.Literal) for item in goal_list)
     return goal_list
 
-##################################################
 
 def get_goal_instance(goal):
     return pddl.PropositionalAction(GOAL_NAME, instantiate_goal(goal), [], None)
 
+##################################################
 
 def instantiate_atoms(atoms_from_cond):
     conditions, atoms = zip(*atoms_from_cond.items())
@@ -66,6 +66,53 @@ def get_reachable_action_params(instantiated_actions):
         reachable_action_params[action].append(args) # TODO: does this actually do anything
     return reachable_action_params
 
+def get_reachable_atoms(init, operators):
+    atoms = set(init) | set(flatten(get_effects(op) for op in operators))
+    return {atom for atom in atoms if isinstance(atom, pddl.Atom)}
+
+##################################################
+
+def filter_negated(conditions, negated_from_name):
+    return list(filter(lambda a: a.predicate not in negated_from_name, conditions))
+
+
+def get_achieving_axioms(state, axioms, negated_from_name={}):
+    # TODO: order by stream effort
+    # marking algorithm for propositional Horn logic
+    unprocessed_from_literal = defaultdict(list)
+    axiom_from_literal = {}
+    remaining_from_stream = {}
+    reachable_operators = []
+
+    queue = deque()
+    def process_axiom(axiom):
+        reachable_operators.append(axiom)
+        for effect in get_effects(axiom):
+            if effect not in axiom_from_literal:
+                axiom_from_literal[effect] = axiom
+                queue.append(effect)
+
+    # TODO: could produce a list of all derived conditions
+    for axiom in axioms:
+        remaining_from_stream[id(axiom)] = 0
+        for literal in filter_negated(get_precondition(axiom), negated_from_name):
+            if literal_holds(state, literal):
+                axiom_from_literal[literal] = None
+            else:
+                remaining_from_stream[id(axiom)] += 1
+                unprocessed_from_literal[literal].append(axiom)
+        if remaining_from_stream[id(axiom)] == 0:
+            process_axiom(axiom)
+
+    while queue:
+        literal = queue.popleft()
+        for axiom in unprocessed_from_literal[literal]:
+            remaining_from_stream[id(axiom)] -= 1
+            if remaining_from_stream[id(axiom)] == 0:
+                process_axiom(axiom)
+    return axiom_from_literal, reachable_operators
+
+##################################################
 
 def instantiate_domain(task):
     fluent_predicates = get_fluents(task)
@@ -97,20 +144,28 @@ def instantiate_domain(task):
             inst_axiom = axiom.instantiate(variable_mapping, init_facts, fluent_facts)
             if inst_axiom:
                 instantiated_axioms.append(inst_axiom)
-    return instantiated_actions, instantiated_axioms
 
+    reachable_facts, reachable_operators = get_achieving_axioms(init_facts, instantiated_actions + instantiated_axioms)
+    relaxed_reachable = all(literal_holds(init_facts, goal) or goal in reachable_facts
+                            for goal in instantiate_goal(task.goal))
+    reachable_actions = [action for action in reachable_operators if isinstance(action, pddl.PropositionalAction)]
+    reachable_axioms = [axiom for axiom in reachable_operators if isinstance(axiom, pddl.PropositionalAxiom)]
+    return relaxed_reachable, reachable_actions, reachable_axioms
+
+##################################################
 
 def instantiate_task(task):
     start_time = time()
     print()
     normalize.normalize(task)
-    relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
+    if FD_INSTANTIATE:
+        relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
+    else:
+        relaxed_reachable, actions, axioms = instantiate_domain(task)
+        atoms = get_reachable_atoms(task.init, actions + axioms)
+        reachable_action_params = get_reachable_action_params(actions)
     if not relaxed_reachable:
         return None
-    #instantiated_actions, instantiated_axioms = instantiate_domain(task)
-    #reachable_action_params = get_reachable_action_params(instantiated_actions)
-    #print(len(actions), len(instantiated_actions))
-    #print(len(axioms), len(axioms))
     goal_list = instantiate_goal(task.goal)
     print('Instantiation time:', elapsed_time(start_time))
     return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)

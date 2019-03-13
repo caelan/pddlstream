@@ -2,7 +2,8 @@ from collections import Counter
 
 from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale, fd_from_fact
+from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale, \
+    fd_from_fact, get_conjuctive_parts, get_disjunctive_parts
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous
@@ -10,10 +11,10 @@ from pddlstream.language.external import DEBUG
 from pddlstream.language.fluent import compile_fluent_streams, get_predicate_map
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import parse_optimizer, ComponentStream, ConstraintStream, UNSATISFIABLE
+from pddlstream.language.optimizer import parse_optimizer, ConstraintStream, UNSATISFIABLE
 from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
-from pddlstream.utils import find_unique, get_mapping, apply_mapping
+from pddlstream.utils import find_unique, get_mapping
 
 
 # TODO: rename to parsing
@@ -116,14 +117,6 @@ def get_predicates(expression):
     if isinstance(expression, pddl.conditions.Literal):
         return {expression.predicate}
     raise ValueError(expression)
-
-def get_conjuctive_parts(condition):
-    import pddl
-    return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
-
-def get_disjunctive_parts(condition):
-    import pddl
-    return condition.parts if isinstance(condition, pddl.Disjunction) else [condition]
 
 def universal_to_conditional(action):
     import pddl
