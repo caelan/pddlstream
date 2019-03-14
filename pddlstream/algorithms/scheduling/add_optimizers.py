@@ -32,11 +32,12 @@ def add_optimizer_effects(instantiated, node_from_atom):
                 instantiated.atoms.add(atom)
                 effect = (tuple(), atom)
                 instance.add_effects.append(effect)
+                instance.effect_mappings.append(effect + (None, None))
                 # domain = {fact for result in stream_plan if result.external.info.simultaneous
                 #          for fact in result.instance.get_domain()}
                 # TODO: can streams depending on these be used if dependent preconditions are added to the action
 
-def recover_simultaneous(results, negative, deferred_from_name, instances):
+def recover_simultaneous(results, negative_streams, deferred_from_name, instances):
     result_from_stream_fact = {}
     for result in results:
         if isinstance(result.external, Stream):
@@ -44,7 +45,7 @@ def recover_simultaneous(results, negative, deferred_from_name, instances):
             result_from_stream_fact[result.stream_fact] = result
 
     negative_from_stream_predicate = {}
-    for state_stream in negative:
+    for state_stream in negative_streams:
         if not isinstance(state_stream, Stream):
             continue
         predicate = get_prefix(state_stream.stream_fact)

@@ -366,13 +366,17 @@ def get_precondition(operator):
         return operator.condition
     raise ValueError(operator)
 
-def get_effects(operator):
+def get_conditional_effects(operator):
     if isinstance(operator, pddl.PropositionalAction):
-        return [effect.negate() for _, effect in operator.del_effects] + \
-               [effect for _, effect in operator.add_effects] # TODO: conditional effects
+        return [(cond, effect.negate()) for cond, effect in operator.del_effects] + \
+               [(cond, effect) for cond, effect in operator.add_effects]
     elif isinstance(operator, pddl.PropositionalAxiom):
-        return [operator.effect]
+        return [([], operator.effect)]
     raise ValueError(operator)
+
+def get_effects(operator):
+    # TODO: conditional effects
+    return [effect for _, effect in get_conditional_effects(operator)]
 
 def is_applicable(state, action):
     return conditions_hold(state, get_precondition(action))

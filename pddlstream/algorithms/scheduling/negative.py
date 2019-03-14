@@ -59,7 +59,7 @@ def convert_negative(negative_preimage, negative_from_name, step_from_atom, real
 
 def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name):
     action_plan = reinstantiate_action_instances(opt_task, action_plan)
-    simplify_conditional_effects(opt_task, action_plan, negative_from_name)
+    #simplify_conditional_effects(opt_task, action_plan, negative_from_name)
     axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
     axioms_from_name = get_derived_predicates(opt_task.axioms)
 

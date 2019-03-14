@@ -1,10 +1,10 @@
 from collections import defaultdict
 
 from pddlstream.algorithms.downward import get_literals, apply_action, \
-    get_derived_predicates, literal_holds, GOAL_NAME
+    get_derived_predicates, literal_holds, GOAL_NAME, get_precondition
 from pddlstream.algorithms.instantiate_task import get_goal_instance, filter_negated, get_achieving_axioms
 from pddlstream.language.constants import is_parameter
-from pddlstream.utils import Verbose, MockSet, safe_zip
+from pddlstream.utils import Verbose, MockSet, safe_zip, flatten
 
 import pddl
 
@@ -170,17 +170,25 @@ def recover_axioms_plans(instantiated, action_instances):
     axioms_from_effect = defaultdict(list)
     for axiom in instantiated.axioms:
         axioms_from_effect[axiom.effect].append(axiom)
-    #derived_predicates = get_derived_predicates(instantiated.task.axioms)
 
     state = set(instantiated.task.init)
     axiom_plans = []
     for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
-        axioms = backtrack_axioms(action.precondition, axioms_from_effect, set())
-        #axiom_instances = list(filter(lambda ax: all(l.predicate in derived_predicates or literal_holds(state, l)
-        #                                             for l in ax.condition), axioms))
-        derived_goals = {literal for literal in action.precondition if not literal_holds(state, literal)}
+        all_conditions = list(get_precondition(action)) + list(flatten(cond for cond, _ in action.add_effects + action.del_effects))
+        axioms = backtrack_axioms(all_conditions, axioms_from_effect, set())
         axiom_from_atom, _ = get_achieving_axioms(state, axioms)
+        action.applied_effects = []
+        for effects in [action.add_effects, action.del_effects]:
+            negate = effects is action.del_effects
+            for i, (conditions, effect) in reversed(list(enumerate(effects))):
+                if all(literal_holds(state, literal) or (literal in axiom_from_atom) for literal in conditions):
+                    action.precondition.extend(conditions)
+                    effects[i] = ([], effect)
+                    action.applied_effects.append(effect.negate() if negate else effect)
+                else:
+                    effects.pop(i)
+        target_conditions = {literal for literal in action.precondition if not literal_holds(state, literal)}
         axiom_plans.append([])
-        assert extract_axioms(axiom_from_atom, derived_goals, axiom_plans[-1])
+        assert extract_axioms(axiom_from_atom, target_conditions, axiom_plans[-1])
         apply_action(state, action)
     return axiom_plans

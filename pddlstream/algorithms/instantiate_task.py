@@ -16,7 +16,7 @@ import instantiate
 import translate
 import normalize
 
-FD_INSTANTIATE = False
+FD_INSTANTIATE = True
 
 InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
                                                    'reachable_action_params', 'goal_list'])

@@ -125,20 +125,21 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    action_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
-    if action_plan is None:
+    renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
+    if renamed_plan is None:
         return None, INF
-    action_instances = [action_from_name[name] for name, _ in action_plan]
-    simplify_conditional_effects(instantiated.task, action_instances)
-    stream_plan, action_instances = recover_simultaneous(
-        applied_results, negative, deferred_from_name, action_instances)
-    cost = get_plan_cost(action_instances, cost_from_action)
-    axiom_plans = recover_axioms_plans(instantiated, action_instances)
+    action_plan = [action_from_name[name] for name, _ in renamed_plan]
+    cost = get_plan_cost(action_plan, cost_from_action)
+
+    axiom_plans = recover_axioms_plans(instantiated, action_plan)
+    #simplify_conditional_effects(instantiated.task, action_instances)
+    stream_plan, action_plan = recover_simultaneous(
+        applied_results, negative, deferred_from_name, action_plan)
 
     stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression,
-                                      stream_domain, node_from_atom, action_instances, axiom_plans, negative)
+                                      stream_domain, node_from_atom, action_plan, axiom_plans, negative)
     #action_plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
-    action_plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
+    pddl_plan = obj_from_pddl_plan(map(pddl_from_instance, action_plan))
 
-    combined_plan = stream_plan + action_plan
+    combined_plan = stream_plan + pddl_plan
     return combined_plan, cost
