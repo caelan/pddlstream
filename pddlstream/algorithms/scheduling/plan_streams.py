@@ -10,7 +10,7 @@ from pddlstream.algorithms.scheduling.recover_streams import get_achieving_strea
     recover_stream_plan
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
-    add_unsatisfiable_to_goal, get_instance_facts, simplify_conditional_effects
+    add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.language.constants import And, Not
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, get_prefix
@@ -81,6 +81,7 @@ def instantiate_optimizer_axioms(instantiated, domain, results):
                               axioms=[ax for ax in domain.axioms if ax.name == UNSATISFIABLE])
     temp_problem = get_problem(evaluations, Not((UNSATISFIABLE,)), temp_domain)
     with Verbose():
+        # TODO: the FastDownward instantiation will prune static preconditions
         new_instantiated = instantiate_task(task_from_domain_problem(temp_domain, temp_problem), prune_static=False)
     instantiated.axioms.extend(new_instantiated.axioms)
     instantiated.atoms.update(new_instantiated.atoms)
@@ -132,6 +133,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     cost = get_plan_cost(action_plan, cost_from_action)
 
     axiom_plans = recover_axioms_plans(instantiated, action_plan)
+    # TODO: extract out the minimum set of conditional effects that are actually required
     #simplify_conditional_effects(instantiated.task, action_instances)
     stream_plan, action_plan = recover_simultaneous(
         applied_results, negative, deferred_from_name, action_plan)

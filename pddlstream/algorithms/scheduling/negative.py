@@ -2,7 +2,6 @@ from pddlstream.algorithms.downward import fact_from_fd, plan_preimage, apply_ac
     GOAL_NAME, get_derived_predicates, literal_holds
 from pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
 from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_action_instances, reinstantiate_axiom_instances
-from pddlstream.algorithms.scheduling.utils import simplify_conditional_effects
 from pddlstream.language.conversion import obj_from_pddl
 from pddlstream.language.function import Predicate, PredicateResult
 from pddlstream.language.stream import Stream

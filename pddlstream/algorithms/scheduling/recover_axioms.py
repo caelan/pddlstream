@@ -7,6 +7,7 @@ from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip, flatten
 
 import pddl
+import axiom_rules
 
 
 def get_necessary_axioms(conditions, axioms, negative_from_name):
@@ -22,7 +23,6 @@ def get_necessary_axioms(conditions, axioms, negative_from_name):
                 atom_queue.append(atom) # Previously was lit.positive() for some reason?
                 processed_atoms.add(atom)
 
-    import pddl
     add_literals(conditions)
     axiom_from_action = {}
     partial_instantiations = set()
@@ -51,7 +51,6 @@ def get_necessary_axioms(conditions, axioms, negative_from_name):
 ##################################################
 
 def instantiate_necessary_axioms(model, static_facts, fluent_facts, axiom_remap={}):
-    import pddl
     instantiated_axioms = []
     for atom in model:
         if isinstance(atom.predicate, pddl.Action):
@@ -84,7 +83,6 @@ def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}
 
 def is_useful_atom(atom, conditions_from_predicate):
     # TODO: this is currently a bottleneck. Instantiate for all actions along the plan first? (apply before checking)
-    import pddl
     if not isinstance(atom, pddl.Atom):
         return False
     for atom2 in conditions_from_predicate[atom.predicate]:
@@ -166,12 +164,13 @@ def backtrack_axioms(conditions, axioms_from_effect, visited_atoms):
     return visited_axioms
 
 def recover_axioms_plans(instantiated, action_instances):
-    # TODO: normalize axioms first
+    axioms, axiom_init, _ = axiom_rules.handle_axioms(
+        instantiated.actions, instantiated.axioms, instantiated.goal_list)
     axioms_from_effect = defaultdict(list)
-    for axiom in instantiated.axioms:
+    for axiom in axioms:
         axioms_from_effect[axiom.effect].append(axiom)
 
-    state = set(instantiated.task.init)
+    state = set(instantiated.task.init) | set(axiom_init)
     axiom_plans = []
     for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
         all_conditions = list(get_precondition(action)) + list(flatten(cond for cond, _ in action.add_effects + action.del_effects))

@@ -6,7 +6,7 @@ from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
     TRANSLATE_OUTPUT, parse_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
-    get_effects, get_conjuctive_parts
+    get_effects, get_conjuctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose
@@ -16,7 +16,7 @@ import instantiate
 import translate
 import normalize
 
-FD_INSTANTIATE = True
+FD_INSTANTIATE = False
 
 InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
                                                    'reachable_action_params', 'goal_list'])
@@ -63,51 +63,49 @@ def get_reachable_action_params(instantiated_actions):
         reachable_action_params[action].append(args) # TODO: does this actually do anything
     return reachable_action_params
 
-def get_reachable_atoms(init, operators):
-    atoms = set(init) | set(flatten(get_effects(op) for op in operators))
-    return {atom for atom in atoms if isinstance(atom, pddl.Atom)}
-
 ##################################################
 
 def filter_negated(conditions, negated_from_name):
     return list(filter(lambda a: a.predicate not in negated_from_name, conditions))
 
 
-def get_achieving_axioms(state, axioms, negated_from_name={}):
+def get_achieving_axioms(state, operators, negated_from_name={}):
     # TODO: order by stream effort
     # marking algorithm for propositional Horn logic
     unprocessed_from_literal = defaultdict(list)
-    axiom_from_literal = {}
+    operator_from_literal = {}
     remaining_from_stream = {}
-    reachable_operators = []
+    reachable_operators = set() # TODO: only keep facts
 
     queue = deque()
-    def process_axiom(axiom):
-        reachable_operators.append(axiom)
-        for effect in get_effects(axiom):
-            if effect not in axiom_from_literal:
-                axiom_from_literal[effect] = axiom
-                queue.append(effect)
+    def process_axiom(op, effect):
+        reachable_operators.add(id(op))
+        if effect not in operator_from_literal:
+            operator_from_literal[effect] = op
+            queue.append(effect)
 
     # TODO: could produce a list of all derived conditions
-    for axiom in axioms:
-        remaining_from_stream[id(axiom)] = 0
-        for literal in filter_negated(get_precondition(axiom), negated_from_name):
-            if literal_holds(state, literal):
-                axiom_from_literal[literal] = None
-            else:
-                remaining_from_stream[id(axiom)] += 1
-                unprocessed_from_literal[literal].append(axiom)
-        if remaining_from_stream[id(axiom)] == 0:
-            process_axiom(axiom)
+    for op in operators:
+        preconditions = get_precondition(op)
+        for cond, effect in get_conditional_effects(op):
+            conditions = cond + preconditions
+            remaining_from_stream[id(op), effect] = 0
+            for literal in filter_negated(conditions, negated_from_name):
+                if literal_holds(state, literal):
+                    operator_from_literal[literal] = None
+                else:
+                    remaining_from_stream[id(op), effect] += 1
+                    unprocessed_from_literal[literal].append((op, effect))
+            if remaining_from_stream[id(op), effect] == 0:
+                process_axiom(op, effect)
 
     while queue:
         literal = queue.popleft()
-        for axiom in unprocessed_from_literal[literal]:
-            remaining_from_stream[id(axiom)] -= 1
-            if remaining_from_stream[id(axiom)] == 0:
-                process_axiom(axiom)
-    return axiom_from_literal, reachable_operators
+        for op, effect in unprocessed_from_literal[literal]:
+            remaining_from_stream[id(op), effect] -= 1
+            if remaining_from_stream[id(op), effect] == 0:
+                process_axiom(op, effect)
+    return operator_from_literal, [op for op in operators if id(op) in reachable_operators]
 
 ##################################################
 
@@ -150,11 +148,14 @@ def instantiate_domain(task, prune_static=True):
                 instantiated_axioms.append(inst_axiom)
 
     reachable_facts, reachable_operators = get_achieving_axioms(init_facts, instantiated_actions + instantiated_axioms)
+    atoms = {atom for atom in (init_facts | set(reachable_facts)) if isinstance(atom, pddl.Atom)}
     relaxed_reachable = all(literal_holds(init_facts, goal) or goal in reachable_facts
                             for goal in instantiate_goal(task.goal))
-    reachable_actions = [action for action in reachable_operators if isinstance(action, pddl.PropositionalAction)]
-    reachable_axioms = [axiom for axiom in reachable_operators if isinstance(axiom, pddl.PropositionalAxiom)]
-    return relaxed_reachable, reachable_actions, reachable_axioms
+    reachable_actions = [action for action in reachable_operators
+                         if isinstance(action, pddl.PropositionalAction)]
+    reachable_axioms = [axiom for axiom in reachable_operators
+                        if isinstance(axiom, pddl.PropositionalAxiom)]
+    return relaxed_reachable, atoms, reachable_actions, reachable_axioms
 
 ##################################################
 
@@ -165,8 +166,7 @@ def instantiate_task(task, **kwargs):
     if FD_INSTANTIATE:
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
-        relaxed_reachable, actions, axioms = instantiate_domain(task, **kwargs)
-        atoms = get_reachable_atoms(task.init, actions + axioms)
+        relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
         reachable_action_params = get_reachable_action_params(actions)
     print('Instantiation time:', elapsed_time(start_time))
     if not relaxed_reachable:
