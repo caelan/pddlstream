@@ -162,10 +162,13 @@ def partition_facts(facts):
             positive.append(func)
     return positive, negated, functions
 
+def is_cost(o):
+    return get_prefix(o) == MINIMIZE
+
 
 def get_costs(objectives):
-    return [o for o in objectives if get_prefix(o) == MINIMIZE]
+    return [o for o in objectives if is_cost(o)]
 
 
 def get_constraints(objectives):
-    return [o for o in objectives if get_prefix(o) != MINIMIZE]
+    return [o for o in objectives if not is_cost(o)]
