@@ -165,7 +165,6 @@ def optimizer_conditional_effects(domain, externals):
             for stream_fact in stream_facts:
                 new_effects.append(pddl.Effect(effect.parameters, pddl.Conjunction(new_parts), stream_fact))
         action.effects = new_effects
-        #action.dump()
 
 def enforce_simultaneous(domain, externals):
     optimizer_conditional_effects(domain, externals)

@@ -159,7 +159,7 @@ def instantiate_domain(task, prune_static=True):
 
 ##################################################
 
-def instantiate_task(task, **kwargs):
+def instantiate_task(task, check_infeasible=True, **kwargs):
     start_time = time()
     print()
     normalize.normalize(task)
@@ -169,7 +169,7 @@ def instantiate_task(task, **kwargs):
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
         reachable_action_params = get_reachable_action_params(actions)
     print('Instantiation time:', elapsed_time(start_time))
-    if not relaxed_reachable:
+    if check_infeasible and not relaxed_reachable:
         return None
     goal_list = instantiate_goal(task.goal)
     return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)

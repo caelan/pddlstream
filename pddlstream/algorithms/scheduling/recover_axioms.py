@@ -65,9 +65,11 @@ def instantiate_necessary_axioms(model, static_facts, fluent_facts, axiom_remap=
 
 ##################################################
 
-def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}):
+def extract_axioms(state, axiom_from_atom, conditions, axiom_plan, negated_from_name={}):
     success = True
     for fact in filter_negated(conditions, negated_from_name):
+        if literal_holds(state, fact):
+            continue
         if fact not in axiom_from_atom:
             #print(fact)
             success = False
@@ -75,7 +77,7 @@ def extract_axioms(axiom_from_atom, conditions, axiom_plan, negated_from_name={}
         axiom = axiom_from_atom[fact]
         if (axiom is None) or (axiom in axiom_plan):
             continue
-        extract_axioms(axiom_from_atom, axiom.condition, axiom_plan, negated_from_name=negated_from_name)
+        extract_axioms(state, axiom_from_atom, axiom.condition, axiom_plan, negated_from_name=negated_from_name)
         axiom_plan.append(axiom)
     return success
 
@@ -90,7 +92,7 @@ def is_useful_atom(atom, conditions_from_predicate):
             return True
     return False
 
-def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
+def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
     import axiom_rules
     # TODO: filter instantiated_axioms that aren't applicable?
     with Verbose(False):
@@ -103,9 +105,9 @@ def extraction_helper(init, instantiated_axioms, goals, negative_from_name={}):
         if pre.positive() not in axiom_init:
             axiom_init.add(pre.positive().negate())
     goal_action = pddl.PropositionalAction(GOAL_NAME, goals, [], None)
-    axiom_from_atom, _ = get_achieving_axioms(init | axiom_init, helpful_axioms + [goal_action], negative_from_name)
+    axiom_from_atom, _ = get_achieving_axioms(state | axiom_init, helpful_axioms + [goal_action], negative_from_name)
     axiom_plan = []  # Could always add all conditions
-    success = extract_axioms(axiom_from_atom, goals, axiom_plan, negative_from_name)
+    success = extract_axioms(state, axiom_from_atom, goals, axiom_plan, negative_from_name)
     if not success:
         print('Warning! Could not extract an axiom plan')
         #return None
@@ -186,8 +188,7 @@ def recover_axioms_plans(instantiated, action_instances):
                     action.applied_effects.append(effect.negate() if negate else effect)
                 else:
                     effects.pop(i)
-        target_conditions = {literal for literal in action.precondition if not literal_holds(state, literal)}
         axiom_plans.append([])
-        assert extract_axioms(axiom_from_atom, target_conditions, axiom_plans[-1])
+        assert extract_axioms(state, axiom_from_atom, action.precondition, axiom_plans[-1])
         apply_action(state, action)
     return axiom_plans

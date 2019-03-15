@@ -80,9 +80,12 @@ def instantiate_optimizer_axioms(instantiated, domain, results):
     temp_domain = make_domain(predicates=[make_predicate(UNSATISFIABLE, [])],
                               axioms=[ax for ax in domain.axioms if ax.name == UNSATISFIABLE])
     temp_problem = get_problem(evaluations, Not((UNSATISFIABLE,)), temp_domain)
+    # TODO: UNSATISFIABLE might be in atoms making the goal always infeasible
     with Verbose():
         # TODO: the FastDownward instantiation will prune static preconditions
-        new_instantiated = instantiate_task(task_from_domain_problem(temp_domain, temp_problem), prune_static=False)
+        new_instantiated = instantiate_task(task_from_domain_problem(temp_domain, temp_problem),
+                                            check_infeasible=False, prune_static=False)
+        assert new_instantiated is not None
     instantiated.axioms.extend(new_instantiated.axioms)
     instantiated.atoms.update(new_instantiated.atoms)
 
