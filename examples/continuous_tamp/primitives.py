@@ -205,7 +205,7 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name, args = action
     if name == 'move':
-        _, traj, _ = args
+        traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
         for conf in traj[1:]:
             yield TAMPState(conf, holding, block_poses)
     elif name == 'pick':

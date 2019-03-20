@@ -34,7 +34,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer_hard.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}

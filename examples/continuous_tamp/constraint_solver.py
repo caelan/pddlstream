@@ -157,9 +157,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
                 return OptimizerOutput()
             constraint_indices = {i for i, term in enumerate(facts) if term[0] != MINIMIZE}
             #infeasible = constraint_indices
-            #infeasible = compute_inconsistent(model)
+            infeasible = compute_inconsistent(model)
             #infeasible = deletion_filter(model, constraint_indices)
-            infeasible = elastic_filter(model, constraint_indices)
+            #infeasible = elastic_filter(model, constraint_indices)
             infeasible_facts = [facts[index] for index in sorted(infeasible)]
             print('Inconsistent:', infeasible_facts)
             return OptimizerOutput(infeasible=[infeasible])

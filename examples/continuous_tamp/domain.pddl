@@ -34,7 +34,9 @@
   (:action move
     :parameters (?q1 ?t ?q2)
     :precondition (and (Motion ?q1 ?t ?q2)
-                       (AtConf ?q1) (CanMove) (not (Unsafe)) (not (UnsafeTraj ?t)))
+    ;:parameters (?q1 ?q2)
+    ;:precondition (and (Conf ?q1) (Conf ?q2)
+                       (AtConf ?q1) (CanMove) (not (Unsafe))) ; (not (UnsafeTraj ?t)))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))
                  (increase (total-cost) (Dist ?q1 ?q2))))
