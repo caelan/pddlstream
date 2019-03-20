@@ -124,7 +124,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
             name = str(index)
             if prefix == 'kin':
                 kinematics_constraint(model, name, *map(get_var, args))
-            elif prefix == 'contained':
+            elif prefix in ('contain', 'contained'):
                 contained_constraint(model, regions, name, *map(get_var, args))
             elif prefix == 'cfree' and collisions:
                 collision_constraint(model, name, *map(get_var, args))
@@ -139,7 +139,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
             elif prefix == MINIMIZE:
                 fact = args[0]
                 func, args = fact[0], fact[1:]
-                if func == 'distance':
+                if func in ('dist', 'distance'):
                     objective_terms.extend(distance_cost(*map(get_var, args)))
                 continue
             constraint_from_name[name] = fact

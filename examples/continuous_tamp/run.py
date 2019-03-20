@@ -21,7 +21,7 @@ from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, p
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import ensure_dir
+from pddlstream.utils import ensure_dir, safe_rm_dir
 from pddlstream.utils import user_input, read, INF, get_file_path, str_from_object, implies
 
 
@@ -34,7 +34,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, 'optimizer_hard.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}
@@ -63,7 +63,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
-        'distance': distance_fn,
+        'dist': distance_fn,
 
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
     }
@@ -85,6 +85,7 @@ def display_plan(tamp_problem, plan, display=True):
 
     example_name = os.path.basename(os.path.dirname(__file__))
     directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
+    safe_rm_dir(directory)
     ensure_dir(directory)
 
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
@@ -197,7 +198,7 @@ def main():
                                  unit_efforts=False, effort_weight=0,
                                  search_sample_ratio=1,
                                  #max_skeletons=None,
-                                 visualize=False)
+                                 visualize=True)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      complexity_step=2, planner=planner, hierarchy=hierarchy,

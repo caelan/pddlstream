@@ -7,7 +7,7 @@
     (Pose ?b ?p)
     (Conf ?q)
     (Traj ?t)
-    (Contained ?b ?p ?r)
+    (Contain ?b ?p ?r)
     (Kin ?b ?q ?p)
     (Motion ?q1 ?t ?q2)
     (CFree ?b1 ?p1 ?b2 ?p2)
@@ -29,7 +29,7 @@
     (UnsafeTraj ?t)
   )
   (:functions
-    (Distance ?q1 ?q2)
+    (Dist ?q1 ?q2)
   )
   (:action move
     :parameters (?q1 ?t ?q2)
@@ -37,7 +37,7 @@
                        (AtConf ?q1) (CanMove) (not (Unsafe)) (not (UnsafeTraj ?t)))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))
-                 (increase (total-cost) (Distance ?q1 ?q2))))
+                 (increase (total-cost) (Dist ?q1 ?q2))))
   (:action pick
     :parameters (?b ?p ?q)
     :precondition (and (Kin ?b ?q ?p)
@@ -67,7 +67,7 @@
   )
 
   (:derived (In ?b ?r)
-    (exists (?p) (and (Contained ?b ?p ?r)
+    (exists (?p) (and (Contain ?b ?p ?r)
                       (AtPose ?b ?p))))
   ;(:derived (UnsafePose ?b1 ?p1)
   ;  (exists (?b2 ?p2) (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)

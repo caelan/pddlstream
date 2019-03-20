@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import numpy as np
+import string
 
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
@@ -8,7 +9,7 @@ BLOCK_HEIGHT = BLOCK_WIDTH
 
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
-CARRY_Y = 5.
+CARRY_Y = 2*BLOCK_WIDTH+SUCTION_HEIGHT
 MOVE_COST = 10.
 COST_PER_DIST = 1.
 
@@ -115,34 +116,37 @@ def plan_motion(q1, q2):
 TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
-BLOCK_PREFIX = 'b'
 REGION_NAME = 'red'
-INITIAL_CONF = np.array([-7.5, 5])
+INITIAL_CONF = np.array([-5, CARRY_Y])
 GOAL_CONF = None
 #GOAL_CONF = INITIAL_CONF
 
 REGIONS = {
-    GROUND_NAME: (-15, 15),
+    GROUND_NAME: (-10, 10),
     REGION_NAME: (5, 10),
 }
 
+def make_blocks(num):
+    #return ['b{}'.format(i) for i in range(num)]
+    return [string.ascii_uppercase[i] for i in range(num)]
+
 def tight(n_blocks=3, n_goals=2):
-    blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
     #poses = [sample_region(b, regions[GROUND]) for b in blocks]
+    blocks = make_blocks(len(poses))
 
     initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
     goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-
 def blocked(n_blocks=3, deterministic=True):
-    blocks = ['{}{}'.format(BLOCK_PREFIX, i) for i in range(n_blocks)]
+    blocks = make_blocks(n_blocks)
     if deterministic:
+        lower, upper = REGIONS[GROUND_NAME]
         poses = [np.zeros(2), np.array([7.5, 0])]
-        poses.extend(np.array([-15 + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+        poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
                      for x in range(n_blocks-len(poses)))
         block_poses = dict(zip(blocks, poses))
     else:
@@ -156,9 +160,23 @@ def blocked(n_blocks=3, deterministic=True):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
+
+def blocked2(n_blocks=0, **kwargs):
+    lower, upper = REGIONS[GROUND_NAME]
+    poses = [np.zeros(2), np.array([6.5, 0]), np.array([8.5, 0])]
+    poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+                 for x in range(n_blocks-len(poses)))
+    blocks = make_blocks(len(poses))
+    block_poses = dict(zip(blocks, poses))
+    initial = TAMPState(INITIAL_CONF, None, block_poses)
+    goal_regions = {blocks[0]: 'red'}
+
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+
 PROBLEMS = [
     tight,
     blocked,
+    blocked2,
 ]
 
 ##################################################

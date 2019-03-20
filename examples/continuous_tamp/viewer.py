@@ -17,7 +17,7 @@ def get_width(interval):
     return interval[1] - interval[0]
 
 class ContinuousTMPViewer(object):
-    def __init__(self, suction_height, regions, tl_x=0, tl_y=0, width=500, height=150, title='Grid', background='tan'):
+    def __init__(self, suction_height, regions, tl_x=0, tl_y=0, width=400, height=200, title='Grid', background='tan'):
         self.tk = Tk()
         # tk.geometry('%dx%d+%d+%d'%(width, height, 100, 0))
         self.tk.withdraw()
@@ -27,14 +27,12 @@ class ContinuousTMPViewer(object):
 
         self.suction_height = suction_height
         self.regions = regions
-        self.tl_x = tl_x
-        self.tl_y = tl_y
         self.width = width
         self.height = height
         self.canvas = Canvas(self.top, width=self.width, height=self.height, background=background)
         self.canvas.pack()
         # self.center()
-        self.move_frame(self.tl_x, self.tl_y)
+        self.move_frame(tl_x, tl_y)
 
         max_width = max(map(get_width, regions.values())) # Really should take width of max minus min
         self.dist_to_pixel = (self.width - 2 * PIXEL_BUFFER) / max_width  # Maintains aspect ratio
@@ -64,7 +62,7 @@ class ContinuousTMPViewer(object):
         self.top.geometry("%dx%d+%d+%d" % (size + (x, y)))
 
     def scale_x(self, x):  # x \in [-self.dist_width/2, self.dist_width/2]
-        return self.dist_to_pixel * (x + self.dist_width / 2.)
+        return self.width / 2. + self.dist_to_pixel * x
 
     def scale_y(self, y):  # y \in [0, self.dist_height]
         return self.ground_height - self.dist_to_pixel * y

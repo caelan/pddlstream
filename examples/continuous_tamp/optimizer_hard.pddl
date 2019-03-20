@@ -1,5 +1,5 @@
 (define (stream pick-and-place)
-  (:function (Distance ?q1 ?q2)
+  (:function (Dist ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
   ;(:predicate (TrajCollision ?t ?b2 ?p2)
@@ -17,13 +17,13 @@
     (:variables (?p)
       :inputs (?b ?r)
       :domain (Placeable ?b ?r)
-      :graph (and (Contained ?b ?p ?r) (Pose ?b ?p)))
+      :graph (and (Contain ?b ?p ?r) (Pose ?b ?p)))
     (:variables (?q)
       :graph (Conf ?q))
 
     ; Constraint forms that can be optimized
     ; TODO: can fix variables in the optimization using necessary conditions
-    ;(:constraint (Contained ?b ?p ?r) ; TODO: make this a cluster of constraints?
+    ;(:constraint (Contain?b ?p ?r) ; TODO: make this a cluster of constraints?
     ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
     (:constraint (Kin ?b ?q ?p)
       :necessary (and (Pose ?b ?p) (Conf ?q)))

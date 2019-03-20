@@ -4,7 +4,7 @@
     ;:domain (and (Block ?b) (Region ?r))
     :domain (Placeable ?b ?r)
     :outputs (?p)
-    :certified (and (Pose ?b ?p) (Contained ?b ?p ?r)))
+    :certified (and (Pose ?b ?p) (Contain ?b ?p ?r)))
   (:stream s-ik
     :inputs (?b ?p)
     :domain (Pose ?b ?p)
@@ -23,9 +23,9 @@
   (:stream t-region
     :inputs (?b ?p ?r)
     :domain (and (Pose ?b ?p) (Placeable ?b ?r))
-    :certified (Contained ?b ?p ?r))
+    :certified (Contain ?b ?p ?r))
 
-  (:function (Distance ?q1 ?q2)
+  (:function (Dist ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
   )
   ;(:function (Length ?t)
