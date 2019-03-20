@@ -23,7 +23,6 @@ STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
 ITERATION_TEMPLATE = 'iteration_{}.png'
 SYNTHESIZER_TEMPLATE = '{}_{}.png'
-POST_PROCESS = 'post'
 
 ##################################################
 
@@ -41,40 +40,39 @@ def reset_visualizations():
 
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
-    #from pddlstream.language.synthesizer import decompose_stream_plan
-    #decomposed_plan = decompose_stream_plan(stream_plan)
+    from pddlstream.retired.synthesizer import decompose_stream_plan
+    decomposed_plan = decompose_stream_plan(stream_plan)
     with open(PLAN_LOG_FILE, 'a+') as f:
         f.write('Iteration: {}\n'
+                'Component plan: {}\n'
                 'Stream plan: {}\n'
-                #'Synthesizer plan: {}\n'
                 'Action plan: {}\n\n'.format(
-                iteration, #decomposed_plan,
+                iteration, decomposed_plan,
                 stream_plan, str_from_plan(action_plan)))
 
 def create_synthesizer_visualizations(result, iteration):
-    stream_plan = result.decompose()
-    filename = SYNTHESIZER_TEMPLATE.format(result.instance.external.name,
-                                           POST_PROCESS if iteration is None else iteration)
-    #constraints = get_optimistic_constraints(evaluations, stream_plan)
-    visualize_constraints(result.get_certified() + result.get_functions(),
-                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan,
-                                    os.path.join(STREAM_PLAN_DIR, filename))
+    from pddlstream.retired.synthesizer import decompose_result
+    stream_plan = decompose_result(result)
+    if len(stream_plan) <= 1:
+        return
+    # TODO: may overwrite another optimizer if both used on the same iteration
+    filename = SYNTHESIZER_TEMPLATE.format(result.external.name, iteration)
+    visualize_constraints(result.get_objectives(), os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
 
 def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
     # TODO: decompose any joint streams
-    #from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
-    #for result in stream_plan:
-    #    if isinstance(result, SynthStreamResult):
-    #        create_synthesizer_visualizations(result, iteration)
-    filename = ITERATION_TEMPLATE.format(POST_PROCESS if iteration is None else iteration)
+    from pddlstream.retired.synthesizer import decompose_stream_plan
+    for result in stream_plan:
+        create_synthesizer_visualizations(result, iteration)
+    filename = ITERATION_TEMPLATE.format(iteration)
     # visualize_stream_plan(stream_plan, path)
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    #visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
+    visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
     visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################

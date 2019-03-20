@@ -10,7 +10,7 @@ from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInsta
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
 from pddlstream.language.generator import get_next
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
-from pddlstream.algorithms.reorder import get_stream_plan_components
+from pddlstream.algorithms.reorder import get_stream_plan_components, get_partial_orders
 
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
@@ -66,8 +66,8 @@ def get_effort_fn(optimizer_name):
         parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
         optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
                               if input_values[i].stream.startswith(optimizer_name)]
-        if not parameter_indices and not optimizer_indices:
-            return INF
+        #if not parameter_indices and not optimizer_indices:
+        #    return INF
         return 1
     return effort_fn
 
@@ -166,6 +166,8 @@ UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
 class OptimizerResult(StreamResult):
     def get_components(self):
         return self.external.stream_plan
+    def get_objectives(self):
+        return substitute_expression(self.external.objectives, self.get_mapping())
     def get_unsatisfiable(self):
         return self.instance.get_unsatisfiable()
 
@@ -197,6 +199,8 @@ class OptimizerInstance(StreamInstance):
             for fact in result.get_certified():
                 if fact in index_from_constraint:
                     result_from_index[index_from_constraint[fact]].add(result)
+        # TODO: add implied results
+        #orders = get_partial_orders(self.external.stream_plan)
         return [{result for index in cluster for result in result_from_index[index]}
                 for cluster in prune_dominated(self.infeasible)]
 
@@ -215,8 +219,8 @@ class OptimizerStream(Stream):
                 for param, obj in safe_zip(result.external.outputs, result.output_objects):
                     if isinstance(obj, Object):
                         hint[mapping[param]] = obj.value
-        target_facts = certified + functions
-        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, target_facts, hint=hint)
+        self.objectives = certified + functions
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, self.objectives, hint=hint)
         #assert len(self.get_cluster_plans()) == 1
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)

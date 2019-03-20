@@ -32,16 +32,23 @@
     ; TODO: maybe prevent initial configurations from being considered
 
     ; Additive objective functions
-    (:objective Distance)
+    (:objective Dist)
   )
+
+  ;(:optimizer rrt
+  ;  (:variables (?t)
+  ;    :graph (Traj ?t))
+  ;  (:constraint (Motion ?q1 ?t ?q2)
+  ;    :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
+  ;
+  ;  ; Treating predicate as objective
+  ;  ;(:objective TrajCollision)
+  ;)
 
   (:optimizer rrt
     (:variables (?t)
-      :graph (Traj ?t))
-    (:constraint (Motion ?q1 ?t ?q2)
-      :necessary (and (Conf ?q1) (Traj ?t) (Conf ?q2)));
-
-    ; Treating predicate as objective
-    ;(:objective TrajCollision)
+      :inputs (?q1 ?q2)
+      :domain (and (Conf ?q1) (Conf ?q2))
+      :graph (and (Motion ?q1 ?t ?q2) (Traj ?t)))
   )
 )

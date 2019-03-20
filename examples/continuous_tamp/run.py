@@ -21,8 +21,8 @@ from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, p
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import ensure_dir, safe_rm_dir
-from pddlstream.utils import user_input, read, INF, get_file_path, str_from_object, implies
+from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
+    sorted_str_from_list, implies
 
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
@@ -183,12 +183,13 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
-    print('Initial:', str_from_object(pddlstream_problem.init))
+    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()
     pr.enable()
     success_cost = 0 if args.optimal else INF
-    planner = 'ff-wastar1'
+    planner = 'max-astar'
+    #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
         solution = solve_focused(pddlstream_problem, constraints=constraints,
                                  action_info=action_info, stream_info=stream_info,

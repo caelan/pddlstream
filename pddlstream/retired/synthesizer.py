@@ -4,21 +4,24 @@ from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import substitute_expression
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import get_cluster_values
+from pddlstream.language.optimizer import get_cluster_values, OptimizerResult
 from pddlstream.language.statistics import Performance
 from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
 from pddlstream.utils import neighbors_from_orders
 
+def decompose_result(result):
+    if isinstance(result, SynthStreamResult):
+        return result.decompose()
+    elif isinstance(result, OptimizerResult):
+        return result.external.stream_plan
+    return [result]
 
 def decompose_stream_plan(stream_plan):
     if not is_plan(stream_plan):
         return stream_plan
     new_stream_plan = []
     for result in stream_plan:
-        if isinstance(result, SynthStreamResult):
-            new_stream_plan.extend(result.decompose())
-        else:
-            new_stream_plan.append(result)
+        new_stream_plan.extend(decompose_result(result))
     return new_stream_plan
 
 class SynthStreamResult(StreamResult):

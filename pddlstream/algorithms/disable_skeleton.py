@@ -32,12 +32,13 @@ def create_disable_axiom(external_plan, use_parameters=True):
     [unsatisfiable] = stream_plan[-1].get_unsatisfiable()
     component_plan = list(flatten(r.get_components() for r in stream_plan[:-1])) + list(unsatisfiable)
     increase_free_variables(component_plan)
-    output_objects = get_free_objects(component_plan) if use_parameters else set()
+    #output_objects = get_free_objects(component_plan) if use_parameters else set()
     constraints = [result.stream_fact for result in component_plan]
     optimistic_objects = {o for f in constraints for o in get_args(f)
                           if isinstance(o, OptimisticObject)} # TODO: consider case when variables are free
-    assert optimistic_objects <= output_objects
-    free_objects = list(optimistic_objects & output_objects)
+    #assert optimistic_objects <= output_objects
+    #free_objects = list(optimistic_objects & output_objects) # TODO: need to return all variables
+    free_objects = optimistic_objects
     parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
     param_from_obj = get_mapping(free_objects, parameters)
     preconditions = substitute_expression(constraints, param_from_obj)

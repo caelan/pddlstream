@@ -23,7 +23,7 @@
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
       :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
 
-    (:objective Distance)
+    (:objective Dist)
   )
 
   (:optimizer rrt

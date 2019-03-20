@@ -213,6 +213,9 @@ class HeapElement(object):
 
 ##################################################
 
+def sorted_str_from_list(obj):
+    return '[{}]'.format(', '.join(sorted(str_from_object(item) for item in obj)))
+
 def str_from_object(obj):  # str_object
     if type(obj) in [list]: #, np.ndarray):
         return '[{}]'.format(', '.join(str_from_object(item) for item in obj))
