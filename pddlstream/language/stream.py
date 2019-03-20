@@ -6,7 +6,7 @@ from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
-    get_formula_operators, values_from_objects, obj_from_value_expression
+    get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list
 from pddlstream.language.generator import get_next, from_fn
@@ -295,6 +295,7 @@ class StreamInstance(Instance):
         assert self.external.is_fluent()
         if self.successes or (self._axiom_predicate is not None):
             return
+        self.disabled = True
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
         self._axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
@@ -312,21 +313,26 @@ class StreamInstance(Instance):
 
     def _disable_negated(self, evaluations):
         assert self.external.is_negated()
-        if not self.successes:
-            add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
+        if self.successes:
+            return
+        self.disabled = True
+        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
 
     def disable(self, evaluations, domain):
         #assert not self.disabled
-        super(StreamInstance, self).disable(evaluations, domain)
+        #super(StreamInstance, self).disable(evaluations, domain)
         if self.external.is_fluent():
             self._disable_fluent(evaluations, domain)
         elif self.external.is_negated():
             self._disable_negated(evaluations)
+        else:
+            self.disabled = True
 
-    def enable(self, evaluations, domain):
-        super(StreamInstance, self).enable(evaluations, domain)
-        if self._axiom_predicate is not None: # TODO: re-enable?
-            raise NotImplementedError(self)
+    def enable(self, evaluations):
+        if not self.disabled:
+            return
+        super(StreamInstance, self).enable(evaluations)
+        evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), default=None)
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)

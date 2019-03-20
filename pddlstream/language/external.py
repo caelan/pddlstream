@@ -150,7 +150,7 @@ class Instance(object):
     def disable(self, evaluations, domain):
         self.disabled = True
 
-    def enable(self, evaluations, domain):
+    def enable(self, evaluations):
         self.disabled = False
 
 ##################################################

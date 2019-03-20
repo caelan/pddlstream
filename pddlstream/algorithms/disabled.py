@@ -40,9 +40,9 @@ def push_disabled(instantiator, disabled):
             # TODO: only add if not already queued
             instantiator.push_instance(instance)
 
-def reenable_disabled(evaluations, domain, disabled):
+def reenable_disabled(evaluations, disabled):
     for instance in disabled:
-        instance.enable(evaluations, domain)
+        instance.enable(evaluations)
     disabled.clear()
 
 def process_instance(store, domain, instance, disable=True):
