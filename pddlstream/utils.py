@@ -52,6 +52,11 @@ def safe_remove(p):
         os.remove(p)
 
 
+def mkdir(d):
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+
 def ensure_dir(f):
     d = os.path.dirname(f)
     if not os.path.exists(d):
