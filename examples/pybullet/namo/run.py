@@ -11,19 +11,16 @@ from itertools import combinations
 import numpy as np
 
 from examples.pybullet.pr2_belief.problems import BeliefState
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands, Attach, Detach, \
-    create_trajectory
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
-from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, joint_from_name
-from examples.pybullet.utils.pybullet_tools.utils import get_sample_fn, get_distance_fn, \
-    get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, LockRenderer, get_bodies, draw_point, add_line
-from examples.pybullet.utils.pybullet_tools.utils import set_point, create_box, \
-    stable_z, load_model, TURTLEBOT_URDF, joints_from_names, \
-    set_joint_positions, get_joint_positions, HideOutput, GREY, TAN
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, control_commands, Attach, Detach, \
+    create_trajectory, apply_commands, State, Command
+from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, joint_from_name, \
+    get_sample_fn, get_distance_fn, get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, remove_body, \
+    LockRenderer, get_bodies, draw_point, add_line, set_point, create_box, stable_z, load_model, TURTLEBOT_URDF, \
+    joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, pairwise_collision
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution
+from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, INF, get_file_path
 
@@ -57,6 +54,22 @@ def point_from_conf(conf, z=0.01):
     x, y, theta = conf
     return (x, y, z)
 
+def get_test_cfree_traj_pose(problem, collisions=True):
+    def test(r, t, b2, p2):
+        if not collisions:
+            return True
+        p2.assign()
+        state = State()
+        for _ in t.apply(state):
+            state.assign()
+            #for b1 in state.attachments:
+            #    if pairwise_collision(b1, b2):
+            #        return False
+            if pairwise_collision(r, b2):
+                return False
+        return True
+    return test
+
 def pddlstream_from_problem(problem, collisions=True, teleport=False):
     # TODO: push and attach to movable objects
 
@@ -65,6 +78,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     constant_map = {}
 
     # TODO: action to generically connect to the roadmap
+    # TODO: reachability derived predicate formulation
 
     samples = []
     init = []
@@ -72,6 +86,9 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
         q_init = Conf(robot, get_base_joints(robot))
         samples.append(q_init)
         init += [('Robot', robot), ('Conf', robot, q_init), ('AtConf', robot, q_init)]
+    for body in problem.movable:
+        pose = Pose(body)
+        init += [('Body', body), ('Pose', body, pose), ('AtPose', body, pose)]
 
     goal_literals = []
     for robot, base_values in problem.goal_confs.items():
@@ -86,8 +103,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
         for robot in problem.robots:
             custom_limits.update(get_custom_limits(robot, problem.limits))
 
-    obstacles = [body for body in get_bodies() if body not in problem.robots]
-    print('Obstacles', obstacles)
+    obstacles = [body for body in get_bodies() if (body not in problem.robots) and (body not in problem.movable)]
 
     # TODO: assuming holonomic for now
     [body] = problem.robots
@@ -125,8 +141,8 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
                 t1 = create_trajectory(body, joints, path)
                 t2 = create_trajectory(body, joints, path[::-1])
                 edges.append((q1, q2))
-                init += [('Motion', body, q1, q2, t1),
-                         ('Motion', body, q2, q1, t2)]
+                init += [('Motion', body, q1, q2, t1), ('Traj', body, t1),
+                         ('Motion', body, q2, q1, t2), ('Traj', body, t2)]
 
     for q1, q2 in edges:
         handles.append(add_line(point_from_conf(q1.values),
@@ -135,7 +151,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
 
     stream_map = {
-        #'test-cfree-ray-conf': from_test(get_cfree_ray_test(problem, collisions=collisions)),
+        'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem, collisions=collisions)),
         #'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
         #'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits, collisions=collisions)),
         #'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits, collisions=collisions)),
@@ -183,9 +199,22 @@ def problem_fn(n_rovers=1):
         robots.append(rover)
     goal_confs = {robots[0]: rover_confs[-1]}
 
-    return NAMOProblem(robots, base_limits, movable=[], goal_confs=goal_confs)
+    body1 = create_cylinder(2*mound_height, mound_height, color=RED)
+    set_point(body1, Point(y=-base_extent / 4., z=mound_height / 2.))
+    body2 = create_cylinder(2*mound_height, mound_height, color=RED)
+    set_point(body2, Point(x=base_extent / 4., y=3*base_extent / 8., z=mound_height / 2.))
+
+    return NAMOProblem(robots, base_limits, movable=[body1, body2], goal_confs=goal_confs)
 
 #######################################################
+
+
+class Vaporize(Command):
+    def __init__(self, body):
+        self.body = body
+    def apply(self, state, **kwargs):
+        remove_body(self.body)
+        yield
 
 def post_process(problem, plan, teleport=False):
     if plan is None:
@@ -193,12 +222,9 @@ def post_process(problem, plan, teleport=False):
     commands = []
     attachments = {}
     for i, (name, args) in enumerate(plan):
-        if name == 'send_image':
-            r, q, y, l, o, m = args
-            new_commands = [y]
-        elif name == 'send_analysis':
-            r, q, y, l, r = args
-            new_commands = [y]
+        if name == 'vaporize':
+            o, p = args
+            new_commands = [Vaporize(o)]
         elif name == 'sample_rock':
             r, q, r, s = args
             attachments[r] = r
@@ -240,16 +266,11 @@ def main(display=True, teleport=False):
     with HideOutput():
         problem = problem_fn()
     saver = WorldSaver()
-    draw_base_limits(problem.limits, color=(1, 0, 0))
+    draw_base_limits(problem.limits, color=RED)
 
     pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
     stream_info = {
-        'test-cfree-ray-conf': StreamInfo(negate=True),
-        'test-reachable': StreamInfo(p_success=1e-1),
-        'obj-inv-visible': StreamInfo(),
-        'com-inv-visible': StreamInfo(),
-        'sample-above': StreamInfo(),
-        'sample-motion': StreamInfo(overhead=10),
+        'test-cfree-traj-pose': StreamInfo(negate=True),
     }
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
@@ -284,6 +305,7 @@ def main(display=True, teleport=False):
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(25) # cumtime | tottime
     if plan is None:
+        wait_for_user()
         return
     if (not display) or (plan is None):
         disconnect()

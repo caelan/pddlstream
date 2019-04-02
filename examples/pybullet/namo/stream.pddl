@@ -6,4 +6,10 @@
   ;  :outputs (?t)
   ;  :certified (Motion ?v ?q1 ?t ?q2)
   ;)
+
+  (:stream test-cfree-traj-pose
+    :inputs (?r ?t ?b2 ?p2)
+    :domain (and (Traj ?r ?t) (Pose ?b2 ?p2))
+    :certified (CFreeTrajPose ?r ?t ?b2 ?p2)
+  )
 )
