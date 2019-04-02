@@ -65,8 +65,8 @@ def extract_stream_plan(node_from_atom, target_facts, stream_plan):
     for fact in target_facts:
         if fact not in node_from_atom:
             raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
-        stream_result = node_from_atom[fact].result
-        if (stream_result is None) or (stream_result in stream_plan):
+        result = node_from_atom[fact].result
+        if (result is None) or (result in stream_plan):
             continue
-        extract_stream_plan(node_from_atom, stream_result.instance.get_domain(), stream_plan)
-        stream_plan.append(stream_result) # TODO: don't add if satisfied
+        extract_stream_plan(node_from_atom, result.instance.get_domain(), stream_plan)
+        stream_plan.append(result) # TODO: don't add if satisfied

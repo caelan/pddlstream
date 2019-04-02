@@ -107,7 +107,7 @@ def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
     goal_action = pddl.PropositionalAction(GOAL_NAME, goals, [], None)
     axiom_from_atom, _ = get_achieving_axioms(state | axiom_init, helpful_axioms + [goal_action], negative_from_name)
     axiom_plan = []  # Could always add all conditions
-    success = extract_axioms(state, axiom_from_atom, goals, axiom_plan, negative_from_name)
+    success = extract_axioms(state | axiom_init, axiom_from_atom, goals, axiom_plan, negative_from_name)
     if not success:
         print('Warning! Could not extract an axiom plan')
         #return None
@@ -166,8 +166,9 @@ def backtrack_axioms(conditions, axioms_from_effect, visited_atoms):
     return visited_axioms
 
 def recover_axioms_plans(instantiated, action_instances):
-    axioms, axiom_init, _ = axiom_rules.handle_axioms(
-        instantiated.actions, instantiated.axioms, instantiated.goal_list)
+    #axioms, axiom_init, _ = axiom_rules.handle_axioms(
+    #    instantiated.actions, instantiated.axioms, instantiated.goal_list)
+    axioms, axiom_init = instantiated.axioms, [] # TODO: bug when needing to reachieve negated
     axioms_from_effect = defaultdict(list)
     for axiom in axioms:
         axioms_from_effect[axiom.effect].append(axiom)
