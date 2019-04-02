@@ -90,6 +90,8 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
     # TODO: action to generically connect to the roadmap
     # TODO: could check individual vertices first
+    # TODO: dynamically generate the roadmap in interesting parts of the space
+    # TODO: visibility graphs for sparse roadmaps
 
     samples = []
     init = []
@@ -108,6 +110,8 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
         init += [('Conf', robot, q_goal)]
         goal_literals += [('AtConf', robot, q_goal)]
     goal_formula = And(*goal_literals)
+    #robot = problem.robots[0]
+    #body = problem.obstacles[0]
 
     custom_limits = {}
     if problem.limits is not None:
@@ -121,7 +125,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     joints = get_base_joints(body)
     #sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
     sample_fn = get_halton_sample_fn(body, joints, custom_limits=custom_limits)
-    distance_fn = get_distance_fn(body, joints, weights=None)
+    #distance_fn = get_distance_fn(body, joints, weights=None)
     extend_fn = get_extend_fn(body, joints, resolutions=BASE_RESOLUTIONS)
     collision_fn = get_collision_fn(body, joints, obstacles, attachments=[],
                                     self_collisions=False, disabled_collisions=set(),
@@ -132,7 +136,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     print('Area:', area)
 
     samples_per_ft2 = 8
-    num_samples = samples_per_ft2*area
+    num_samples = int(samples_per_ft2*area)
     with LockRenderer():
         while len(samples) < num_samples:
             sample = sample_fn()
@@ -220,7 +224,6 @@ def problem_fn(n_rovers=1):
     return NAMOProblem(robots, base_limits, movable=[body1, body2], goal_confs=goal_confs)
 
 #######################################################
-
 
 class Vaporize(Command):
     def __init__(self, body):
