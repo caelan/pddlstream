@@ -1,5 +1,9 @@
 (define (stream namo)
 
+  (:function (Cost ?r ?q1 ?q2)
+    (and (Conf ?r ?q1) (Conf ?r ?q2))
+  )
+
   ;(:stream sample-motion
   ;  :inputs (?v ?q1 ?q2)
   ;  :domain (and (Conf ?v ?q1) (Conf ?v ?q2))

@@ -16,9 +16,11 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, co
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, joint_from_name, \
     get_sample_fn, get_distance_fn, get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, remove_body, \
     LockRenderer, get_bodies, draw_point, add_line, set_point, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, pairwise_collision
+    joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, \
+    pairwise_collision, get_halton_sample_fn, get_distance
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import And, print_solution
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo
@@ -31,6 +33,8 @@ from pddlstream.utils import read, INF, get_file_path
 
 BASE_LINK = 'base_link'
 BASE_JOINTS = ['x', 'y', 'theta']
+#BASE_RESOLUTIONS = 0.05*np.ones(3) # Default
+BASE_RESOLUTIONS = np.array([0.05, 0.05, np.pi/16])
 
 def get_base_joints(robot):
     return joints_from_names(robot, BASE_JOINTS)
@@ -70,6 +74,13 @@ def get_test_cfree_traj_pose(problem, collisions=True):
         return True
     return test
 
+def get_cost_fn(problem):
+    def fn(r, q1, q2):
+        return get_distance(q1.values[:2], q2.values[:2])
+    return fn
+
+#######################################################
+
 def pddlstream_from_problem(problem, collisions=True, teleport=False):
     # TODO: push and attach to movable objects
 
@@ -79,6 +90,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
     # TODO: action to generically connect to the roadmap
     # TODO: reachability derived predicate formulation
+    # TODO: could check individual vertices first
 
     samples = []
     init = []
@@ -108,12 +120,15 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     # TODO: assuming holonomic for now
     [body] = problem.robots
     joints = get_base_joints(body)
-    sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
+    #sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
+    sample_fn = get_halton_sample_fn(body, joints, custom_limits=custom_limits)
     distance_fn = get_distance_fn(body, joints, weights=None)
-    extend_fn = get_extend_fn(body, joints, resolutions=None)
+    extend_fn = get_extend_fn(body, joints, resolutions=BASE_RESOLUTIONS)
     collision_fn = get_collision_fn(body, joints, obstacles, attachments=[],
                                     self_collisions=False, disabled_collisions=set(),
                                     custom_limits=custom_limits, max_distance=MAX_DISTANCE)
+
+    print(problem.limits)
 
     num_samples = 50
     with LockRenderer():
@@ -128,12 +143,13 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     for sample in samples:
         handles.extend(draw_point(point_from_conf(sample.values), size=0.05))
 
-    max_distance = 1.0
+    max_distance = 0.45
     with LockRenderer():
         edges = []
         for q1, q2 in combinations(samples, r=2):
             # TODO: degree
-            distance = distance_fn(q1.values, q2.values)
+            #distance = distance_fn(q1.values, q2.values)
+            distance = get_distance(q1.values[:2], q2.values[:2])
             if max_distance < distance:
                 continue
             path = [q1.values] + list(extend_fn(q1.values, q2.values))
@@ -152,6 +168,8 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
     stream_map = {
         'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem, collisions=collisions)),
+        'Cost': get_cost_fn(problem),
+
         #'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
         #'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits, collisions=collisions)),
         #'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits, collisions=collisions)),
@@ -183,7 +201,7 @@ def problem_fn(n_rovers=1):
     wall4 = create_box(mound_height, base_extent + mound_height, mound_height, color=GREY)
     set_point(wall4, Point(x=-base_extent / 2., z=mound_height / 2.))
 
-    wall5 = create_box(mound_height, base_extent / 2., mound_height, color=GREY)
+    wall5 = create_box(mound_height, (base_extent + mound_height)/ 2., mound_height, color=GREY)
     set_point(wall5, Point(y=base_extent / 4., z=mound_height / 2.))
 
     rover_confs = [(+1, 0, np.pi), (-1, 0, 0)]
@@ -199,9 +217,10 @@ def problem_fn(n_rovers=1):
         robots.append(rover)
     goal_confs = {robots[0]: rover_confs[-1]}
 
-    body1 = create_cylinder(2*mound_height, mound_height, color=RED)
+    cylinder_radius = 0.25
+    body1 = create_cylinder(cylinder_radius, mound_height, color=RED)
     set_point(body1, Point(y=-base_extent / 4., z=mound_height / 2.))
-    body2 = create_cylinder(2*mound_height, mound_height, color=RED)
+    body2 = create_cylinder(cylinder_radius, mound_height, color=RED)
     set_point(body2, Point(x=base_extent / 4., y=3*base_extent / 8., z=mound_height / 2.))
 
     return NAMOProblem(robots, base_limits, movable=[body1, body2], goal_confs=goal_confs)
@@ -215,6 +234,8 @@ class Vaporize(Command):
     def apply(self, state, **kwargs):
         remove_body(self.body)
         yield
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.body)
 
 def post_process(problem, plan, teleport=False):
     if plan is None:
@@ -271,6 +292,7 @@ def main(display=True, teleport=False):
     pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
     stream_info = {
         'test-cfree-traj-pose': StreamInfo(negate=True),
+        'Distance': FunctionInfo(eager=True),
     }
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
@@ -327,7 +349,7 @@ def main(display=True, teleport=False):
         control_commands(commands)
     else:
         time_step = None if teleport else 0.01
-        apply_commands(BeliefState(problem), commands, time_step)
+        apply_commands(BeliefState(problem), commands, time_step=time_step)
     wait_for_user()
     disconnect()
 
