@@ -89,7 +89,6 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     constant_map = {}
 
     # TODO: action to generically connect to the roadmap
-    # TODO: reachability derived predicate formulation
     # TODO: could check individual vertices first
 
     samples = []
@@ -128,9 +127,12 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
                                     self_collisions=False, disabled_collisions=set(),
                                     custom_limits=custom_limits, max_distance=MAX_DISTANCE)
 
-    print(problem.limits)
+    lower, upper = problem.limits
+    area = np.product(upper - lower)
+    print('Area:', area)
 
-    num_samples = 50
+    samples_per_ft2 = 8
+    num_samples = samples_per_ft2*area
     with LockRenderer():
         while len(samples) < num_samples:
             sample = sample_fn()
@@ -163,18 +165,10 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     for q1, q2 in edges:
         handles.append(add_line(point_from_conf(q1.values),
                                 point_from_conf(q2.values)))
-    #wait_for_user()
-
 
     stream_map = {
         'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem, collisions=collisions)),
         'Cost': get_cost_fn(problem),
-
-        #'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
-        #'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits, collisions=collisions)),
-        #'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits, collisions=collisions)),
-        #'sample-above': from_gen_fn(get_above_gen(problem, custom_limits=custom_limits, collisions=collisions)),
-        #'sample-motion': from_fn(get_motion_fn(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
     }
     #stream_map = 'debug'
 
