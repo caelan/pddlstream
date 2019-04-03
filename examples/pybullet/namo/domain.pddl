@@ -6,6 +6,7 @@
     (Traj ?r ?t)
     (Kin ?r ?q ?b ?p ?g)
     (Motion ?r ?q1 ?q2 ?t)
+    (CFreeConfPose ?r ?q ?b2 ?p2)
     (CFreeTrajPose ?r ?t ?b2 ?p2)
 
     (Body ?b)
@@ -20,13 +21,15 @@
     (JustMoved)
     (Reachable ?r ?q2)
     (Holding ?r ?b)
+    (UnsafeConf ?r ?q)
     (UnsafeTraj ?r ?t)
   )
 
   (:action move
     :parameters (?r ?q1 ?q2 ?t)
     :precondition (and (Motion ?r ?q1 ?q2 ?t)
-                       (AtConf ?r ?q1) (not (UnsafeTraj ?r ?t)))
+                       (AtConf ?r ?q1)
+                       (not (UnsafeConf ?r ?q2)) (not (UnsafeTraj ?r ?t)))
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1))
                  (increase (total-cost) (Cost ?r ?q1 ?q2)))
@@ -82,6 +85,12 @@
   ;                                (Reachable ?r ?q1)
   ;                           ))))
   ;)
+
+  (:derived (UnsafeConf ?r ?q)
+    (exists (?b2 ?p2) (and (Conf ?r ?q) (Pose ?b2 ?p2)
+                           (not (CFreeConfPose ?r ?q ?b2 ?p2))
+                           (AtPose ?b2 ?p2)))
+  )
 
   (:derived (UnsafeTraj ?r ?t)
     (exists (?b2 ?p2) (and (Traj ?r ?t) (Pose ?b2 ?p2)

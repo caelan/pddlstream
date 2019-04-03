@@ -20,7 +20,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     pairwise_collision, get_halton_sample_fn, get_distance, get_subtree_aabb, link_from_name, BodySaver, \
     approximate_as_cylinder, get_point, set_point, set_euler, draw_aabb, draw_pose, get_pose, \
     Point, Euler, remove_debug, quat_from_euler, get_link_pose, invert, multiply, set_pose, \
-    base_values_from_pose, halton_generator
+    base_values_from_pose, halton_generator, set_renderer, get_visual_data, BLUE
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.function import FunctionInfo
@@ -61,6 +61,15 @@ def point_from_conf(conf, z=0.01):
     x, y, theta = conf
     return (x, y, z)
 
+def get_test_cfree_conf_pose(problem):
+    def test(r, q, b2, p2):
+        if not problem.collisions:
+            return True
+        q.assign()
+        p2.assign()
+        return not pairwise_collision(r, b2)
+    return test
+
 def get_test_cfree_traj_pose(problem):
     def test(r, t, b2, p2):
         if not problem.collisions:
@@ -73,6 +82,12 @@ def get_test_cfree_traj_pose(problem):
             #    if pairwise_collision(b1, b2):
             #        return False
             if pairwise_collision(r, b2):
+                set_renderer(True)
+                color = get_visual_data(b2)[0].rgbaColor
+                handles = add_line(point_from_conf(t.path[0].values, z=0.02),
+                                   point_from_conf(t.path[-1].values, z=0.02), color=color)
+                wait_for_user()
+                set_renderer(False)
                 return False
         return True
     return test
@@ -218,12 +233,10 @@ def pddlstream_from_problem(problem, teleport=False):
 
     samples = []
     init = []
-    for robot in problem.robots:
-        q_init = Conf(robot, get_base_joints(robot))
-        samples.append(q_init)
-        init += [('Robot', robot), ('Conf', robot, q_init), ('AtConf', robot, q_init), ('Free', robot)]
-    for body in problem.movable:
-        pose = Pose(body)
+    for robot, conf in problem.initial_confs.items():
+        samples.append(conf)
+        init += [('Robot', robot), ('Conf', robot, conf), ('AtConf', robot, conf), ('Free', robot)]
+    for body, pose in problem.initial_poses.items():
         init += [('Body', body), ('Pose', body, pose), ('AtPose', body, pose)]
 
     goal_literals = []
@@ -243,6 +256,7 @@ def pddlstream_from_problem(problem, teleport=False):
         #init += create_edges(problem, body, samples)
 
     stream_map = {
+        'test-cfree-conf-pose': from_test(get_test_cfree_conf_pose(problem)),
         'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem)),
         'sample-grasp': from_gen_fn(get_grasp_generator(problem)),
         'compute-ik': from_fn(get_ik_fn(problem)),
@@ -271,7 +285,8 @@ class NAMOProblem(object):
         if self.limits is not None:
             for robot in self.robots:
                 self.custom_limits.update(get_custom_limits(robot, self.limits))
-
+        self.initial_confs = {robot: Conf(robot, get_base_joints(robot)) for robot in self.robots}
+        self.initial_poses = {body: Pose(body) for body in self.movable}
 
 def problem_fn(n_rovers=1, collisions=True):
     base_extent = 2.5
@@ -311,7 +326,7 @@ def problem_fn(n_rovers=1, collisions=True):
     cylinder_radius = 0.25
     body1 = create_cylinder(cylinder_radius, mound_height, color=RED)
     set_point(body1, Point(y=-base_extent / 4., z=mound_height / 2.))
-    body2 = create_cylinder(cylinder_radius, mound_height, color=RED)
+    body2 = create_cylinder(cylinder_radius, mound_height, color=BLUE)
     set_point(body2, Point(x=base_extent / 4., y=3*base_extent / 8., z=mound_height / 2.))
     movable = [body1, body2]
     #goal_holding = {robots[0]: body1}
@@ -388,7 +403,8 @@ def main(display=True, teleport=False):
 
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     stream_info = {
-        'test-cfree-traj-pose': StreamInfo(negate=True),
+        'test-cfree-conf-pose': StreamInfo(negate=True, p_success=1e-2),
+        'test-cfree-traj-pose': StreamInfo(negate=True, p_success=1e-1),
         'compute-motion': StreamInfo(eager=True, p_success=0),
         'test-reachable': StreamInfo(eager=True),
         'Distance': FunctionInfo(eager=True),

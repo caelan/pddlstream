@@ -24,6 +24,12 @@
     :certified (and (Motion ?r ?q1 ?q2 ?t) (Traj ?r ?t))
   )
 
+  (:stream test-cfree-conf-pose
+    :inputs (?r ?q ?b2 ?p2)
+    :domain (and (Conf ?r ?q) (Pose ?b2 ?p2))
+    :certified (CFreeConfPose ?r ?q ?b2 ?p2)
+  )
+
   (:stream test-cfree-traj-pose
     :inputs (?r ?t ?b2 ?p2)
     :domain (and (Traj ?r ?t) (Pose ?b2 ?p2))
