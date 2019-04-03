@@ -14,14 +14,14 @@
     :inputs (?r ?b ?p ?g)
     :domain (and (Pose ?b ?p) (Grasp ?r ?b ?g))
     :outputs (?q)
-    :certified (Kin ?r ?q ?b ?p ?g)
+    :certified (and (Kin ?r ?q ?b ?p ?g) (Conf ?r ?q))
   )
 
   (:stream compute-motion
     :inputs (?r ?q1 ?q2)
     :domain (and (Conf ?r ?q1) (Conf ?r ?q2))
     :outputs (?t)
-    :certified (Motion ?r ?q1 ?q2 ?t)
+    :certified (and (Motion ?r ?q1 ?q2 ?t) (Traj ?r ?t))
   )
 
   (:stream test-cfree-traj-pose

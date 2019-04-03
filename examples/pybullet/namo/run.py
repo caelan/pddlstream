@@ -6,7 +6,7 @@ import argparse
 import cProfile
 import pstats
 from collections import namedtuple
-from itertools import combinations, product
+from itertools import combinations, product, islice
 
 import numpy as np
 
@@ -19,7 +19,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, \
     pairwise_collision, get_halton_sample_fn, get_distance, get_subtree_aabb, link_from_name, BodySaver, \
     approximate_as_cylinder, get_point, set_point, set_euler, draw_aabb, draw_pose, get_pose, \
-    Point, Euler, remove_debug, quat_from_euler, get_link_pose, invert, multiply, set_pose, base_values_from_pose
+    Point, Euler, remove_debug, quat_from_euler, get_link_pose, invert, multiply, set_pose, \
+    base_values_from_pose, halton_generator
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.function import FunctionInfo
@@ -89,8 +90,8 @@ def get_grasp_generator(problem):
         _, _, z = get_point(body) # Assuming already placed stably
         position = Point(x=upper[0] + diameter / 2., z=z)
 
-        while True:
-            yaw = np.random.uniform(-np.pi, np.pi)
+        for [scale] in halton_generator(d=1):
+            yaw = scale*2*np.pi - np.pi
             quat = quat_from_euler(Euler(yaw=yaw))
             body_pose = (position, quat)
             robot_from_body = multiply(invert(robot_pose), body_pose)
@@ -106,10 +107,43 @@ def get_grasp_generator(problem):
 
 def get_ik_fn(problem):
     def fn(robot, body, pose, grasp):
-        return None
-        robot_pose = multiply(pose, invert(grasp))
-        conf = base_values_from_pose(robot_pose)
+        joints = get_base_joints(robot)
+        robot_pose = multiply(pose.value, invert(grasp.value))
+        base_values = base_values_from_pose(robot_pose)
+        conf = Conf(robot, joints, base_values)
+        conf.assign()
+        if any(pairwise_collision(robot, obst) for obst in problem.obstacles):
+            return None
+        return (conf,)
     return fn
+
+def get_fk_fn(problem):
+    def fn(robot, conf, body, grasp):
+        conf.assign()
+        link = link_from_name(robot, BASE_LINK)
+        world_from_body = multiply(get_link_pose(robot, link), grasp.value)
+        pose = Pose(body, world_from_body)
+        pose.assign()
+        if any(pairwise_collision(body, obst) for obst in problem.obstacles):
+            return None
+        return (pose,)
+    return fn
+
+def get_sample_gen_fn(problem):
+    def gen_fn(robot):
+        joints = get_base_joints(robot)
+        sample_fn = get_halton_sample_fn(robot, joints, custom_limits=problem.custom_limits)
+        collision_fn = get_collision_fn(robot, joints, problem.obstacles, attachments=[],
+                                        self_collisions=False, disabled_collisions=set(),
+                                        custom_limits=problem.custom_limits, max_distance=MAX_DISTANCE)
+        handles = []
+        while True:
+            sample = sample_fn()
+            if not collision_fn(sample):
+                q = Conf(robot, joints, sample)
+                handles.extend(draw_point(point_from_conf(sample), size=0.05))
+                yield (q,)
+    return gen_fn
 
 def get_motion_fn(problem, max_distance=0.45):
     def fn(body, q1, q2):
@@ -139,29 +173,16 @@ def get_cost_fn(problem):
 #######################################################
 
 def create_vertices(problem, robot, samples, samples_per_ft2=8):
-    joints = get_base_joints(robot)
-    # sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
-    sample_fn = get_halton_sample_fn(robot, joints, custom_limits=problem.custom_limits)
-    # distance_fn = get_distance_fn(body, joints, weights=None)
-    collision_fn = get_collision_fn(robot, joints, problem.obstacles, attachments=[],
-                                    self_collisions=False, disabled_collisions=set(),
-                                    custom_limits=problem.custom_limits, max_distance=MAX_DISTANCE)
-
     lower, upper = problem.limits
     area = np.product(upper - lower)
     print('Area:', area)
     num_samples = int(samples_per_ft2 * area)
 
+    gen_fn = get_sample_gen_fn(problem)
     init = []
-    while len(samples) < num_samples:
-        sample = sample_fn()
-        if not collision_fn(sample):
-            q = Conf(robot, joints, sample)
-            samples.append(q)
-            init += [('Conf', robot, q)]
-    handles = []
-    for sample in samples:
-        handles.extend(draw_point(point_from_conf(sample.values), size=0.05))
+    for (q,) in islice(gen_fn(robot), num_samples):
+        samples.append(q)
+        init += [('Conf', robot, q)]
     return init
 
 def create_edges(problem, robot, samples):
@@ -280,6 +301,7 @@ def problem_fn(n_rovers=1, collisions=True):
         set_base_conf(rover, rover_confs[i])
         robots.append(rover)
     goal_confs = {robots[0]: rover_confs[-1]}
+    #goal_confs = {}
 
     # TODO: make the objects smaller
     cylinder_radius = 0.25
@@ -288,8 +310,8 @@ def problem_fn(n_rovers=1, collisions=True):
     body2 = create_cylinder(cylinder_radius, mound_height, color=RED)
     set_point(body2, Point(x=base_extent / 4., y=3*base_extent / 8., z=mound_height / 2.))
     movable = [body1, body2]
-    #goal_holding = {robots[0]: body1}
-    goal_holding = {}
+    goal_holding = {robots[0]: body1}
+    #goal_holding = {}
 
     return NAMOProblem(robots, base_limits, movable, collisions=collisions,
                        goal_holding=goal_holding, goal_confs=goal_confs)
@@ -314,11 +336,11 @@ def post_process(problem, plan, teleport=False):
         if name == 'vaporize':
             o, p = args
             new_commands = [Vaporize(o)]
-        elif name == 'sample_rock':
-            r, q, r, s = args
-            attachments[r] = r
-            new_commands = [Attach(r, arm=BASE_LINK, grasp=None, body=attachments[r])]
-        elif name == 'drop_rock':
+        elif name == 'pick':
+            r, q, b, p, g = args
+            #attachments[r] = r
+            new_commands = [Attach(r, arm=BASE_LINK, grasp=g, body=b)]
+        elif name == 'place':
             # TODO: make a drop all rocks
             r, s = args
             new_commands = [Detach(r, arm=BASE_LINK, body=attachments[r])]
