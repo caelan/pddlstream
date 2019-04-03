@@ -118,6 +118,7 @@ def get_ik_fn(problem):
     return fn
 
 def get_fk_fn(problem):
+    # TODO: could sample placements in place or not
     def fn(robot, conf, body, grasp):
         conf.assign()
         link = link_from_name(robot, BASE_LINK)
@@ -212,6 +213,8 @@ def pddlstream_from_problem(problem, teleport=False):
     # TODO: could check individual vertices first
     # TODO: dynamically generate the roadmap in interesting parts of the space
     # TODO: visibility graphs for sparse roadmaps
+    # TODO: approximate robot with isotropic geometry
+    # TODO: make the effort finite if applied to the roadmap vertex
 
     samples = []
     init = []
@@ -244,6 +247,7 @@ def pddlstream_from_problem(problem, teleport=False):
         'sample-grasp': from_gen_fn(get_grasp_generator(problem)),
         'compute-ik': from_fn(get_ik_fn(problem)),
         'compute-motion': from_fn(get_motion_fn(problem)),
+        'test-reachable': from_test(lambda *args: False),
         'Cost': get_cost_fn(problem),
     }
     #stream_map = 'debug'
@@ -386,6 +390,7 @@ def main(display=True, teleport=False):
     stream_info = {
         'test-cfree-traj-pose': StreamInfo(negate=True),
         'compute-motion': StreamInfo(eager=True, p_success=0),
+        'test-reachable': StreamInfo(eager=True),
         'Distance': FunctionInfo(eager=True),
     }
     _, _, _, stream_map, init, goal = pddlstream_problem
@@ -394,7 +399,7 @@ def main(display=True, teleport=False):
 
     success_cost = 0 if args.optimal else INF
     planner = 'ff-wastar1'
-    search_sample_ratio = 2
+    search_sample_ratio = 0
     max_planner_time = 10
 
     pr = cProfile.Profile()
@@ -404,9 +409,9 @@ def main(display=True, teleport=False):
             solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                      planner=planner, max_planner_time=max_planner_time, debug=False,
                                      unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=False,
+                                     max_time=args.max_time, verbose=True,
                                      unit_efforts=True, effort_weight=1,
-                                     #bind=True, max_skeletons=None,
+                                     bind=True, max_skeletons=None,
                                      search_sample_ratio=search_sample_ratio)
         elif args.algorithm == 'incremental':
             solution = solve_incremental(pddlstream_problem,

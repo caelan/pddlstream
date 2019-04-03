@@ -29,4 +29,10 @@
     :domain (and (Traj ?r ?t) (Pose ?b2 ?p2))
     :certified (CFreeTrajPose ?r ?t ?b2 ?p2)
   )
+
+  (:stream test-reachable
+    :inputs (?r ?q)
+    :domain (Conf ?r ?q)
+    :certified (Conf ?r ?q)
+  )
 )

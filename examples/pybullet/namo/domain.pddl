@@ -33,14 +33,15 @@
   )
 
   ; Similar to FFRob. See stripstream/scripts/run_reachable.py
-  ;(:action move-teleport
-  ;  :parameters (?r ?q1 ?q2)
-  ;  :precondition (and (Conf ?r ?q1) (Conf ?r ?q2) ; (not (JustMoved))
-  ;                     (AtConf ?r ?q1) (Reachable ?r ?q2) ) ; Technically don't need AtConf
-  ;  :effect (and (AtConf ?r ?q2) (JustMoved)
-  ;               (not (AtConf ?r ?q1))
-  ;               (increase (total-cost) (Cost ?r ?q1 ?q2)))
-  ;)
+  (:action move-teleport
+    :parameters (?r ?q1 ?q2)
+    :precondition (and (Conf ?r ?q1) (Conf ?r ?q2) ; (not (JustMoved))
+                       (or (Reachable ?r ?q1) (Reachable ?r ?q2)) ; Need both
+                       (AtConf ?r ?q1))
+    :effect (and (AtConf ?r ?q2) ; (JustMoved) ; TODO: some sort of problem with JustMoved
+                 (not (AtConf ?r ?q1))
+                 (increase (total-cost) (Cost ?r ?q1 ?q2)))
+  )
 
   ;(:action vaporize
   ;  :parameters (?b ?p)
@@ -62,7 +63,7 @@
     :precondition (and (Kin ?r ?q ?b ?p ?g)
                        (Free ?r) (AtConf ?r ?q) (AtPose ?b ?p))
     :effect (and (AtGrasp ?r ?b ?g)
-                 (not (AtPose ?b ?p))
+                 (not (AtPose ?b ?p)) ; (not (JustMoved))
                  (increase (total-cost) 1))
   )
 
@@ -70,7 +71,6 @@
     (exists (?g) (and (Grasp ?r ?b ?g)
                       (AtGrasp ?r ?b ?g)))
   )
-
 
   ;(:derived (Reachable ?r ?q2)
   ;  (and (Conf ?r ?q2)
