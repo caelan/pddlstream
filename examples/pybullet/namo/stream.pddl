@@ -17,12 +17,12 @@
     :certified (Kin ?r ?q ?b ?p ?g)
   )
 
-  ;(:stream compute-motion
-  ;  :inputs (?r ?q1 ?q2)
-  ;  :domain (and (Conf ?r ?q1) (Conf ?r ?q2))
-  ;  :outputs (?t)
-  ;  :certified (Motion ?r ?q1 ?q2 ?t)
-  ;)
+  (:stream compute-motion
+    :inputs (?r ?q1 ?q2)
+    :domain (and (Conf ?r ?q1) (Conf ?r ?q2))
+    :outputs (?t)
+    :certified (Motion ?r ?q1 ?q2 ?t)
+  )
 
   (:stream test-cfree-traj-pose
     :inputs (?r ?t ?b2 ?p2)

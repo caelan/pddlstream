@@ -6,7 +6,7 @@ import argparse
 import cProfile
 import pstats
 from collections import namedtuple
-from itertools import combinations
+from itertools import combinations, product
 
 import numpy as np
 
@@ -60,9 +60,9 @@ def point_from_conf(conf, z=0.01):
     x, y, theta = conf
     return (x, y, z)
 
-def get_test_cfree_traj_pose(problem, collisions=True):
+def get_test_cfree_traj_pose(problem):
     def test(r, t, b2, p2):
-        if not collisions:
+        if not problem.collisions:
             return True
         p2.assign()
         state = State()
@@ -104,16 +104,31 @@ def get_grasp_generator(problem):
             #    remove_debug(handle)
     return gen
 
-def get_ik_fn(problem, collisions=True):
+def get_ik_fn(problem):
     def fn(robot, body, pose, grasp):
+        return None
         robot_pose = multiply(pose, invert(grasp))
         conf = base_values_from_pose(robot_pose)
     return fn
 
-def get_motion_fn(problem, collisions=True):
-    def fn(robot, conf1, conf2):
-        robot_pose = multiply(pose, invert(grasp))
-        conf = base_values_from_pose(robot_pose)
+def get_motion_fn(problem, max_distance=0.45):
+    def fn(body, q1, q2):
+        joints = get_base_joints(body)
+        extend_fn = get_extend_fn(body, joints, resolutions=BASE_RESOLUTIONS)
+        collision_fn = get_collision_fn(body, joints, problem.obstacles, attachments=[],
+                                        self_collisions=False, disabled_collisions=set(),
+                                        custom_limits=problem.custom_limits, max_distance=MAX_DISTANCE)
+        # TODO: degree
+        # distance = distance_fn(q1.values, q2.values)
+        distance = get_distance(q1.values[:2], q2.values[:2])
+        if max_distance < distance:
+            return None
+        path = [q1.values] + list(extend_fn(q1.values, q2.values))
+        if any(map(collision_fn, path)):
+            return None
+        handles = add_line(point_from_conf(q1.values), point_from_conf(q2.values))
+        t = create_trajectory(body, joints, path)
+        return (t,)
     return fn
 
 def get_cost_fn(problem):
@@ -123,63 +138,49 @@ def get_cost_fn(problem):
 
 #######################################################
 
-def verticies(problem, body, samples, obstacles, custom_limits, samples_per_ft2=8):
-    joints = get_base_joints(body)
+def create_vertices(problem, robot, samples, samples_per_ft2=8):
+    joints = get_base_joints(robot)
     # sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
-    sample_fn = get_halton_sample_fn(body, joints, custom_limits=custom_limits)
+    sample_fn = get_halton_sample_fn(robot, joints, custom_limits=problem.custom_limits)
     # distance_fn = get_distance_fn(body, joints, weights=None)
-    collision_fn = get_collision_fn(body, joints, obstacles, attachments=[],
+    collision_fn = get_collision_fn(robot, joints, problem.obstacles, attachments=[],
                                     self_collisions=False, disabled_collisions=set(),
-                                    custom_limits=custom_limits, max_distance=MAX_DISTANCE)
+                                    custom_limits=problem.custom_limits, max_distance=MAX_DISTANCE)
 
     lower, upper = problem.limits
     area = np.product(upper - lower)
     print('Area:', area)
-
     num_samples = int(samples_per_ft2 * area)
-    init = []
-    with LockRenderer():
-        while len(samples) < num_samples:
-            sample = sample_fn()
-            if not collision_fn(sample):
-                q = Conf(body, joints, sample)
-                samples.append(q)
-                init += [('Conf', body, q)]
 
+    init = []
+    while len(samples) < num_samples:
+        sample = sample_fn()
+        if not collision_fn(sample):
+            q = Conf(robot, joints, sample)
+            samples.append(q)
+            init += [('Conf', robot, q)]
     handles = []
     for sample in samples:
         handles.extend(draw_point(point_from_conf(sample.values), size=0.05))
     return init
 
+def create_edges(problem, robot, samples):
+    motion_fn = get_motion_fn(problem)
 
-def edges(body, samples, obstacles, custom_limits, max_distance=0.45):
-    joints = get_base_joints(body)
-    extend_fn = get_extend_fn(body, joints, resolutions=BASE_RESOLUTIONS)
-    collision_fn = get_collision_fn(body, joints, obstacles, attachments=[],
-                                    self_collisions=False, disabled_collisions=set(),
-                                    custom_limits=custom_limits, max_distance=MAX_DISTANCE)
     edges = []
     init = []
-    for q1, q2 in combinations(samples, r=2):
-        # TODO: degree
-        #distance = distance_fn(q1.values, q2.values)
-        distance = get_distance(q1.values[:2], q2.values[:2])
-        if max_distance < distance:
+    for q1, q2 in product(samples, repeat=2):
+        if q1 == q2:
             continue
-        path = [q1.values] + list(extend_fn(q1.values, q2.values))
-        if not any(map(collision_fn, path)):
-            t1 = create_trajectory(body, joints, path)
-            t2 = create_trajectory(body, joints, path[::-1])
-            edges.append((q1, q2))
-            init += [('Motion', body, q1, q2, t1), ('Traj', body, t1),
-                     ('Motion', body, q2, q1, t2), ('Traj', body, t2)]
-    handles = []
-    for q1, q2 in edges:
-        handles.append(add_line(point_from_conf(q1.values),
-                                point_from_conf(q2.values)))
+        result = motion_fn(robot, q1, q2)
+        if result is None:
+            continue
+        (t,) = result
+        edges.append((q1, q2))
+        init += [('Motion', robot, q1, q2, t), ('Traj', robot, t)]
     return init
 
-def pddlstream_from_problem(problem, collisions=True, teleport=False):
+def pddlstream_from_problem(problem, teleport=False):
     # TODO: push and attach to movable objects
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -210,25 +211,18 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
         goal_literals += [('AtConf', robot, q_goal)]
     goal_formula = And(*goal_literals)
 
-    custom_limits = {}
-    if problem.limits is not None:
-        for robot in problem.robots:
-            custom_limits.update(get_custom_limits(robot, problem.limits))
-
-    obstacles = [body for body in get_bodies() if (body not in problem.robots) and (body not in problem.movable)]
-
     # TODO: assuming holonomic for now
     [body] = problem.robots
 
     with LockRenderer():
-        init += verticies(problem, body, samples, obstacles, custom_limits)
-        init += edges(body, samples, obstacles, custom_limits)
+        init += create_vertices(problem, body, samples)
+        #init += create_edges(problem, body, samples)
 
     stream_map = {
-        'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem, collisions=collisions)),
+        'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem)),
         'sample-grasp': from_gen_fn(get_grasp_generator(problem)),
-        'compute-ik': from_fn(get_ik_fn(problem, collisions=collisions)),
-        'compute-motion': from_fn(get_motion_fn(problem, collisions=collisions)),
+        'compute-ik': from_fn(get_ik_fn(problem)),
+        'compute-motion': from_fn(get_motion_fn(problem)),
         'Cost': get_cost_fn(problem),
     }
     #stream_map = 'debug'
@@ -238,15 +232,23 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 #######################################################
 
 class NAMOProblem(object):
-    def __init__(self, robots, limits, movable=[], goal_holding={}, goal_confs={}):
-        self.robots = robots
+    def __init__(self, robots, limits, movable=[], collisions=True,
+                 goal_holding={}, goal_confs={}):
+        self.robots = tuple(robots)
         self.limits = limits
-        self.movable = movable
+        self.movable = tuple(movable)
+        self.collisions = collisions
         self.goal_holding = goal_holding
         self.goal_confs = goal_confs
+        self.obstacles = tuple(body for body in get_bodies()
+                          if body not in self.robots + self.movable)
+        self.custom_limits = {}
+        if self.limits is not None:
+            for robot in self.robots:
+                self.custom_limits.update(get_custom_limits(robot, self.limits))
 
 
-def problem_fn(n_rovers=1):
+def problem_fn(n_rovers=1, collisions=True):
     base_extent = 2.5
     base_limits = (-base_extent / 2. * np.ones(2), base_extent / 2. * np.ones(2))
     mound_height = 0.1
@@ -289,7 +291,8 @@ def problem_fn(n_rovers=1):
     #goal_holding = {robots[0]: body1}
     goal_holding = {}
 
-    return NAMOProblem(robots, base_limits, movable, goal_holding, goal_confs)
+    return NAMOProblem(robots, base_limits, movable, collisions=collisions,
+                       goal_holding=goal_holding, goal_confs=goal_confs)
 
 #######################################################
 
@@ -350,13 +353,14 @@ def main(display=True, teleport=False):
     #problem_fn = problem_fn_from_name[args.problem]
     connect(use_gui=args.viewer)
     with HideOutput():
-        problem = problem_fn()
+        problem = problem_fn(collisions=not args.cfree)
     saver = WorldSaver()
     draw_base_limits(problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     stream_info = {
         'test-cfree-traj-pose': StreamInfo(negate=True),
+        'compute-motion': StreamInfo(eager=True, p_success=0),
         'Distance': FunctionInfo(eager=True),
     }
     _, _, _, stream_map, init, goal = pddlstream_problem
@@ -364,18 +368,18 @@ def main(display=True, teleport=False):
     print('Goal:', goal)
 
     success_cost = 0 if args.optimal else INF
-    planner = 'ff-wastar3'
+    planner = 'ff-wastar1'
     search_sample_ratio = 2
     max_planner_time = 10
 
     pr = cProfile.Profile()
     pr.enable()
-    with LockRenderer(False):
+    with LockRenderer(True):
         if args.algorithm == 'focused':
             solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                      planner=planner, max_planner_time=max_planner_time, debug=False,
                                      unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=True,
+                                     max_time=args.max_time, verbose=False,
                                      unit_efforts=True, effort_weight=1,
                                      #bind=True, max_skeletons=None,
                                      search_sample_ratio=search_sample_ratio)
