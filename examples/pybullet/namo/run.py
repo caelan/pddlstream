@@ -310,8 +310,8 @@ def problem_fn(n_rovers=1, collisions=True):
     body2 = create_cylinder(cylinder_radius, mound_height, color=RED)
     set_point(body2, Point(x=base_extent / 4., y=3*base_extent / 8., z=mound_height / 2.))
     movable = [body1, body2]
-    goal_holding = {robots[0]: body1}
-    #goal_holding = {}
+    #goal_holding = {robots[0]: body1}
+    goal_holding = {}
 
     return NAMOProblem(robots, base_limits, movable, collisions=collisions,
                        goal_holding=goal_holding, goal_confs=goal_confs)
@@ -334,8 +334,11 @@ def post_process(problem, plan, teleport=False):
     attachments = {}
     for i, (name, args) in enumerate(plan):
         if name == 'vaporize':
-            o, p = args
-            new_commands = [Vaporize(o)]
+            if len(args) == 2:
+                b, p = args
+            else:
+                r, q, b, p, g = args
+            new_commands = [Vaporize(b)]
         elif name == 'pick':
             r, q, b, p, g = args
             #attachments[r] = r

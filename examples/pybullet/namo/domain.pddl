@@ -42,12 +42,20 @@
   ;               (increase (total-cost) (Cost ?r ?q1 ?q2)))
   ;)
 
-  (:action vaporize
-    :parameters (?b ?p)
-    :precondition (and (Pose ?b ?p)
-                       (AtPose ?b ?p))
-    :effect (not (AtPose ?b ?p))
-  )
+  ;(:action vaporize
+  ;  :parameters (?b ?p)
+  ;  :precondition (and (Pose ?b ?p)
+  ;                     (AtPose ?b ?p))
+  ;  :effect (and (not (AtPose ?b ?p))
+  ;               (increase (total-cost) 1))
+  ;)
+  ;(:action vaporize
+  ;  :parameters (?r ?q ?b ?p ?g)
+  ;  :precondition (and (Kin ?r ?q ?b ?p ?g)
+  ;                     (Free ?r) (AtConf ?r ?q) (AtPose ?b ?p))
+  ;  :effect (and (not (AtPose ?b ?p))
+  ;               (increase (total-cost) 1))
+  ;)
 
   (:action pick
     :parameters (?r ?q ?b ?p ?g)
