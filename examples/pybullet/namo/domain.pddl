@@ -4,17 +4,22 @@
     (Robot ?r)
     (Conf ?r ?q)
     (Traj ?r ?t)
+    (Kin ?r ?q ?b ?p ?g)
     (Motion ?r ?q1 ?q2 ?t)
     (CFreeTrajPose ?r ?t ?b2 ?p2)
 
     (Body ?b)
     (Pose ?b ?p)
+    (Grasp ?r ?b ?g)
 
     (AtConf ?r ?q)
     (AtPose ?b ?p)
+    (AtGrasp ?r ?b ?g)
+    (Free ?r)
 
     (JustMoved)
     (Reachable ?r ?q2)
+    (Holding ?r ?b)
     (UnsafeTraj ?r ?t)
   )
 
@@ -43,6 +48,21 @@
                        (AtPose ?b ?p))
     :effect (not (AtPose ?b ?p))
   )
+
+  (:action pick
+    :parameters (?r ?q ?b ?p ?g)
+    :precondition (and (Kin ?r ?q ?b ?p ?g)
+                       (Free ?r) (AtConf ?r ?q) (AtPose ?b ?p))
+    :effect (and (AtGrasp ?r ?b ?g)
+                 (not (AtPose ?b ?p))
+                 (increase (total-cost) 1))
+  )
+
+  (:derived (Holding ?r ?b)
+    (exists (?g) (and (Grasp ?r ?b ?g)
+                      (AtGrasp ?r ?b ?g)))
+  )
+
 
   ;(:derived (Reachable ?r ?q2)
   ;  (and (Conf ?r ?q2)
