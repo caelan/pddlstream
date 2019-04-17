@@ -331,7 +331,7 @@ class StreamInstance(Instance):
     def enable(self, evaluations):
         if not self.disabled:
             return
-        super(StreamInstance, self).enable(evaluations)
+        #super(StreamInstance, self).enable(evaluations) # TODO: strange infinite loop bug if enabled
         evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), default=None)
 
     def __repr__(self):

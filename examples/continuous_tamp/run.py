@@ -12,7 +12,7 @@ import numpy as np
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, unreliable_ik_fn, \
-    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action
+    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action, GRASP
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
@@ -46,12 +46,14 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
+           [('Grasp', b, GRASP) for b in initial.block_poses] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()] + \
            [('Region', r) for r in list(tamp_problem.goal_regions.values()) + [GROUND_NAME]]
 
-    goal_literals = [Not(('Unsafe',))] # ('HandEmpty',)
+    goal_literals = []
+    #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
     goal_literals += [('In', b, r) for b, r in tamp_problem.goal_regions.items()]
     if tamp_problem.goal_conf is not None:
         goal_literals += [('AtConf', tamp_problem.goal_conf)]
@@ -139,6 +141,7 @@ def main():
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
+    parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -198,8 +201,8 @@ def main():
                                  unit_costs=args.unit, success_cost=success_cost,
                                  unit_efforts=False, effort_weight=0,
                                  search_sample_ratio=1,
-                                 #max_skeletons=None,
-                                 visualize=True)
+                                 #max_skeletons=None, bind=True,
+                                 visualize=args.visualize)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      complexity_step=2, planner=planner, hierarchy=hierarchy,

@@ -14,7 +14,7 @@ from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
 from pddlstream.language.statistics import check_effort, compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import INF, safe_zip, get_mapping
+from pddlstream.utils import INF, safe_zip, get_mapping, implies
 
 CONSTRAIN_STREAMS = False
 CONSTRAIN_PLANS = False # TODO: might cause some strange effects on continuous_tamp
@@ -73,7 +73,7 @@ def optimistic_stream_instantiation(instance, bindings, evaluations, opt_evaluat
             instance.get_domain(), mapping))) # TODO: could just instantiate first
         if domain_evaluations <= opt_evaluations:
             new_instance = instance.external.get_instance(input_combo)
-            if (new_instance.opt_index != 0) and (not only_immediate or (domain_evaluations <= evaluations)):
+            if (new_instance.opt_index != 0) and implies(only_immediate, domain_evaluations <= evaluations):
                 new_instance.opt_index -= 1
             new_instances.append(new_instance)
     return new_instances
@@ -199,7 +199,7 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(results), final_depth, combined_plan is not None))
+            num_iterations, len(results), final_depth, is_plan(combined_plan)))
         if is_plan(combined_plan):
             return combined_plan, cost
         if final_depth == 0:

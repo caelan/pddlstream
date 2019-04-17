@@ -46,7 +46,7 @@ def partition_externals(externals, verbose=False):
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={},
                   max_time=INF, max_iterations=INF, complexity_step=1,
-                  bind=True, max_skeletons=INF,
+                  max_skeletons=INF, bind=True,
                   unit_costs=False, success_cost=INF,
                   unit_efforts=False, max_effort=INF, effort_weight=None,
                   reorder=True, search_sample_ratio=0,
