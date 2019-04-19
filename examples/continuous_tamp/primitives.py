@@ -41,8 +41,9 @@ def distance_fn(q1, q2):
     return MOVE_COST + COST_PER_DIST*np.linalg.norm(q2 - q1, ord=ord)
 
 
-def inverse_kin_fn(b, p):
-    return (p - GRASP,)
+def inverse_kin_fn(b, p, g):
+    q = p - g
+    return (q,)
 
 
 def unreliable_ik_fn(b, p):
@@ -190,9 +191,10 @@ def draw_state(viewer, state, colors):
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
                           name=block, color=colors[block])
     if state.holding is not None:
-        x, y = state.conf + GRASP
+        block, grasp = state.holding
+        x, y = state.conf + grasp
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
-                          name=state.holding, color=colors[state.holding])
+                          name=block, color=colors[block])
     viewer.tk.update()
 
 def get_random_seed():
@@ -209,11 +211,12 @@ def apply_action(state, action):
         for conf in traj[1:]:
             yield TAMPState(conf, holding, block_poses)
     elif name == 'pick':
-        holding, _, _ = args
-        del block_poses[holding]
+        block, _, grasp, _ = args
+        holding = (block, grasp)
+        del block_poses[block]
         yield TAMPState(conf, holding, block_poses)
     elif name == 'place':
-        block, pose, _ = args
+        block, pose, _, _ = args
         holding = None
         block_poses[block] = pose
         yield TAMPState(conf, holding, block_poses)
