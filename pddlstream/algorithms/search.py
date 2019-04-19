@@ -67,6 +67,8 @@ def parse_sas_plan(sas_task, plan):
 
 ##################################################
 
+SERIALIZE = 'serialize'
+
 def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     full_plan = []
     full_cost = 0
@@ -85,7 +87,7 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
 
 def serialized_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: specify goal grouping / group by predicate & objects
-    # TODO: version that solves for all subgoals at once
+    # TODO: version that solves for all disjuctive subgoals at once
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
@@ -167,8 +169,10 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
-    if not hierarchy:
+    if hierarchy is None:
         return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+    if hierarchy == SERIALIZE:
+        return serialized_solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
