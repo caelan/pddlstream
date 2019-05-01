@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 try:
     from Tkinter import Tk, Canvas, Toplevel
 except ImportError:
@@ -136,6 +138,7 @@ class ContinuousTMPViewer(object):
         x, y = self.top.winfo_x(), 2*self.top.winfo_y()
         width, height = self.top.winfo_width(), self.top.winfo_height() # winfo_width, winfo_reqheight
         path = filename + '.png'
+        print('Saved', path)
         ImageGrab.grab((x, y, x+width, y+height)).save(path)
         return path
         #os.system("screencapture -R {},{},{},{} {}".format(
