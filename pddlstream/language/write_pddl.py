@@ -1,4 +1,8 @@
-from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST
+from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, is_cost, get_prefix, \
+    CONNECTIVES, QUANTIFIERS
+from pddlstream.language.conversion import pddl_from_object, is_atom, is_negated_atom, objects_from_evaluations
+from pddlstream.language.object import Object, OptimisticObject
+from pddlstream.algorithms.downward import fd_from_evaluation
 
 DEFAULT_TYPE = OBJECT # number
 
@@ -10,9 +14,17 @@ def pddl_parameters(parameters):
     return ' '.join(map(pddl_parameter, parameters))
 
 def pddl_head(name, args):
-    if not args:
-        return '({})'.format(name)
-    return '({} {})'.format(name, ' '.join(args))
+    return '({})'.format(' '.join([name] + list(map(pddl_from_object, args))))
+
+def pddl_from_evaluation(evaluation):
+    #if evaluation.head.function == TOTAL_COST:
+    #    return None
+    head = pddl_head(evaluation.head.function, evaluation.head.args)
+    if is_atom(evaluation):
+        return head
+    elif is_negated_atom(evaluation):
+        return '(not {})'.format(head)
+    return '(= {} {})'.format(head, int(evaluation.value))
 
 def pddl_functions(predicates):
     return '\n\t\t'.join(sorted(p.pddl() for p in predicates))
@@ -30,75 +42,27 @@ def pddl_conjunction(literals):
 def pddl_disjunction(literals):
     return pddl_connective(literals, OR)
 
-##################################################
-
-def pddl_at_start(literal):
-    return '(at start {})'.format(literal.pddl())
-
-def pddl_over_all(literal):
-    return '(over all {})'.format(literal.pddl())
-
-def pddl_at_end(literal):
-    return '(at end {})'.format(literal.pddl())
+def pddl_from_expression(expression):
+    if isinstance(expression, Object) or isinstance(expression, OptimisticObject):
+        return pddl_from_object(expression)
+    if isinstance(expression, str):
+        return expression
+    return '({})'.format(' '.join(map(pddl_from_expression, expression)))
 
 ##################################################
 
-def pddl_actions(actions):
-    for action in actions:
-        yield action.pddl()
-
-def pddl_axioms(axioms):
-    axioms_from_derived = {}
-    for axiom in axioms:
-        #derived = axiom.effect.head.function
-        derived = axiom.effect.head # TODO: ideally would change parameters but this is annoying
-        if derived not in axioms_from_derived:
-            axioms_from_derived[derived] = []
-        axioms_from_derived[derived].append(axiom)
-    # TODO: check that all have the same parameters?
-    for derived in axioms_from_derived:
-        clauses = []
-        for axiom in axioms_from_derived[derived]:
-            quantified = set(axiom.parameters) - set(derived.args)
-            condition = pddl_conjunction(axiom.preconditions)
-            if quantified:
-                param_s = ' '.join(map(pddl_parameter, quantified))
-                clauses.append('(exists ({}) {})'.format(param_s, condition))
-            else:
-                clauses.append(condition)
-        # TODO: need an and here
-        yield '\t(:derived {}\n' \
-               '\t\t(or {}))'.format(pddl_head(derived.function.name,
-                                          map(pddl_parameter, derived.args)),
-                                '\n\t\t\t'.join(clauses))
-
-def pddl_domain(domain, constants, predicates, functions, actions, axioms):
-    # Need types for tpshe
-    # Need to declare constants here that are used in actions
-    return '(define (domain {})\n' \
-           '\t(:requirements :typing)\n' \
-           '\t(:types {})\n' \
-           '\t(:constants {})\n' \
-           '\t(:predicates {})\n' \
-           '\t(:functions {})\n' \
-           '{})\n'.format(domain, DEFAULT_TYPE,
-                          pddl_parameter(' '.join(sorted(constants))),
-                          pddl_functions(predicates),
-                          pddl_functions(functions),
-                          '\n'.join(list(pddl_actions(actions)) +
-                                    list(pddl_axioms(axioms))))
-
-##################################################
-
-def pddl_problem(problem, domain, objects, initial_atoms, goal_literals, objective=None):
-    # '\t(:objects {})\n' \
+def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
+    objects = objects_from_evaluations(evaluations)
     s = '(define (problem {})\n' \
            '\t(:domain {})\n' \
-           '\t(:init {})\n' \
-           '\t(:goal {})'.format(problem, domain,
-                                   #pddl_parameter(' '.join(sorted(objects))),
-                                   pddl_functions(initial_atoms),
-                                   pddl_conjunction(goal_literals))
+           '\t(:objects {})\n' \
+           '\t(:init \n\t\t{})\n' \
+           '\t(:goal {})'.format(
+        problem, domain,
+        ' '.join(sorted(map(pddl_parameter, map(pddl_from_object, objects)))),
+        '\n\t\t'.join(sorted(filter(lambda p: p is not None,
+                                    map(pddl_from_evaluation, evaluations)))),
+        pddl_from_expression(goal_expression))
     if objective is not None:
         s += '\n\t(:metric minimize {})'.format(objective.pddl())
     return s + ')\n'

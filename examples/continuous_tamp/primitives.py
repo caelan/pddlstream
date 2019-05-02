@@ -131,6 +131,16 @@ def make_blocks(num):
     #return ['b{}'.format(i) for i in range(num)]
     return [string.ascii_uppercase[i] for i in range(num)]
 
+def mirror(n_blocks=1, n_goals=1):
+    poses = [np.array([-(BLOCK_WIDTH + 1) * x - BLOCK_WIDTH, 0]) for x in range(n_blocks)]
+    blocks = make_blocks(len(poses))
+    goal_poses = [-pose for pose in poses[:n_goals]]
+
+    initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
+    goal_regions = {block: pose for block, pose in zip(blocks, goal_poses)}
+
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+
 def tight(n_blocks=3, n_goals=2):
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
@@ -175,6 +185,7 @@ def blocked2(n_blocks=0, **kwargs):
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 PROBLEMS = [
+    mirror,
     tight,
     blocked,
     blocked2,

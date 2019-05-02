@@ -1,14 +1,15 @@
-from pddlstream.algorithms.algorithm import parse_problem, remove_blocked
+from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, Domain
 from pddlstream.algorithms.instantiate_task import sas_from_pddl
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_plan
-from pddlstream.language.conversion import revert_solution, obj_from_pddl_plan
+from pddlstream.language.conversion import obj_from_pddl_plan
 from pddlstream.language.fluent import ensure_no_fluent_streams
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
+from pddlstream.language.temporal import solve_temporal
 from pddlstream.utils import INF
 
 UPDATE_STATISTICS = False
@@ -31,6 +32,8 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
     return True
 
 def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
+    if not isinstance(domain, Domain):
+        return solve_temporal(evaluations, goal_exp, domain)
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)

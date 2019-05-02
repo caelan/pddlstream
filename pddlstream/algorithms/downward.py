@@ -138,11 +138,16 @@ Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'co
 def parse_domain(domain_pddl):
     if isinstance(domain_pddl, Domain):
         return domain_pddl
-    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
-    #for action in domain.actions:
-    #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
-    #        action.cost.expression.value = scale_cost(action.cost.expression.value)
-    return domain
+    try:
+       domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+       # for action in domain.actions:
+       #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
+       #        action.cost.expression.value = scale_cost(action.cost.expression.value)
+       return domain
+    except AssertionError as e:
+        if e.message == ':durative-actions':
+            return domain_pddl
+        raise e
 
 def has_costs(domain):
     for action in domain.actions:
