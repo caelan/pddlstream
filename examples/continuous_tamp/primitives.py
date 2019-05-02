@@ -125,6 +125,7 @@ GOAL_CONF = None
 REGIONS = {
     GROUND_NAME: (-10, 10),
     REGION_NAME: (5, 10),
+    #REGION_NAME: (7.5, 10),
 }
 
 def make_blocks(num):

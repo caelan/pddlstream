@@ -125,6 +125,7 @@ def display_plan(tamp_problem, plan, display=True):
     if plan is not None:
         for i, action in enumerate(plan):
             print(i, *action)
+            #action = (action[0], action[1][1:])
             for j, state in enumerate(apply_action(state, action)):
                 print(i, j, state)
                 draw_state(viewer, state, colors)

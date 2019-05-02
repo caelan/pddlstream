@@ -1,5 +1,5 @@
 (define (domain temporal-tamp)
-    (:requirements :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects) ; :equality :action-costs
+    (:requirements :equality :durative-actions :numeric-fluents :derived-predicates :conditional-effects) ; :typing :action-costs
 	; (:types block surface)
     ; (:constants a b grey red)
     (:predicates
@@ -29,6 +29,7 @@
         (Safe)
         (Stove ?s)
         (Cooked ?b)
+        (SafePose ?b ?p ?b2)
 
         ; Derived predicates
         (On ?b ?s) ; TFLAP redeclared predicate
@@ -42,7 +43,7 @@
         ; (Fuel)
     )
 
-    ; over all is open
+    ; over all is an open set on time
     ; https://www.jair.org/index.php/jair/article/view/10352/24759
     ; 8.1 Durative Actions with Conditional Effects
     ; TODO: can always enumerate finite types
@@ -53,6 +54,7 @@
 		:condition (and
 			(at start (and (Robot ?r) (Conf ?q1) (Conf ?q2)))
 			(at start (AtConf ?r ?q1))
+			;(over all (Safe))
 		)
 		:effect (and
 			(at start (not (AtConf ?r ?q1)))
@@ -70,13 +72,14 @@
 			(at start (AtPose ?b ?p))
 			(at start (HandEmpty ?r))
 			(over all (AtConf ?r ?q))
+			;(over all (Safe))
 		)
 		:effect (and
 			(at start (not (AtPose ?b ?p)))
 			(at start (not (HandEmpty ?r)))
 			(at end (AtGrasp ?r ?b ?g))
-            ;(forall (?s - surface) (when (at start (Contain ?b ?p ?s))
-            ;                   (at end (not (On ?b ?s)))))
+            (forall (?s) (when (at start (Contain ?b ?p ?s)) ; TODO: maybe typing info helps here
+                               (at end (not (On ?b ?s)))))
 		)
 	)
 
@@ -88,15 +91,31 @@
 			(at start (Kin ?b ?q ?p ?g))
 			(at start (AtGrasp ?r ?b ?g))
 			(over all (AtConf ?r ?q))
+			;(over all (not (UnsafePose ?b ?p)))
+			(at end (not (UnsafePose ?b ?p)))
+
+            ;(or (= ?b a)
+            ;    ;(and (over all (SafePose ?b ?p a))
+            ;    ;      (at end (SafePose ?b ?p a))
+            ;    ;)
+            ;)
+            ;(or (= ?b b)
+            ;    ;(and (over all (SafePose ?b ?p b))
+            ;    ;      (at end (SafePose ?b ?p b))
+            ;    ;)
+            ;)
+			;(over all (Safe))
 		)
 		:effect (and
 		    (at start (not (AtGrasp ?r ?b ?g)))
 			(at end (AtPose ?b ?p))
 			(at end (HandEmpty ?r))
-			(when (at start (Contain ?b ?p red))
-			      (at end (On ?b red)))
-			;(forall (?s - surface) (when (at start (Contain ?b ?p ?s))
-			;                   (at end (On ?b ?s))))
+			;(forall (?b2 ?p2) (when (and (at start (not (CFree ?b ?p ?b2 ?p2))) (at end (AtPose ?b2 ?p2)))
+			;                        (at end (not (Safe)))))
+			;(when (at start (Contain ?b ?p red))
+			;      (at end (On ?b red)))
+			(forall (?s) (when (at start (Contain ?b ?p ?s))
+			                   (at end (On ?b ?s))))
 		)
 	)
 	; This is the rule of no moving targets : no concurrent actions can affect the parts of the state relevant to the precondition
@@ -108,6 +127,7 @@
 		:duration (= ?duration 1)
 		:condition (and
 		    (at start (Stove ?s))
+		    ;(over all (Safe))
 		)
 		:effect (and
 			; TODO: rescheduling does not work well with some conditional effects
@@ -120,6 +140,28 @@
 		        (at end (Cooked ?b)))) ; This doesn't seem to work
 	    )
 	)
+
+	; TODO: include any derived predicates introduce universal conditions that prevent rescheduling
+    ; Only Temporal FastDownward supports derived predicates
+
+    ;(:derived (On ?b ?s)
+    ;    (exists (?p) (and (Contain ?b ?p ?s)
+    ;                      (AtPose ?b ?p))))
+
+    ;(:derived (Holding ?b)
+    ;    (exists (?g) (and (Grasp ?b ?g)
+    ;                      (AtGrasp ?b ?g))))
+
+	;(:derived (SafePose ?b ?p ?b2)
+	;    (and (Pose ?b ?p) (Block ?b2) (or
+	;        (Holding ?b2)
+    ;        (exists (?p2) (and (CFree ?b ?p ?b2 ?p2)
+    ;                           (AtPose ?b2 ?p2))))))
+
+	(:derived (UnsafePose ?b ?p)
+        (exists (?b2 ?p2) (and (Pose ?b ?p) (Pose ?b2 ?p2)
+                               (not (CFree ?b ?p ?b2 ?p2))
+                               (AtPose ?b2 ?p2))))
 
     ; These are executed in parallel. Action to turn on stove and action to cook
 	;(:durative-action cook
@@ -147,14 +189,4 @@
     ;    :precondition
     ;    :effect
     ;)
-
-    ; TODO: include any derived predicates introduce universal conditions that prevent rescheduling
-    ; Only Temporal FastDownward supports derived predicates
-    ;(:derived (On ?b ?s)
-    ;    (exists (?p) (and (Contain ?b ?p ?s)
-    ;                      (AtPose ?b ?p))))
-
-    ;(:derived (Holding ?b)
-    ;    (exists (?g) (and (Grasp ?b ?g)
-    ;                      (AtGrasp ?b ?g))))
 )
