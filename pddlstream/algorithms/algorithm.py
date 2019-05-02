@@ -83,6 +83,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     domain = parse_domain(domain_pddl)
     if not isinstance(domain, Domain):
         assert isinstance(domain, str) # raw PDDL is returned
+        obj_from_constant = {name: Object(value, name=name)
+                             for name, value in constant_map.items()}
         streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,
                                     unit_costs=unit_costs, unit_efforts=unit_efforts)
         evaluations = evaluations_from_init(init)

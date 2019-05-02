@@ -1,21 +1,21 @@
 (define (domain temporal-tamp)
     (:requirements :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects) ; :equality :action-costs
-	; (:types block)
-	; (:constants )
+	; (:types block surface)
+    ; (:constants a b grey red)
     (:predicates
         ; Static predicates
         (Robot ?r)
         (Block ?b)
-        (Region ?r)
+        (Region ?s)
         (Pose ?b ?p)
         (Grasp ?b ?g)
         (Conf ?q)
         (Traj ?t)
-        (Contain ?b ?p ?r)
+        (Contain ?b ?p ?s)
         (Kin ?b ?q ?p ?g)
         (Motion ?q1 ?t ?q2)
         (CFree ?b1 ?p1 ?b2 ?p2)
-        (Placeable ?b ?r)
+        (Placeable ?b ?s)
         (PoseCollision ?b1 ?p1 ?b2 ?p2)
         (TrajCollision ?t ?b2 ?p2)
 
@@ -26,11 +26,12 @@
         (HandEmpty ?r)
         (CanMove ?r)
 
-        (Stove ?r)
+        (Safe)
+        (Stove ?s)
         (Cooked ?b)
 
         ; Derived predicates
-        (In ?b ?r) ; TFLAP redeclared predicate
+        (On ?b ?s) ; TFLAP redeclared predicate
         (Holding ?r ?b)
         (UnsafePose ?b ?p)
         (UnsafeTraj ?t)
@@ -40,6 +41,11 @@
         (total-cost)
         ; (Fuel)
     )
+
+    ; over all is open
+    ; https://www.jair.org/index.php/jair/article/view/10352/24759
+    ; 8.1 Durative Actions with Conditional Effects
+    ; TODO: can always enumerate finite types
 
 	(:durative-action move
 		:parameters (?r ?q1 ?t ?q2)
@@ -69,8 +75,11 @@
 			(at start (not (AtPose ?b ?p)))
 			(at start (not (HandEmpty ?r)))
 			(at end (AtGrasp ?r ?b ?g))
+            ;(forall (?s - surface) (when (at start (Contain ?b ?p ?s))
+            ;                   (at end (not (On ?b ?s)))))
 		)
 	)
+
 	(:durative-action place ; Could also just make the region an arg
 		:parameters (?r ?b ?p ?g ?q)
 		:duration (= ?duration 1)
@@ -84,26 +93,51 @@
 		    (at start (not (AtGrasp ?r ?b ?g)))
 			(at end (AtPose ?b ?p))
 			(at end (HandEmpty ?r))
-			; (forall (?r) (when (at start (Contain ?b ?p ?r)) (at end (In ?b ?r))))
+			(when (at start (Contain ?b ?p red))
+			      (at end (On ?b red)))
+			;(forall (?s - surface) (when (at start (Contain ?b ?p ?s))
+			;                   (at end (On ?b ?s))))
 		)
 	)
+	; This is the rule of no moving targets : no concurrent actions can affect the parts of the state relevant to the precondition
+    ; tests of other actions in the set, regardless of whether those effects might be harmful or not.
 
     ; Universal effects don't prevent rescheduling
 	(:durative-action cook
-		:parameters (?r)
+		:parameters (?s)
 		:duration (= ?duration 1)
 		:condition (and
-		    (at start (Stove ?r))
+		    (at start (Stove ?s))
 		)
-		:effect (forall (?b) (when (over all (In ?b ?r))
-		                           (at end (Cooked ?b))))
+		:effect (and
+			; TODO: rescheduling does not work well with some conditional effects
+			; TODO: need at end otherwise it fails
+			;(when (and (at start (On a ?s)) (over all (On a ?s)) (at end (On a ?s)))
+			;    (at end (Cooked a)))
+			; TODO: VAL doesn't detect that the following isn't a solution
+
+		    (forall (?b) (when (and (at start (On ?b ?s)) (over all (On ?b ?s)) (at end (On ?b ?s)))
+		        (at end (Cooked ?b)))) ; This doesn't seem to work
+	    )
 	)
+
+    ; These are executed in parallel. Action to turn on stove and action to cook
+	;(:durative-action cook
+	;	:parameters (?s ?b)
+	;	:duration (= ?duration 1)
+	;	:condition (and
+	;	    (at start (Stove ?s))
+	;	    (at start (Block ?b))
+	;	    (over all (On ?b ?s))
+	;	)
+	;	:effect (at end (Cooked ?b))
+	;)
 
     ; OPTIC supports classical actions
 	;(:action instant-cook
-	;	:parameters (?r)
-	;	:condition (Stove ?r)
-	;	:effect (forall (?b) (when (In ?b ?r)
+	;	:parameters (?s)
+	;	:condition (Stove ?s)
+	;	:effect (forall (?b) (when (On ?b ?s)
 	;	                           (Cooked ?b)))
 	;)
 
@@ -116,8 +150,8 @@
 
     ; TODO: include any derived predicates introduce universal conditions that prevent rescheduling
     ; Only Temporal FastDownward supports derived predicates
-    ;(:derived (In ?b ?r)
-    ;    (exists (?p) (and (Contain ?b ?p ?r)
+    ;(:derived (On ?b ?s)
+    ;    (exists (?p) (and (Contain ?b ?p ?s)
     ;                      (AtPose ?b ?p))))
 
     ;(:derived (Holding ?b)

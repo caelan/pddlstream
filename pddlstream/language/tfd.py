@@ -16,7 +16,7 @@ PLANNER = 'tfd' # tfd | tflap | optic
 # /home/caelan/Programs/VAL
 
 TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
-MAX_TIME = 10
+MAX_TIME = 20
 PLAN_FILE = 'plan'
 
 TFD_OPTIONS = {
@@ -30,12 +30,13 @@ TFD_OPTIONS = {
     'x+X': True,  # makespan heuristic
     'G': 't',     # g-value evaluation (using m finds incorrect plans)
     'Q': 'p',     # queue
-    'r': True,    # reschedule
+    'r': False,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     'O': 1,       # num ordered preferred ops
     'C': 1,       # num cheapest preferred ops
     #'E': 1000,    # num expensive preferred ops
     #'R': 1000,    # num random preferred ops,
     'e': True,    # epsilon internally
+    'f': False,  # epsilon externally
     'b': True,   # reset after solution
 }
 
@@ -201,7 +202,7 @@ TFLAP_COMMAND = 'tflap {} {} {}'
 
 OPTIC_PATH = '/home/caelan/Programs/optic2018/src/optic/src/optic'
 
-OPTIC_COMMAND = 'optic-clp -N -b {} {} {}'
+OPTIC_COMMAND = 'optic-clp -N {} {} {}'
 
 """
 Usage: optic/src/optic/optic-clp [OPTIONS] domainfile problemfile [planfile, if -r specified]
@@ -244,6 +245,7 @@ ADL can be used in action definitions:
 def parse_temporal_solution(solution):
     makespan = 0.0
     plan = []
+    # TODO: this regex doesn't work for @
     regex = r'(\d+.\d+): \(\s*(\w+(?:\s\w+)*)\s*\) \[(\d+.\d+)\]'
     for start, action, duration in re.findall(regex, solution):
         entries = action.lower().split(' ')
@@ -273,7 +275,7 @@ def parse_plans(temp_path, plan_files):
 
 ##################################################
 
-def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=False):
+def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=True):
     if PLANNER == 'tfd':
         root, template = TFD_PATH, TFD_COMMAND
     elif PLANNER == 'tflap':

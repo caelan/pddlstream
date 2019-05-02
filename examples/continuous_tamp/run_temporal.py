@@ -39,8 +39,12 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     robots = ['r{}'.format(r) for r in range(2)]
 
-    constant_map = {}
+    constant_map = {'{}'.format(name).lower(): name
+                    for name in initial.block_poses.keys() + tamp_problem.regions.keys()}
+    #constant_map = {}
     init = [
+        ('Safe',),
+        ('Stove', 'red'),
         #Equal((TOTAL_COST,), 0), TODO: cannot do TOTAL_COST
     ]
     for r in robots:
@@ -60,15 +64,18 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             ('Placeable', b, GROUND_NAME),
         ]
 
-    goal_literals = []
-    for b, r in tamp_problem.goal_regions.items():
-        if isinstance(r, str):
-            init += [('Region', r), ('Placeable', b, r)]
-            goal_literals += [('In', b, r)]
-            #goal_literals += [Exists(['?p'], And(('Contain', b, '?p', r), ('AtPose', b, '?p')))]
+    goal_literals = [
+        #('Safe',), # Segfault for OPTIC
+    ]
+    for b, s in tamp_problem.goal_regions.items():
+        if isinstance(s, str):
+            init += [('Region', s), ('Placeable', b, s)]
+            goal_literals += [('Cooked', b)]
+            #goal_literals += [('On', b, s)]
+            #goal_literals += [Exists(['?p'], And(('Contain', b, '?p', s), ('AtPose', b, '?p')))]
         else:
-            init += [('Pose', b, r)]
-            goal_literals += [('AtPose', b, r)]
+            init += [('Pose', b, s)]
+            goal_literals += [('AtPose', b, s)]
 
     #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
     #if tamp_problem.goal_conf is not None:
@@ -95,6 +102,37 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
 
+##################################################
+
+def display_plan(tamp_problem, plan, display=True):
+    from examples.continuous_tamp.viewer import ContinuousTMPViewer
+    from examples.discrete_tamp.viewer import COLORS
+
+    example_name = os.path.basename(os.path.dirname(__file__))
+    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
+    safe_rm_dir(directory)
+    ensure_dir(directory)
+
+    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
+    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
+    state = tamp_problem.initial
+    print()
+    print(state)
+    draw_state(viewer, state, colors)
+    if display:
+        user_input('Continue?')
+    return
+    if plan is not None:
+        for i, action in enumerate(plan):
+            print(i, *action)
+            for j, state in enumerate(apply_action(state, action)):
+                print(i, j, state)
+                draw_state(viewer, state, colors)
+                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
+                if display:
+                    user_input('Continue?')
+    if display:
+        user_input('Finish?')
 
 ##################################################
 
@@ -139,6 +177,7 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
+    print('Constants:', str_from_object(pddlstream_problem.constant_map))
     print('Initial:', sorted_str_from_list(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
     pr = cProfile.Profile()
@@ -169,8 +208,8 @@ def main():
     plan, cost, evaluations = solution
     pr.disable()
     pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
-    #if plan is not None:
-    #    display_plan(tamp_problem, plan)
+    if plan is not None:
+        display_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()
