@@ -19,6 +19,7 @@ PARAMETER = '?'
 TYPE = '-'
 OBJECT = 'object'
 TOTAL_COST = 'total-cost' # TotalCost
+TOTAL_TIME = 'total-time'
 
 CONNECTIVES = (AND, OR, NOT, IMPLY)
 QUANTIFIERS = (FORALL, EXISTS)

@@ -94,7 +94,7 @@ def main():
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
-    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
+    parser.add_argument('-n', '--number', default=1, type=int, help='The number of blocks')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')

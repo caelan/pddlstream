@@ -1,4 +1,4 @@
-from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, is_cost, get_prefix, \
+from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, TOTAL_TIME, is_cost, get_prefix, \
     CONNECTIVES, QUANTIFIERS
 from pddlstream.language.conversion import pddl_from_object, is_atom, is_negated_atom, objects_from_evaluations
 from pddlstream.language.object import Object, OptimisticObject
@@ -59,10 +59,10 @@ def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
            '\t(:init \n\t\t{})\n' \
            '\t(:goal {})'.format(
         problem, domain,
-        ' '.join(sorted(map(pddl_parameter, map(pddl_from_object, objects)))),
+        ' '.join(sorted(map(pddl_from_object, objects))), # map(pddl_parameter,
         '\n\t\t'.join(sorted(filter(lambda p: p is not None,
                                     map(pddl_from_evaluation, evaluations)))),
         pddl_from_expression(goal_expression))
     if objective is not None:
-        s += '\n\t(:metric minimize {})'.format(objective.pddl())
+        s += '\n\t(:metric minimize ({}))'.format(TOTAL_TIME)
     return s + ')\n'

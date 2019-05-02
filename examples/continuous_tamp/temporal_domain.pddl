@@ -21,17 +21,19 @@
         (AtPose ?b ?p)
         (AtGrasp ?b ?g)
         (AtConf ?q)
-        (Holding ?b)
         (HandEmpty)
         (CanMove)
 
         ; Derived predicates
-        (In ?b ?r)
+        (In ?b ?r) ; TFLAP redeclared predicate
+        (Holding ?b)
         (UnsafePose ?b ?p)
         (UnsafeTraj ?t)
     )
     (:functions
         (Dist ?q1 ?q2)
+        (total-cost)
+        (Fuel)
     )
 
 	(:durative-action move
@@ -44,6 +46,8 @@
 		:effect (and
 			(at start (not (AtConf ?q1)))
 			(at end (AtConf ?q2))
+			; (at end (increase (total-cost) 1)) ; Many temporal planners don't support costs
+			; (at end (decrease (Fuel) 1)) ; Numeric effects not currently supported
 		)
 	)
 	(:durative-action pick
@@ -61,7 +65,7 @@
 			(at end (AtGrasp ?b ?g))
 		)
 	)
-	(:durative-action place
+	(:durative-action place ; Could also just make the region an arg
 		:parameters (?b ?p ?g ?q)
 		:duration (= ?duration 1)
 		:condition (and
@@ -73,6 +77,17 @@
 		    (at start (not (AtGrasp ?b ?g)))
 			(at end (AtPose ?b ?p))
 			(at end (HandEmpty))
+			; (forall (?r) (at end (In ?b ?r)))
+	        (when (at end (HandEmpty)) (at end (Holding ?b)))
 		)
 	)
+
+    ; TFLAP doesn't support derived predicates
+    ;(:derived (In ?b ?r)
+    ;    (exists (?p) (and (Contain ?b ?p ?r)
+    ;                      (AtPose ?b ?p))))
+    ;
+    ;(:derived (Holding ?b)
+    ;    (exists (?g) (and (Grasp ?b ?g)
+    ;                      (AtGrasp ?b ?g))))
 )
