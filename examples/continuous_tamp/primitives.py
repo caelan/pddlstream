@@ -131,7 +131,8 @@ def make_blocks(num):
     #return ['b{}'.format(i) for i in range(num)]
     return [string.ascii_uppercase[i] for i in range(num)]
 
-def mirror(n_blocks=1, n_goals=1):
+def mirror(n_blocks=1):
+    n_goals = n_blocks
     poses = [np.array([-(BLOCK_WIDTH + 1) * x - BLOCK_WIDTH, 0]) for x in range(n_blocks)]
     blocks = make_blocks(len(poses))
     goal_poses = [-pose for pose in poses[:n_goals]]

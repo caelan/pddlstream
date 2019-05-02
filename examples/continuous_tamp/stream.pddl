@@ -25,9 +25,9 @@
     :domain (and (Pose ?b ?p) (Placeable ?b ?r))
     :certified (Contain ?b ?p ?r))
 
-  ;(:function (Dist ?q1 ?q2)
-  ;  (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
-  ;)
+  (:function (Dist ?q1 ?q2)
+    (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
+  )
   ;(:function (Length ?t)
   ;   (Traj ?t))
 )

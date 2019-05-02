@@ -88,15 +88,15 @@
 		)
 	)
 
-	(:durative-action cook
-		:parameters (?r)
-		:duration (= ?duration 1)
-		:condition (and
-		    (at start (Stove ?r))
-		)
-		:effect (forall (?b) (when (over all (In ?b ?r))
-		                           (at end (Cooked ?b))))
-	)
+	;(:durative-action cook
+	;	:parameters (?r)
+	;	:duration (= ?duration 1)
+	;	:condition (and
+	;	    (at start (Stove ?r))
+	;	)
+	;	:effect (forall (?b) (when (over all (In ?b ?r))
+	;	                           (at end (Cooked ?b))))
+	;)
 
     ; OPTIC supports classical actions
 	;(:action instant-cook
@@ -112,7 +112,6 @@
     ;    :precondition
     ;    :effect
     ;)
-
 
     ; Only Temporal FastDownward supports derived predicates
     (:derived (In ?b ?r)

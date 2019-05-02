@@ -13,17 +13,60 @@ PLANNER = 'tfd' # tfd | tflap | optic
 
 ##################################################
 
+# /home/caelan/Programs/VAL
+
 TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+MAX_TIME = 10
+PLAN_FILE = 'plan'
+
+TFD_OPTIONS = {
+    'a': False,   # anytime search
+    't': MAX_TIME,     # success timeout
+    'T': MAX_TIME,     # failure timeout
+    'g': False,   # greedy search
+    'l': False,    # disable lazy evaluation
+    'v': True,    # disable verbose
+    'y+Y': False, # CEA heuristic
+    'x+X': True,  # makespan heuristic
+    'G': 't',     # g-value evaluation
+    'Q': 'p',     # queue
+    'r': True,    # reschedule
+    'O': 1,       # num ordered preferred ops
+    'C': 1,       # num cheapest preferred ops
+    #'E': 1000,    # num expensive preferred ops
+    #'R': 1000,    # num random preferred ops,
+    'e': True,    # epsilon internally
+    'b': True,   # reset after solution
+}
+
+# best_first_search
+# makespan seems to be computed using timestep plus longest action
+
+def format_option(pair):
+    key, value = pair
+    if value is True:
+        return key
+    if value is False:
+        return None
+    return '{}+{}'.format(key, value)
+
+# Disabling rescheduling because of universal conditions in original task!
+
+# /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
+
+TFD_ARGS = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, TFD_OPTIONS.items()))))
 
 # Parameters just used in search (and split by +)
-#COMMAND = 'plan.py y+Y+a+e+r+O+1+C+1+b {} {} {}' # Default
-#COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
-TFD_COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
+#TFD_COMMAND = 'plan.py n {} {} {}' # Default in plannerParameters.h
+#TFD_COMMAND = 'plan.py y+Y+a+e+r+O+1+C+1+b {} {} {}' # Default in ./plan
+#TFD_COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
+#TFD_COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
+TFD_COMMAND = 'plan.py %s {} {} {}' % TFD_ARGS
 
-# b => reset_after_solution_was_found = true
+print(TFD_COMMAND)
 
-PLAN_FILE = 'plan'
-# plannerParameters.h
+# TODO: TFD sometimes returns incorrect plans
+# ./VAL/validate pddlstream/temp/domain.pddl pddlstream/temp/problem.pddl pddlstream/temp/plan
 
 # Finds a plan and then retimes it
 
@@ -55,8 +98,88 @@ Options are:
   M v - monitoring: verify timestamps
   u - do not use cachin in heuristic
 """
+# b - reset_after_solution_was_found
+# p - plan_name
+# i - reward_only_pref_op_queue
+# S - pref_ops_concurrent_mode
+# R - number_pref_ops_rand_mode
 
-# b - reset after solution is found
+# Default parameters (plan.py n {} {} {})
+"""
+Planner Paramters:
+Anytime Search: Disabled
+Timeout if plan was found: 0 seconds (no timeout)
+Timeout while no plan was found: 0 seconds (no timeout)
+Greedy Search: Disabled
+Verbose: Enabled
+Lazy Heuristic Evaluation: Enabled
+Use caching in heuristic.
+Cyclic CG heuristic: Disabled 	Preferred Operators: Disabled
+Makespan heuristic: Disabled 	Preferred Operators: Disabled
+No Heuristic: Enabled
+Cg Heuristic Zero Cost Waiting Transitions: Enabled
+Cg Heuristic Fire Waiting Transitions Only If Local Problems Matches State: Disabled
+PrefOpsOrderedMode: Disabled with 1000 goals
+PrefOpsCheapestMode: Disabled with 1000 goals
+PrefOpsMostExpensiveMode: Disabled with 1000 goals
+PrefOpsRandMode: Disabled with 1000 goals
+PrefOpsConcurrentMode: Disabled
+Reset after solution was found: Disabled
+Reward only preferred operators queue: Disabled
+GValues by: Timestamp
+Queue management mode: Priority based
+Known by logical state only filtering: Disabled
+use_subgoals_to_break_makespan_ties: Disabled
+Reschedule plans: Disabled
+Epsilonize internally: Disabled
+Epsilonize externally: Disabled
+Keep original plans: Enabled
+Plan name: "/home/caelan/Programs/pddlstream/temp/plan"
+Plan monitor file: "" (no monitoring)
+Monitoring verify timestamps: Disabled
+"""
+
+# plannerParameters.h
+"""
+anytime_search = false;
+timeout_while_no_plan_found = 0;
+timeout_if_plan_found = 0;
+greedy = false;
+lazy_evaluation = true;
+verbose = true;
+insert_let_time_pass_only_when_running_operators_not_empty = false;
+cyclic_cg_heuristic = false;
+cyclic_cg_preferred_operators = false;
+makespan_heuristic = false;
+makespan_heuristic_preferred_operators = false;
+no_heuristic = false;
+cg_heuristic_zero_cost_waiting_transitions = true;
+cg_heuristic_fire_waiting_transitions_only_if_local_problems_matches_state = false;
+use_caching_in_heuristic = true;
+g_values = GTimestamp;
+g_weight = 0.5;
+queueManagementMode = BestFirstSearchEngine::PRIORITY_BASED;
+use_known_by_logical_state_only = false;
+use_subgoals_to_break_makespan_ties = false;
+reschedule_plans = false;
+epsilonize_internally = false;
+epsilonize_externally = false;
+keep_original_plans = true;
+pref_ops_ordered_mode = false;
+pref_ops_cheapest_mode = false;
+pref_ops_most_expensive_mode = false;
+pref_ops_rand_mode = false;
+pref_ops_concurrent_mode = false;
+number_pref_ops_ordered_mode = 1000;
+number_pref_ops_cheapest_mode = 1000;
+number_pref_ops_most_expensive_mode = 1000;
+number_pref_ops_rand_mode = 1000;
+reset_after_solution_was_found = false;
+reward_only_pref_op_queue = false;
+plan_name = "sas_plan";
+planMonitorFileName = "";
+monitoring_verify_timestamps = false;
+"""
 
 ##################################################
 
