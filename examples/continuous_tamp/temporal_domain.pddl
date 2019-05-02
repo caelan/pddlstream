@@ -1,6 +1,7 @@
 (define (domain temporal-tamp)
-    (:requirements :equality :typing :durative-actions)
+    (:requirements :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects) ; :equality :action-costs
 	; (:types block)
+	; (:constants )
     (:predicates
         ; Static predicates
         (Robot ?r)
@@ -37,7 +38,7 @@
     (:functions
         (Dist ?q1 ?q2)
         (total-cost)
-        (Fuel)
+        ; (Fuel)
     )
 
 	(:durative-action move
@@ -97,11 +98,27 @@
 		                           (at end (Cooked ?b))))
 	)
 
-    ; TFLAP doesn't support derived predicates or conditional effects
+    ; OPTIC supports classical actions
+	;(:action instant-cook
+	;	:parameters (?r)
+	;	:condition (Stove ?r)
+	;	:effect (forall (?b) (when (In ?b ?r)
+	;	                           (Cooked ?b)))
+	;)
+
+	; OPTIC supports processes
+    ;(:process
+    ;    :parameters ()
+    ;    :precondition
+    ;    :effect
+    ;)
+
+
+    ; Only Temporal FastDownward supports derived predicates
     (:derived (In ?b ?r)
         (exists (?p) (and (Contain ?b ?p ?r)
                           (AtPose ?b ?p))))
-    ;
+
     ;(:derived (Holding ?b)
     ;    (exists (?g) (and (Grasp ?b ?g)
     ;                      (AtGrasp ?b ?g))))

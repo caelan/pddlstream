@@ -17,7 +17,7 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not, Exists
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -65,6 +65,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         if isinstance(r, str):
             init += [('Region', r), ('Placeable', b, r)]
             goal_literals += [('In', b, r)]
+            #goal_literals += [Exists(['?p'], And(('Contain', b, '?p', r), ('AtPose', b, '?p')))]
         else:
             init += [('Pose', b, r)]
             goal_literals += [('AtPose', b, r)]
