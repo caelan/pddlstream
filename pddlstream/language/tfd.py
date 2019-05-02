@@ -28,7 +28,7 @@ TFD_OPTIONS = {
     'v': True,    # disable verbose
     'y+Y': False, # CEA heuristic
     'x+X': True,  # makespan heuristic
-    'G': 't',     # g-value evaluation
+    'G': 't',     # g-value evaluation (using m finds incorrect plans)
     'Q': 'p',     # queue
     'r': True,    # reschedule
     'O': 1,       # num ordered preferred ops
@@ -50,7 +50,9 @@ def format_option(pair):
         return None
     return '{}+{}'.format(key, value)
 
+# Contains universal conditions: 1
 # Disabling rescheduling because of universal conditions in original task!
+# Doesn't look like temporal FastDownward uses non-boolean variables
 
 # /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
 
@@ -250,9 +252,28 @@ def parse_temporal_solution(solution):
         makespan = max(action.start + action.duration, makespan)
     return plan, makespan
 
+def write_pddl(domain_pddl, problem_pddl):
+    # TODO: already in downward.py
+    safe_rm_dir(TEMP_DIR)  # Ensures not using old plan
+    ensure_dir(TEMP_DIR)
+    domain_path = TEMP_DIR + DOMAIN_INPUT
+    problem_path = TEMP_DIR + PROBLEM_INPUT
+    write(domain_path, domain_pddl)
+    write(problem_path, problem_pddl)
+    return domain_path, problem_path
+
+def parse_plans(temp_path, plan_files):
+    best_plan, best_makespan = None, INF
+    for plan_file in plan_files:
+        solution = read(os.path.join(temp_path, plan_file))
+        plan, makespan = parse_temporal_solution(solution)
+        if makespan < best_makespan:
+            best_plan, best_makespan = plan, makespan
+    return best_plan, best_makespan
+
 ##################################################
 
-def tfd(domain_pddl, problem_pddl, max_time=INF, max_cost=INF, verbose=True):
+def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=False):
     if PLANNER == 'tfd':
         root, template = TFD_PATH, TFD_COMMAND
     elif PLANNER == 'tflap':
@@ -262,49 +283,25 @@ def tfd(domain_pddl, problem_pddl, max_time=INF, max_cost=INF, verbose=True):
     else:
         raise ValueError(PLANNER)
 
-    safe_rm_dir(TEMP_DIR) # Ensures not using old plan
-    ensure_dir(TEMP_DIR)
-    domain_path = TEMP_DIR + DOMAIN_INPUT
-    problem_path = TEMP_DIR + PROBLEM_INPUT
-    write(domain_path, domain_pddl)
-    write(problem_path, problem_pddl)
-
-    # Contains universal conditions: 1
-    # Disabling rescheduling because of universal conditions in original task!
-    # Doesn't look like temporal FastDownward uses non-boolean variables
-
+    domain_path, problem_path = write_pddl(domain_pddl, problem_pddl)
     plan_path = os.path.join(TEMP_DIR, PLAN_FILE)
     #assert not actions, "There shouldn't be any actions - just temporal actions"
 
     paths = [os.path.join(os.getcwd(), p) for p in (domain_path, problem_path, plan_path)]
     command = os.path.join(root, template.format(*paths))
+    print(command)
     if verbose:
-        print(command)
-
-    stdout = None if verbose else open(os.devnull, 'w')
-    #stdout = open(os.devnull, 'w')
-    #stderr = open(os.devnull, 'w')
-    stderr = None
-    try:
-        proc = subprocess.call(command.split(' '), cwd=root)
-        #proc = subprocess.Popen(command.split(' '), cwd=get_tfd_root(), stdout=stdout, stderr=stderr)
-        #proc.wait()
-        #proc.terminate()
-    except subprocess.CalledProcessError as e:
-        print("Subprocess error", e.output)
-        user_input("Continue?")
+        stdout, stderr = None, None
+    else:
+        stdout, stderr = open(os.devnull, 'w'), open(os.devnull, 'w')
+    proc = subprocess.call(command.split(' '), cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
+    error = proc != 0
+    print('Error:', error)
 
     temp_path = os.path.join(os.getcwd(), TEMP_DIR)
-    plan_files = sorted([f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE)])
-    if verbose:
-        print('Plans:', plan_files)
-
-    best_plan, best_makespan =  None, INF
-    for plan_file in plan_files:
-        solution = read(os.path.join(temp_path, plan_file))
-        plan, makespan = parse_temporal_solution(solution)
-        if makespan < best_makespan:
-            best_plan, best_makespan = plan, makespan
+    plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE))
+    print('Plans:', plan_files)
+    best_plan, best_makespan = parse_plans(temp_path, plan_files)
     if not verbose:
         safe_rm_dir(TEMP_DIR)
     return best_plan, best_makespan

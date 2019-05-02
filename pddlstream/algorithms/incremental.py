@@ -9,7 +9,9 @@ from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import obj_from_pddl_plan
 from pddlstream.language.fluent import ensure_no_fluent_streams
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
-from pddlstream.language.temporal import solve_temporal
+from pddlstream.language.tpshe import solve_tpshe
+from pddlstream.language.tfd import solve_tfd
+from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.utils import INF
 
 UPDATE_STATISTICS = False
@@ -33,7 +35,11 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
 
 def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
     if not isinstance(domain, Domain):
-        return solve_temporal(evaluations, goal_exp, domain)
+        problem = get_problem_pddl(evaluations, goal_exp, domain)
+        pddl_plan, cost = solve_tfd(domain, problem)
+        #return solve_tpshe(domain, problem, **search_args)
+        plan = obj_from_pddl_plan(pddl_plan)
+        return plan, cost
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)

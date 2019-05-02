@@ -88,15 +88,16 @@
 		)
 	)
 
-	;(:durative-action cook
-	;	:parameters (?r)
-	;	:duration (= ?duration 1)
-	;	:condition (and
-	;	    (at start (Stove ?r))
-	;	)
-	;	:effect (forall (?b) (when (over all (In ?b ?r))
-	;	                           (at end (Cooked ?b))))
-	;)
+    ; Universal effects don't prevent rescheduling
+	(:durative-action cook
+		:parameters (?r)
+		:duration (= ?duration 1)
+		:condition (and
+		    (at start (Stove ?r))
+		)
+		:effect (forall (?b) (when (over all (In ?b ?r))
+		                           (at end (Cooked ?b))))
+	)
 
     ; OPTIC supports classical actions
 	;(:action instant-cook
@@ -113,10 +114,11 @@
     ;    :effect
     ;)
 
+    ; TODO: include any derived predicates introduce universal conditions that prevent rescheduling
     ; Only Temporal FastDownward supports derived predicates
-    (:derived (In ?b ?r)
-        (exists (?p) (and (Contain ?b ?p ?r)
-                          (AtPose ?b ?p))))
+    ;(:derived (In ?b ?r)
+    ;    (exists (?p) (and (Contain ?b ?p ?r)
+    ;                      (AtPose ?b ?p))))
 
     ;(:derived (Holding ?b)
     ;    (exists (?g) (and (Grasp ?b ?g)

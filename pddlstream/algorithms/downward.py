@@ -145,7 +145,7 @@ def parse_domain(domain_pddl):
        #        action.cost.expression.value = scale_cost(action.cost.expression.value)
        return domain
     except AssertionError as e:
-        if e.message == ':durative-actions':
+        if str(e) == ':durative-actions':
             return domain_pddl
         raise e
 

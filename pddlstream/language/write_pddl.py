@@ -1,3 +1,5 @@
+import re
+
 from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, TOTAL_TIME, is_cost, get_prefix, \
     CONNECTIVES, QUANTIFIERS
 from pddlstream.language.conversion import pddl_from_object, is_atom, is_negated_atom, objects_from_evaluations
@@ -66,3 +68,11 @@ def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
     if objective is not None:
         s += '\n\t(:metric minimize ({}))'.format(TOTAL_TIME)
     return s + ')\n'
+
+
+def get_problem_pddl(evaluations, goal_exp, domain_pddl):
+    [domain_name] = re.findall(r'\(domain ([^ ]+)\)', domain_pddl)
+    problem_name = domain_name
+    problem_pddl = pddl_problem(domain_name, problem_name, evaluations, goal_exp, objective=TOTAL_TIME)
+    #write_pddl(domain_pddl, problem_pddl, TEMP_DIR)
+    return problem_pddl
