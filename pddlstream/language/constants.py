@@ -29,10 +29,15 @@ OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,) # + OBJECTIVES
 FAILED = None
 INFEASIBLE = False
 
+# TODO: rename PDDLProblem
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
-PDDLAction = namedtuple('PDDLAction', ['name', 'args'])
-PDDLStream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+Stream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+
+Action = namedtuple('Action', ['name', 'args'])
+DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
+Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
+
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
 Atom = lambda head: Evaluation(head, True)
@@ -137,9 +142,14 @@ def print_solution(solution):
     print('Evaluations: {}'.format(len(evaluations)))
     if not solved:
         return
-    for i, (name, args) in enumerate(plan):
-        print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
-    #    print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
+    for i, action in enumerate(plan):
+        if isinstance(action, DurativeAction):
+            name, args, start, duration = action
+            print('{:.2f} - {:.2f}) {} {}'.format(start, start+duration, name, ' '.join(map(str_from_object, args))))
+        else:
+            name, args = action
+            print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
+            #print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
 
 
 def get_function(term):

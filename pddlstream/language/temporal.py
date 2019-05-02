@@ -5,9 +5,9 @@ import os
 import re
 import time
 
-from pddlstream.algorithms.downward import TEMP_DIR, write_pddl, DOMAIN_INPUT, PROBLEM_INPUT, SEARCH_OUTPUT
+from pddlstream.algorithms.downward import TEMP_DIR, write_pddl, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.write_pddl import pddl_problem
-from pddlstream.language.tfd import tfd
+from pddlstream.language.tfd import tfd, parse_temporal_solution
 from pddlstream.language.conversion import obj_from_pddl_plan
 from pddlstream.utils import elapsed_time, INF, read
 
@@ -19,17 +19,6 @@ COMMAND = 'python {}bin/plan.py she {} {} --time {} --iterated'
 #COMMAND = 'python {}bin/plan.py she {} {} --time {}'
 #COMMAND = 'python {}bin/plan.py tempo-3 {} {} --time {}'
 #COMMAND = 'python {}bin/plan.py stp-3 {} {} --time {}'
-
-def parse_tmp_solution(solution):
-    total_duration = 0
-    plan = []
-    regex = r'(\d+.\d+): \(\s*(\w+(?:\s\w+)*)\s*\) \[(\d+.\d+)\]'
-    for start_time, action, duration in re.findall(regex, solution):
-        total_duration = max(float(start_time) + float(duration), total_duration)
-        entries = action.lower().split(' ')
-        plan.append((entries[0], tuple(entries[1:])))
-    return plan, total_duration
-
 
 def run_tpshe(max_time, verbose):
     tpshe_root = os.environ[ENV_VAR]
@@ -53,7 +42,7 @@ def run_tpshe(max_time, verbose):
     best_plan, best_makespan = None, INF
     for plan_file in plan_files:
         print(plan_file)
-        plan, duration = parse_tmp_solution(read(plan_file))
+        plan, duration = parse_temporal_solution(read(plan_file))
         print(plan)
         print(plan_file, len(plan), duration)
         if duration < best_makespan:

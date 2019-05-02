@@ -2,15 +2,12 @@ from __future__ import print_function
 
 #from os.path import expanduser
 import os
+import re
 import subprocess
 
-from pddlstream.algorithms.downward import TEMP_DIR, write_pddl, DOMAIN_INPUT, PROBLEM_INPUT
-from pddlstream.language.write_pddl import pddl_problem
-from pddlstream.utils import elapsed_time, INF, read, safe_remove, ensure_dir, write, user_input, safe_rm_dir
-
-from collections import namedtuple
-
-DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
+from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
+from pddlstream.language.constants import DurativeAction
+from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read
 
 ENV_VAR = 'TFD_PATH'
 
@@ -23,6 +20,8 @@ COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
 
 PLAN_FILE = 'plan'
 # plannerParameters.h
+
+# Finds a plan and then retimes it
 
 """
 Usage: search <option characters>  (input read from stdin)
@@ -53,6 +52,8 @@ Options are:
   u - do not use cachin in heuristic
 """
 
+##################################################
+
 # Usage: tflap <domain_file> <problem_file> <output_file> [-ground] [-static] [-mutex] [-trace]
 # -ground: generates the GroundedDomain.pddl and GroundedProblem.pddl files.
 # -static: keeps the static data in the planning task.
@@ -60,11 +61,21 @@ Options are:
 # -mutex: generates the mutex.txt file with the list of static mutex facts.
 # -trace: generates the trace.txt file with the search tree.
 
-COMMAND = 'tflap {} {} {}'
+#COMMAND = 'tflap {} {} {}'
 #COMMAND = 'tflap {} {} {} -trace' # Seems to repeatedly fail
 
+##################################################
 
-# Finds a plan and then retimes it
+def parse_temporal_solution(solution):
+    makespan = 0.0
+    plan = []
+    regex = r'(\d+.\d+): \(\s*(\w+(?:\s\w+)*)\s*\) \[(\d+.\d+)\]'
+    for start, action, duration in re.findall(regex, solution):
+        entries = action.lower().split(' ')
+        action = DurativeAction(entries[0], tuple(entries[1:]), float(start), float(duration))
+        plan.append(action)
+        makespan = max(action.start + action.duration, makespan)
+    return plan, makespan
 
 ##################################################
 
@@ -73,9 +84,8 @@ def has_tfd():
     #return ENV_VAR in os.environ
 
 def get_tfd_root():
-    return '/home/caelan/Programs/tflap/src'
-
-    #return '/home/caelan/Programs/tfd-src-0.4/downward'
+    #return '/home/caelan/Programs/tflap/src'
+    return '/home/caelan/Programs/tfd-src-0.4/downward'
     #if not has_tfd():
     #    raise RuntimeError('Environment variable %s is not defined.'%ENV_VAR)
     #return os.environ[ENV_VAR]
@@ -121,20 +131,12 @@ def tfd(domain_pddl, problem_pddl, max_time=INF, max_cost=INF, verbose=True):
     if verbose:
         print('Plans:', plan_files)
 
-    if not plan_files:
-        return None, INF
-    with open(os.path.join(temp_path, plan_files[-1]), 'r') as f:
-        output = f.read()
-
-    # TODO: read all the files
-    plan = []
-    for line in output.split('\n')[:-1]:
-        entries = line[line.find('(')+1:line.find(')')].split(' ')
-        action, args = entries[0], entries[1:]
-        if args == ['']:
-            args = []
-        plan.append((action, args))
+    best_plan, best_makespan =  None, INF
+    for plan_file in plan_files:
+        solution = read(os.path.join(temp_path, plan_file))
+        plan, makespan = parse_temporal_solution(solution)
+        if makespan < best_makespan:
+            best_plan, best_makespan = plan, makespan
     if not verbose:
         safe_rm_dir(TEMP_DIR)
-    # TODO: return timing information
-    return plan, 0
+    return best_plan, best_makespan

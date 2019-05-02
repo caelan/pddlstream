@@ -4,7 +4,7 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, DurativeAction, Solution
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -158,12 +158,18 @@ def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
     #return tuple(map(value_from_object, objects))
 
+def transform_action_args(action, fn):
+    if isinstance(action, DurativeAction):
+        name, args, start, duration = action
+        return DurativeAction(name, tuple(map(fn, args)), start, duration)
+    name, args = action
+    return Action(name, tuple(map(fn, args)))
+
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):
     if not is_plan(pddl_plan):
         return pddl_plan
-    return [(action, tuple(map(obj_from_pddl, args)))
-            for action, args in pddl_plan]
+    return [transform_action_args(action, obj_from_pddl) for action in pddl_plan]
 
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
@@ -181,20 +187,17 @@ def value_from_obj_plan(obj_plan):
     #return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
     #return [(action, tuple(values_from_objects(args))) for action, args in obj_plan]
     value_plan = []
-    for operator in obj_plan:
-        if len(operator) == 2:
-            name, args = operator
-            new_operator = (name, params_from_objects(args)) # values_from_objects
-        elif len(operator) == 3:
-            name, inputs, outputs = operator
+    for action in obj_plan:
+        if len(action) == 3:
+            name, inputs, outputs = action
             new_inputs = params_from_objects(inputs) # values_from_objects
             new_outputs = outputs
             if isinstance(new_outputs, collections.Sequence):
                 new_outputs = params_from_objects(new_outputs) # values_from_objects
-            new_operator = (name, new_inputs, new_outputs)
+            new_action = (name, new_inputs, new_outputs)
         else:
-            raise ValueError(operator)
-        value_plan.append(new_operator)
+            new_action = transform_action_args(action, param_from_object) # values_from_objects
+        value_plan.append(new_action)
     return value_plan
 
 ##################################################
@@ -205,7 +208,7 @@ def value_from_obj_plan(obj_plan):
 def revert_solution(obj_plan, cost, evaluations):
     init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
     plan = value_from_obj_plan(obj_plan)
-    return plan, cost, init
+    return Solution(plan, cost, init)
 
 #def opt_obj_from_value(value):
 #    if Object.has_value(value):

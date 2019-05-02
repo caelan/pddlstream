@@ -77,15 +77,14 @@
 		    (at start (not (AtGrasp ?b ?g)))
 			(at end (AtPose ?b ?p))
 			(at end (HandEmpty))
-			; (forall (?r) (at end (In ?b ?r)))
-	        (when (at end (HandEmpty)) (at end (Holding ?b)))
+			; (forall (?r) (when (at start (Contain ?b ?p ?r)) (at end (In ?b ?r))))
 		)
 	)
 
-    ; TFLAP doesn't support derived predicates
-    ;(:derived (In ?b ?r)
-    ;    (exists (?p) (and (Contain ?b ?p ?r)
-    ;                      (AtPose ?b ?p))))
+    ; TFLAP doesn't support derived predicates or conditional effects
+    (:derived (In ?b ?r)
+        (exists (?p) (and (Contain ?b ?p ?r)
+                          (AtPose ?b ?p))))
     ;
     ;(:derived (Holding ?b)
     ;    (exists (?g) (and (Grasp ?b ?g)
