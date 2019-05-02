@@ -13,7 +13,9 @@ ENV_VAR = 'TFD_PATH'
 
 # Parameters just used in search (and split by +)
 #COMMAND = 'plan.py y+Y+a+e+r+O+1+C+1+b {} {} {}' # Default
-COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
+#COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
+COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
+
 # b => reset_after_solution_was_found = true
 
 # TODO: try different command sto minimize makespan
@@ -51,6 +53,8 @@ Options are:
   M v - monitoring: verify timestamps
   u - do not use cachin in heuristic
 """
+
+# b - reset after solution is found
 
 ##################################################
 

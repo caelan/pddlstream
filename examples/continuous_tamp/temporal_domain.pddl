@@ -3,6 +3,7 @@
 	; (:types block)
     (:predicates
         ; Static predicates
+        (Robot ?r)
         (Block ?b)
         (Region ?r)
         (Pose ?b ?p)
@@ -19,14 +20,17 @@
 
         ; Fluent predicates
         (AtPose ?b ?p)
-        (AtGrasp ?b ?g)
-        (AtConf ?q)
-        (HandEmpty)
-        (CanMove)
+        (AtGrasp ?r ?b ?g)
+        (AtConf ?r ?q)
+        (HandEmpty ?r)
+        (CanMove ?r)
+
+        (Stove ?r)
+        (Cooked ?b)
 
         ; Derived predicates
         (In ?b ?r) ; TFLAP redeclared predicate
-        (Holding ?b)
+        (Holding ?r ?b)
         (UnsafePose ?b ?p)
         (UnsafeTraj ?t)
     )
@@ -37,48 +41,60 @@
     )
 
 	(:durative-action move
-		:parameters (?q1 ?t ?q2)
+		:parameters (?r ?q1 ?t ?q2)
 		:duration (= ?duration 1)
 		:condition (and
-			(at start (and (Conf ?q1) (Conf ?q2)))
-			(at start (AtConf ?q1))
+			(at start (and (Robot ?r) (Conf ?q1) (Conf ?q2)))
+			(at start (AtConf ?r ?q1))
 		)
 		:effect (and
-			(at start (not (AtConf ?q1)))
-			(at end (AtConf ?q2))
+			(at start (not (AtConf ?r ?q1)))
+			(at end (AtConf ?r ?q2))
 			; (at end (increase (total-cost) 1)) ; Many temporal planners don't support costs
 			; (at end (decrease (Fuel) 1)) ; Numeric effects not currently supported
 		)
 	)
 	(:durative-action pick
-		:parameters (?b ?p ?g ?q)
+		:parameters (?r ?b ?p ?g ?q)
 		:duration (= ?duration 1)
 		:condition (and
+			(at start (Robot ?r))
 			(at start (Kin ?b ?q ?p ?g))
 			(at start (AtPose ?b ?p))
-			(at start (HandEmpty))
-			(over all (AtConf ?q))
+			(at start (HandEmpty ?r))
+			(over all (AtConf ?r ?q))
 		)
 		:effect (and
 			(at start (not (AtPose ?b ?p)))
-			(at start (not (HandEmpty)))
-			(at end (AtGrasp ?b ?g))
+			(at start (not (HandEmpty ?r)))
+			(at end (AtGrasp ?r ?b ?g))
 		)
 	)
 	(:durative-action place ; Could also just make the region an arg
-		:parameters (?b ?p ?g ?q)
+		:parameters (?r ?b ?p ?g ?q)
 		:duration (= ?duration 1)
 		:condition (and
+		    (at start (Robot ?r))
 			(at start (Kin ?b ?q ?p ?g))
-			(at start (AtGrasp ?b ?g))
-			(over all (AtConf ?q))
+			(at start (AtGrasp ?r ?b ?g))
+			(over all (AtConf ?r ?q))
 		)
 		:effect (and
-		    (at start (not (AtGrasp ?b ?g)))
+		    (at start (not (AtGrasp ?r ?b ?g)))
 			(at end (AtPose ?b ?p))
-			(at end (HandEmpty))
+			(at end (HandEmpty ?r))
 			; (forall (?r) (when (at start (Contain ?b ?p ?r)) (at end (In ?b ?r))))
 		)
+	)
+
+	(:durative-action cook
+		:parameters (?r)
+		:duration (= ?duration 1)
+		:condition (and
+		    (at start (Stove ?r))
+		)
+		:effect (forall (?b) (when (over all (In ?b ?r))
+		                           (at end (Cooked ?b))))
 	)
 
     ; TFLAP doesn't support derived predicates or conditional effects

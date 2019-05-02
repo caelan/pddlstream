@@ -37,18 +37,28 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
+    robots = ['r{}'.format(r) for r in range(2)]
+
     constant_map = {}
     init = [
-        ('CanMove',),
-        ('Conf', initial.conf),
-        ('AtConf', initial.conf),
-        ('HandEmpty',),
         #Equal((TOTAL_COST,), 0), TODO: cannot do TOTAL_COST
-    ] + [('Block', b) for b in initial.block_poses.keys()] + \
-           [('Pose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Grasp', b, GRASP) for b in initial.block_poses] + \
-           [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
+    ]
+    for r in robots:
+        init += [
+            ('Robot', r),
+            ('CanMove', r),
+            ('Conf', initial.conf),
+            ('AtConf', r, initial.conf),
+            ('HandEmpty', r),
+        ]
+    for b, p in initial.block_poses.items():
+        init += [
+            ('Block', b),
+            ('Pose', b, p),
+            ('Grasp', b, GRASP),
+            ('AtPose', b, p),
+            ('Placeable', b, GROUND_NAME),
+        ]
 
     goal_literals = []
     for b, r in tamp_problem.goal_regions.items():
@@ -60,8 +70,8 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             goal_literals += [('AtPose', b, r)]
 
     #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
-    if tamp_problem.goal_conf is not None:
-        goal_literals += [('AtConf', tamp_problem.goal_conf)]
+    #if tamp_problem.goal_conf is not None:
+    #    goal_literals += [('AtConf', tamp_problem.goal_conf)]
     goal = And(*goal_literals)
 
     stream_map = {
