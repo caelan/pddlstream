@@ -220,16 +220,17 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name, args = action
     if name == 'move':
-        traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
+        robot, _, traj, _ = args
+        #traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
         for conf in traj[1:]:
             yield TAMPState(conf, holding, block_poses)
     elif name == 'pick':
-        block, _, grasp, _ = args
+        robot, block, _, grasp, _ = args
         holding = (block, grasp)
         del block_poses[block]
         yield TAMPState(conf, holding, block_poses)
     elif name == 'place':
-        block, pose, _, _ = args
+        robot, block, pose, _, _ = args
         holding = None
         block_poses[block] = pose
         yield TAMPState(conf, holding, block_poses)

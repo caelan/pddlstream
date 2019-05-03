@@ -39,6 +39,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     constant_map = {}
     init = [
+        ('Robot', 'r0'),
         ('CanMove',),
         ('Conf', initial.conf),
         ('AtConf', initial.conf),
