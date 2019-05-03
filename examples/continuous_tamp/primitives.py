@@ -114,7 +114,7 @@ def plan_motion(q1, q2):
 
 ##################################################
 
-TAMPState = namedtuple('TAMPState', ['conf', 'holding', 'block_poses'])
+TAMPState = namedtuple('TAMPState', ['robot_confs', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
 REGION_NAME = 'red'
@@ -133,28 +133,37 @@ def make_blocks(num):
     return [string.ascii_uppercase[i] for i in range(num)]
 
 def mirror(n_blocks=1):
+    robot = 'r'
+    initial_confs = {robot: INITIAL_CONF}
+
     n_goals = n_blocks
     poses = [np.array([-(BLOCK_WIDTH + 1) * x - BLOCK_WIDTH, 0]) for x in range(n_blocks)]
     blocks = make_blocks(len(poses))
     goal_poses = [-pose for pose in poses[:n_goals]]
 
-    initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
+    initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
     goal_regions = {block: pose for block, pose in zip(blocks, goal_poses)}
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 def tight(n_blocks=3, n_goals=2):
+    robot = 'r'
+    initial_confs = {robot: INITIAL_CONF}
+
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
     #poses = [sample_region(b, regions[GROUND]) for b in blocks]
     blocks = make_blocks(len(poses))
 
-    initial = TAMPState(INITIAL_CONF, None, dict(zip(blocks, poses)))
+    initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
     goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 def blocked(n_blocks=3, deterministic=True):
+    robot = 'r'
+    initial_confs = {robot: INITIAL_CONF}
+
     blocks = make_blocks(n_blocks)
     if deterministic:
         lower, upper = REGIONS[GROUND_NAME]
@@ -168,29 +177,29 @@ def blocked(n_blocks=3, deterministic=True):
         block_regions.update({b: GROUND_NAME for b in blocks[2:]})
         block_poses = rejection_sample_placed(block_regions=block_regions, regions=REGIONS)
 
-    initial = TAMPState(INITIAL_CONF, None, block_poses)
+    initial = TAMPState(initial_confs, {}, block_poses)
     goal_regions = {blocks[0]: 'red'}
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 
-def blocked2(n_blocks=0, **kwargs):
-    lower, upper = REGIONS[GROUND_NAME]
-    poses = [np.zeros(2), np.array([6.5, 0]), np.array([8.5, 0])]
-    poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
-                 for x in range(n_blocks-len(poses)))
-    blocks = make_blocks(len(poses))
-    block_poses = dict(zip(blocks, poses))
-    initial = TAMPState(INITIAL_CONF, None, block_poses)
-    goal_regions = {blocks[0]: 'red'}
-
-    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+#def blocked2(n_blocks=0, **kwargs):
+#    lower, upper = REGIONS[GROUND_NAME]
+#    poses = [np.zeros(2), np.array([6.5, 0]), np.array([8.5, 0])]
+#    poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+#                 for x in range(n_blocks-len(poses)))
+#    blocks = make_blocks(len(poses))
+#    block_poses = dict(zip(blocks, poses))
+#    initial = TAMPState(INITIAL_CONF, None, block_poses)
+#    goal_regions = {blocks[0]: 'red'}
+#
+#    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
 PROBLEMS = [
     mirror,
     tight,
     blocked,
-    blocked2,
+    #blocked2,
 ]
 
 ##################################################
@@ -198,14 +207,15 @@ PROBLEMS = [
 def draw_state(viewer, state, colors):
     viewer.clear_state()
     viewer.draw_environment()
-    viewer.draw_robot(*state.conf)
+    for robot, conf in state.robot_confs.items():
+        viewer.draw_robot(*conf)
     for block, pose in state.block_poses.items():
         x, y = pose
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
                           name=block, color=colors[block])
-    if state.holding is not None:
-        block, grasp = state.holding
-        x, y = state.conf + grasp
+    for robot, holding in state.holding.items():
+        block, grasp = holding
+        x, y = state.robot_confs[robot] + grasp
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
                           name=block, color=colors[block])
     viewer.tk.update()
@@ -216,23 +226,24 @@ def get_random_seed():
 ##################################################
 
 def apply_action(state, action):
-    conf, holding, block_poses = state
+    robot_confs, holding, block_poses = state
     # TODO: don't mutate block_poses?
     name, args = action
     if name == 'move':
         robot, _, traj, _ = args
         #traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
         for conf in traj[1:]:
-            yield TAMPState(conf, holding, block_poses)
+            robot_confs[robot] = conf
+            yield TAMPState(robot_confs, holding, block_poses)
     elif name == 'pick':
         robot, block, _, grasp, _ = args
-        holding = (block, grasp)
+        holding[robot] = (block, grasp)
         del block_poses[block]
-        yield TAMPState(conf, holding, block_poses)
+        yield TAMPState(robot_confs, holding, block_poses)
     elif name == 'place':
         robot, block, pose, _, _ = args
-        holding = None
+        del holding[robot]
         block_poses[block] = pose
-        yield TAMPState(conf, holding, block_poses)
+        yield TAMPState(robot_confs, holding, block_poses)
     else:
         raise ValueError(name)

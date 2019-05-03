@@ -27,7 +27,7 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial
-    assert(initial.holding is None)
+    assert(not initial.holding)
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     external_paths = []
@@ -39,11 +39,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     constant_map = {}
     init = [
-        ('Robot', 'r0'),
-        ('CanMove',),
-        ('Conf', initial.conf),
-        ('AtConf', initial.conf),
-        ('HandEmpty',),
         ('Region', GROUND_NAME),
         Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
@@ -51,6 +46,15 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
            [('Grasp', b, GRASP) for b in initial.block_poses] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
+
+    for r, q in initial.robot_confs.items():
+        init += [
+            ('Robot', r),
+            ('CanMove', r),
+            ('Conf', q),
+            ('AtConf', r, q),
+            ('HandEmpty', r),
+        ]
 
     goal_literals = []
     for b, r in tamp_problem.goal_regions.items():
@@ -62,8 +66,8 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             goal_literals += [('AtPose', b, r)]
 
     #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
-    if tamp_problem.goal_conf is not None:
-        goal_literals += [('AtConf', tamp_problem.goal_conf)]
+    #if tamp_problem.goal_conf is not None:
+    #    goal_literals += [('AtConf', tamp_problem.goal_conf)]
     goal = And(*goal_literals)
 
     stream_map = {

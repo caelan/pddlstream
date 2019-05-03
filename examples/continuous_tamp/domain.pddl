@@ -19,11 +19,11 @@
 
     ; Fluent predicates
     (AtPose ?b ?p)
-    (AtGrasp ?b ?g)
-    (AtConf ?q)
-    (Holding ?b)
-    (HandEmpty)
-    (CanMove)
+    (AtGrasp ?r ?b ?g)
+    (AtConf ?r ?q)
+    (Holding ?r ?b)
+    (HandEmpty ?r)
+    (CanMove ?r)
 
     ; Derived predicates
     (In ?b ?s)
@@ -37,39 +37,39 @@
   (:action move
     :parameters (?r ?q1 ?t ?q2)
     :precondition (and (Robot ?r) (Motion ?q1 ?t ?q2)
-                       (AtConf ?q1) (CanMove)) ; (not (UnsafeTraj ?t)))
-    :effect (and (AtConf ?q2)
-                 (not (AtConf ?q1)) (not (CanMove))
+                       (AtConf ?r ?q1) (CanMove ?r)) ; (not (UnsafeTraj ?t)))
+    :effect (and (AtConf ?r ?q2)
+                 (not (AtConf ?r ?q1)) (not (CanMove ?r))
                  (increase (total-cost) (Dist ?q1 ?q2))))
 
   (:action pick
     :parameters (?r ?b ?p ?g ?q)
     :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
-                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty))
-    :effect (and (AtGrasp ?b ?g) (CanMove)
-                 (not (AtPose ?b ?p)) (not (HandEmpty))
+                       (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r))
+    :effect (and (AtGrasp ?r ?b ?g) (CanMove ?r)
+                 (not (AtPose ?b ?p)) (not (HandEmpty ?r))
                  (increase (total-cost) 10)))
 
   (:action place
     :parameters (?r ?b ?p ?g ?q)
     :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
-                       (AtConf ?q) (AtGrasp ?b ?g)
+                       (AtConf ?r ?q) (AtGrasp ?r ?b ?g)
                        (not (UnsafePose ?b ?p))
                        (forall (?b2 ?p2) ; TODO: makes incremental slow
                          (imply (and (Pose ?b2 ?p2) (AtPose ?b2 ?p2))
                                 (CFree ?b ?p ?b2 ?p2)))
                   )
-    :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove)
-                 (not (AtGrasp ?b ?g))
+    :effect (and (AtPose ?b ?p) (HandEmpty ?r) (CanMove ?r)
+                 (not (AtGrasp ?r ?b ?g))
                  (increase (total-cost) 10))
   )
 
   (:derived (In ?b ?s)
     (exists (?p) (and (Contain ?b ?p ?s)
                       (AtPose ?b ?p))))
-  (:derived (Holding ?b)
-    (exists (?g) (and (Grasp ?b ?g)
-                      (AtGrasp ?b ?g))))
+  (:derived (Holding ?r ?b)
+    (exists (?g) (and (Robot ?r) (Grasp ?b ?g)
+                      (AtGrasp ?r ?b ?g))))
   ;(:derived (UnsafePose ?b1 ?p1)
   ;  (exists (?b2 ?p2) (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)
   ;                         (AtPose ?b2 ?p2)
