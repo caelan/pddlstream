@@ -132,9 +132,10 @@ def make_blocks(num):
     #return ['b{}'.format(i) for i in range(num)]
     return [string.ascii_uppercase[i] for i in range(num)]
 
-def mirror(n_blocks=1):
-    robot = 'r'
-    initial_confs = {robot: INITIAL_CONF}
+def mirror(n_blocks=1, n_robots=2):
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
 
     n_goals = n_blocks
     poses = [np.array([-(BLOCK_WIDTH + 1) * x - BLOCK_WIDTH, 0]) for x in range(n_blocks)]
@@ -206,9 +207,9 @@ PROBLEMS = [
 
 def draw_state(viewer, state, colors):
     viewer.clear_state()
-    viewer.draw_environment()
+    #viewer.draw_environment()
     for robot, conf in state.robot_confs.items():
-        viewer.draw_robot(*conf)
+        viewer.draw_robot(*conf, name=robot)
     for block, pose in state.block_poses.items():
         x, y = pose
         viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,

@@ -43,10 +43,8 @@ class ContinuousTMPViewer(object):
         self.ground_height = self.height - self.dist_to_pixel * ENV_HEIGHT
         self.robot_dist = self.dist_height / 2.
 
-        self.robot = []
-        self.blocks = []
-        self.holding = None
-        self.environment = []
+        self.dynamic = []
+        self.static = []
         self.draw_environment()
 
     def center(self):
@@ -70,7 +68,7 @@ class ContinuousTMPViewer(object):
         return self.ground_height - self.dist_to_pixel * y
 
     def draw_block(self, x, y, width, height, name='', color='blue'):
-        self.blocks.extend([
+        self.dynamic.extend([
             self.canvas.create_rectangle(self.scale_x(x - width / 2.), self.scale_y(y),
                                          self.scale_x(x + width / 2.), self.scale_y(y + height),
                                          fill=color, outline='black', width=2),
@@ -87,7 +85,7 @@ class ContinuousTMPViewer(object):
     def draw_region(self, region, name='', color='red'):
         x1, x2 = map(self.scale_x, region)
         y1, y2 = self.ground_height, self.height
-        self.environment.extend([
+        self.static.extend([
             self.canvas.create_rectangle(x1, y1, x2, y2,
                                          fill=color, outline='black', width=2),
             self.canvas.create_text((x1 + x2) / 2, (y1 + y2) / 2, text=name),
@@ -95,33 +93,31 @@ class ContinuousTMPViewer(object):
 
     def draw_environment(self):
         # TODO: automatically draw in order
-        self.environment = []
+        self.static = []
         for name, region in sorted(self.regions.items(), key=lambda pair: get_width(pair[1]), reverse=True):
             self.draw_region(region, name=name, color=name)
 
 
-    def draw_robot(self, x, y, color='yellow'):  # TODO - could also visualize as top grasps instead of side grasps
+    def draw_robot(self, x, y, name='', color='yellow'):  # TODO - could also visualize as top grasps instead of side grasps
         #y = self.robot_dist
-        self.robot = [
+        self.dynamic.extend([
             self.canvas.create_rectangle(self.scale_x(x - SUCTION_WIDTH / 2.),
                                          self.scale_y(y - self.suction_height / 2.),
                                          self.scale_x(x + SUCTION_WIDTH / 2.),
                                          self.scale_y(y + self.suction_height / 2.),
                                          fill=color, outline='black', width=2),
+            self.canvas.create_text(self.scale_x(x), self.scale_y(y), text=name),
             self.canvas.create_rectangle(self.scale_x(x - STEM_WIDTH / 2.),
                                          self.scale_y(y + self.suction_height / 2.),
                                          self.scale_x(x + STEM_WIDTH / 2.),
                                          self.scale_y(y + self.suction_height / 2. + STEM_HEIGHT),
                                          fill=color, outline='black', width=2),
-        ]
+        ])
 
     def clear_state(self):
-        for block in self.blocks:
-            self.canvas.delete(block)
-        for part in self.robot:
+        for part in self.dynamic:
             self.canvas.delete(part)
-        if self.holding is not None:
-            self.canvas.delete(self.holding)
+        self.dynamic = []
 
     def clear_all(self):
         self.canvas.delete('all')

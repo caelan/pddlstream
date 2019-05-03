@@ -244,6 +244,8 @@ CERB_PATH = '/home/caelan/Programs/cerberus'
 #CERB_COMMAND = 'fast-downward.py {} {}'
 CERB_COMMAND = 'plan.py {} {} {}'
 
+# https://ipc2018-classical.bitbucket.io/planner-abstracts/teams_15_16.pdf
+
 ##################################################
 
 def parse_temporal_solution(solution):
