@@ -66,7 +66,7 @@ def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
                                     map(pddl_from_evaluation, evaluations)))),
         pddl_from_expression(goal_expression))
     if objective is not None:
-        s += '\n\t(:metric minimize ({}))'.format(TOTAL_TIME)
+        s += '\n\t(:metric minimize ({}))'.format(TOTAL_TIME) # TOTAL_COST | TOTAL_TIME
     return s + ')\n'
 
 

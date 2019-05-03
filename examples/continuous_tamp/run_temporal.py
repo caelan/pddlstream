@@ -27,7 +27,7 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial
-    assert(initial.holding is None)
+    assert(not initial.holding)
 
     domain_pddl = read(get_file_path(__file__, 'temporal_domain.pddl'))
     external_paths = []

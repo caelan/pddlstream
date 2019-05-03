@@ -9,7 +9,7 @@ from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read
 
-PLANNER = 'tfd' # tfd | tflap | optic
+PLANNER = 'tfd' # tfd | tflap | optic | cerberus
 
 ##################################################
 
@@ -65,8 +65,6 @@ TFD_ARGS = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, TF
 #TFD_COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
 #TFD_COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
 TFD_COMMAND = 'plan.py %s {} {} {}' % TFD_ARGS
-
-print(TFD_COMMAND)
 
 # TODO: TFD sometimes returns incorrect plans
 # ./VAL/validate pddlstream/temp/domain.pddl pddlstream/temp/problem.pddl pddlstream/temp/plan
@@ -201,7 +199,6 @@ TFLAP_COMMAND = 'tflap {} {} {}'
 ##################################################
 
 OPTIC_PATH = '/home/caelan/Programs/optic2018/src/optic/src/optic'
-
 OPTIC_COMMAND = 'optic-clp -N {} {} {}'
 
 """
@@ -242,6 +239,13 @@ ADL can be used in action definitions:
 
 ##################################################
 
+CERB_PATH = '/home/caelan/Programs/cerberus'
+#CERB_PATH = '/home/caelan/Programs/pddlstream/FastDownward'
+#CERB_COMMAND = 'fast-downward.py {} {}'
+CERB_COMMAND = 'plan.py {} {} {}'
+
+##################################################
+
 def parse_temporal_solution(solution):
     makespan = 0.0
     plan = []
@@ -278,6 +282,8 @@ def parse_plans(temp_path, plan_files):
 def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=True):
     if PLANNER == 'tfd':
         root, template = TFD_PATH, TFD_COMMAND
+    elif PLANNER == 'cerberus':
+        root, template = CERB_PATH, CERB_COMMAND
     elif PLANNER == 'tflap':
         root, template = TFLAP_PATH, TFLAP_COMMAND
     elif PLANNER == 'optic':

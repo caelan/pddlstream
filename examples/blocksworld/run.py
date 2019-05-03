@@ -44,19 +44,15 @@ def get_problem():
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def solve_pddlstream(focused=True):
+def solve_pddlstream(focused=False):
     pddlstream_problem = get_problem()
     if focused:
         solution = solve_focused(pddlstream_problem, unit_costs=True)
     else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=True)
         solution = solve_incremental(pddlstream_problem, unit_costs=True)
     print_solution(solution)
 
 ##################################################
-
-# TODO: could extract the FD parser by itself
-# TODO: include my version of FD as a submodule
 
 def main():
     #solve_pddl()
