@@ -10,6 +10,8 @@ BLOCK_HEIGHT = BLOCK_WIDTH
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
 CARRY_Y = 2*BLOCK_WIDTH+SUCTION_HEIGHT
+APPROACH = -np.array([0, CARRY_Y]) - GRASP
+
 MOVE_COST = 10.
 COST_PER_DIST = 1.
 
@@ -43,7 +45,9 @@ def distance_fn(q1, q2):
 
 def inverse_kin_fn(b, p, g):
     q = p - g
-    return (q,)
+    #return (q,)
+    a = q - APPROACH
+    return (a,)
 
 
 def unreliable_ik_fn(b, p):
@@ -206,6 +210,7 @@ PROBLEMS = [
 ##################################################
 
 def draw_state(viewer, state, colors):
+    # TODO: could draw the current time
     viewer.clear_state()
     #viewer.draw_environment()
     for robot, conf in state.robot_confs.items():
@@ -229,7 +234,7 @@ def get_random_seed():
 def apply_action(state, action):
     robot_confs, holding, block_poses = state
     # TODO: don't mutate block_poses?
-    name, args = action
+    name, args = action[:2]
     if name == 'move':
         robot, _, traj, _ = args
         #traj = plan_motion(*args)[0] if len(args) == 2 else args[1]

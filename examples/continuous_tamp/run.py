@@ -8,6 +8,7 @@ import os
 import pstats
 import random
 import numpy as np
+import time
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
@@ -17,7 +18,7 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not, DurativeAction
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -92,7 +93,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True):
+def display_plan(tamp_problem, plan, display=True, time_step=None):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
@@ -108,18 +109,33 @@ def display_plan(tamp_problem, plan, display=True):
     print(state)
     draw_state(viewer, state, colors)
     if display:
-        user_input('Continue?')
+        user_input('Start?')
     if plan is not None:
-        for i, action in enumerate(plan):
-            print(i, *action)
+        for action in plan:
+            i = action.start
+            print(action)
             for j, state in enumerate(apply_action(state, action)):
                 print(i, j, state)
                 draw_state(viewer, state, colors)
                 viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
                 if display:
-                    user_input('Continue?')
+                    if time_step is None:
+                        user_input('Continue?')
+                    else:
+                        time.sleep(time_step)
     if display:
         user_input('Finish?')
+
+def compute_duration(plan):
+    if not plan:
+        return 0
+    return max(action.start + action.duration for action in plan)
+
+def retime_plan(plan, duration=1):
+    if plan is None:
+        return plan
+    return [DurativeAction(name, args, i*duration, duration)
+            for i, (name, args) in enumerate(plan)]
 
 ##################################################
 
@@ -227,7 +243,7 @@ def main():
     pr.disable()
     pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     if plan is not None:
-        display_plan(tamp_problem, plan)
+        display_plan(tamp_problem, retime_plan(plan))
 
 if __name__ == '__main__':
     main()
