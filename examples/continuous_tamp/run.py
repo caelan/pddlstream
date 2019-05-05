@@ -13,7 +13,7 @@ import time
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, unreliable_ik_fn, \
-    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action, GRASP
+    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
@@ -47,6 +47,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
            [('Grasp', b, GRASP) for b in initial.block_poses] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
+    goal_literals = []
 
     for r, q in initial.robot_confs.items():
         init += [
@@ -56,8 +57,10 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             ('AtConf', r, q),
             ('HandEmpty', r),
         ]
+        if tamp_problem.goal_conf is not None:
+            #goal_literals += [('AtConf', tamp_problem.goal_conf)]
+            goal_literals += [('AtConf', r, q)]
 
-    goal_literals = []
     for b, r in tamp_problem.goal_regions.items():
         if isinstance(r, str):
             init += [('Region', r), ('Placeable', b, r)]
@@ -67,8 +70,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             goal_literals += [('AtPose', b, r)]
 
     #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
-    #if tamp_problem.goal_conf is not None:
-    #    goal_literals += [('AtConf', tamp_problem.goal_conf)]
     goal = And(*goal_literals)
 
     stream_map = {
@@ -93,7 +94,13 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True, time_step=None):
+def inclusive_range(start, stop, step=1):
+    sequence = list(np.arange(start, stop, step))
+    if sequence and (sequence[-1] == stop):
+        sequence.append(stop)
+    return sequence
+
+def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=0.01):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
@@ -107,29 +114,50 @@ def display_plan(tamp_problem, plan, display=True, time_step=None):
     state = tamp_problem.initial
     print()
     print(state)
+    duration = compute_duration(plan)
+    real_time = None if sec_per_step is None else (duration * sec_per_step / time_step)
+    print('Duration: {} | Step size: {} | Real time: {}'.format(duration, time_step, real_time))
+
     draw_state(viewer, state, colors)
     if display:
         user_input('Start?')
     if plan is not None:
-        for action in plan:
-            i = action.start
-            print(action)
-            for j, state in enumerate(apply_action(state, action)):
-                print(i, j, state)
-                draw_state(viewer, state, colors)
-                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
-                if display:
-                    if time_step is None:
-                        user_input('Continue?')
-                    else:
-                        time.sleep(time_step)
+        #for action in plan:
+        #    i = action.start
+        #    print(action)
+        #    for j, state in enumerate(apply_action(state, action)):
+        #        print(i, j, state)
+        #        draw_state(viewer, state, colors)
+        #        viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
+        #        if display:
+        #            if sec_per_step is None:
+        #                user_input('Continue?')
+        #            else:
+        #                time.sleep(sec_per_step)
+        for t in inclusive_range(0, duration, time_step):
+            for action in plan:
+                if action.start <= t <= get_end(action):
+                    update_state(state, action, t - action.start)
+            print('t={} | {}'.format(t, state))
+            draw_state(viewer, state, colors)
+            viewer.save(os.path.join(directory, 't={}'.format(t)))
+            if display:
+                if sec_per_step is None:
+                    user_input('Continue?')
+                else:
+                    time.sleep(sec_per_step)
+
+
     if display:
         user_input('Finish?')
+
+def get_end(action):
+    return action.start + action.duration
 
 def compute_duration(plan):
     if not plan:
         return 0
-    return max(action.start + action.duration for action in plan)
+    return max(map(get_end, plan))
 
 def retime_plan(plan, duration=1):
     if plan is None:

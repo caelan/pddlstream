@@ -45,9 +45,9 @@ def distance_fn(q1, q2):
 
 def inverse_kin_fn(b, p, g):
     q = p - g
-    #return (q,)
-    a = q - APPROACH
-    return (a,)
+    return (q,)
+    #a = q - APPROACH
+    #return (a,)
 
 
 def unreliable_ik_fn(b, p):
@@ -122,9 +122,9 @@ TAMPState = namedtuple('TAMPState', ['robot_confs', 'holding', 'block_poses'])
 TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
 
 REGION_NAME = 'red'
-INITIAL_CONF = np.array([-5, CARRY_Y])
-GOAL_CONF = None
-#GOAL_CONF = INITIAL_CONF
+INITIAL_CONF = np.array([-5, CARRY_Y + 1])
+#GOAL_CONF = None
+GOAL_CONF = INITIAL_CONF
 
 REGIONS = {
     GROUND_NAME: (-10, 10),
@@ -242,6 +242,7 @@ def apply_action(state, action):
             robot_confs[robot] = conf
             yield TAMPState(robot_confs, holding, block_poses)
     elif name == 'pick':
+        # TODO: approach and retreat trajectory
         robot, block, _, grasp, _ = args
         holding[robot] = (block, grasp)
         del block_poses[block]
@@ -253,3 +254,35 @@ def apply_action(state, action):
         yield TAMPState(robot_confs, holding, block_poses)
     else:
         raise ValueError(name)
+
+def get_value_at_time(traj, fraction):
+    distances = [0.] + [np.linalg.norm(q2 - q1)
+                        for q1, q2 in zip(traj, traj[1:])]
+    cum_distances = np.cumsum(distances)
+    cum_fractions = cum_distances / cum_distances[-1]
+    index = np.digitize(fraction, cum_fractions, right=False)
+    if index == len(traj):
+        index -= 1
+    waypoint_fraction = (fraction - cum_fractions[index - 1]) / (cum_fractions[index] - cum_fractions[index - 1])
+    waypoint1, waypoint2 = traj[index - 1], traj[index]
+    return (1 - waypoint_fraction) * waypoint1 + waypoint_fraction * waypoint2
+
+def update_state(state, action, t):
+    robot_confs, holding, block_poses = state
+    name, args, start, duration = action
+    assert 0 <= t <= duration
+    fraction = float(t) / duration
+    if name == 'move':
+        robot, _, traj, _ = args
+        robot_confs[robot] = get_value_at_time(traj, fraction)
+    elif name == 'pick':
+        robot, block, _, grasp, _ = args
+        holding[robot] = (block, grasp)
+        block_poses.pop(block, None)
+    elif name == 'place':
+        robot, block, pose, _, _ = args
+        holding.pop(robot, None)
+        block_poses[block] = pose
+    else:
+        raise ValueError(name)
+    return TAMPState(robot_confs, holding, block_poses)
