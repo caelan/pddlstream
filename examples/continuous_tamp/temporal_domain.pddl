@@ -52,7 +52,7 @@
 		:parameters (?r ?q1 ?t ?q2)
 		:duration (= ?duration 1)
 		:condition (and
-			(at start (and (Robot ?r) (Conf ?q1) (Conf ?q2)))
+			(at start (and (Robot ?r) (Motion ?q1 ?t ?q2)))
 			(at start (AtConf ?r ?q1))
 			;(over all (Safe))
 		)

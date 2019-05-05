@@ -259,7 +259,7 @@ def get_value_at_time(traj, fraction):
     distances = [0.] + [np.linalg.norm(q2 - q1)
                         for q1, q2 in zip(traj, traj[1:])]
     cum_distances = np.cumsum(distances)
-    cum_fractions = cum_distances / cum_distances[-1]
+    cum_fractions = np.minimum(cum_distances / cum_distances[-1], np.ones(cum_distances.shape))
     index = np.digitize(fraction, cum_fractions, right=False)
     if index == len(traj):
         index -= 1
@@ -270,6 +270,7 @@ def get_value_at_time(traj, fraction):
 def update_state(state, action, t):
     robot_confs, holding, block_poses = state
     name, args, start, duration = action
+    print(t, duration)
     assert 0 <= t <= duration
     fraction = float(t) / duration
     if name == 'move':
@@ -283,6 +284,8 @@ def update_state(state, action, t):
         robot, block, pose, _, _ = args
         holding.pop(robot, None)
         block_poses[block] = pose
+    elif name == 'cook':
+        pass
     else:
         raise ValueError(name)
     return TAMPState(robot_confs, holding, block_poses)

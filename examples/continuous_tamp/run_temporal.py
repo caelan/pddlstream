@@ -23,6 +23,7 @@ from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, 
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies
+from examples.continuous_tamp.run import display_plan
 
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
@@ -47,14 +48,22 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         ('Stove', 'red'),
         #Equal((TOTAL_COST,), 0), TODO: cannot do TOTAL_COST
     ]
-    for r in robots:
+    goal_literals = [
+        #('Safe',), # Segfault for OPTIC
+    ]
+
+    for r, q in initial.robot_confs.items():
         init += [
             ('Robot', r),
             ('CanMove', r),
-            ('Conf', initial.conf),
-            ('AtConf', r, initial.conf),
+            ('Conf', q),
+            ('AtConf', r, q),
             ('HandEmpty', r),
         ]
+        if tamp_problem.goal_conf is not None:
+            #goal_literals += [('AtConf', tamp_problem.goal_conf)]
+            goal_literals += [('AtConf', r, q)]
+
     for b, p in initial.block_poses.items():
         init += [
             ('Block', b),
@@ -64,9 +73,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             ('Placeable', b, GROUND_NAME),
         ]
 
-    goal_literals = [
-        #('Safe',), # Segfault for OPTIC
-    ]
     for b, s in tamp_problem.goal_regions.items():
         if isinstance(s, str):
             init += [('Region', s), ('Placeable', b, s)]
@@ -101,39 +107,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     #stream_map = 'debug'
 
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
-
-##################################################
-
-def display_plan(tamp_problem, plan, display=True):
-    from examples.continuous_tamp.viewer import ContinuousTMPViewer
-    from examples.discrete_tamp.viewer import COLORS
-
-    example_name = os.path.basename(os.path.dirname(__file__))
-    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
-    safe_rm_dir(directory)
-    ensure_dir(directory)
-
-    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
-    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
-    state = tamp_problem.initial
-    print()
-    print(state)
-    draw_state(viewer, state, colors)
-    if display:
-        user_input('Continue?')
-    return
-    if plan is not None:
-        for i, action in enumerate(plan):
-            print(i, *action)
-            #action = (action[0], action[1][1:])
-            for j, state in enumerate(apply_action(state, action)):
-                print(i, j, state)
-                draw_state(viewer, state, colors)
-                viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
-                if display:
-                    user_input('Continue?')
-    if display:
-        user_input('Finish?')
 
 ##################################################
 
