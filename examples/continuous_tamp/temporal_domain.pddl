@@ -91,7 +91,7 @@
 			(at start (Kin ?b ?q ?p ?g))
 			(at start (AtGrasp ?r ?b ?g))
 			(over all (AtConf ?r ?q))
-			;(over all (not (UnsafePose ?b ?p)))
+			(over all (not (UnsafePose ?b ?p)))
 			(at end (not (UnsafePose ?b ?p)))
 
             ;(or (= ?b a)

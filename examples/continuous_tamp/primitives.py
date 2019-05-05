@@ -45,9 +45,9 @@ def distance_fn(q1, q2):
 
 def inverse_kin_fn(b, p, g):
     q = p - g
-    return (q,)
-    #a = q - APPROACH
-    #return (a,)
+    #return (q,)
+    a = q - APPROACH
+    return (a,)
 
 
 def unreliable_ik_fn(b, p):
@@ -257,17 +257,32 @@ def apply_action(state, action):
     else:
         raise ValueError(name)
 
+def prune_duplicates(traj):
+    # TODO: could use the more general sparcify function
+    new_traj = [traj[0]]
+    for conf in traj[1:]:
+        if 0 < np.linalg.norm(conf - new_traj[-1]):
+            new_traj.append(conf)
+    return new_traj
+
 def get_value_at_time(traj, fraction):
+    waypoints = prune_duplicates(traj)
+    if len(waypoints) == 1:
+        return waypoints[0]
     distances = [0.] + [np.linalg.norm(q2 - q1)
-                        for q1, q2 in zip(traj, traj[1:])]
+                        for q1, q2 in zip(waypoints, waypoints[1:])]
     cum_distances = np.cumsum(distances)
     cum_fractions = np.minimum(cum_distances / cum_distances[-1], np.ones(cum_distances.shape))
     index = np.digitize(fraction, cum_fractions, right=False)
-    if index == len(traj):
+    if index == len(waypoints):
         index -= 1
     waypoint_fraction = (fraction - cum_fractions[index - 1]) / (cum_fractions[index] - cum_fractions[index - 1])
-    waypoint1, waypoint2 = traj[index - 1], traj[index]
-    return (1 - waypoint_fraction) * waypoint1 + waypoint_fraction * waypoint2
+    waypoint1, waypoint2 = waypoints[index - 1], waypoints[index]
+    conf = (1 - waypoint_fraction) * waypoint1 + waypoint_fraction * waypoint2
+    #if np.isnan(conf).any():
+    #    print(distances, fraction)
+    #    raw_input()
+    return conf
 
 def update_state(state, action, t):
     robot_confs, holding, block_poses = state
@@ -275,17 +290,28 @@ def update_state(state, action, t):
     t = max(0, min(t, 1))
     fraction = float(t) / duration
     assert 0 <= t <= 1
+    threshold = 0.5
     if name == 'move':
         robot, _, traj, _ = args
         robot_confs[robot] = get_value_at_time(traj, fraction)
     elif name == 'pick':
-        robot, block, _, grasp, _ = args
-        holding[robot] = (block, grasp)
-        block_poses.pop(block, None)
+        robot, block, pose, grasp, conf = args
+        traj = [conf, pose - grasp]
+        if fraction < threshold:
+            robot_confs[robot] = get_value_at_time(traj, fraction / threshold)
+        else:
+            holding[robot] = (block, grasp)
+            block_poses.pop(block, None)
+            robot_confs[robot] = get_value_at_time(traj[::-1], (fraction - threshold) / (1 - threshold))
     elif name == 'place':
-        robot, block, pose, _, _ = args
-        holding.pop(robot, None)
-        block_poses[block] = pose
+        robot, block, pose, grasp, conf = args
+        traj = [conf, pose - grasp]
+        if fraction < threshold:
+            robot_confs[robot] = get_value_at_time(traj, fraction / threshold)
+        else:
+            holding.pop(robot, None)
+            block_poses[block] = pose
+            robot_confs[robot] = get_value_at_time(traj[::-1], (fraction - threshold) / (1 - threshold))
     elif name == 'cook':
         pass
     else:
