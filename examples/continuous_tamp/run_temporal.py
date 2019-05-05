@@ -38,8 +38,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
-    robots = ['r{}'.format(r) for r in range(2)]
-
     constant_map = {'{}'.format(name).lower(): name
                     for name in initial.block_poses.keys() + tamp_problem.regions.keys()}
     #constant_map = {}
@@ -140,15 +138,6 @@ def main():
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
 
-    #stream_info = {
-    #    't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
-    #    't-cfree': StreamInfo(eager=False, negate=True),
-    #    'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
-    #    'gurobi-cfree': StreamInfo(eager=False, negate=True),
-    #    #'gurobi': OptimizerInfo(p_success=0),
-    #    #'rrt': OptimizerInfo(p_success=0),
-    #}
-
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
     print('Constants:', str_from_object(pddlstream_problem.constant_map))
@@ -159,18 +148,7 @@ def main():
     success_cost = 0 if args.optimal else INF
     planner = 'max-astar'
     #planner = 'ff-wastar1'
-    if args.algorithm == 'focused':
-        raise NotImplementedError()
-        #solution = solve_focused(pddlstream_problem, constraints=constraints,
-        #                         action_info=action_info, stream_info=stream_info,
-        #                         planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
-        #                         max_time=args.max_time, max_iterations=INF, verbose=True,
-        #                         unit_costs=args.unit, success_cost=success_cost,
-        #                         unit_efforts=False, effort_weight=0,
-        #                         search_sample_ratio=0,
-        #                         #max_skeletons=None, bind=True,
-        #                         visualize=args.visualize)
-    elif args.algorithm == 'incremental':
+    if args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem,
                                      complexity_step=1, planner=planner,
                                      unit_costs=args.unit, success_cost=success_cost,

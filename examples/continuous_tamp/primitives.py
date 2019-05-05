@@ -151,9 +151,10 @@ def mirror(n_blocks=1, n_robots=2):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-def tight(n_blocks=3, n_goals=2):
-    robot = 'r'
-    initial_confs = {robot: INITIAL_CONF}
+def tight(n_blocks=3, n_goals=2, n_robots=2):
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
 
     #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
@@ -165,9 +166,10 @@ def tight(n_blocks=3, n_goals=2):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-def blocked(n_blocks=3, deterministic=True):
-    robot = 'r'
-    initial_confs = {robot: INITIAL_CONF}
+def blocked(n_blocks=3, n_robots=1, deterministic=True):
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
 
     blocks = make_blocks(n_blocks)
     if deterministic:
@@ -270,9 +272,9 @@ def get_value_at_time(traj, fraction):
 def update_state(state, action, t):
     robot_confs, holding, block_poses = state
     name, args, start, duration = action
-    print(t, duration)
-    assert 0 <= t <= duration
+    t = max(0, min(t, 1))
     fraction = float(t) / duration
+    assert 0 <= t <= 1
     if name == 'move':
         robot, _, traj, _ = args
         robot_confs[robot] = get_value_at_time(traj, fraction)

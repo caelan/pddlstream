@@ -100,7 +100,7 @@ def inclusive_range(start, stop, step=1):
         sequence.append(stop)
     return sequence
 
-def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=0.01):
+def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=0.002):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
