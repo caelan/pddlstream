@@ -11,6 +11,20 @@ from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, re
 
 PLANNER = 'tfd' # tfd | tflap | optic | cerberus
 
+# tflap: no conditional effects, no derived predicates
+# optic: no negative preconditions, no conditional effects, no goal derived predicates
+
+# TODO: previously slow instantiation was due to a missing precondition on move
+
+# TODO: installing coin broke FD compilation so I uninstalled it
+# sudo apt-get install cmake coinor-libcbc-dev coinor-libclp-dev
+# sudo apt-get install coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev doxygen libbz2-dev bison flex
+# sudo apt-get install coinor-cbc
+# sudo apt-get install apt-get -y install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev coinor-libclp-dev coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
+# sudo apt-get install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev coinor-libclp-dev coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
+# sudo apt-get remove coinor-libcbc-dev coinor-libclp-dev
+# sudo apt-get remove coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev
+
 ##################################################
 
 # /home/caelan/Programs/VAL
@@ -19,18 +33,20 @@ TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
 MAX_TIME = 20
 PLAN_FILE = 'plan'
 
+# TODO: the search produces unsound plans when it prints the full state-space
+
 TFD_OPTIONS = {
     'a': False,   # anytime search
     't': MAX_TIME,     # success timeout
     'T': MAX_TIME,     # failure timeout
-    'g': True,   # greedy search
+    'g': False,   # greedy search
     'l': False,    # disable lazy evaluation
     'v': True,    # disable verbose
-    'y+Y': True, # CEA heuristic
+    'y+Y': False, # CEA heuristic
     'x+X': True,  # makespan heuristic
     'G': 't',     # g-value evaluation (using m finds incorrect plans)
     'Q': 'r',     # queue
-    'r': False,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
+    'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     'O': 1,       # num ordered preferred ops
     'C': 1,       # num cheapest preferred ops
     #'E': 1000,    # num expensive preferred ops

@@ -1,7 +1,7 @@
 (define (domain temporal-tamp)
     (:requirements :equality :durative-actions :numeric-fluents :derived-predicates :conditional-effects) ; :typing :action-costs
 	; (:types block surface)
-    ; (:constants a b grey red)
+    (:constants a b grey red)
     (:predicates
         ; Static predicates
         (Robot ?r)
@@ -30,6 +30,7 @@
         (Stove ?s)
         (Cooked ?b)
         (SafePose ?b ?p ?b2)
+				(Goal)
 
         ; Derived predicates
         (On ?b ?s) ; TFLAP redeclared predicate
@@ -78,8 +79,8 @@
 			(at start (not (AtPose ?b ?p)))
 			(at start (not (HandEmpty ?r)))
 			(at end (AtGrasp ?r ?b ?g))
-            (forall (?s) (when (at start (Contain ?b ?p ?s)) ; TODO: maybe typing info helps here
-                               (at end (not (On ?b ?s)))))
+			(forall (?s) (when (at start (Contain ?b ?p ?s)) ; TODO: maybe typing info helps here
+												 (at end (not (On ?b ?s)))))
 		)
 	)
 
@@ -87,7 +88,7 @@
 		:parameters (?r ?b ?p ?g ?q)
 		:duration (= ?duration 1)
 		:condition (and
-		    (at start (Robot ?r))
+			(at start (Robot ?r))
 			(at start (Kin ?b ?q ?p ?g))
 			(at start (AtGrasp ?r ?b ?g))
 			(over all (AtConf ?r ?q))
@@ -143,6 +144,18 @@
 
 	; TODO: include any derived predicates introduce universal conditions that prevent rescheduling
     ; Only Temporal FastDownward supports derived predicates
+
+	;(:durative-action achieve-goal
+	;	:parameters ()
+	;	:duration (= ?duration 0)
+	;	:condition (and
+	;		(at start (On a red))
+	;		(at start (On b red))
+	;	)
+	;	:effect (and
+	;		(at end (Goal))
+	;	)
+	;)
 
     ;(:derived (On ?b ?s)
     ;    (exists (?p) (and (Contain ?b ?p ?s)

@@ -47,6 +47,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         #Equal((TOTAL_COST,), 0), TODO: cannot do TOTAL_COST
     ]
     goal_literals = [
+        #('Goal',)
         #('Safe',), # Segfault for OPTIC
     ]
 

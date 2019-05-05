@@ -37,7 +37,7 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
     if not isinstance(domain, Domain):
         problem = get_problem_pddl(evaluations, goal_exp, domain)
         pddl_plan, cost = solve_tfd(domain, problem)
-        #return solve_tpshe(domain, problem, **search_args)
+        #pddl_plan, cost = solve_tpshe(domain, problem)
         plan = obj_from_pddl_plan(pddl_plan)
         return plan, cost
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)

@@ -19,6 +19,8 @@ COMMAND = 'python {}bin/plan.py she {} {} --time {} --iterated'
 #COMMAND = 'python {}bin/plan.py tempo-3 {} {} --time {}'
 #COMMAND = 'python {}bin/plan.py stp-3 {} {} --time {}'
 
+# TODO: tpshe seems to be broken
+
 def solve_tpshe(domain_pddl, problem_pddl, max_time=10, verbose=False):
     domain_path, problem_path = write_pddl(domain_pddl, problem_pddl)
 
