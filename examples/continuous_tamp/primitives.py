@@ -287,9 +287,9 @@ def get_value_at_time(traj, fraction):
 def update_state(state, action, t):
     robot_confs, holding, block_poses = state
     name, args, start, duration = action
-    t = max(0, min(t, 1))
     fraction = float(t) / duration
-    assert 0 <= t <= 1
+    fraction = max(0, min(fraction, 1))
+    assert 0 <= fraction <= 1
     threshold = 0.5
     if name == 'move':
         robot, _, traj, _ = args

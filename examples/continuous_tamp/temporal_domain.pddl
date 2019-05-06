@@ -39,6 +39,7 @@
         (UnsafeTraj ?t)
     )
     (:functions
+				(Duration ?t)
         (Dist ?q1 ?q2)
         (total-cost)
         ; (Fuel)
@@ -51,7 +52,7 @@
 
 	(:durative-action move
 		:parameters (?r ?q1 ?t ?q2)
-		:duration (= ?duration 1)
+		:duration (= ?duration (Duration ?t))
 		:condition (and
 			(at start (and (Robot ?r) (Motion ?q1 ?t ?q2)))
 			(at start (AtConf ?r ?q1))

@@ -28,6 +28,6 @@
   (:function (Dist ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2)) ; TODO: augment this with the keyword domain
   )
-  ;(:function (Length ?t)
-  ;   (Traj ?t))
+  (:function (Duration ?t)
+             (Traj ?t))
 )

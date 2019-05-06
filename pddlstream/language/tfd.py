@@ -34,6 +34,7 @@ MAX_TIME = 20
 PLAN_FILE = 'plan'
 
 # TODO: the search produces unsound plans when it prints the full state-space
+# TODO: still occasionally does this with the current settings
 
 TFD_OPTIONS = {
     'a': False,   # anytime search
@@ -45,8 +46,8 @@ TFD_OPTIONS = {
     'y+Y': False, # CEA heuristic
     'x+X': True,  # makespan heuristic
     'G': 't',     # g-value evaluation (using m finds incorrect plans)
-    'Q': 'r',     # queue
-    'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
+    'Q': 'p',     # queue
+    'r': False,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     'O': 1,       # num ordered preferred ops
     'C': 1,       # num cheapest preferred ops
     #'E': 1000,    # num expensive preferred ops

@@ -25,6 +25,11 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
     sorted_str_from_list, implies
 from examples.continuous_tamp.run import display_plan
 
+DISTANCE_PER_TIME = 4.0
+
+def duration_fn(traj):
+    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
+    return distance / DISTANCE_PER_TIME
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial
@@ -94,6 +99,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
         'dist': distance_fn,
+        'duration': duration_fn,
 
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
     }
