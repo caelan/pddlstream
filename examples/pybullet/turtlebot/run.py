@@ -7,8 +7,6 @@ import cProfile
 import pstats
 import numpy as np
 
-from itertools import product
-
 from examples.continuous_tamp.primitives import get_value_at_time
 from examples.continuous_tamp.run import compute_duration, inclusive_range, get_end
 from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
@@ -17,7 +15,7 @@ from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, \
+    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem
@@ -48,12 +46,20 @@ def get_test_cfree_traj_traj(problem, collisions=True):
         return True
     return test
 
-def get_test_cfree_traj_conf(problem):
-    test_cfree_traj_traj = get_test_cfree_traj_traj(problem)
+def get_test_cfree_traj_conf(problem, **kwargs):
+    test_cfree_traj_traj = get_test_cfree_traj_traj(problem, **kwargs)
 
     def test(traj1, conf2):
         traj2 = [conf2.values, conf2.values]
         return test_cfree_traj_traj(traj1, traj2)
+    return test
+
+def get_test_cfree_conf_conf(problem, **kwargs):
+    test_cfree_traj_conf = get_test_cfree_traj_conf(problem, **kwargs)
+
+    def test(conf1, conf2):
+        traj1 = [conf1.values, conf1.values]
+        return test_cfree_traj_conf(traj1, conf2)
     return test
 
 #######################################################
@@ -116,6 +122,7 @@ def pddlstream_from_problem(problem, teleport=False):
     draw_edges(edges)
 
     stream_map = {
+        'test-cfree-conf-conf': from_test(get_test_cfree_conf_conf(problem)),
         'test-cfree-traj-conf': from_test(get_test_cfree_traj_conf(problem)),
         'test-cfree-traj-traj': from_test(get_test_cfree_traj_traj(problem)),
         #'compute-motion': from_fn(get_motion_fn(problem)),
@@ -285,10 +292,11 @@ def main(display=True, teleport=False):
     saver.restore() # Assumes bodies are ordered the same way
     draw_edges(edges)
 
+    state = BeliefState(problem)
     wait_for_user()
     #time_step = None if teleport else 0.01
-    state = BeliefState(problem)
-    display_plan(problem, state, plan)
+    with VideoSaver('video.mp4'):
+        display_plan(problem, state, plan)
     wait_for_user()
     disconnect()
 

@@ -39,11 +39,9 @@
       ;(at start (SafeTraj ?r ?t r1))
       ;(over all (SafeTraj ?r ?t r1))
 
-      ;(at start (not (UnsafeTraj ?r ?t)))
-      ;(at start (not (UnsafeTraj ?r ?t))) ; TODO: could put q1 here instead
+      (at start (not (UnsafeConf ?r ?q1)))
       (over all (not (UnsafeTraj ?r ?t)))
-      ;(at end (not (UnsafeTraj ?r ?t))) ; TODO: could put q2 here instead
-			;(at end (not (UnsafeTraj ?r ?t)))
+      (at end (not (UnsafeConf ?r ?q2)))
 		)
 		:effect (and
 			(at start (not (AtConf ?r ?q1)))
