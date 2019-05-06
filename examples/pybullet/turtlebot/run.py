@@ -12,7 +12,7 @@ from examples.continuous_tamp.run import compute_duration, inclusive_range, get_
 from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
     point_from_conf, BASE_RESOLUTIONS
 from examples.pybullet.pr2_belief.problems import BeliefState
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
@@ -24,42 +24,27 @@ from pddlstream.language.generator import from_test
 
 # TODO: Kiva robot and Amazon shelves
 
+def linear_trajectory(conf1, conf2):
+    robot = conf1.body
+    joints = conf1.joints
+    extend_fn = get_extend_fn(robot, joints, resolutions=BASE_RESOLUTIONS)
+    path = [conf1.values] + list(extend_fn(conf1.values, conf2.values))
+    return create_trajectory(robot, joints, path)
+
 def get_test_cfree_traj_traj(problem, collisions=True):
     # TODO: compute bounding boxes
     robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
-    joints = get_base_joints(robot1)
-    extend_fn = get_extend_fn(robot1, joints, resolutions=BASE_RESOLUTIONS)
 
     def test(traj1, traj2):
         if not collisions:
             return True
-        start1, end1 = traj1
-        path1 = [start1] + list(extend_fn(start1, end1))
-        start2, end2 = traj2
-        path2 = [start2] + list(extend_fn(start2, end2))
-        for q1 in path1:
-            set_base_conf(robot1, q1)
-            for q2 in path2:
-                set_base_conf(robot2, q2)
+        for q1 in traj1.iterate():
+            set_base_conf(robot1, q1.values)
+            for q2 in traj2.iterate():
+                set_base_conf(robot2, q2.values)
                 if pairwise_collision(robot1, robot2):
                     return False
         return True
-    return test
-
-def get_test_cfree_traj_conf(problem, **kwargs):
-    test_cfree_traj_traj = get_test_cfree_traj_traj(problem, **kwargs)
-
-    def test(traj1, conf2):
-        traj2 = [conf2.values, conf2.values]
-        return test_cfree_traj_traj(traj1, traj2)
-    return test
-
-def get_test_cfree_conf_conf(problem, **kwargs):
-    test_cfree_traj_conf = get_test_cfree_traj_conf(problem, **kwargs)
-
-    def test(conf1, conf2):
-        traj1 = [conf1.values, conf1.values]
-        return test_cfree_traj_conf(traj1, conf2)
     return test
 
 #######################################################
@@ -111,8 +96,9 @@ def pddlstream_from_problem(problem, teleport=False):
     handles = []
     for vertex in vertices:
         handles.extend(draw_point(point_from_conf(vertex.values), size=0.05))
+
     for conf1, conf2 in edges:
-        traj = [conf1.values, conf2.values]
+        traj = linear_trajectory(conf1, conf2)
         init += [
             ('Conf', conf1),
             ('Traj', traj),
@@ -121,10 +107,11 @@ def pddlstream_from_problem(problem, teleport=False):
         ]
     draw_edges(edges)
 
+    test_cfree_traj_traj = from_test(get_test_cfree_traj_traj(problem))
     stream_map = {
-        'test-cfree-conf-conf': from_test(get_test_cfree_conf_conf(problem)),
-        'test-cfree-traj-conf': from_test(get_test_cfree_traj_conf(problem)),
-        'test-cfree-traj-traj': from_test(get_test_cfree_traj_traj(problem)),
+        'test-cfree-conf-conf': test_cfree_traj_traj,
+        'test-cfree-traj-conf': test_cfree_traj_traj,
+        'test-cfree-traj-traj': test_cfree_traj_traj,
         #'compute-motion': from_fn(get_motion_fn(problem)),
         #'Cost': get_cost_fn(problem),
     }
@@ -295,8 +282,8 @@ def main(display=True, teleport=False):
     state = BeliefState(problem)
     wait_for_user()
     #time_step = None if teleport else 0.01
-    with VideoSaver('video.mp4'):
-        display_plan(problem, state, plan)
+    #with VideoSaver('video.mp4'):
+    display_plan(problem, state, plan)
     wait_for_user()
     disconnect()
 
