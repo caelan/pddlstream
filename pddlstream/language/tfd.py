@@ -298,7 +298,7 @@ def parse_plans(temp_path, plan_files):
 
 ##################################################
 
-def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=True):
+def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     if PLANNER == 'tfd':
         root, template = TFD_PATH, TFD_COMMAND
     elif PLANNER == 'cerberus':
@@ -317,7 +317,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=True):
     paths = [os.path.join(os.getcwd(), p) for p in (domain_path, problem_path, plan_path)]
     command = os.path.join(root, template.format(*paths))
     print(command)
-    if verbose:
+    if debug:
         stdout, stderr = None, None
     else:
         stdout, stderr = open(os.devnull, 'w'), open(os.devnull, 'w')
@@ -329,6 +329,6 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, verbose=True):
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE))
     print('Plans:', plan_files)
     best_plan, best_makespan = parse_plans(temp_path, plan_files)
-    if not verbose:
+    if not debug:
         safe_rm_dir(TEMP_DIR)
     return best_plan, best_makespan

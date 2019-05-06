@@ -1,14 +1,16 @@
 (define (domain rovers)
   (:requirements :equality :durative-actions :numeric-fluents :derived-predicates :conditional-effects)
+  ; (:contants r0 r1)
   (:predicates
     (Robot ?r)
-    (Conf ?r ?q)
-    (Traj ?r ?t)
-    (Motion ?r ?q1 ?q2 ?t)
-    (CFreeTrajPose ?r ?t ?b2 ?p2)
+    (Conf ?q)
+    (Traj ?t)
+    (Motion ?q1 ?t ?q2)
+    (CFreeTrajTraj ?t1 ?t2)
 
+    (Safe)
     (AtConf ?r ?q)
-
+    (OnTraj ?r ?t)
     (UnsafeTraj ?r ?t)
   )
 
@@ -18,17 +20,27 @@
 		:condition (and
 			(at start (and (Robot ?r) (Motion ?q1 ?t ?q2)))
 			(at start (AtConf ?r ?q1))
-			;(over all (Safe))
+
+      (at start (Safe))
+      (over all (Safe))
+			(at end (Safe))
+
+      (at start (not (Unsafe ?r ?t)))
+      (over all (not (Unsafe ?r ?t)))
+			(at end (not (Unsafe ?r ?t)))
 		)
 		:effect (and
 			(at start (not (AtConf ?r ?q1)))
+      (at start (OnTraj ?r ?t))
+      (at end (not (OnTraj ?r ?t)))
 			(at end (AtConf ?r ?q2))
+      ; (forall (?r2 ?t2) (when (over all (OnTraj ?r2 ?t2)) (at end (not (Safe)))))
 		)
 	)
 
-  ;(:derived (UnsafeTraj ?r ?t)
-  ;  (exists (?b2 ?p2) (and (Traj ?r ?t) (Pose ?b2 ?p2)
-  ;                         (not (CFreeTrajPose ?r ?t ?b2 ?p2))
-  ;                         (AtPose ?b2 ?p2)))
-  ;)
+  (:derived (UnsafeTraj ?r1 ?t1)
+    (exists (?r2 ?t2) (and (Robot ?r1) (Traj ?t1) (Robot ?r2) (Traj ?t2)
+                           (not (= ?r1 ?r2)) (not (CFreeTrajTraj ?t1 ?t2))
+                           (OnTraj ?r2 ?t2)))
+  )
 )

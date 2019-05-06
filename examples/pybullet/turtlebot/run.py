@@ -5,54 +5,66 @@ from __future__ import print_function
 import argparse
 import cProfile
 import pstats
-from collections import namedtuple
-from itertools import combinations, product, islice
-
 import numpy as np
 
-from examples.pybullet.pr2_belief.problems import BeliefState
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, control_commands, Attach, Detach, \
-    create_trajectory, apply_commands, State, Command, Grasp
-from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, joint_from_name, \
-    get_sample_fn, get_distance_fn, get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, remove_body, \
-    LockRenderer, get_bodies, draw_point, add_line, set_point, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, \
-    pairwise_collision, get_halton_sample_fn, get_distance, get_subtree_aabb, link_from_name, BodySaver, \
-    approximate_as_cylinder, get_point, set_point, set_euler, draw_aabb, draw_pose, get_pose, \
-    Point, Euler, remove_debug, quat_from_euler, get_link_pose, invert, multiply, set_pose, \
-    base_values_from_pose, halton_generator, set_renderer, get_visual_data, BLUE, ROOMBA_URDF, \
-    GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.constants import And, print_solution, PDDLProblem
-from pddlstream.language.generator import from_test, from_fn, from_gen_fn
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, INF, get_file_path
+from itertools import product
 
-from examples.pybullet.namo.run import get_base_joints, create_vertices, set_base_conf, get_custom_limits, point_from_conf
-from examples.continuous_tamp.run import compute_duration, inclusive_range
 from examples.continuous_tamp.primitives import get_value_at_time
+from examples.continuous_tamp.run import compute_duration, inclusive_range
+from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
+    point_from_conf, BASE_RESOLUTIONS
+from examples.pybullet.pr2_belief.problems import BeliefState
+from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf
+from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
+    wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
+    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, \
+    set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
+from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.language.constants import And, print_solution, PDDLProblem
+from pddlstream.utils import read, INF, get_file_path
+from pddlstream.language.generator import from_test
 
-# TODO: Kiva robots and Amazon shelves
+# TODO: Kiva robot and Amazon shelves
+
+def get_test_cfree_traj_traj(problem):
+    robot1, robot2 = list(problem.initial_confs)
+    joints = get_base_joints(robot1)
+    extend_fn = get_extend_fn(robot1, joints, resolutions=BASE_RESOLUTIONS)
+
+    def test(traj1, traj2):
+        start1, end1 = traj1
+        path1 = [start1] + list(extend_fn(start1, end1))
+        start2, end2 = traj2
+        path2 = [start2] + list(extend_fn(start2, end2))
+        for q1, q2 in product(path1, path2):
+            set_base_conf(robot1, q1)
+            set_base_conf(robot2, q2)
+            if pairwise_collision(robot1, robot2):
+                return False
+        return True
+    return test
 
 #######################################################
 
 def pddlstream_from_problem(problem, teleport=False):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    constant_map = {}
-
+    constant_map = {'{}'.format(name).lower(): name
+                    for name in problem.initial_confs.keys()}
     edges = []
     init = []
     for robot, conf in problem.initial_confs.items():
         init += [
+            ('Safe',),
             ('Robot', robot),
-            ('Conf', robot, conf),
+            ('Conf', conf),
             ('AtConf', robot, conf)
         ]
 
-    goal_literals = []
+    goal_literals = [
+        ('Safe',),
+        #('Unachievable',),
+    ]
     for robot, base_values in problem.goal_confs.items():
         q_goal = Conf(robot, get_base_joints(robot), base_values)
         edges.append((problem.initial_confs[robot], q_goal))
@@ -62,12 +74,18 @@ def pddlstream_from_problem(problem, teleport=False):
 
     handles = []
     for conf1, conf2 in edges:
-        init += [('Motion', conf1, None, conf2)]
+        traj = [conf1.values, conf2.values]
+        init += [
+            ('Conf', conf1),
+            ('Traj', traj),
+            ('Conf', conf2),
+            ('Motion', conf1, traj, conf2),
+        ]
         handles.append(add_line(point_from_conf(conf1.values),
                                 point_from_conf(conf2.values)))
 
     stream_map = {
-        #'test-cfree-conf-pose': from_test(get_test_cfree_conf_pose(problem)),
+        'test-cfree-traj-traj': from_test(get_test_cfree_traj_traj(problem)),
         #'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem)),
         #'compute-motion': from_fn(get_motion_fn(problem)),
         #'Cost': get_cost_fn(problem),
@@ -113,7 +131,8 @@ def problem_fn(n_robots=2, collisions=True):
     mound_height = 0.1
     floor, walls = create_environment(base_extent, mound_height)
 
-    initial_confs = [(-0.5, -0.5, 0), (-0.5, +0.5, 0)]
+    distance = 0.75
+    initial_confs = [(-distance, -distance, 0), (-distance, +distance, 0)]
     assert n_robots <= len(initial_confs)
 
     colors = [GREEN, BLUE]
@@ -130,7 +149,7 @@ def problem_fn(n_robots=2, collisions=True):
             for link in get_all_links(rover):
                 set_color(rover, colors[i], link)
 
-    goals = [(+0.5, -0.5, 0), (+0.5, +0.5, 0)]
+    goals = [(+distance, -distance, 0), (+distance, +distance, 0)]
     goals = goals[::-1]
     goal_confs = dict(zip(robots, goals))
 
@@ -195,7 +214,8 @@ def main(display=True, teleport=False):
         solution = solve_incremental(pddlstream_problem,
                                      max_planner_time=max_planner_time,
                                      unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=True)
+                                     start_complexity=INF,
+                                     max_time=args.max_time, verbose=True, debug=True)
 
     print_solution(solution)
     plan, cost, evaluations = solution

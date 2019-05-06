@@ -36,7 +36,7 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
 def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
     if not isinstance(domain, Domain):
         problem = get_problem_pddl(evaluations, goal_exp, domain)
-        pddl_plan, cost = solve_tfd(domain, problem)
+        pddl_plan, cost = solve_tfd(domain, problem, debug=debug)
         #pddl_plan, cost = solve_tpshe(domain, problem)
         plan = obj_from_pddl_plan(pddl_plan)
         return plan, cost
