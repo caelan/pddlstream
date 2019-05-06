@@ -8,6 +8,7 @@
     (Conf ?q)
     (Traj ?t)
     (Motion ?q1 ?t ?q2)
+    (CFreeConfConf ?q1 ?q2)
     (CFreeTrajConf ?t1 ?q2)
     (CFreeTrajTraj ?t1 ?t2)
 
@@ -15,6 +16,7 @@
     (AtConf ?r ?q)
     (OnTraj ?r ?t)
     (SafeTraj ?r ?t ?r2)
+    (UnsafeConf ?r ?q)
     (UnsafeTraj ?r ?t)
   )
 
@@ -38,7 +40,9 @@
       ;(over all (SafeTraj ?r ?t r1))
 
       ;(at start (not (UnsafeTraj ?r ?t)))
+      ;(at start (not (UnsafeTraj ?r ?t))) ; TODO: could put q1 here instead
       (over all (not (UnsafeTraj ?r ?t)))
+      ;(at end (not (UnsafeTraj ?r ?t))) ; TODO: could put q2 here instead
 			;(at end (not (UnsafeTraj ?r ?t)))
 		)
 		:effect (and
@@ -61,9 +65,25 @@
 ;      )
 ;  )
 
+  (:derived (UnsafeConf ?r1 ?q1)
+      (and (Robot ?r1) (Conf ?q1) (or
+        (exists (?r2 ?q2) (and (Robot ?r2) (Conf ?q2)
+                               (not (= ?r1 ?r2)) (not (CFreeConfConf ?q1 ?q2))
+                               (AtConf ?r2 ?q2)))
+        (exists (?r2 ?t2) (and (Robot ?r2) (Traj ?t2)
+                               (not (= ?r1 ?r2)) (not (CFreeTrajConf ?t2 ?q1))
+                               (OnTraj ?r2 ?t2)))
+      ))
+  )
+
   (:derived (UnsafeTraj ?r1 ?t1)
-    (exists (?r2 ?t2) (and (Robot ?r1) (Traj ?t1) (Robot ?r2) (Traj ?t2)
-                           (not (= ?r1 ?r2)) (not (CFreeTrajTraj ?t1 ?t2))
-                           (OnTraj ?r2 ?t2)))
+      (and (Robot ?r1) (Traj ?t1) (or
+        (exists (?r2 ?q2) (and (Robot ?r2) (Conf ?q2)
+                               (not (= ?r1 ?r2)) (not (CFreeTrajConf ?t1 ?q2))
+                               (AtConf ?r2 ?q2)))
+        (exists (?r2 ?t2) (and (Robot ?r2) (Traj ?t2)
+                               (not (= ?r1 ?r2)) (not (CFreeTrajTraj ?t1 ?t2))
+                               (OnTraj ?r2 ?t2)))
+      ))
   )
 )

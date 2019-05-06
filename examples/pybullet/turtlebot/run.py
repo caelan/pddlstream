@@ -88,11 +88,15 @@ def pddlstream_from_problem(problem, teleport=False):
         #('Safe',),
         #('Unachievable',),
     ]
+
     for name, base_values in problem.goal_confs.items():
         body = problem.get_body(name)
+        joints = get_base_joints(body)
+        extend_fn = get_extend_fn(body, joints, resolutions=5*BASE_RESOLUTIONS)
         q_init = problem.initial_confs[name]
-        q_goal = Conf(body, get_base_joints(body), base_values)
-        edges.add((q_init, q_goal))
+        path = [q_init] + [Conf(body, joints, q) for q in extend_fn(q_init.values, base_values)]
+        edges.update(zip(path, path[1:]))
+        q_goal = path[-1]
         init += [('Conf', q_goal)]
         goal_literals += [('AtConf', name, q_goal)]
     goal_formula = And(*goal_literals)
@@ -191,7 +195,7 @@ def problem_fn(n_robots=2, collisions=True):
 
     goals = [(+distance, -distance, 0),
              (+distance, +distance, 0)]
-    #goals = goals[::-1]
+    goals = goals[::-1]
     goal_confs = dict(zip(robots, goals))
 
     return NAMOProblem(body_from_name, robots, base_limits, collisions=collisions, goal_confs=goal_confs)
