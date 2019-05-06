@@ -10,14 +10,14 @@ import numpy as np
 from itertools import product
 
 from examples.continuous_tamp.primitives import get_value_at_time
-from examples.continuous_tamp.run import compute_duration, inclusive_range
+from examples.continuous_tamp.run import compute_duration, inclusive_range, get_end
 from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
     point_from_conf, BASE_RESOLUTIONS
 from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, \
+    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem
@@ -27,6 +27,7 @@ from pddlstream.language.generator import from_test
 # TODO: Kiva robot and Amazon shelves
 
 def get_test_cfree_traj_traj(problem, collisions=True):
+    # TODO: compute bounding boxes
     robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
     joints = get_base_joints(robot1)
     extend_fn = get_extend_fn(robot1, joints, resolutions=BASE_RESOLUTIONS)
@@ -57,12 +58,23 @@ def get_test_cfree_traj_conf(problem):
 
 #######################################################
 
+def draw_edges(edges):
+    vertices = {v for edge in edges for v in edge}
+    handles = []
+    for conf in vertices:
+        handles.extend(draw_point(point_from_conf(conf.values), size=0.05))
+    for conf1, conf2 in edges:
+        handles.append(add_line(point_from_conf(conf1.values),
+                                point_from_conf(conf2.values)))
+    return handles
+
 def pddlstream_from_problem(problem, teleport=False):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {'{}'.format(name).lower(): name
                     for name in problem.initial_confs.keys()}
-    edges = []
+
+    edges = set()
     init = []
     for name, conf in problem.initial_confs.items():
         init += [
@@ -80,12 +92,15 @@ def pddlstream_from_problem(problem, teleport=False):
         body = problem.get_body(name)
         q_init = problem.initial_confs[name]
         q_goal = Conf(body, get_base_joints(body), base_values)
-        edges.append((q_init, q_goal))
+        edges.add((q_init, q_goal))
         init += [('Conf', q_goal)]
         goal_literals += [('AtConf', name, q_goal)]
     goal_formula = And(*goal_literals)
 
+    vertices = {v for edge in edges for v in edge}
     handles = []
+    for vertex in vertices:
+        handles.extend(draw_point(point_from_conf(vertex.values), size=0.05))
     for conf1, conf2 in edges:
         traj = [conf1.values, conf2.values]
         init += [
@@ -94,8 +109,7 @@ def pddlstream_from_problem(problem, teleport=False):
             ('Conf', conf2),
             ('Motion', conf1, traj, conf2),
         ]
-        handles.append(add_line(point_from_conf(conf1.values),
-                                point_from_conf(conf2.values)))
+    draw_edges(edges)
 
     stream_map = {
         'test-cfree-traj-conf': from_test(get_test_cfree_traj_conf(problem)),
@@ -105,7 +119,9 @@ def pddlstream_from_problem(problem, teleport=False):
     }
     #stream_map = 'debug'
 
-    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula)
+    problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula)
+
+    return problem, edges
 
 #######################################################
 
@@ -175,7 +191,7 @@ def problem_fn(n_robots=2, collisions=True):
 
     goals = [(+distance, -distance, 0),
              (+distance, +distance, 0)]
-    goals = goals[::-1]
+    #goals = goals[::-1]
     goal_confs = dict(zip(robots, goals))
 
     return NAMOProblem(body_from_name, robots, base_limits, collisions=collisions, goal_confs=goal_confs)
@@ -189,6 +205,8 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
     for t in inclusive_range(0, duration, time_step):
         for action in plan:
             name, args, start, duration = action
+            if not (action.start <= t <= get_end(action)):
+                continue
             if name == 'move':
                 robot, conf1, traj, conf2 = args
                 traj = [conf1.values, conf2.values]
@@ -225,7 +243,7 @@ def main(display=True, teleport=False):
     saver = WorldSaver()
     draw_base_limits(problem.limits, color=RED)
 
-    pddlstream = pddlstream_from_problem(problem, teleport=teleport)
+    pddlstream, edges = pddlstream_from_problem(problem, teleport=teleport)
     _, constant_map, _, stream_map, init, goal = pddlstream
     print('Constants:', constant_map)
     print('Init:', init)
@@ -261,6 +279,7 @@ def main(display=True, teleport=False):
             with HideOutput():
                 problem_fn() # TODO: way of doing this without reloading?
     saver.restore() # Assumes bodies are ordered the same way
+    draw_edges(edges)
 
     wait_for_user()
     #time_step = None if teleport else 0.01
