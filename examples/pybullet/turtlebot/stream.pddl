@@ -5,7 +5,10 @@
   ;  :outputs (?t)
   ;  :certified (and (Traj ?t) (Motion ?q1 ?t ?q2)))
 
-  ; TODO: traj / conf collision
+  (:stream test-cfree-traj-conf
+    :inputs (?t1 ?q2)
+    :domain (and (Traj ?t1) (Conf ?q2))
+    :certified (CFreeTrajConf ?t1 ?q2))
   (:stream test-cfree-traj-traj
     :inputs (?t1 ?t2)
     :domain (and (Traj ?t1) (Traj ?t2))

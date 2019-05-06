@@ -26,22 +26,33 @@ from pddlstream.language.generator import from_test
 
 # TODO: Kiva robot and Amazon shelves
 
-def get_test_cfree_traj_traj(problem):
-    robot1, robot2 = list(problem.initial_confs)
+def get_test_cfree_traj_traj(problem, collisions=True):
+    robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
     joints = get_base_joints(robot1)
     extend_fn = get_extend_fn(robot1, joints, resolutions=BASE_RESOLUTIONS)
 
     def test(traj1, traj2):
+        if not collisions:
+            return True
         start1, end1 = traj1
         path1 = [start1] + list(extend_fn(start1, end1))
         start2, end2 = traj2
         path2 = [start2] + list(extend_fn(start2, end2))
-        for q1, q2 in product(path1, path2):
+        for q1 in path1:
             set_base_conf(robot1, q1)
-            set_base_conf(robot2, q2)
-            if pairwise_collision(robot1, robot2):
-                return False
+            for q2 in path2:
+                set_base_conf(robot2, q2)
+                if pairwise_collision(robot1, robot2):
+                    return False
         return True
+    return test
+
+def get_test_cfree_traj_conf(problem):
+    test_cfree_traj_traj = get_test_cfree_traj_traj(problem)
+
+    def test(traj1, conf2):
+        traj2 = [conf2.values, conf2.values]
+        return test_cfree_traj_traj(traj1, traj2)
     return test
 
 #######################################################
@@ -53,23 +64,25 @@ def pddlstream_from_problem(problem, teleport=False):
                     for name in problem.initial_confs.keys()}
     edges = []
     init = []
-    for robot, conf in problem.initial_confs.items():
+    for name, conf in problem.initial_confs.items():
         init += [
             ('Safe',),
-            ('Robot', robot),
+            ('Robot', name),
             ('Conf', conf),
-            ('AtConf', robot, conf)
+            ('AtConf', name, conf)
         ]
 
     goal_literals = [
-        ('Safe',),
+        #('Safe',),
         #('Unachievable',),
     ]
-    for robot, base_values in problem.goal_confs.items():
-        q_goal = Conf(robot, get_base_joints(robot), base_values)
-        edges.append((problem.initial_confs[robot], q_goal))
-        init += [('Conf', robot, q_goal)]
-        goal_literals += [('AtConf', robot, q_goal)]
+    for name, base_values in problem.goal_confs.items():
+        body = problem.get_body(name)
+        q_init = problem.initial_confs[name]
+        q_goal = Conf(body, get_base_joints(body), base_values)
+        edges.append((q_init, q_goal))
+        init += [('Conf', q_goal)]
+        goal_literals += [('AtConf', name, q_goal)]
     goal_formula = And(*goal_literals)
 
     handles = []
@@ -85,8 +98,8 @@ def pddlstream_from_problem(problem, teleport=False):
                                 point_from_conf(conf2.values)))
 
     stream_map = {
+        'test-cfree-traj-conf': from_test(get_test_cfree_traj_conf(problem)),
         'test-cfree-traj-traj': from_test(get_test_cfree_traj_traj(problem)),
-        #'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem)),
         #'compute-motion': from_fn(get_motion_fn(problem)),
         #'Cost': get_cost_fn(problem),
     }
@@ -97,17 +110,24 @@ def pddlstream_from_problem(problem, teleport=False):
 #######################################################
 
 class NAMOProblem(object):
-    def __init__(self, robots, limits, collisions=True, goal_confs={}):
+    def __init__(self, body_from_name, robots, limits, collisions=True, goal_confs={}):
+        self.body_from_name = dict(body_from_name)
         self.robots = tuple(robots)
         self.limits = limits
         self.collisions = collisions
-        self.goal_confs = goal_confs
-        self.obstacles = tuple(body for body in get_bodies() if body not in self.robots)
+        self.goal_confs = dict(goal_confs)
+
+        robot_bodies = set(map(self.get_body, self.robots))
+        self.obstacles = tuple(body for body in get_bodies()
+                               if body not in robot_bodies)
         self.custom_limits = {}
         if self.limits is not None:
-            for robot in self.robots:
-                self.custom_limits.update(get_custom_limits(robot, self.limits))
-        self.initial_confs = {robot: Conf(robot, get_base_joints(robot)) for robot in self.robots}
+            for body in robot_bodies:
+                self.custom_limits.update(get_custom_limits(body, self.limits))
+        self.initial_confs = {name: Conf(self.get_body(name), get_base_joints(self.get_body(name)))
+                              for name in self.robots}
+    def get_body(self, name):
+        return self.body_from_name[name]
 
 
 def create_environment(base_extent, mound_height):
@@ -132,32 +152,37 @@ def problem_fn(n_robots=2, collisions=True):
     floor, walls = create_environment(base_extent, mound_height)
 
     distance = 0.75
-    initial_confs = [(-distance, -distance, 0), (-distance, +distance, 0)]
+    initial_confs = [(-distance, -distance, 0),
+                     (-distance, +distance, 0)]
     assert n_robots <= len(initial_confs)
 
     colors = [GREEN, BLUE]
 
+    body_from_name = {}
     robots = []
     with LockRenderer():
         for i in range(n_robots):
+            name = 'r{}'.format(i)
+            robots.append(name)
             with HideOutput():
-                rover = load_model(TURTLEBOT_URDF) # TURTLEBOT_URDF | ROOMBA_URDF
-            robot_z = stable_z(rover, floor)
-            set_point(rover, Point(z=robot_z))
-            set_base_conf(rover, initial_confs[i])
-            robots.append(rover)
-            for link in get_all_links(rover):
-                set_color(rover, colors[i], link)
+                body = load_model(TURTLEBOT_URDF) # TURTLEBOT_URDF | ROOMBA_URDF
+            body_from_name[name] = body
+            robot_z = stable_z(body, floor)
+            set_point(body, Point(z=robot_z))
+            set_base_conf(body, initial_confs[i])
+            for link in get_all_links(body):
+                set_color(body, colors[i], link)
 
-    goals = [(+distance, -distance, 0), (+distance, +distance, 0)]
+    goals = [(+distance, -distance, 0),
+             (+distance, +distance, 0)]
     goals = goals[::-1]
     goal_confs = dict(zip(robots, goals))
 
-    return NAMOProblem(robots, base_limits, collisions=collisions, goal_confs=goal_confs)
+    return NAMOProblem(body_from_name, robots, base_limits, collisions=collisions, goal_confs=goal_confs)
 
 #######################################################
 
-def display_plan(state, plan, time_step=0.01, sec_per_step=0.005):
+def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
     duration = compute_duration(plan)
     real_time = None if sec_per_step is None else (duration * sec_per_step / time_step)
     print('Duration: {} | Step size: {} | Real time: {}'.format(duration, time_step, real_time))
@@ -169,7 +194,7 @@ def display_plan(state, plan, time_step=0.01, sec_per_step=0.005):
                 traj = [conf1.values, conf2.values]
                 fraction = (t - action.start) / action.duration
                 conf = get_value_at_time(traj, fraction)
-                set_base_conf(robot, conf)
+                set_base_conf(problem.get_body(robot), conf)
             else:
                 raise ValueError(name)
         if sec_per_step is None:
@@ -200,8 +225,9 @@ def main(display=True, teleport=False):
     saver = WorldSaver()
     draw_base_limits(problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
-    _, _, _, stream_map, init, goal = pddlstream_problem
+    pddlstream = pddlstream_from_problem(problem, teleport=teleport)
+    _, constant_map, _, stream_map, init, goal = pddlstream
+    print('Constants:', constant_map)
     print('Init:', init)
     print('Goal:', goal)
 
@@ -211,7 +237,7 @@ def main(display=True, teleport=False):
     pr = cProfile.Profile()
     pr.enable()
     with LockRenderer(True):
-        solution = solve_incremental(pddlstream_problem,
+        solution = solve_incremental(pddlstream,
                                      max_planner_time=max_planner_time,
                                      unit_costs=args.unit, success_cost=success_cost,
                                      start_complexity=INF,
@@ -239,7 +265,7 @@ def main(display=True, teleport=False):
     wait_for_user()
     #time_step = None if teleport else 0.01
     state = BeliefState(problem)
-    display_plan(state, plan)
+    display_plan(problem, state, plan)
     wait_for_user()
     disconnect()
 
