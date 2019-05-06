@@ -21,7 +21,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     approximate_as_cylinder, get_point, set_point, set_euler, draw_aabb, draw_pose, get_pose, \
     Point, Euler, remove_debug, quat_from_euler, get_link_pose, invert, multiply, set_pose, \
     base_values_from_pose, halton_generator, set_renderer, get_visual_data, BLUE, ROOMBA_URDF, \
-    GREEN, BLUE, set_color, get_all_links
+    GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.function import FunctionInfo
@@ -29,7 +29,10 @@ from pddlstream.language.constants import And, print_solution, PDDLProblem
 from pddlstream.language.generator import from_test, from_fn, from_gen_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, INF, get_file_path
+
 from examples.pybullet.namo.run import get_base_joints, create_vertices, set_base_conf, get_custom_limits, point_from_conf
+from examples.continuous_tamp.run import compute_duration, inclusive_range
+from examples.continuous_tamp.primitives import get_value_at_time
 
 # TODO: Kiva robots and Amazon shelves
 
@@ -128,9 +131,32 @@ def problem_fn(n_robots=2, collisions=True):
                 set_color(rover, colors[i], link)
 
     goals = [(+0.5, -0.5, 0), (+0.5, +0.5, 0)]
+    goals = goals[::-1]
     goal_confs = dict(zip(robots, goals))
 
     return NAMOProblem(robots, base_limits, collisions=collisions, goal_confs=goal_confs)
+
+#######################################################
+
+def display_plan(state, plan, time_step=0.01, sec_per_step=0.005):
+    duration = compute_duration(plan)
+    real_time = None if sec_per_step is None else (duration * sec_per_step / time_step)
+    print('Duration: {} | Step size: {} | Real time: {}'.format(duration, time_step, real_time))
+    for t in inclusive_range(0, duration, time_step):
+        for action in plan:
+            name, args, start, duration = action
+            if name == 'move':
+                robot, conf1, traj, conf2 = args
+                traj = [conf1.values, conf2.values]
+                fraction = (t - action.start) / action.duration
+                conf = get_value_at_time(traj, fraction)
+                set_base_conf(robot, conf)
+            else:
+                raise ValueError(name)
+        if sec_per_step is None:
+            user_input('Continue?')
+        else:
+            wait_for_duration(sec_per_step)
 
 #######################################################
 
@@ -182,20 +208,18 @@ def main(display=True, teleport=False):
         disconnect()
         return
 
-    with LockRenderer():
-        commands = []
-        saver.restore()  # Assumes bodies are ordered the same way
     if not args.viewer:
         disconnect()
         connect(use_gui=True)
         with LockRenderer():
             with HideOutput():
                 problem_fn() # TODO: way of doing this without reloading?
-            saver.restore() # Assumes bodies are ordered the same way
+    saver.restore() # Assumes bodies are ordered the same way
 
     wait_for_user()
-    time_step = None if teleport else 0.01
-    apply_commands(BeliefState(problem), commands, time_step=time_step)
+    #time_step = None if teleport else 0.01
+    state = BeliefState(problem)
+    display_plan(state, plan)
     wait_for_user()
     disconnect()
 

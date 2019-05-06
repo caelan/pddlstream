@@ -261,7 +261,7 @@ def prune_duplicates(traj):
     # TODO: could use the more general sparcify function
     new_traj = [traj[0]]
     for conf in traj[1:]:
-        if 0 < np.linalg.norm(conf - new_traj[-1]):
+        if 0 < np.linalg.norm(np.array(conf) - np.array(new_traj[-1])):
             new_traj.append(conf)
     return new_traj
 
@@ -269,7 +269,7 @@ def get_value_at_time(traj, fraction):
     waypoints = prune_duplicates(traj)
     if len(waypoints) == 1:
         return waypoints[0]
-    distances = [0.] + [np.linalg.norm(q2 - q1)
+    distances = [0.] + [np.linalg.norm(np.array(q2) - np.array(q1))
                         for q1, q2 in zip(waypoints, waypoints[1:])]
     cum_distances = np.cumsum(distances)
     cum_fractions = np.minimum(cum_distances / cum_distances[-1], np.ones(cum_distances.shape))
@@ -277,7 +277,7 @@ def get_value_at_time(traj, fraction):
     if index == len(waypoints):
         index -= 1
     waypoint_fraction = (fraction - cum_fractions[index - 1]) / (cum_fractions[index] - cum_fractions[index - 1])
-    waypoint1, waypoint2 = waypoints[index - 1], waypoints[index]
+    waypoint1, waypoint2 = np.array(waypoints[index - 1]), np.array(waypoints[index])
     conf = (1 - waypoint_fraction) * waypoint1 + waypoint_fraction * waypoint2
     #if np.isnan(conf).any():
     #    print(distances, fraction)

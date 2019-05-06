@@ -146,8 +146,6 @@ def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=
                     user_input('Continue?')
                 else:
                     time.sleep(sec_per_step)
-
-
     if display:
         user_input('Finish?')
 
