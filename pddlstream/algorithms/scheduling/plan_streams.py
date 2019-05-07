@@ -155,8 +155,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
                                            max_effort=max_effort)
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
-    if using_optimizers(all_results):
-        goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
+    #if using_optimizers(all_results):
+    goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
     problem = get_problem(opt_evaluations, goal_expression, stream_domain) # begin_metric
     with Verbose():
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))

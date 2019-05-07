@@ -93,7 +93,6 @@ def is_useful_atom(atom, conditions_from_predicate):
     return False
 
 def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
-    import axiom_rules
     # TODO: filter instantiated_axioms that aren't applicable?
     with Verbose(False):
         helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
