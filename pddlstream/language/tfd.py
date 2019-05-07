@@ -4,10 +4,11 @@ from __future__ import print_function
 import os
 import re
 import subprocess
+import time
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
-from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read
+from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time
 
 PLANNER = 'tfd' # tfd | tflap | optic | cerberus
 
@@ -310,6 +311,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     else:
         raise ValueError(PLANNER)
 
+    start_time = time.time()
     domain_path, problem_path = write_pddl(domain_pddl, problem_pddl)
     plan_path = os.path.join(TEMP_DIR, PLAN_FILE)
     #assert not actions, "There shouldn't be any actions - just temporal actions"
@@ -331,4 +333,6 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     best_plan, best_makespan = parse_plans(temp_path, plan_files)
     if not debug:
         safe_rm_dir(TEMP_DIR)
+    print('Makespan: ', best_makespan)
+    print('Time:', elapsed_time(start_time))
     return best_plan, best_makespan

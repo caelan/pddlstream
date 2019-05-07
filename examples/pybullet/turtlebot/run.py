@@ -220,8 +220,10 @@ def problem_fn(n_robots=2, collisions=True):
     set_point(wall6, Point(y=+(base_extent/2 - width / 2.), z=mound_height / 2.))
 
     distance = 0.5
+    #initial_confs = [(-distance, -distance, 0),
+    #                 (-distance, +distance, 0)]
     initial_confs = [(-distance, -distance, 0),
-                     (-distance, +distance, 0)]
+                     (+distance, +distance, 0)]
     assert n_robots <= len(initial_confs)
 
     colors = [GREEN, BLUE]
@@ -243,7 +245,8 @@ def problem_fn(n_robots=2, collisions=True):
 
     goals = [(+distance, -distance, 0),
              (+distance, +distance, 0)]
-    goals = goals[::-1]
+    #goals = goals[::-1]
+    goals = initial_confs[::-1]
     goal_confs = dict(zip(robots, goals))
 
     return NAMOProblem(body_from_name, robots, base_limits, collisions=collisions, goal_confs=goal_confs)
@@ -336,8 +339,8 @@ def main(display=True, teleport=False):
     state = BeliefState(problem)
     wait_for_user()
     #time_step = None if teleport else 0.01
-    #with VideoSaver('video.mp4'):
-    display_plan(problem, state, plan)
+    with VideoSaver('video.mp4'):
+        display_plan(problem, state, plan)
     wait_for_user()
     disconnect()
 
