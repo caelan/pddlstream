@@ -6,7 +6,7 @@ from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
     TRANSLATE_OUTPUT, parse_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
-    get_effects, get_conjuctive_parts, get_conditional_effects
+    get_effects, get_conjunctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose
@@ -23,7 +23,7 @@ InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', '
 
 
 def instantiate_goal(goal):
-    goal_list = get_conjuctive_parts(goal)
+    goal_list = get_conjunctive_parts(goal)
     assert all(isinstance(item, pddl.Literal) for item in goal_list)
     return goal_list
 

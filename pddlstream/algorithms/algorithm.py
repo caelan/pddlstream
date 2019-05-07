@@ -3,7 +3,7 @@ from collections import Counter
 from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_domain, parse_lisp, parse_goal, make_cost, set_cost_scale, \
-    fd_from_fact, get_conjuctive_parts, get_disjunctive_parts, Domain
+    fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous
@@ -16,6 +16,7 @@ from pddlstream.language.rule import parse_rule, apply_rules_to_streams
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 from pddlstream.utils import find_unique, get_mapping
 
+UNIVERSAL_TO_CONDITIONAL = False
 
 # TODO: rename to parsing
 
@@ -132,7 +133,7 @@ def universal_to_conditional(action):
     import pddl
     new_parts = []
     unsatisfiable = fd_from_fact((UNSATISFIABLE,))
-    for quant in get_conjuctive_parts(action.precondition):
+    for quant in get_conjunctive_parts(action.precondition):
         if isinstance(quant, pddl.UniversalCondition):
             condition = quant.parts[0]
             # TODO: normalize first?
@@ -146,7 +147,10 @@ def optimizer_conditional_effects(domain, externals):
     import pddl
     #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
     # TODO: extend this to predicates
-    negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated(), externals))
+    if UNIVERSAL_TO_CONDITIONAL:
+        negative_streams = list(filter(lambda e: e.is_negated(), externals))
+    else:
+        negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated(), externals))
     negative_from_predicate = get_predicate_map(negative_streams)
     if not negative_from_predicate:
         return
@@ -159,11 +163,14 @@ def optimizer_conditional_effects(domain, externals):
                 continue
             new_parts = []
             stream_facts = []
-            for disjunctive in get_conjuctive_parts(effect.condition):
+            for disjunctive in get_conjunctive_parts(effect.condition):
                 for literal in get_disjunctive_parts(disjunctive):
                     # TODO: assert only one disjunctive part
                     if isinstance(literal, pddl.Literal) and (literal.predicate in negative_from_predicate):
                         stream = negative_from_predicate[literal.predicate]
+                        if not isinstance(stream, ConstraintStream):
+                            new_parts.append(literal)
+                            continue
                         certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
                         mapping = get_mapping(get_args(certified), literal.args)
                         stream_facts.append(fd_from_fact(substitute_expression(stream.stream_fact, mapping)))

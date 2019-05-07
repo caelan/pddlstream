@@ -57,7 +57,8 @@ def convert_negative(negative_preimage, negative_from_name, step_from_atom, real
 ##################################################
 
 def recover_negative_axioms(real_task, opt_task, axiom_plans, action_plan, negative_from_name):
-    action_plan = reinstantiate_action_instances(opt_task, action_plan)
+    action_plan = reinstantiate_action_instances(opt_task, action_plan, negative_from_name=negative_from_name)
+    # https://github.com/caelan/pddlstream/commit/18b303e19bbab9f8e0016fbb2656f461067e1e94#diff-55454a85485551f9139e20a446b56a83L53
     #simplify_conditional_effects(opt_task, action_plan, negative_from_name)
     axiom_plans = list(map(reinstantiate_axiom_instances, axiom_plans))
     axioms_from_name = get_derived_predicates(opt_task.axioms)

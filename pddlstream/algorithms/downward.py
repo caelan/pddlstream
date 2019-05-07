@@ -16,24 +16,19 @@ if ' ' in filepath:
     raise RuntimeError('The path to pddlstream cannot include spaces')
 
 CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
+FD_PATH = get_file_path(__file__, '../../FastDownward/')
+USE_CERBERUS = False
 
-USE_CERBERUS = True
-if USE_CERBERUS:
-    FD_PATH = CERBERUS_PATH
-else:
-    FD_PATH = get_file_path(__file__, '../../FastDownward/')
-
-BUILD_PATH = None
-for release in ['release64', 'release32']: # TODO: list the directory
-    path = os.path.join(FD_PATH, 'builds/{}/'.format(release))
-    if os.path.exists(path):
-        BUILD_PATH = path
-        break
-if BUILD_PATH is None:
+def find_build(fd_path):
+    for release in ['release64', 'release32']:  # TODO: list the directory
+        path = os.path.join(fd_path, 'builds/{}/'.format(release))
+        if os.path.exists(path):
+            return path
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
-FD_BIN = os.path.join(BUILD_PATH, 'bin')
-TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
+
+TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
+FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
@@ -307,7 +302,7 @@ def get_literals(condition):
         return literals
     raise ValueError(condition)
 
-def get_conjuctive_parts(condition):
+def get_conjunctive_parts(condition):
     return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
 
 def get_disjunctive_parts(condition):
@@ -331,7 +326,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     if planner == 'cerberus':
-        planner_config = SEARCH_OPTIONS[planner]
+        planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
