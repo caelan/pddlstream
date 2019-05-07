@@ -10,19 +10,27 @@ import numpy as np
 from examples.continuous_tamp.primitives import get_value_at_time
 from examples.continuous_tamp.run import compute_duration, inclusive_range, get_end
 from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
-    point_from_conf, BASE_RESOLUTIONS
+    point_from_conf, BASE_RESOLUTIONS, get_turtle_aabb
 from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
-    set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input
+    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, wait_for_interrupt, \
+    set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
+    aabb_union, draw_aabb, aabb_overlap, remove_all_debug
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path
 from pddlstream.language.generator import from_test
 
 # TODO: Kiva robot and Amazon shelves
+
+def get_turtle_traj_aabb(traj):
+    aabbs = []
+    for conf in traj.iterate():
+        conf.assign()
+        aabbs.append(get_turtle_aabb(conf.body))
+    return aabb_union(aabbs)
 
 def linear_trajectory(conf1, conf2):
     robot = conf1.body
@@ -32,12 +40,19 @@ def linear_trajectory(conf1, conf2):
     return create_trajectory(robot, joints, path)
 
 def get_test_cfree_traj_traj(problem, collisions=True):
-    # TODO: compute bounding boxes
     robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
+    aabb_from_traj = {}
 
     def test(traj1, traj2):
         if not collisions:
             return True
+        if traj1 not in aabb_from_traj:
+            aabb_from_traj[traj1] = get_turtle_traj_aabb(traj1)
+        if traj2 not in aabb_from_traj:
+            aabb_from_traj[traj2] = get_turtle_traj_aabb(traj2)
+        if not aabb_overlap(aabb_from_traj[traj1], aabb_from_traj[traj2]):
+            return True
+
         for q1 in traj1.iterate():
             set_base_conf(robot1, q1.values)
             for q2 in traj2.iterate():
@@ -252,7 +267,7 @@ def main(display=True, teleport=False):
 
     pr = cProfile.Profile()
     pr.enable()
-    with LockRenderer(True):
+    with LockRenderer(False):
         solution = solve_incremental(pddlstream,
                                      max_planner_time=max_planner_time,
                                      unit_costs=args.unit, success_cost=success_cost,

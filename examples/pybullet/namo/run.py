@@ -39,6 +39,9 @@ BASE_JOINTS = ['x', 'y', 'theta']
 #BASE_RESOLUTIONS = 0.05*np.ones(3) # Default
 BASE_RESOLUTIONS = np.array([0.05, 0.05, np.pi/16])
 
+def get_turtle_aabb(robot):
+    return get_subtree_aabb(robot, link_from_name(robot, BASE_LINK))
+
 def get_base_joints(robot):
     return joints_from_names(robot, BASE_JOINTS)
 
@@ -98,7 +101,7 @@ def get_grasp_generator(problem):
         with BodySaver(robot):
             set_base_conf(robot, np.zeros(3))
             robot_pose = get_link_pose(robot, link)
-            robot_aabb = get_subtree_aabb(robot, link)
+            robot_aabb = get_turtle_aabb(robot)
             #draw_aabb(robot_aabb)
         lower, upper = robot_aabb
         center, (diameter, height) = approximate_as_cylinder(body)
