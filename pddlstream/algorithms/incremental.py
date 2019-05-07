@@ -9,8 +9,7 @@ from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import obj_from_pddl_plan
 from pddlstream.language.fluent import ensure_no_fluent_streams
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
-from pddlstream.language.tpshe import solve_tpshe
-from pddlstream.language.tfd import solve_tfd
+from pddlstream.language.temporal import solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.utils import INF
 

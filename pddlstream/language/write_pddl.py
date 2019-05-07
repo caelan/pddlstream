@@ -1,4 +1,5 @@
 import re
+import math
 
 from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, TOTAL_TIME, is_cost, get_prefix, \
     CONNECTIVES, QUANTIFIERS
@@ -26,8 +27,9 @@ def pddl_from_evaluation(evaluation):
         return head
     elif is_negated_atom(evaluation):
         return '(not {})'.format(head)
-    value = evaluation.value # floats are fine for temporal planners
     #value = int(evaluation.value)
+    value = evaluation.value # floats are fine for temporal planners
+    #value = int(math.ceil(evaluation.value))
     return '(= {} {})'.format(head, value)
 
 def pddl_functions(predicates):

@@ -10,7 +10,7 @@ from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time
 
-PLANNER = 'tfd' # tfd | tflap | optic | cerberus
+PLANNER = 'tpshe' # tfd | tflap | optic | tpshe | cerberus
 
 # tflap: no conditional effects, no derived predicates
 # optic: no negative preconditions, no conditional effects, no goal derived predicates
@@ -217,7 +217,7 @@ TFLAP_COMMAND = 'tflap {} {} {}'
 ##################################################
 
 OPTIC_PATH = '/home/caelan/Programs/optic2018/src/optic/src/optic'
-OPTIC_COMMAND = 'optic-clp -N {} {} {}'
+OPTIC_COMMAND = 'optic-clp -N {} {} | tee {}'
 
 """
 Usage: optic/src/optic/optic-clp [OPTIONS] domainfile problemfile [planfile, if -r specified]
@@ -257,6 +257,27 @@ ADL can be used in action definitions:
 
 ##################################################
 
+# TODO: tpshe seems to be broken
+
+"""
+usage: plan.py [-h] [--generator GENERATOR] [--time TIME] [--memory MEMORY]
+               [--iterated] [--no-iterated] [--plan-file PLANFILE]
+               [--validate] [--no-validate]
+               planner domain problem
+"""
+
+TPSHE_PATH = '/home/caelan/Programs/temporal-planning/'
+#TPSHE_COMMAND = 'python {}bin/plan.py she {} {} --time {} --no-iterated'
+TPSHE_COMMAND = 'bin/plan.py she {} {} --iterated'
+#TPSHE_COMMAND = 'python {}bin/plan.py she {} {} --time {}'
+#TPSHE_COMMAND = 'python {}bin/plan.py tempo-3 {} {} --time {}'
+#TPSHE_COMMAND = 'python {}bin/plan.py stp-3 {} {} --time {}'
+#temp_path = '.'
+TPSHE_OUTPUT_PATH = 'tmp_sas_plan'
+
+
+##################################################
+
 CERB_PATH = '/home/caelan/Programs/cerberus'
 #CERB_PATH = '/home/caelan/Programs/pddlstream/FastDownward'
 #CERB_COMMAND = 'fast-downward.py {} {}'
@@ -270,7 +291,7 @@ def parse_temporal_solution(solution):
     makespan = 0.0
     plan = []
     # TODO: this regex doesn't work for @
-    regex = r'(\d+.\d+): \(\s*(\w+(?:\s\w+)*)\s*\) \[(\d+.\d+)\]'
+    regex = r'(\d+.\d+):\s+\(\s*(\w+(?:\s\w+)*)\s*\)\s+\[(\d+.\d+)\]'
     for start, action, duration in re.findall(regex, solution):
         entries = action.lower().split(' ')
         action = DurativeAction(entries[0], tuple(entries[1:]), float(start), float(duration))
@@ -308,6 +329,8 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
         root, template = TFLAP_PATH, TFLAP_COMMAND
     elif PLANNER == 'optic':
         root, template = OPTIC_PATH, OPTIC_COMMAND
+    elif PLANNER == 'tpshe':
+        root, template = TPSHE_PATH, TPSHE_COMMAND
     else:
         raise ValueError(PLANNER)
 
@@ -323,7 +346,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
         stdout, stderr = None, None
     else:
         stdout, stderr = open(os.devnull, 'w'), open(os.devnull, 'w')
-    proc = subprocess.call(command.split(' '), cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
+    proc = subprocess.call(command, shell=True, cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
     error = proc != 0
     print('Error:', error)
 
