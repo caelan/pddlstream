@@ -6,6 +6,8 @@ import pickle
 import shutil
 import sys
 import time
+import random
+
 from collections import defaultdict, deque
 from heapq import heappush, heappop
 
@@ -162,6 +164,12 @@ def argmax(fn, iterable):
 
 def invert_dict(d):
     return dict((v, k) for k, v in d.items())
+
+
+def randomize(iterable):
+    sequence = list(iterable)
+    random.shuffle(sequence)
+    return sequence
 
 ##################################################
 

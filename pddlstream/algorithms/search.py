@@ -14,6 +14,7 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 # TODO: receding horizon planning
 # TODO: allow switch to higher-level in heuristic
 # TODO: recursive application of these
+# TODO: write the domain and problem PDDL files that are used for debugging purposes
 
 def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **search_args):
     # TODO: can solve using another planner and then still translate using FastDownward

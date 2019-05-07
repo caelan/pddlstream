@@ -51,12 +51,17 @@ def get_base_conf(robot):
 def set_base_conf(robot, conf):
     set_joint_positions(robot, get_base_joints(robot), conf)
 
-def get_custom_limits(robot, base_limits):
+def get_custom_limits(robot, base_limits, yaw_limit=None):
     x_limits, y_limits = zip(*base_limits)
-    return {
+    custom_limits = {
         joint_from_name(robot, 'x'): x_limits,
         joint_from_name(robot, 'y'): y_limits,
     }
+    if yaw_limit is not None:
+        custom_limits.update({
+            joint_from_name(robot, 'theta'): yaw_limit,
+        })
+    return custom_limits
 
 #######################################################
 

@@ -18,21 +18,24 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, wait_for_interrupt, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn
+
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem
-from pddlstream.utils import read, INF, get_file_path
 from pddlstream.language.generator import from_test, from_fn
+from pddlstream.utils import read, INF, get_file_path, randomize
 
 # TODO: Kiva robot and Amazon shelves
 
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
 
 def get_turtle_traj_aabb(traj):
-    aabbs = []
-    for conf in traj.iterate():
-        conf.assign()
-        aabbs.append(get_turtle_aabb(conf.body))
-    return aabb_union(aabbs)
+    if not hasattr(traj, 'aabb'):
+        if isinstance(traj, Conf):
+            traj.assign()
+            traj.aabb = get_turtle_aabb(traj.body)
+        else:
+            traj.aabb = aabb_union(map(get_turtle_traj_aabb, traj.iterate()))
+    return traj.aabb
 
 def linear_trajectory(conf1, conf2):
     robot = conf1.body
@@ -43,24 +46,25 @@ def linear_trajectory(conf1, conf2):
 
 def get_test_cfree_traj_traj(problem):
     robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
-    aabb_from_traj = {}
 
     def test(traj1, traj2):
         if not problem.collisions:
             return True
         if traj1 is traj2:
             return False
-        if traj1 not in aabb_from_traj:
-            aabb_from_traj[traj1] = get_turtle_traj_aabb(traj1)
-        if traj2 not in aabb_from_traj:
-            aabb_from_traj[traj2] = get_turtle_traj_aabb(traj2)
-        if not aabb_overlap(aabb_from_traj[traj1], aabb_from_traj[traj2]):
+        if not aabb_overlap(get_turtle_traj_aabb(traj1), get_turtle_traj_aabb(traj2)):
             return True
+        # TODO: could also use radius to prune
+        # TODO: prune if start and end conf collide
 
-        for q1 in traj1.iterate():
-            set_base_conf(robot1, q1.values)
-            for q2 in traj2.iterate():
-                set_base_conf(robot2, q2.values)
+        for conf1 in randomize(traj1.iterate()):
+            if not aabb_overlap(get_turtle_traj_aabb(conf1), get_turtle_traj_aabb(traj2)):
+                continue
+            set_base_conf(robot1, conf1.values)
+            for conf2 in randomize(traj2.iterate()):
+                if not aabb_overlap(get_turtle_traj_aabb(conf1), get_turtle_traj_aabb(conf2)):
+                    continue
+                set_base_conf(robot2, conf2.values)
                 if pairwise_collision(robot1, robot2):
                     return False
         return True
@@ -180,7 +184,7 @@ class NAMOProblem(object):
         self.custom_limits = {}
         if self.limits is not None:
             for body in robot_bodies:
-                self.custom_limits.update(get_custom_limits(body, self.limits))
+                self.custom_limits.update(get_custom_limits(body, self.limits, yaw_limit=(0, 0)))
         self.initial_confs = {name: Conf(self.get_body(name), get_base_joints(self.get_body(name)))
                               for name in self.robots}
     def get_body(self, name):
