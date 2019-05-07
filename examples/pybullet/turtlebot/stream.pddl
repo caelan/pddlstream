@@ -1,9 +1,9 @@
 (define (stream turtlebot)
-  ;(:stream s-motion
-  ;  :inputs (?q1 ?q2)
-  ;  :domain (and (Conf ?q1) (Conf ?q2))
-  ;  :outputs (?t)
-  ;  :certified (and (Traj ?t) (Motion ?q1 ?t ?q2)))
+  (:stream compute-motion
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :outputs (?t)
+    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2)))
 
   (:stream test-cfree-conf-conf
     :inputs (?q1 ?q2)

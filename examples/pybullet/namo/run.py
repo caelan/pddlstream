@@ -14,7 +14,7 @@ from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, control_commands, Attach, Detach, \
     create_trajectory, apply_commands, State, Command, Grasp
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, joint_from_name, \
-    get_sample_fn, get_distance_fn, get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, remove_body, \
+    get_sample_fn, get_base_distance_fn, get_collision_fn, MAX_DISTANCE, get_extend_fn, wait_for_user, Point, remove_body, \
     LockRenderer, get_bodies, draw_point, add_line, set_point, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     joints_from_names, create_cylinder, set_joint_positions, get_joint_positions, HideOutput, GREY, TAN, RED, \
     pairwise_collision, get_halton_sample_fn, get_distance, get_subtree_aabb, link_from_name, BodySaver, \
@@ -164,16 +164,16 @@ def get_sample_gen_fn(problem):
                 yield (q,)
     return gen_fn
 
-def get_motion_fn(problem, max_distance=0.45):
+def get_motion_fn(problem, max_distance=0.45, weights=np.array([1, 1, 0]), resolutions=BASE_RESOLUTIONS):
     def fn(body, q1, q2):
         joints = get_base_joints(body)
-        extend_fn = get_extend_fn(body, joints, resolutions=BASE_RESOLUTIONS)
+        distance_fn = get_base_distance_fn(weights)
+        extend_fn = get_extend_fn(body, joints, resolutions=resolutions)
         collision_fn = get_collision_fn(body, joints, problem.obstacles, attachments=[],
                                         self_collisions=False, disabled_collisions=set(),
                                         custom_limits=problem.custom_limits, max_distance=MAX_DISTANCE)
         # TODO: degree
-        # distance = distance_fn(q1.values, q2.values)
-        distance = get_distance(q1.values[:2], q2.values[:2])
+        distance = distance_fn(q1.values, q2.values)
         if max_distance < distance:
             return None
         path = [q1.values] + list(extend_fn(q1.values, q2.values))
@@ -191,7 +191,7 @@ def get_cost_fn(problem):
 
 #######################################################
 
-def create_vertices(problem, robot, samples, samples_per_ft2=8):
+def create_vertices(problem, robot, samples, samples_per_ft2=8, **kwargs):
     lower, upper = problem.limits
     area = np.product(upper - lower)
     print('Area:', area)
@@ -204,8 +204,8 @@ def create_vertices(problem, robot, samples, samples_per_ft2=8):
         init += [('Conf', robot, q)]
     return init
 
-def create_edges(problem, robot, samples):
-    motion_fn = get_motion_fn(problem)
+def create_edges(problem, robot, samples, **kwargs):
+    motion_fn = get_motion_fn(problem, **kwargs)
 
     edges = []
     init = []

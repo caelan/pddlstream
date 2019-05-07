@@ -31,6 +31,7 @@
 			(at start (Robot ?r))
       (at start (Motion ?q1 ?t ?q2))
 			(at start (AtConf ?r ?q1))
+      ; TODO: try optic again
 
       ;(at start (Safe))
       ;(over all (Safe))
@@ -68,6 +69,7 @@
 ;  )
 
   (:derived (UnsafeConf ?r1 ?q1)
+      ; Declare failure if ever the same configuration is used
       (and (Robot ?r1) (Conf ?q1) (or
         (exists (?r2 ?q2) (and (Robot ?r2) (Conf ?q2)
                                (not (= ?r1 ?r2)) (not (CFreeConfConf ?q1 ?q2))
