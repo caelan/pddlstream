@@ -14,21 +14,30 @@ from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
     raise RuntimeError('The path to pddlstream cannot include spaces')
-FD_PATH = None
+
+CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
+
+USE_CERBERUS = True
+if USE_CERBERUS:
+    FD_PATH = CERBERUS_PATH
+else:
+    FD_PATH = get_file_path(__file__, '../../FastDownward/')
+
+BUILD_PATH = None
 for release in ['release64', 'release32']: # TODO: list the directory
-    path = get_file_path(__file__, '../../FastDownward/builds/{}/'.format(release))
+    path = os.path.join(FD_PATH, 'builds/{}/'.format(release))
     if os.path.exists(path):
-        FD_PATH = path
+        BUILD_PATH = path
         break
-if FD_PATH is None:
+if BUILD_PATH is None:
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
-FD_BIN = os.path.join(FD_PATH, 'bin')
+FD_BIN = os.path.join(BUILD_PATH, 'bin')
 TRANSLATE_PATH = os.path.join(FD_BIN, 'translate')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
-TRANSLATE_FLAGS = ['--negative-axioms']
+TRANSLATE_FLAGS = [] if USE_CERBERUS else ['--negative-axioms']
 original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)
@@ -102,6 +111,17 @@ for w in range(1, 1+5):
     SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
                    '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+
+if USE_CERBERUS:
+    # --internal-previous-portfolio-plans
+    #import imp
+    #plan_path = os.path.join(CERBERUS_PATH, 'plan.py')
+    #plan = imp.load_source('plan', plan_path)
+    sys.path.append(CERBERUS_PATH)
+    from plan import config_string
+    #SEARCH_OPTIONS['cerberus'] = ' '.join(p.strip() for s in config_string() for p in s.split('\n')) # .replace('\n', ' ')
+    SEARCH_OPTIONS['cerberus'] = ' '.join(s if s.startswith('--') else '"{}"'.format(s)
+                                          for s in config_string())
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
@@ -310,7 +330,10 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
-    planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
+    if planner == 'cerberus':
+        planner_config = SEARCH_OPTIONS[planner]
+    else:
+        planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if debug:
         print('Search command:', command)
@@ -319,9 +342,10 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     if debug:
         print(output[:-1])
         print('Search runtime:', time() - start_time)
-    if not os.path.exists(temp_dir + SEARCH_OUTPUT):
-        return None
-    return read(temp_dir + SEARCH_OUTPUT)
+    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
+    plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
+    print('Plans:', plan_files)
+    return parse_solutions(temp_path, plan_files)
 
 ##################################################
 
@@ -344,6 +368,15 @@ def parse_solution(solution):
     lines = solution.split('\n')[:-2]  # Last line is newline, second to last is cost
     plan = list(map(parse_action, lines))
     return plan, cost
+
+def parse_solutions(temp_path, plan_files):
+    best_plan, best_cost = None, INF
+    for plan_file in plan_files:
+        solution = read(os.path.join(temp_path, plan_file))
+        plan, cost = parse_solution(solution)
+        if cost < best_cost:
+            best_plan, best_cost = plan, cost
+    return best_plan, best_cost
 
 def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
     clear_dir(temp_dir)

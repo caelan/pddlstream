@@ -31,7 +31,7 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
     #    var, value = axiom.effect
     #    print(sas_task.variables.value_names[var])
     #    axiom.dump()
-    return parse_solution(solution)
+    return solution
 
 def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: combine with solve_from_task
@@ -45,7 +45,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
-    return parse_solution(solution)
+    return solution
 
 ##################################################
 
@@ -77,7 +77,7 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     for subgoal in subgoal_plan:
         sas_task.goal.pairs = subgoal
         write_sas_task(sas_task, temp_dir)
-        plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
+        plan, cost = run_search(temp_dir, debug=True, **kwargs)
         if plan is None:
             return None, INF
         full_plan.extend(plan)
@@ -185,7 +185,7 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
             prune_hierarchy_pre_eff(local_sas_task, hierarchy[level:]) # TODO: break if no pruned
             add_subgoals(local_sas_task, last_plan)
             write_sas_task(local_sas_task, temp_dir)
-            plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
+            plan, cost = run_search(temp_dir, debug=True, **kwargs)
             if (level == len(hierarchy)) or (plan is None):
                 # TODO: fall back on standard search
                 break
