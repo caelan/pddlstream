@@ -10,7 +10,7 @@ from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time
 
-PLANNER = 'tpshe' # tfd | tflap | optic | tpshe | cerberus
+PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
 # tflap: no conditional effects, no derived predicates
 # optic: no negative preconditions, no conditional effects, no goal derived predicates

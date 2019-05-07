@@ -20,18 +20,17 @@
     (UnsafeTraj ?r ?t)
   )
   (:functions
-		(Duration ?t)
+		(TrajDuration ?t)
   )
 
   (:durative-action move
 		:parameters (?r ?q1 ?t ?q2)
     ; :duration (= ?duration 1)
-		:duration (= ?duration (Duration ?t))
+		:duration (= ?duration (TrajDuration ?t))
 		:condition (and
 			(at start (Robot ?r))
       (at start (Motion ?q1 ?t ?q2))
 			(at start (AtConf ?r ?q1))
-      ; TODO: try optic again
 
       ;(at start (Safe))
       ;(over all (Safe))

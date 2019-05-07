@@ -160,7 +160,7 @@ def pddlstream_from_problem(problem, teleport=False):
         'test-cfree-traj-conf': test_cfree_traj_traj,
         'test-cfree-traj-traj': test_cfree_traj_traj,
         'compute-motion': from_fn(get_motion_fn2(problem)),
-        'Duration': get_duration_fn(),
+        'TrajDuration': get_duration_fn(),
     }
     #stream_map = 'debug'
 
@@ -339,8 +339,8 @@ def main(display=True, teleport=False):
     state = BeliefState(problem)
     wait_for_user()
     #time_step = None if teleport else 0.01
-    with VideoSaver('video.mp4'):
-        display_plan(problem, state, plan)
+    #with VideoSaver('video.mp4'):
+    display_plan(problem, state, plan)
     wait_for_user()
     disconnect()
 
