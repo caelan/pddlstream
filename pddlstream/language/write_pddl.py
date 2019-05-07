@@ -26,7 +26,9 @@ def pddl_from_evaluation(evaluation):
         return head
     elif is_negated_atom(evaluation):
         return '(not {})'.format(head)
-    return '(= {} {})'.format(head, int(evaluation.value))
+    value = evaluation.value # floats are fine for temporal planners
+    #value = int(evaluation.value)
+    return '(= {} {})'.format(head, value)
 
 def pddl_functions(predicates):
     return '\n\t\t'.join(sorted(p.pddl() for p in predicates))

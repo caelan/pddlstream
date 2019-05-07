@@ -17,7 +17,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, wait_for_interrupt, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
-    aabb_union, draw_aabb, aabb_overlap, remove_all_debug
+    aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path
@@ -61,6 +61,18 @@ def get_test_cfree_traj_traj(problem, collisions=True):
                     return False
         return True
     return test
+
+def get_duration_fn(dist_per_time=0.25):
+    weights = np.array([1, 1, 0]) # 1 / BASE_RESOLUTIONS
+    distance_fn = get_base_distance_fn(weights=weights)
+
+    def fn(traj):
+        # TODO: encode different joint speeds
+        #return 1
+        distance = traj.distance(distance_fn)
+        duration = distance / dist_per_time
+        return duration
+    return fn
 
 #######################################################
 
@@ -128,7 +140,7 @@ def pddlstream_from_problem(problem, teleport=False):
         'test-cfree-traj-conf': test_cfree_traj_traj,
         'test-cfree-traj-traj': test_cfree_traj_traj,
         #'compute-motion': from_fn(get_motion_fn(problem)),
-        #'Cost': get_cost_fn(problem),
+        'Duration': get_duration_fn(),
     }
     #stream_map = 'debug'
 
@@ -241,7 +253,6 @@ def main(display=True, teleport=False):
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
-    parser.add_argument('-unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     args = parser.parse_args()
     print(args)
@@ -270,9 +281,10 @@ def main(display=True, teleport=False):
     with LockRenderer(False):
         solution = solve_incremental(pddlstream,
                                      max_planner_time=max_planner_time,
-                                     unit_costs=args.unit, success_cost=success_cost,
-                                     start_complexity=INF,
-                                     max_time=args.max_time, verbose=True, debug=True)
+                                     success_cost=success_cost,
+                                     #start_complexity=INF,
+                                     max_time=args.max_time,
+                                     verbose=True, debug=True)
 
     print_solution(solution)
     plan, cost, evaluations = solution

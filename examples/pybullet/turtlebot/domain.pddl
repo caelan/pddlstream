@@ -19,10 +19,14 @@
     (UnsafeConf ?r ?q)
     (UnsafeTraj ?r ?t)
   )
+  (:functions
+		(Duration ?t)
+  )
 
   (:durative-action move
 		:parameters (?r ?q1 ?t ?q2)
-		:duration (= ?duration 1)
+    ; :duration (= ?duration 1)
+		:duration (= ?duration (Duration ?t))
 		:condition (and
 			(at start (Robot ?r))
       (at start (Motion ?q1 ?t ?q2))

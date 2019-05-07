@@ -18,7 +18,6 @@
     :domain (and (Traj ?t1) (Traj ?t2))
     :certified (CFreeTrajTraj ?t1 ?t2))
 
-  ;(:function (Dist ?q1 ?q2)
-  ;  (and (Conf ?q1) (Conf ?q2))
-  ;)
+  (:function (Duration ?t)
+             (Traj ?t))
 )
