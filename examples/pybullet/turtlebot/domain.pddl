@@ -1,16 +1,18 @@
 (define (domain rovers)
   (:requirements :equality :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects :disjunctive-preconditions)
 	;(:types robot)
-  (:constants
-    r0 r1 ) ; - robot)
+  (:constants r0 r1 ) ; - robot)
   (:predicates
     (Robot ?r)
     (Conf ?q)
     (Traj ?t)
     (Motion ?q1 ?t ?q2)
-    (CFreeConfConf ?q1 ?q2)
-    (CFreeTrajConf ?t1 ?q2)
-    (CFreeTrajTraj ?t1 ?t2)
+    ;(CFreeConfConf ?q1 ?q2)
+    ;(CFreeTrajConf ?t1 ?q2)
+    ;(CFreeTrajTraj ?t1 ?t2)
+    (ConfConfCollision ?q1 ?q2)
+    (TrajConfCollision ?t1 ?q2)
+    (TrajTrajCollision ?t1 ?t2)
 
     (Safe)
     (AtConf ?r ?q)
@@ -100,23 +102,19 @@
 
   (:derived (UnsafeConf ?r1 ?q1)
       ; Declare failure if ever the same configuration is used
-      (and (Robot ?r1) (Conf ?q1) (or
-        (exists (?r2 ?q2) (and (Robot ?r2) (Conf ?q2)
-                               (not (= ?r1 ?r2)) (not (CFreeConfConf ?q1 ?q2))
+      (and (Robot ?r1) (or
+        (exists (?r2 ?q2) (and (Robot ?r2) (not (= ?r1 ?r2)) (ConfConfCollision ?q1 ?q2)
                                (AtConf ?r2 ?q2)))
-        (exists (?r2 ?t2) (and (Robot ?r2) (Traj ?t2)
-                               (not (= ?r1 ?r2)) (not (CFreeTrajConf ?t2 ?q1))
+        (exists (?r2 ?t2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajConfCollision ?t2 ?q1)
                                (OnTraj ?r2 ?t2)))
       ))
   )
 
   (:derived (UnsafeTraj ?r1 ?t1)
-      (and (Robot ?r1) (Traj ?t1) (or
-        (exists (?r2 ?q2) (and (Robot ?r2) (Conf ?q2)
-                               (not (= ?r1 ?r2)) (not (CFreeTrajConf ?t1 ?q2))
+      (and (Robot ?r1) (or
+        (exists (?r2 ?q2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajConfCollision ?t1 ?q2)
                                (AtConf ?r2 ?q2)))
-        (exists (?r2 ?t2) (and (Robot ?r2) (Traj ?t2)
-                               (not (= ?r1 ?r2)) (not (CFreeTrajTraj ?t1 ?t2))
+        (exists (?r2 ?t2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajTrajCollision ?t1 ?t2)
                                (OnTraj ?r2 ?t2)))
       ))
   )

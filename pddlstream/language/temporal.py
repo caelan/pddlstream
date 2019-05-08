@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import time
+import sys
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
@@ -358,4 +359,16 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
         safe_rm_dir(TEMP_DIR)
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
+
+    #tfd_translate = os.path.join(TFD_PATH, 'translate/pddl/')
+    #sys.path.append(tfd_translate)
+    #import pddl_file
+    #task = pddl_file.open(domain_path, problem_path)
+    #task.dump()
+
+    #import imp
+    #parser_path = os.path.join(TFD_PATH, 'translate/pddl/pddl_file.py')
+    #parser_module = imp.load_source('open', parser_path)
+    #sys.path.remove(tfd_translate)
+
     return best_plan, best_makespan

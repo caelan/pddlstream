@@ -22,7 +22,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
-from pddlstream.language.generator import from_test, from_fn
+from pddlstream.language.generator import from_test, from_fn, negate_test
 from pddlstream.utils import read, INF, get_file_path, randomize
 
 # TODO: Kiva robot and Amazon shelves
@@ -167,11 +167,16 @@ def pddlstream_from_problem(problem, teleport=False):
     #    ]
     #draw_edges(edges)
 
-    test_cfree_traj_traj = from_test(get_test_cfree_traj_traj(problem))
+    cfree_traj_traj_test = get_test_cfree_traj_traj(problem)
+    cfree_traj_traj_list_gen_fn = from_test(cfree_traj_traj_test)
+    traj_traj_collision_test = negate_test(cfree_traj_traj_test)
     stream_map = {
-        'test-cfree-conf-conf': test_cfree_traj_traj,
-        'test-cfree-traj-conf': test_cfree_traj_traj,
-        'test-cfree-traj-traj': test_cfree_traj_traj,
+        'test-cfree-conf-conf': cfree_traj_traj_list_gen_fn,
+        'test-cfree-traj-conf': cfree_traj_traj_list_gen_fn,
+        'test-cfree-traj-traj': cfree_traj_traj_list_gen_fn,
+        'ConfConfCollision': traj_traj_collision_test,
+        'TrajConfCollision': traj_traj_collision_test,
+        'TrajTrajCollision': traj_traj_collision_test,
         'compute-motion': from_fn(get_motion_fn2(problem)),
         'TrajDistance': get_distance_fn(),
     }

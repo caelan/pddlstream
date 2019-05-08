@@ -89,6 +89,10 @@ def from_constant(constant):
     return from_fn(fn_from_constant(constant))
 
 
+def negate_test(test):
+    return lambda *args, **kwargs: not test(*args, **kwargs)
+
+
 def empty_gen():
     return lambda *args, **kwargs: iter([])
 
