@@ -17,7 +17,8 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, wait_for_interrupt, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
-    aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn
+    aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
+    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
@@ -26,8 +27,13 @@ from pddlstream.utils import read, INF, get_file_path, randomize
 
 # TODO: Kiva robot and Amazon shelves
 
+TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
 DIST_PER_TIME = 0.25
+
+def set_body_color(body, color):
+    for link in get_all_links(body):
+        set_color(body, color, link)
 
 def get_turtle_traj_aabb(traj):
     if not hasattr(traj, 'aabb'):
@@ -236,22 +242,17 @@ def problem_fn(n_robots=2, collisions=True):
                      (+distance, +distance, 0)]
     assert n_robots <= len(initial_confs)
 
-    colors = [GREEN, BLUE]
-
     body_from_name = {}
-    robots = []
+    robots = ['green', 'blue']
     with LockRenderer():
-        for i in range(n_robots):
-            name = 'r{}'.format(i)
-            robots.append(name)
+        for i, name in enumerate(robots):
             with HideOutput():
                 body = load_model(TURTLEBOT_URDF) # TURTLEBOT_URDF | ROOMBA_URDF
             body_from_name[name] = body
             robot_z = stable_z(body, floor)
             set_point(body, Point(z=robot_z))
             set_base_conf(body, initial_confs[i])
-            for link in get_all_links(body):
-                set_color(body, colors[i], link)
+            set_body_color(body, COLOR_FROM_NAME[name])
 
     goals = [(+distance, -distance, 0),
              (+distance, +distance, 0)]
@@ -267,7 +268,9 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
     duration = compute_duration(plan)
     real_time = None if sec_per_step is None else (duration * sec_per_step / time_step)
     print('Duration: {} | Step size: {} | Real time: {}'.format(duration, time_step, real_time))
-    for t in inclusive_range(0, duration, time_step):
+    colors = {robot: COLOR_FROM_NAME[robot] for robot in problem.robots}
+    for i, t in enumerate(inclusive_range(0, duration, time_step)):
+        print('Step={} | t={}'.format(i, t))
         for action in plan:
             name, args, start, duration = action
             if not (action.start <= t <= get_end(action)):
@@ -277,10 +280,19 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
                 traj = [conf1.values, conf2.values]
                 fraction = (t - action.start) / action.duration
                 conf = get_value_at_time(traj, fraction)
-                set_base_conf(problem.get_body(robot), conf)
+                body = problem.get_body(robot)
+                color = COLOR_FROM_NAME[robot]
+                if colors[robot] != color:
+                    set_color(body, color, link_from_name(body, TOP_LINK))
+                    colors[robot] = color
+                set_base_conf(body, conf)
             elif name == 'recharge':
-                # TODO: change color or something
                 robot, conf = args
+                body = problem.get_body(robot)
+                color = YELLOW
+                if colors[robot] != color:
+                    set_color(body, color, link_from_name(body, TOP_LINK))
+                    colors[robot] = color
             else:
                 raise ValueError(name)
         if sec_per_step is None:
