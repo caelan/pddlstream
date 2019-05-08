@@ -20,13 +20,14 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn
 
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import And, print_solution, PDDLProblem
+from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
 from pddlstream.language.generator import from_test, from_fn
 from pddlstream.utils import read, INF, get_file_path, randomize
 
 # TODO: Kiva robot and Amazon shelves
 
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
+DIST_PER_TIME = 0.25
 
 def get_turtle_traj_aabb(traj):
     if not hasattr(traj, 'aabb'):
@@ -77,15 +78,20 @@ def get_motion_fn2(problem):
         return motion_fn(robot, q1, q2)
     return fn
 
-def get_duration_fn(dist_per_time=0.25):
+def get_distance_fn():
     distance_fn = get_base_distance_fn(weights=WEIGHTS)
+
+    def fn(traj):
+        return traj.distance(distance_fn)
+    return fn
+
+def get_duration_fn():
+    distance_fn = get_distance_fn()
 
     def fn(traj):
         # TODO: encode different joint speeds
         #return 1
-        distance = traj.distance(distance_fn)
-        duration = distance / dist_per_time
-        return duration
+        return distance_fn(traj) / DIST_PER_TIME
     return fn
 
 #######################################################
@@ -107,13 +113,16 @@ def pddlstream_from_problem(problem, teleport=False):
                     for name in problem.initial_confs.keys()}
 
     edges = set()
-    init = []
+    init = [
+        Equal(('Speed',), DIST_PER_TIME),
+    ]
     for name, conf in problem.initial_confs.items():
         init += [
             ('Safe',),
             ('Robot', name),
             ('Conf', conf),
-            ('AtConf', name, conf)
+            ('AtConf', name, conf),
+            Equal(('Fuel', name), 0),
         ]
 
     goal_literals = [
@@ -160,6 +169,7 @@ def pddlstream_from_problem(problem, teleport=False):
         'test-cfree-traj-conf': test_cfree_traj_traj,
         'test-cfree-traj-traj': test_cfree_traj_traj,
         'compute-motion': from_fn(get_motion_fn2(problem)),
+        'TrajDistance': get_distance_fn(),
         'TrajDuration': get_duration_fn(),
     }
     #stream_map = 'debug'
@@ -268,6 +278,9 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
                 fraction = (t - action.start) / action.duration
                 conf = get_value_at_time(traj, fraction)
                 set_base_conf(problem.get_body(robot), conf)
+            elif name == 'recharge':
+                # TODO: change color or something
+                robot, conf = args
             else:
                 raise ValueError(name)
         if sec_per_step is None:
