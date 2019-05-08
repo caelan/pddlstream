@@ -15,7 +15,8 @@ filepath = os.path.abspath(__file__)
 if ' ' in filepath:
     raise RuntimeError('The path to pddlstream cannot include spaces')
 
-CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
+#CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
+CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 FD_PATH = get_file_path(__file__, '../../FastDownward/')
 USE_CERBERUS = False
 
@@ -113,10 +114,11 @@ if USE_CERBERUS:
     #plan_path = os.path.join(CERBERUS_PATH, 'plan.py')
     #plan = imp.load_source('plan', plan_path)
     sys.path.append(CERBERUS_PATH)
-    from plan import config_string
-    #SEARCH_OPTIONS['cerberus'] = ' '.join(p.strip() for s in config_string() for p in s.split('\n')) # .replace('\n', ' ')
+    import importlib
+    mod = importlib.import_module("plan-agl") # plan | plan-agl | plan-cbo | plan-sat
+    #SEARCH_OPTIONS['cerberus'] = ' '.join(p.strip() for s in mod.config_string() for p in s.split('\n')) # .replace('\n', ' ')
     SEARCH_OPTIONS['cerberus'] = ' '.join(s if s.startswith('--') else '"{}"'.format(s)
-                                          for s in config_string())
+                                          for s in mod.config_string())
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
