@@ -20,17 +20,19 @@
     (UnsafeTraj ?r ?t)
   )
   (:functions
-		(TrajDuration ?t)
     (TrajDistance ?t)
-    (Speed)
-    (Fuel ?r)
+    (Speed ?r)
+    (Energy ?r)
+    (RechargeRate ?r)
+    (ConsumptionRate ?r)
+    (BatteryCapacity ?r)
   )
 
   ; TODO: can use ?duration as a function
   ; (+ f1 f2), (- f1 f2), (* f1 f2), (/ f1 f2)
   (:durative-action recharge
 		:parameters (?r ?q)
-    :duration (= ?duration 1)
+    :duration (= ?duration (/ (- (BatteryCapacity ?r) (Energy ?r)) (RechargeRate ?r)))
 		:condition (and
 			(at start (Robot ?r))
       (at start (Conf ?q))
@@ -39,9 +41,9 @@
 			(at end (AtConf ?r ?q))
     )
     :effect (and
-      (at end (increase (Fuel ?r) 1))
-      ; (at end (assign (Fuel ?r) 1))
-      ; (at end (scale-up (Fuel ?r) 2))
+      (at end (increase (Energy ?r) (* (RechargeRate ?r) ?duration)))
+      ; (at end (assign (Energy ?r) 1))
+      ; (at end (scale-up (Energy ?r) 2))
     )
   )
 
@@ -49,16 +51,16 @@
 		:parameters (?r ?q1 ?t ?q2)
     ; :duration (= ?duration 1)
 		; :duration (= ?duration (TrajDuration ?t))
-    :duration (= ?duration (/ (TrajDistance ?t) (Speed)))
+    :duration (= ?duration (/ (TrajDistance ?t) (Speed ?r)))
 		:condition (and
 			(at start (Robot ?r))
       (at start (Motion ?q1 ?t ?q2))
 			(at start (AtConf ?r ?q1))
-      ;(at start (= 1 (Fuel ?r)))
+      ;(at start (= 1 (Energy ?r)))
 
       ; The following is legal!
-      ;(at start (>= 1 (Fuel ?r)))
-			(at start (<= 1 (Fuel ?r)))
+      ;(at start (>= 1 (Energy ?r)))
+			(at start (<= (* (ConsumptionRate ?r) ?duration) (Energy ?r)))
 
       ;(at start (Safe))
       ;(over all (Safe))
@@ -76,7 +78,7 @@
       (at end (not (UnsafeConf ?r ?q2)))
 		)
 		:effect (and
-      (at start (Decrease (Fuel ?r) 1))
+      (at start (Decrease (Energy ?r) (* (ConsumptionRate ?r) ?duration)))
 			(at start (not (AtConf ?r ?q1)))
       (at start (OnTraj ?r ?t))
       (at end (not (OnTraj ?r ?t)))

@@ -29,7 +29,10 @@ from pddlstream.utils import read, INF, get_file_path, randomize
 
 TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
-DIST_PER_TIME = 0.25
+DIST_PER_TIME = 0.25 # meters / sec
+MAX_CHARGE = 100 # percent
+CHARGE_PER_TIME = 20 # percent / sec
+BURN_PER_TIME = 25 # percent / sec
 
 def set_body_color(body, color):
     for link in get_all_links(body):
@@ -86,18 +89,10 @@ def get_motion_fn2(problem):
 
 def get_distance_fn():
     distance_fn = get_base_distance_fn(weights=WEIGHTS)
+    # TODO: encode different joint speeds
 
     def fn(traj):
         return traj.distance(distance_fn)
-    return fn
-
-def get_duration_fn():
-    distance_fn = get_distance_fn()
-
-    def fn(traj):
-        # TODO: encode different joint speeds
-        #return 1
-        return distance_fn(traj) / DIST_PER_TIME
     return fn
 
 #######################################################
@@ -120,7 +115,6 @@ def pddlstream_from_problem(problem, teleport=False):
 
     edges = set()
     init = [
-        Equal(('Speed',), DIST_PER_TIME),
     ]
     for name, conf in problem.initial_confs.items():
         init += [
@@ -128,7 +122,11 @@ def pddlstream_from_problem(problem, teleport=False):
             ('Robot', name),
             ('Conf', conf),
             ('AtConf', name, conf),
-            Equal(('Fuel', name), 0),
+            Equal(('Speed', name), DIST_PER_TIME),
+            Equal(('BatteryCapacity', name), MAX_CHARGE),
+            Equal(('RechargeRate', name), CHARGE_PER_TIME),
+            Equal(('ConsumptionRate', name), BURN_PER_TIME),
+            Equal(('Energy', name), 0),
         ]
 
     goal_literals = [
@@ -176,7 +174,6 @@ def pddlstream_from_problem(problem, teleport=False):
         'test-cfree-traj-traj': test_cfree_traj_traj,
         'compute-motion': from_fn(get_motion_fn2(problem)),
         'TrajDistance': get_distance_fn(),
-        'TrajDuration': get_duration_fn(),
     }
     #stream_map = 'debug'
 

@@ -20,6 +20,4 @@
 
   (:function (TrajDistance ?t)
      (Traj ?t))
-  (:function (TrajDuration ?t)
-             (Traj ?t))
 )
