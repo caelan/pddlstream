@@ -101,21 +101,22 @@
 ;  )
 
   (:derived (UnsafeConf ?r1 ?q1)
-      ; Declare failure if ever the same configuration is used
-      (and (Robot ?r1) (or
-        (exists (?r2 ?q2) (and (Robot ?r2) (not (= ?r1 ?r2)) (ConfConfCollision ?q1 ?q2)
-                               (AtConf ?r2 ?q2)))
-        (exists (?r2 ?t2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajConfCollision ?t2 ?q1)
-                               (OnTraj ?r2 ?t2)))
-      ))
+      (and (Robot ?r1) (exists (?r2) (and (Robot ?r2) (not (= ?r1 ?r2)) (or
+        (and (Conf ?q1) (AtConf ?r2 ?q1))
+        (exists (?q2) (and (ConfConfCollision ?q1 ?q2)
+                           (AtConf ?r2 ?q2)))
+        (exists (?t2) (and (TrajConfCollision ?t2 ?q1)
+                           (OnTraj ?r2 ?t2)))
+      ))))
   )
 
   (:derived (UnsafeTraj ?r1 ?t1)
-      (and (Robot ?r1) (or
-        (exists (?r2 ?q2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajConfCollision ?t1 ?q2)
-                               (AtConf ?r2 ?q2)))
-        (exists (?r2 ?t2) (and (Robot ?r2) (not (= ?r1 ?r2)) (TrajTrajCollision ?t1 ?t2)
-                               (OnTraj ?r2 ?t2)))
-      ))
+      (and (Robot ?r1) (exists (?r2) (and (Robot ?r2) (not (= ?r1 ?r2)) (or
+        (and (Traj ?t1) (OnTraj ?r2 ?t1))
+        (exists (?q2) (and (TrajConfCollision ?t1 ?q2)
+                           (AtConf ?r2 ?q2)))
+        (exists (?t2) (and (TrajTrajCollision ?t1 ?t2)
+                           (OnTraj ?r2 ?t2)))
+      ))))
   )
 )
