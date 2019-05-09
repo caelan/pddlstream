@@ -312,6 +312,7 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
 
 def main(display=True, teleport=False):
     parser = argparse.ArgumentParser()
+    parser.add_argument('-algorithm', default='incremental', help='Specifies the algorithm')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
@@ -349,17 +350,21 @@ def main(display=True, teleport=False):
     pr = cProfile.Profile()
     pr.enable()
     with LockRenderer(False):
-        solution = solve_incremental(pddlstream,
-                                     max_planner_time=max_planner_time,
-                                     success_cost=success_cost,
-                                     start_complexity=INF,
-                                     max_time=args.max_time,
-                                     verbose=True, debug=True)
-        # solution = solve_focused(pddlstream, stream_info=stream_info,
-        #                          max_planner_time=max_planner_time,
-        #                          success_cost=success_cost,
-        #                          max_time=args.max_time,
-        #                          verbose=True, debug=True)
+        if args.algorithm == 'incremental':
+            solution = solve_incremental(pddlstream,
+                                         max_planner_time=max_planner_time,
+                                         success_cost=success_cost,
+                                         start_complexity=INF,
+                                         max_time=args.max_time,
+                                         verbose=True, debug=True)
+        elif args.algorithm == 'focused':
+            solution = solve_focused(pddlstream, stream_info=stream_info,
+                                      max_planner_time=max_planner_time,
+                                      success_cost=success_cost,
+                                      max_time=args.max_time,
+                                      verbose=True, debug=True)
+        else:
+            raise ValueError(args.algorithm)
 
     print_solution(solution)
     plan, cost, evaluations = solution

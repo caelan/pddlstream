@@ -251,21 +251,22 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
 
 def task_from_domain_problem(domain, problem):
     # TODO: prune eval
-    domain_name, domain_requirements, types, type_dict, constants, \
-        predicates, predicate_dict, functions, actions, axioms = domain
+    #domain_name, domain_requirements, types, type_dict, constants, \
+    #    predicates, predicate_dict, functions, actions, axioms = domain
     task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
 
-    assert domain_name == task_domain_name
-    requirements = pddl.Requirements(sorted(set(domain_requirements.requirements +
+    assert domain.name == task_domain_name
+    requirements = pddl.Requirements(sorted(set(domain.requirements.requirements +
                                                 task_requirements.requirements)))
-    objects = constants + objects
+    objects = domain.constants + objects
     check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
 
-    task = pddl.Task(domain_name, task_name, requirements, types, objects,
-                     predicates, functions, init, goal, actions, axioms, use_metric)
+    task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
+                     domain.predicates, domain.functions, init, goal,
+                     domain.actions, domain.axioms, use_metric)
     normalize.normalize(task)
     # task.add_axiom
     return task

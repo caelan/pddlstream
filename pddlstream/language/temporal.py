@@ -350,16 +350,21 @@ def parse_temporal_domain(domain_pddl):
     delete_pddl_imports()
     sys.path.insert(0, TFD_TRANSLATE)
     import pddl
-    domain_name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = \
+    name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = \
         pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines()))
     sys.path.remove(TFD_TRANSLATE)
     delete_pddl_imports()
+    import pddl
     assert not actions
 
     simple_from_durative = simple_from_durative_action(durative_actions)
     simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
 
-    return TemporalDomain(domain_name, requirements, types, {ty.name for ty in types}, constants, predicates,
+    requirements = pddl.Requirements([])
+    types = [pddl.Type(ty.name, ty.basetype_name) for ty in types]
+    predicates = [pddl.Predicate(p.name, p.arguments) for p in predicates]
+
+    return TemporalDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
                           {p.name: p for p in predicates}, functions, simple_actions, axioms,
                           simple_from_durative, domain_pddl)
 
