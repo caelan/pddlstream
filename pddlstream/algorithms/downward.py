@@ -153,19 +153,14 @@ def parse_lisp(lisp):
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
-def parse_domain(domain_pddl):
+def parse_sequential_domain(domain_pddl):
     if isinstance(domain_pddl, Domain):
         return domain_pddl
-    try:
-       domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
-       # for action in domain.actions:
-       #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
-       #        action.cost.expression.value = scale_cost(action.cost.expression.value)
-       return domain
-    except AssertionError as e:
-        if str(e) == ':durative-actions':
-            return domain_pddl
-        raise e
+    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    # for action in domain.actions:
+    #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
+    #        action.cost.expression.value = scale_cost(action.cost.expression.value)
+    return domain
 
 def has_costs(domain):
     for action in domain.actions:

@@ -33,8 +33,8 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
     return True
 
 def solve_temporal(evaluations, goal_exp, domain, debug=False):
-    problem = get_problem_pddl(evaluations, goal_exp, domain)
-    pddl_plan, cost = solve_tfd(domain, problem, debug=debug)
+    problem = get_problem_pddl(evaluations, goal_exp, domain.pddl)
+    pddl_plan, cost = solve_tfd(domain.pddl, problem, debug=debug)
     # pddl_plan, cost = solve_tpshe(domain, problem)
     plan = obj_from_pddl_plan(pddl_plan)
     return plan, cost

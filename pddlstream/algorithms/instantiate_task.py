@@ -5,7 +5,7 @@ from collections import namedtuple, defaultdict, deque
 from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
-    TRANSLATE_OUTPUT, parse_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
+    TRANSLATE_OUTPUT, parse_sequential_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
     get_effects, get_conjunctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
@@ -260,7 +260,7 @@ def sas_from_pddl(task, debug=False):
 
 
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
-    domain = parse_domain(domain_pddl)
+    domain = parse_sequential_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task)

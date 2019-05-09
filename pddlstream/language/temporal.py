@@ -9,7 +9,7 @@ import sys
 
 from collections import namedtuple
 
-from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
+from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, parse_sequential_domain
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique
 
@@ -359,13 +359,17 @@ def parse_temporal_domain(domain_pddl):
     simple_from_durative = simple_from_durative_action(durative_actions)
     simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
 
-    print(simple_from_durative)
-    print(types)
-    print(predicates)
-
     return TemporalDomain(domain_name, requirements, types, {ty.name for ty in types}, constants, predicates,
                           {p.name: p for p in predicates}, functions, simple_actions, axioms,
                           simple_from_durative, domain_pddl)
+
+def parse_domain(domain_pddl):
+    try:
+        return parse_sequential_domain(domain_pddl)
+    except AssertionError as e:
+        if str(e) == ':durative-actions':
+            return parse_temporal_domain(domain_pddl)
+        raise e
 
 ##################################################
 
@@ -375,6 +379,11 @@ def delete_pddl_imports():
         if ('pddl' in name) and ('pddlstream' not in name):
             deleted[name] = sys.modules.pop(name)
     return deleted
+
+#def simple_action_stuff(name, parameters, condition, effects):
+#    import pddl
+#    parameters = [pddl.TypedObject(param.name, param.type) for param in parameters]
+#    return pddl.Action(name, parameters, len(parameters), condition, effects, None)
 
 def simple_from_durative_action(durative_actions):
     import pddl
