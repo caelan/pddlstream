@@ -12,19 +12,26 @@ import time
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, unreliable_ik_fn, \
-    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action, GRASP, update_state
+    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not, DurativeAction
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
+from pddlstream.language.temporal import get_end, compute_duration, retime_plan
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
-    sorted_str_from_list, implies
+    sorted_str_from_list, implies, inclusive_range
 
+DISTANCE_PER_TIME = 4.0
+
+def duration_fn(traj):
+    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
+    return distance / DISTANCE_PER_TIME
+
+##################################################
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial
@@ -79,6 +86,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
         'dist': distance_fn,
+        'duration': duration_fn,
 
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
     }
@@ -93,12 +101,6 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
 
 ##################################################
-
-def inclusive_range(start, stop, step=1):
-    sequence = list(np.arange(start, stop, step))
-    if sequence and (sequence[-1] == stop):
-        sequence.append(stop)
-    return sequence
 
 def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=0.002):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
@@ -148,20 +150,6 @@ def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=
                     time.sleep(sec_per_step)
     if display:
         user_input('Finish?')
-
-def get_end(action):
-    return action.start + action.duration
-
-def compute_duration(plan):
-    if not plan:
-        return 0
-    return max(map(get_end, plan))
-
-def retime_plan(plan, duration=1):
-    if plan is None:
-        return plan
-    return [DurativeAction(name, args, i*duration, duration)
-            for i, (name, args) in enumerate(plan)]
 
 ##################################################
 

@@ -4,32 +4,20 @@ from __future__ import print_function
 
 import argparse
 import cProfile
-import os
 import pstats
 import random
 import numpy as np
 
 from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, unreliable_ik_fn, \
-    draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, apply_action, GRASP
-from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.focused import solve_focused
+    get_region_test, plan_motion, PROBLEMS, get_random_seed, GROUND_NAME, GRASP
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Not, Exists
-from pddlstream.language.function import FunctionInfo
+from pddlstream.language.constants import And, PDDLProblem, print_solution
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
+from pddlstream.utils import read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies
-from examples.continuous_tamp.run import display_plan
+from examples.continuous_tamp.run import display_plan, duration_fn
 
-DISTANCE_PER_TIME = 4.0
-
-def duration_fn(traj):
-    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
-    return distance / DISTANCE_PER_TIME
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
     initial = tamp_problem.initial

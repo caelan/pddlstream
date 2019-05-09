@@ -32,6 +32,7 @@
   )
   (:functions
     (Dist ?q1 ?q2)
+    ; (Duration ?t)
   )
 
   (:action move

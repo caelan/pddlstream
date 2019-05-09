@@ -9,7 +9,7 @@ import sys
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
-from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time
+from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
@@ -321,6 +321,93 @@ def parse_plans(temp_path, plan_files):
 
 ##################################################
 
+def get_end(action):
+    return action.start + action.duration
+
+
+def compute_duration(plan):
+    if not plan:
+        return 0
+    return max(map(get_end, plan))
+
+
+def retime_plan(plan, duration=1):
+    if plan is None:
+        return plan
+    return [DurativeAction(name, args, i * duration, duration)
+            for i, (name, args) in enumerate(plan)]
+
+##################################################
+
+def delete_pddl_imports():
+    deleted = {}
+    for name in list(sys.modules):
+        if ('pddl' in name) and ('pddlstream' not in name):
+            deleted[name] = sys.modules.pop(name)
+    return deleted
+
+def sequential_from_temporal(domain_path, problem_path, best_plan):
+    if best_plan is None:
+        return best_plan
+
+    deleted = delete_pddl_imports()
+    tfd_translate = os.path.join(TFD_PATH, 'translate/')
+    sys.path.insert(0, tfd_translate)
+    import pddl
+    task = pddl.pddl_file.open(problem_path, domain_path)
+    sys.path.remove(tfd_translate)
+    delete_pddl_imports()
+    #for name in deleted:
+    #    sys.modules[name] = deleted[name]
+    import pddl
+
+    #print(task.function_administrator) # derived functions
+    #task.dump()
+    assert not task.actions
+
+    simple_actions = {}
+    for action in task.durative_actions:
+        parameters = [pddl.TypedObject(param.name, param.type) for param in action.parameters]
+        start_condition, over_condition, end_condition = action.condition
+        start_effects, end_effects = action.effects
+        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(action.parameters),
+                 start_condition, start_effects, None)
+        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(action.parameters),
+                 over_condition, [], None)
+        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(action.parameters),
+                 end_condition, end_effects, None)
+        simple_actions[action] = (start_action, over_action, end_action)
+
+    over_actions = []
+    state_changes = [(0, None)]
+    for action in best_plan:
+        durative_action = find_unique(lambda a: a.name == action.name, simple_actions)
+        start_action, over_action, end_action = simple_actions[durative_action]
+        start, end = action.start, get_end(action)
+        state_changes.append((start, start_action))
+        state_changes.append((end, end_action))
+        over_actions.append(((start, end), over_action))
+    state_changes = sorted(state_changes, key=lambda p: p[0])
+    print(state_changes)
+
+    sequence = []
+    for i in range(1, len(state_changes)):
+        # Technically should check the state change points as well
+        start_t, _ = state_changes[i-1]
+        end_t, end_action = state_changes[i]
+        for (t1, t2), over_action in over_actions:
+            if (t1 < end_t) and (start_t < t2): # Exclusive
+                sequence.append(over_action)
+        sequence.append(end_action)
+    print(sequence)
+
+    #import imp
+    #parser_path = os.path.join(TFD_PATH, 'translate/pddl/pddl_file.py')
+    #parser_module = imp.load_source('pddl', parser_path)
+    return sequence
+
+##################################################
+
 def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     if PLANNER == 'tfd':
         root, template = TFD_PATH, TFD_COMMAND
@@ -359,16 +446,6 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
         safe_rm_dir(TEMP_DIR)
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
-
-    #tfd_translate = os.path.join(TFD_PATH, 'translate/pddl/')
-    #sys.path.append(tfd_translate)
-    #import pddl_file
-    #task = pddl_file.open(domain_path, problem_path)
-    #task.dump()
-
-    #import imp
-    #parser_path = os.path.join(TFD_PATH, 'translate/pddl/pddl_file.py')
-    #parser_module = imp.load_source('open', parser_path)
-    #sys.path.remove(tfd_translate)
+    sequential_from_temporal(domain_path, problem_path, best_plan)
 
     return best_plan, best_makespan

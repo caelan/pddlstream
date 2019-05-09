@@ -11,6 +11,8 @@ import random
 from collections import defaultdict, deque
 from heapq import heappush, heappop
 
+import numpy as np
+
 INF = float('inf')
 
 try:
@@ -345,3 +347,10 @@ def is_64bits():
     import platform
     bit, _ = platform.architecture()
     return bit == '64bit'
+
+
+def inclusive_range(start, stop, step=1):
+    sequence = list(np.arange(start, stop, step))
+    if sequence and (sequence[-1] == stop):
+        sequence.append(stop)
+    return sequence

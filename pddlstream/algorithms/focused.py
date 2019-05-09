@@ -121,7 +121,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
         # TODO: just set unit effort for each stream beforehand
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
-            domain.axioms.extend(disabled_axioms)
+            if disabled_axioms:
+                domain.axioms.extend(disabled_axioms)
             combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
                                                          optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:

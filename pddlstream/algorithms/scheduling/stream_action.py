@@ -42,6 +42,8 @@ def get_stream_actions(results, unique_binding=False, effort_scale=1, max_effort
     return stream_actions, result_from_name
 
 def add_stream_actions(domain, results, **kwargs):
+    if not results:
+        return domain, {}
     stream_actions, result_from_name = get_stream_actions(results, **kwargs)
     output_objects = []
     for result in result_from_name.values():

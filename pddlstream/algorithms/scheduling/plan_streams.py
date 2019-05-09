@@ -16,6 +16,7 @@ from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
+from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
 from pddlstream.language.constants import And, Not, get_prefix, EQ
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, get_prefix, fact_from_evaluation
 from pddlstream.language.external import Result
@@ -137,8 +138,35 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
 ##################################################
 
+def solve_sequential(domain, stream_domain, applied_results, all_results,
+                     opt_evaluations, node_from_atom, goal_expression, effort_weight, debug=False, **kwargs):
+    problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
+    with Verbose():
+        instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
+    if instantiated is None:
+        return instantiated, None, INF
+
+    cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
+    if using_optimizers(applied_results):
+        add_optimizer_effects(instantiated, node_from_atom)
+        # TODO: reachieve=False when using optimizers or should add applied facts
+        instantiate_optimizer_axioms(instantiated, domain, all_results)
+    action_from_name = rename_instantiated_actions(instantiated)
+    with Verbose(debug):
+        sas_task = sas_from_instantiated(instantiated)
+        sas_task.metric = True
+
+    # TODO: apply renaming to hierarchy as well
+    # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
+    renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
+    if renamed_plan is None:
+        return instantiated, None, INF
+    action_plan = [action_from_name[name] for name, _ in renamed_plan]
+    cost = get_plan_cost(action_plan, cost_from_action)
+    return instantiated, action_plan, cost
+
 def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
-                 simultaneous=False, reachieve=True, debug=False, **kwargs):
+                 simultaneous=False, reachieve=True, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     #reachieve = reachieve and not using_optimizers(all_results)
@@ -155,31 +183,13 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
                                            max_effort=max_effort)
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
-    #if using_optimizers(all_results):
-    goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
-    problem = get_problem(opt_evaluations, goal_expression, stream_domain) # begin_metric
-    with Verbose():
-        instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
-    if instantiated is None:
-        return None, INF
-
-    cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
-    if using_optimizers(applied_results):
-        add_optimizer_effects(instantiated, node_from_atom)
-        # TODO: reachieve=False when using optimizers or should add applied facts
-        instantiate_optimizer_axioms(instantiated, domain, all_results)
-    action_from_name = rename_instantiated_actions(instantiated)
-    with Verbose(debug):
-        sas_task = sas_from_instantiated(instantiated)
-        sas_task.metric = True
-
-    # TODO: apply renaming to hierarchy as well
-    # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
-    if renamed_plan is None:
-        return None, INF
-    action_plan = [action_from_name[name] for name, _ in renamed_plan]
-    cost = get_plan_cost(action_plan, cost_from_action)
+    if UNIVERSAL_TO_CONDITIONAL or using_optimizers(all_results):
+        goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
+    instantiated, action_plan, cost = solve_sequential(domain, stream_domain, applied_results, all_results,
+                                                       opt_evaluations, node_from_atom, goal_expression,
+                                                       effort_weight, **kwargs)
+    if action_plan is None:
+        return action_plan, cost
 
     axiom_plans = recover_axioms_plans(instantiated, action_plan)
     # TODO: extract out the minimum set of conditional effects that are actually required

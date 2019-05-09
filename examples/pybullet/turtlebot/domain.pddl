@@ -1,4 +1,4 @@
-(define (domain rovers)
+(define (domain turtlebot)
   (:requirements :equality :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects :disjunctive-preconditions)
 	;(:types robot)
   (:constants r0 r1 ) ; - robot)
