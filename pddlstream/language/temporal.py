@@ -9,9 +9,9 @@ import sys
 
 from collections import namedtuple
 
-from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, parse_sequential_domain
+from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, parse_sequential_domain, get_conjunctive_parts
 from pddlstream.language.constants import DurativeAction
-from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique
+from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
@@ -342,24 +342,32 @@ def retime_plan(plan, duration=1):
 
 ##################################################
 
-TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
+TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
+                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
+
+SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
                                                'durative_actions', 'pddl'])
 
+
 def parse_temporal_domain(domain_pddl):
-    deleted = delete_pddl_imports()
+    prefixes = ['pddl', 'normalize']
+    deleted = delete_imports(prefixes)
     sys.path.insert(0, TFD_TRANSLATE)
     import pddl
-    name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = \
-        pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines()))
+    import normalize
+    temporal_domain = TemporalDomain(*pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines())))
+    name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = temporal_domain
+    fluents = normalize.get_fluent_predicates(temporal_domain)
+
     sys.path.remove(TFD_TRANSLATE)
-    delete_pddl_imports()
+    delete_imports(prefixes)
     sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
     import pddl_parser
     assert not actions
 
-    simple_from_durative = simple_from_durative_action(durative_actions)
+    simple_from_durative = simple_from_durative_action(durative_actions, fluents)
     simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
 
     requirements = pddl.Requirements([])
@@ -369,7 +377,7 @@ def parse_temporal_domain(domain_pddl):
     constants = convert_parameters(constants)
     axioms = list(map(convert_axiom, axioms))
 
-    return TemporalDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
+    return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
                           {p.name: p for p in predicates}, functions, simple_actions, axioms,
                           simple_from_durative, domain_pddl)
 
@@ -383,10 +391,10 @@ def parse_domain(domain_pddl):
 
 ##################################################
 
-def delete_pddl_imports():
+def delete_imports(prefixes=['pddl']):
     deleted = {}
     for name in list(sys.modules):
-        if ('pddl' in name) and ('pddlstream' not in name):
+        if not name.startswith('pddlstream') and any(name.startswith(prefix) for prefix in prefixes):
             deleted[name] = sys.modules.pop(name)
     return deleted
 
@@ -442,35 +450,39 @@ def convert_parameters(parameters):
     import pddl
     return [pddl.TypedObject(param.name, param.type) for param in parameters]
 
-def simple_from_durative_action(durative_actions):
+def simple_from_durative_action(durative_actions, fluents):
     import pddl
     simple_actions = {}
     for action in durative_actions:
-        # TODO: add static conditions to each action
         parameters = convert_parameters(action.parameters)
-        start_condition, over_condition, end_condition = map(convert_condition, action.condition)
-        start_effects, end_effects = map(convert_effects, action.effects)
-        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(parameters),
-                                   start_condition, start_effects, None)
-        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(parameters),
-                                  over_condition, [], None)
-        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(parameters),
-                                 end_condition, end_effects, None)
-        simple_actions[action] = (start_action, over_action, end_action)
+        conditions = list(map(convert_condition, action.condition))
+        start_effects, end_effects = action.effects
+        over_effects = []
+        effects = list(map(convert_effects, [start_effects, over_effects, end_effects]))
+
+        static_condition = pddl.Conjunction(list({literal for condition in conditions
+                                                  for literal in get_conjunctive_parts(condition)
+                                                  if literal.predicate not in fluents}))
+        actions = []
+        for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
+            actions.append(pddl.Action('{}-{}'.format(action.name, i), parameters, len(parameters),
+                                       pddl.Conjunction([static_condition, condition]).simplified(), effect, None))
+            #actions[-1].dump()
+        simple_actions[action] = actions
     return simple_actions
 
 def sequential_from_temporal(domain_path, problem_path, best_plan):
     if best_plan is None:
         return best_plan
 
-    delete_pddl_imports()
+    deleted = delete_imports()
     tfd_translate = os.path.join(TFD_PATH, 'translate/')
     sys.path.insert(0, tfd_translate)
     import pddl
     task = pddl.pddl_file.open(problem_path, domain_path)
     sys.path.remove(tfd_translate)
-    delete_pddl_imports()
-    #sys.modules.update(deleted)
+    delete_imports()
+    sys.modules.update(deleted)
 
     #print(task.function_administrator) # derived functions
     #task.dump()
