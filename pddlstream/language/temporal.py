@@ -347,14 +347,16 @@ TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 
                                                'durative_actions', 'pddl'])
 
 def parse_temporal_domain(domain_pddl):
-    delete_pddl_imports()
+    deleted = delete_pddl_imports()
     sys.path.insert(0, TFD_TRANSLATE)
     import pddl
     name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = \
         pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines()))
     sys.path.remove(TFD_TRANSLATE)
     delete_pddl_imports()
+    sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
+    import pddl_parser
     assert not actions
 
     simple_from_durative = simple_from_durative_action(durative_actions)
@@ -362,7 +364,10 @@ def parse_temporal_domain(domain_pddl):
 
     requirements = pddl.Requirements([])
     types = [pddl.Type(ty.name, ty.basetype_name) for ty in types]
+    pddl_parser.parsing_functions.set_supertypes(types)
     predicates = [pddl.Predicate(p.name, p.arguments) for p in predicates]
+    constants = convert_parameters(constants)
+    axioms = list(map(convert_axiom, axioms))
 
     return TemporalDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
                           {p.name: p for p in predicates}, functions, simple_actions, axioms,
@@ -390,18 +395,66 @@ def delete_pddl_imports():
 #    parameters = [pddl.TypedObject(param.name, param.type) for param in parameters]
 #    return pddl.Action(name, parameters, len(parameters), condition, effects, None)
 
+def convert_args(args):
+    return [var.name for var in args]
+
+def convert_condition(condition):
+    import pddl
+    class_name = condition.__class__.__name__
+    if class_name in ('Truth', 'FunctionComparison'):
+        # TODO: currently ignoring numeric conditions
+        return pddl.Truth()
+    elif class_name == 'Atom':
+        return pddl.Atom(condition.predicate, convert_args(condition.args))
+    elif class_name == 'NegatedAtom':
+        return pddl.NegatedAtom(condition.predicate, convert_args(condition.args))
+    elif class_name == 'Conjunction':
+        return pddl.conditions.Conjunction(list(map(convert_condition, condition.parts))).simplified()
+    elif class_name == 'Disjunction':
+        return pddl.Disjunction(list(map(convert_condition, condition.parts))).simplified()
+    elif class_name == 'ExistentialCondition':
+        return pddl.ExistentialCondition(convert_parameters(condition.parameters),
+                                         list(map(convert_condition, condition.parts))).simplified()
+    raise NotImplementedError(class_name)
+
+def convert_effects(effects):
+    import pddl
+    for effect in effects:
+        class_name = effect.__class__.__name__
+        if class_name == 'Effect':
+            peffect_name = effect.peffect.__class__.__name__
+            if peffect_name in ('Increase', 'Decrease'):
+                # TODO: currently ignoring numeric conditions
+                continue
+            yield pddl.Effect(convert_parameters(effect.parameters),
+                              pddl.Conjunction(list(map(convert_condition, effect.condition))),
+                              convert_condition(effect.peffect))
+        else:
+            raise NotImplementedError(class_name)
+
+def convert_axiom(axiom):
+    import pddl
+    parameters = convert_parameters(axiom.parameters)
+    return pddl.Axiom(axiom.name, parameters, len(parameters),
+                      convert_condition(axiom.condition))
+
+def convert_parameters(parameters):
+    import pddl
+    return [pddl.TypedObject(param.name, param.type) for param in parameters]
+
 def simple_from_durative_action(durative_actions):
     import pddl
     simple_actions = {}
     for action in durative_actions:
-        parameters = [pddl.TypedObject(param.name, param.type) for param in action.parameters]
-        start_condition, over_condition, end_condition = action.condition
-        start_effects, end_effects = action.effects
-        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(action.parameters),
+        # TODO: add static conditions to each action
+        parameters = convert_parameters(action.parameters)
+        start_condition, over_condition, end_condition = map(convert_condition, action.condition)
+        start_effects, end_effects = map(convert_effects, action.effects)
+        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(parameters),
                                    start_condition, start_effects, None)
-        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(action.parameters),
+        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(parameters),
                                   over_condition, [], None)
-        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(action.parameters),
+        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(parameters),
                                  end_condition, end_effects, None)
         simple_actions[action] = (start_action, over_action, end_action)
     return simple_actions
