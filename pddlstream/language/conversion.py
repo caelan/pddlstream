@@ -195,6 +195,12 @@ def value_from_obj_plan(obj_plan):
             if isinstance(new_outputs, collections.Sequence):
                 new_outputs = params_from_objects(new_outputs) # values_from_objects
             new_action = (name, new_inputs, new_outputs)
+        elif isinstance(action, DurativeAction):
+            name, args, start, duration = action
+            name, index = name[:-2], int(name[-1])
+            if index != 0:
+                continue
+            new_action = DurativeAction(name, tuple(map(param_from_object, args)), start, duration)
         else:
             new_action = transform_action_args(action, param_from_object) # values_from_objects
         value_plan.append(new_action)
@@ -206,8 +212,8 @@ def value_from_obj_plan(obj_plan):
 #    pass
 
 def revert_solution(obj_plan, cost, evaluations):
-    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
     plan = value_from_obj_plan(obj_plan)
+    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
     return Solution(plan, cost, init)
 
 #def opt_obj_from_value(value):

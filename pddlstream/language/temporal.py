@@ -450,6 +450,8 @@ def convert_parameters(parameters):
     import pddl
     return [pddl.TypedObject(param.name, param.type) for param in parameters]
 
+SIMPLE_TEMPLATE = '{}-{}'
+
 def simple_from_durative_action(durative_actions, fluents):
     import pddl
     simple_actions = {}
@@ -465,56 +467,40 @@ def simple_from_durative_action(durative_actions, fluents):
                                                   if literal.predicate not in fluents}))
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
-            actions.append(pddl.Action('{}-{}'.format(action.name, i), parameters, len(parameters),
+            actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
                                        pddl.Conjunction([static_condition, condition]).simplified(), effect, None))
             #actions[-1].dump()
         simple_actions[action] = actions
     return simple_actions
 
-def sequential_from_temporal(domain_path, problem_path, best_plan):
-    if best_plan is None:
-        return best_plan
-
-    deleted = delete_imports()
-    tfd_translate = os.path.join(TFD_PATH, 'translate/')
-    sys.path.insert(0, tfd_translate)
-    import pddl
-    task = pddl.pddl_file.open(problem_path, domain_path)
-    sys.path.remove(tfd_translate)
-    delete_imports()
-    sys.modules.update(deleted)
-
-    #print(task.function_administrator) # derived functions
-    #task.dump()
-    assert not task.actions
-    simple_actions = simple_from_durative_action(task.durative_actions)
-
+def sequential_from_temporal(plan):
+    if plan is None:
+        return plan
     over_actions = []
-    state_changes = [(0, None)]
-    for action in best_plan:
-        durative_action = find_unique(lambda a: a.name == action.name, simple_actions)
-        start_action, over_action, end_action = simple_actions[durative_action]
-        start, end = action.start, get_end(action)
-        state_changes.append((start, start_action))
-        state_changes.append((end, end_action))
-        over_actions.append(((start, end), over_action))
-    state_changes = sorted(state_changes, key=lambda p: p[0])
-    print(state_changes)
+    state_changes = [DurativeAction(None, [], 0, 0)]
+    for durative_action in plan:
+        args = durative_action.args
+        start, end = durative_action.start, get_end(durative_action)
+        start_action, over_action, end_action = [SIMPLE_TEMPLATE.format(durative_action.name, i) for i in range(3)]
+        state_changes.append(DurativeAction(start_action, args, start, end - start))
+        #state_changes.append(DurativeAction(start_action, args, start, 0))
+        over_actions.append(DurativeAction(over_action, args, start, end - start))
+        state_changes.append(DurativeAction(end_action, args, end, 0))
+    state_changes = sorted(state_changes, key=lambda a: a.start)
 
     sequence = []
     for i in range(1, len(state_changes)):
         # Technically should check the state change points as well
-        start_t, _ = state_changes[i-1]
-        end_t, end_action = state_changes[i]
-        for (t1, t2), over_action in over_actions:
-            if (t1 < end_t) and (start_t < t2): # Exclusive
+        start_action = state_changes[i-1]
+        end_action = state_changes[i]
+        for over_action in over_actions:
+            if (over_action.start < end_action.start) and (start_action.start < get_end(over_action)): # Exclusive
                 sequence.append(over_action)
         sequence.append(end_action)
-    print(sequence)
+    for i, action in enumerate(sequence):
+        print(i, action)
 
-    #import imp
-    #parser_path = os.path.join(TFD_PATH, 'translate/pddl/pddl_file.py')
-    #parser_module = imp.load_source('pddl', parser_path)
+
     return sequence
 
 ##################################################
@@ -557,6 +543,6 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
         safe_rm_dir(TEMP_DIR)
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
-    sequential_from_temporal(domain_path, problem_path, best_plan)
 
-    return best_plan, best_makespan
+    sequential_plan = sequential_from_temporal(best_plan)
+    return sequential_plan, best_makespan
