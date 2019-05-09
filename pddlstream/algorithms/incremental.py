@@ -32,13 +32,16 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
         instantiator.push_instance(instance)
     return True
 
+def solve_temporal(evaluations, goal_exp, domain, debug=False):
+    problem = get_problem_pddl(evaluations, goal_exp, domain)
+    pddl_plan, cost = solve_tfd(domain, problem, debug=debug)
+    # pddl_plan, cost = solve_tpshe(domain, problem)
+    plan = obj_from_pddl_plan(pddl_plan)
+    return plan, cost
+
 def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
     if not isinstance(domain, Domain):
-        problem = get_problem_pddl(evaluations, goal_exp, domain)
-        pddl_plan, cost = solve_tfd(domain, problem, debug=debug)
-        #pddl_plan, cost = solve_tpshe(domain, problem)
-        plan = obj_from_pddl_plan(pddl_plan)
-        return plan, cost
+        return solve_temporal(evaluations, goal_exp, domain, debug=debug)
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     sas_task = sas_from_pddl(task, debug=debug)

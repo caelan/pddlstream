@@ -8,7 +8,7 @@ import pstats
 import numpy as np
 
 from examples.continuous_tamp.primitives import get_value_at_time
-from examples.continuous_tamp.run import compute_duration, inclusive_range, get_end
+from pddlstream.language.temporal import get_end, compute_duration
 from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
     point_from_conf, BASE_RESOLUTIONS, get_turtle_aabb, get_motion_fn, create_vertices
 from examples.pybullet.pr2_belief.problems import BeliefState
@@ -21,18 +21,24 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW
 
 from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.focused import solve_focused
+from pddlstream.language.stream import StreamInfo
+from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
 from pddlstream.language.generator import from_test, from_fn, negate_test
-from pddlstream.utils import read, INF, get_file_path, randomize
+from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range
 
 # TODO: Kiva robot and Amazon shelves
 
 TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
 DIST_PER_TIME = 0.25 # meters / sec
-MAX_CHARGE = 100 # percent
+MAX_ENERGY = 100 # percent
 CHARGE_PER_TIME = 20 # percent / sec
-BURN_PER_TIME = 25 # percent / sec
+#BURN_PER_TIME = 25 # percent / sec
+BURN_PER_TIME = 0
+#INITIAL_ENERGY = 0
+INITIAL_ENERGY = MAX_ENERGY
 
 def set_body_color(body, color):
     for link in get_all_links(body):
@@ -123,10 +129,10 @@ def pddlstream_from_problem(problem, teleport=False):
             ('Conf', conf),
             ('AtConf', name, conf),
             Equal(('Speed', name), DIST_PER_TIME),
-            Equal(('BatteryCapacity', name), MAX_CHARGE),
+            Equal(('BatteryCapacity', name), MAX_ENERGY),
             Equal(('RechargeRate', name), CHARGE_PER_TIME),
             Equal(('ConsumptionRate', name), BURN_PER_TIME),
-            Equal(('Energy', name), 0),
+            Equal(('Energy', name), INITIAL_ENERGY),
         ]
 
     goal_literals = [
@@ -333,6 +339,13 @@ def main(display=True, teleport=False):
     success_cost = 0 if args.optimal else INF
     max_planner_time = 10
 
+    stream_info = {
+        'compute-motion': StreamInfo(eager=True, p_success=0),
+        'ConfConfCollision': FunctionInfo(),
+        'TrajConfCollision': FunctionInfo(),
+        'TrajTrajCollision': FunctionInfo(),
+    }
+
     pr = cProfile.Profile()
     pr.enable()
     with LockRenderer(False):
@@ -342,6 +355,11 @@ def main(display=True, teleport=False):
                                      start_complexity=INF,
                                      max_time=args.max_time,
                                      verbose=True, debug=True)
+        # solution = solve_focused(pddlstream, stream_info=stream_info,
+        #                          max_planner_time=max_planner_time,
+        #                          success_cost=success_cost,
+        #                          max_time=args.max_time,
+        #                          verbose=True, debug=True)
 
     print_solution(solution)
     plan, cost, evaluations = solution

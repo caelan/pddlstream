@@ -7,6 +7,8 @@ import subprocess
 import time
 import sys
 
+from collections import namedtuple
+
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique
@@ -34,6 +36,7 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
 MAX_TIME = 20
 PLAN_FILE = 'plan'
+TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/')
 
 # TODO: the search produces unsound plans when it prints the full state-space
 # TODO: still occasionally does this with the current settings
@@ -339,6 +342,33 @@ def retime_plan(plan, duration=1):
 
 ##################################################
 
+TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
+                                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
+                                               'durative_actions', 'pddl'])
+
+def parse_temporal_domain(domain_pddl):
+    delete_pddl_imports()
+    sys.path.insert(0, TFD_TRANSLATE)
+    import pddl
+    domain_name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = \
+        pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines()))
+    sys.path.remove(TFD_TRANSLATE)
+    delete_pddl_imports()
+    assert not actions
+
+    simple_from_durative = simple_from_durative_action(durative_actions)
+    simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
+
+    print(simple_from_durative)
+    print(types)
+    print(predicates)
+
+    return TemporalDomain(domain_name, requirements, types, {ty.name for ty in types}, constants, predicates,
+                          {p.name: p for p in predicates}, functions, simple_actions, axioms,
+                          simple_from_durative, domain_pddl)
+
+##################################################
+
 def delete_pddl_imports():
     deleted = {}
     for name in list(sys.modules):
@@ -346,37 +376,39 @@ def delete_pddl_imports():
             deleted[name] = sys.modules.pop(name)
     return deleted
 
+def simple_from_durative_action(durative_actions):
+    import pddl
+    simple_actions = {}
+    for action in durative_actions:
+        parameters = [pddl.TypedObject(param.name, param.type) for param in action.parameters]
+        start_condition, over_condition, end_condition = action.condition
+        start_effects, end_effects = action.effects
+        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(action.parameters),
+                                   start_condition, start_effects, None)
+        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(action.parameters),
+                                  over_condition, [], None)
+        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(action.parameters),
+                                 end_condition, end_effects, None)
+        simple_actions[action] = (start_action, over_action, end_action)
+    return simple_actions
+
 def sequential_from_temporal(domain_path, problem_path, best_plan):
     if best_plan is None:
         return best_plan
 
-    deleted = delete_pddl_imports()
+    delete_pddl_imports()
     tfd_translate = os.path.join(TFD_PATH, 'translate/')
     sys.path.insert(0, tfd_translate)
     import pddl
     task = pddl.pddl_file.open(problem_path, domain_path)
     sys.path.remove(tfd_translate)
     delete_pddl_imports()
-    #for name in deleted:
-    #    sys.modules[name] = deleted[name]
-    import pddl
+    #sys.modules.update(deleted)
 
     #print(task.function_administrator) # derived functions
     #task.dump()
     assert not task.actions
-
-    simple_actions = {}
-    for action in task.durative_actions:
-        parameters = [pddl.TypedObject(param.name, param.type) for param in action.parameters]
-        start_condition, over_condition, end_condition = action.condition
-        start_effects, end_effects = action.effects
-        start_action = pddl.Action('{}-0'.format(action.name), parameters, len(action.parameters),
-                 start_condition, start_effects, None)
-        over_action = pddl.Action('{}-1'.format(action.name), parameters, len(action.parameters),
-                 over_condition, [], None)
-        end_action = pddl.Action('{}-2'.format(action.name), parameters, len(action.parameters),
-                 end_condition, end_effects, None)
-        simple_actions[action] = (start_action, over_action, end_action)
+    simple_actions = simple_from_durative_action(task.durative_actions)
 
     over_actions = []
     state_changes = [(0, None)]

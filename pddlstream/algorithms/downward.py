@@ -149,6 +149,7 @@ set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
 def parse_lisp(lisp):
     return pddl_parser.lisp_parser.parse_nested_list(lisp.splitlines())
 
+# TODO: dynamically generate type_dict and predicate_dict
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
 
