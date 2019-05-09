@@ -148,9 +148,10 @@ def solve_stuff(domain, stream_domain, applied_results, all_results,
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)
     with Verbose():
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
+    if instantiated is None:
+        return instantiated, None, INF
     plan, makespan = solve_temporal(opt_evaluations, goal_expression, stream_domain, debug=debug)
-
-    return instantiated, None, makespan
+    return instantiated, plan, makespan
 
 def solve_sequential(domain, stream_domain, applied_results, all_results,
                      opt_evaluations, node_from_atom, goal_expression, effort_weight, debug=False, **kwargs):

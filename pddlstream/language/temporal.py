@@ -427,6 +427,7 @@ def convert_condition(condition):
 
 def convert_effects(effects):
     import pddl
+    new_effects = []
     for effect in effects:
         class_name = effect.__class__.__name__
         if class_name == 'Effect':
@@ -434,11 +435,12 @@ def convert_effects(effects):
             if peffect_name in ('Increase', 'Decrease'):
                 # TODO: currently ignoring numeric conditions
                 continue
-            yield pddl.Effect(convert_parameters(effect.parameters),
+            new_effects.append(pddl.Effect(convert_parameters(effect.parameters),
                               pddl.Conjunction(list(map(convert_condition, effect.condition))),
-                              convert_condition(effect.peffect))
+                              convert_condition(effect.peffect)))
         else:
             raise NotImplementedError(class_name)
+    return new_effects
 
 def convert_axiom(axiom):
     import pddl
@@ -473,7 +475,7 @@ def simple_from_durative_action(durative_actions, fluents):
         simple_actions[action] = actions
     return simple_actions
 
-def sequential_from_temporal(plan):
+def sequential_from_temporal_plan(plan):
     if plan is None:
         return plan
     over_actions = []
@@ -497,10 +499,6 @@ def sequential_from_temporal(plan):
             if (over_action.start < end_action.start) and (start_action.start < get_end(over_action)): # Exclusive
                 sequence.append(over_action)
         sequence.append(end_action)
-    for i, action in enumerate(sequence):
-        print(i, action)
-
-
     return sequence
 
 ##################################################
@@ -544,5 +542,5 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
 
-    sequential_plan = sequential_from_temporal(best_plan)
+    sequential_plan = sequential_from_temporal_plan(best_plan)
     return sequential_plan, best_makespan
