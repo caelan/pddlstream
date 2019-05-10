@@ -61,10 +61,17 @@ def linear_trajectory(conf1, conf2):
     return create_trajectory(robot, joints, path)
 
 def get_test_cfree_traj_traj(problem):
-    robot1, robot2 = list(map(problem.get_body, problem.initial_confs))
+    if len(problem.robots) == 0:
+        robot1, robot2 = None, None
+    elif len(problem.robots) == 1:
+        robot1, robot2 = problem.get_body(problem.robots[0]), None
+    else:
+        robot1, robot2 = list(map(problem.get_body, problem.robots))
 
     def test(traj1, traj2):
         if not problem.collisions:
+            return True
+        if (robot1 is None) or (robot2 is None):
             return True
         if traj1 is traj2:
             return False
@@ -251,6 +258,7 @@ def problem_fn(n_robots=2, collisions=True):
     assert n_robots <= len(initial_confs)
 
     body_from_name = {}
+    #robots = ['green']
     robots = ['green', 'blue']
     with LockRenderer():
         for i, name in enumerate(robots):
@@ -342,9 +350,10 @@ def main(display=True, teleport=False):
 
     stream_info = {
         'compute-motion': StreamInfo(eager=True, p_success=0),
-        'ConfConfCollision': FunctionInfo(),
-        'TrajConfCollision': FunctionInfo(),
-        'TrajTrajCollision': FunctionInfo(),
+        'ConfConfCollision': FunctionInfo(effort=0.1),
+        'TrajConfCollision': FunctionInfo(effort=1),
+        'TrajTrajCollision': FunctionInfo(effort=10),
+        'TrajDistance': FunctionInfo(eager=True), # Need to eagerly evaluate otherwise 0 duration (failure)
     }
 
     pr = cProfile.Profile()
@@ -362,7 +371,8 @@ def main(display=True, teleport=False):
                                       max_planner_time=max_planner_time,
                                       success_cost=success_cost,
                                       max_time=args.max_time,
-                                      verbose=True, debug=True)
+                                      max_skeletons=None, bind=True, # TODO: don't greedily quit
+                                      verbose=True, debug=False)
         else:
             raise ValueError(args.algorithm)
 

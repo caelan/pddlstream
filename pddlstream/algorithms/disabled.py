@@ -2,7 +2,7 @@ from pddlstream.algorithms.common import add_facts, add_certified, is_instance_r
 from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.language.constants import is_plan
+from pddlstream.language.conversion import is_plan, transform_action_args
 from pddlstream.utils import INF, safe_zip, apply_mapping, flatten
 
 # TODO: disabled isn't quite like complexity. Stream instances below the complexity threshold might be called again
@@ -24,7 +24,8 @@ def update_cost(cost, opt_result, result):
     return cost + (result.value - opt_result.value)
 
 def bind_action_plan(action_plan, mapping):
-    return [(name, apply_mapping(args, mapping)) for name, args in action_plan]
+    return [transform_action_args(action, lambda o: mapping.get(o, o))
+            for action in action_plan]
 
 def get_free_objects(stream_plan):
     return set(flatten(result.output_objects for result in stream_plan

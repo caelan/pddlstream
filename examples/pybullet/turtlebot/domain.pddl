@@ -1,7 +1,7 @@
 (define (domain turtlebot)
   (:requirements :equality :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects :disjunctive-preconditions)
 	;(:types robot)
-  (:constants r0 r1 ) ; - robot)
+  ;(:constants green blue) ; - robot)
   (:predicates
     (Robot ?r)
     (Conf ?q)
@@ -29,8 +29,8 @@
     (ConsumptionRate ?r)
     (BatteryCapacity ?r)
   )
+  ; # TODO: TFD appears to support :action as well
 
-  ; TODO: can use ?duration as a function
   ; (+ f1 f2), (- f1 f2), (* f1 f2), (/ f1 f2)
   (:durative-action recharge
 		:parameters (?r ?q)

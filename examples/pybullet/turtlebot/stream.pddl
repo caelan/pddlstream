@@ -18,12 +18,12 @@
 ;    :domain (and (Traj ?t1) (Traj ?t2))
 ;    :certified (CFreeTrajTraj ?t1 ?t2))
 
-;  (:predicate (ConfConfCollision ?q1 ?q2)
-;     (and (Conf ?q1) (Conf ?q2)))
-;  (:predicate (TrajConfCollision ?t1 ?q2)
-;     (and (Traj ?t1) (Conf ?q2)))
-;  (:predicate (TrajTrajCollision ?t1 ?t2)
-;     (and (Traj ?t1) (Traj ?t2)))
+  (:predicate (ConfConfCollision ?q1 ?q2)
+     (and (Conf ?q1) (Conf ?q2)))
+  (:predicate (TrajConfCollision ?t1 ?q2)
+     (and (Traj ?t1) (Conf ?q2)))
+  (:predicate (TrajTrajCollision ?t1 ?t2)
+     (and (Traj ?t1) (Traj ?t2)))
 
   (:function (TrajDistance ?t)
      (Traj ?t))
