@@ -154,6 +154,8 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
         return instantiated, None, None, INF
     problem = get_problem_pddl(opt_evaluations, goal_expression, domain.pddl)
     pddl_plan, makespan = solve_tfd(domain.pddl, problem, debug=debug)
+    if pddl_plan is None:
+        return instantiated, None, pddl_plan, makespan
     instance_from_action_args = defaultdict(list)
     for instance in instantiated.actions:
         tokens = instance.name.strip('()').split(' ')

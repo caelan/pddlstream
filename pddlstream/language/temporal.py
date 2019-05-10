@@ -34,10 +34,13 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
 # /home/caelan/Programs/VAL
 
-TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+#TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
+#TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/temporal-FD'
 MAX_TIME = 20
 PLAN_FILE = 'plan'
-TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/')
+#TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/') # tfd & temporal-FD
+TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
 
 # TODO: the search produces unsound plans when it prints the full state-space
 # TODO: still occasionally does this with the current settings
@@ -538,8 +541,8 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE))
     print('Plans:', plan_files)
     best_plan, best_makespan = parse_plans(temp_path, plan_files)
-    if not debug:
-        safe_rm_dir(TEMP_DIR)
+    #if not debug:
+    #    safe_rm_dir(TEMP_DIR)
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
 
