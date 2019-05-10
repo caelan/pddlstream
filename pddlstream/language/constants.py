@@ -122,7 +122,7 @@ def get_length(plan):
 
 
 def str_from_action(action):
-    name, args = action
+    name, args = action[:2]
     return '{}{}'.format(name, str_from_object(tuple(args)))
 
 

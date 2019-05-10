@@ -9,7 +9,8 @@ import sys
 
 from collections import namedtuple
 
-from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, parse_sequential_domain, get_conjunctive_parts
+from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
+    parse_sequential_domain, get_conjunctive_parts
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
@@ -417,17 +418,17 @@ def convert_condition(condition):
     elif class_name == 'NegatedAtom':
         return pddl.NegatedAtom(condition.predicate, convert_args(condition.args))
     elif class_name == 'Conjunction':
-        return pddl.conditions.Conjunction(list(map(convert_condition, condition.parts))).simplified()
+        return pddl.conditions.Conjunction(list(map(convert_condition, condition.parts)))
     elif class_name == 'Disjunction':
-        return pddl.Disjunction(list(map(convert_condition, condition.parts))).simplified()
+        return pddl.Disjunction(list(map(convert_condition, condition.parts)))
     elif class_name == 'ExistentialCondition':
         return pddl.ExistentialCondition(convert_parameters(condition.parameters),
-                                         list(map(convert_condition, condition.parts))).simplified()
+                                         list(map(convert_condition, condition.parts)))
     raise NotImplementedError(class_name)
 
 def convert_effects(effects):
     import pddl
-    new_effects = []
+    new_effects = make_effects([('_noop',)]) # To ensure the action has at least one effect
     for effect in effects:
         class_name = effect.__class__.__name__
         if class_name == 'Effect':
@@ -436,8 +437,8 @@ def convert_effects(effects):
                 # TODO: currently ignoring numeric conditions
                 continue
             new_effects.append(pddl.Effect(convert_parameters(effect.parameters),
-                              pddl.Conjunction(list(map(convert_condition, effect.condition))),
-                              convert_condition(effect.peffect)))
+                                           pddl.Conjunction(list(map(convert_condition, effect.condition))).simplified(),
+                                           convert_condition(effect.peffect)))
         else:
             raise NotImplementedError(class_name)
     return new_effects
@@ -446,7 +447,7 @@ def convert_axiom(axiom):
     import pddl
     parameters = convert_parameters(axiom.parameters)
     return pddl.Axiom(axiom.name, parameters, len(parameters),
-                      convert_condition(axiom.condition))
+                      convert_condition(axiom.condition).simplified())
 
 def convert_parameters(parameters):
     import pddl
@@ -465,7 +466,7 @@ def simple_from_durative_action(durative_actions, fluents):
         effects = list(map(convert_effects, [start_effects, over_effects, end_effects]))
 
         static_condition = pddl.Conjunction(list({literal for condition in conditions
-                                                  for literal in get_conjunctive_parts(condition)
+                                                  for literal in get_conjunctive_parts(condition.simplified())
                                                   if literal.predicate not in fluents}))
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):

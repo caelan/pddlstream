@@ -176,6 +176,6 @@ def separate_plan(combined_plan, action_info=None, terminate=False, stream_only=
         else:
             action_plan.append(operator)
             if action_info is not None:
-                name, _ = operator
+                name = operator[0]
                 terminated |= action_info[name].terminal
     return stream_plan, action_plan
