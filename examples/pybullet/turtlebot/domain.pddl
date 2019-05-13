@@ -1,8 +1,9 @@
 (define (domain turtlebot)
   (:requirements :equality :typing :durative-actions :numeric-fluents :derived-predicates :conditional-effects :disjunctive-preconditions)
-	;(:types robot)
-  ;(:constants green blue) ; - robot)
+	; (:types robot)
+  (:constants green blue) ; - robot)
   (:predicates
+    ; TODO: VAL doesn't seem to work with some arithmatic expressions
     (Robot ?r)
     (Conf ?q)
     (Traj ?t)

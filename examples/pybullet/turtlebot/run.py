@@ -105,6 +105,7 @@ def get_distance_fn():
     # TODO: encode different joint speeds
 
     def fn(traj):
+        #return 1
         return traj.distance(distance_fn)
     return fn
 
@@ -350,9 +351,9 @@ def main(display=True, teleport=False):
 
     stream_info = {
         'compute-motion': StreamInfo(eager=True, p_success=0),
-        'ConfConfCollision': FunctionInfo(effort=0.1),
-        'TrajConfCollision': FunctionInfo(effort=1),
-        'TrajTrajCollision': FunctionInfo(effort=10),
+        'ConfConfCollision': FunctionInfo(p_success=1, overhead=0.1),
+        'TrajConfCollision': FunctionInfo(p_success=1, overhead=1),
+        'TrajTrajCollision': FunctionInfo(p_success=1, overhead=10),
         'TrajDistance': FunctionInfo(eager=True), # Need to eagerly evaluate otherwise 0 duration (failure)
     }
 
@@ -365,13 +366,13 @@ def main(display=True, teleport=False):
                                          success_cost=success_cost,
                                          start_complexity=INF,
                                          max_time=args.max_time,
-                                         verbose=True, debug=True)
+                                         verbose=True, debug=False)
         elif args.algorithm == 'focused':
             solution = solve_focused(pddlstream, stream_info=stream_info,
                                       max_planner_time=max_planner_time,
                                       success_cost=success_cost,
                                       max_time=args.max_time,
-                                      max_skeletons=None, bind=True, # TODO: don't greedily quit
+                                      max_skeletons=None, bind=False, # TODO: don't greedily quit
                                       verbose=True, debug=False)
         else:
             raise ValueError(args.algorithm)

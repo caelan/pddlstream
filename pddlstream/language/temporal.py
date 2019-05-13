@@ -34,13 +34,13 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
 # /home/caelan/Programs/VAL
 
-#TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
-TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
+TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+#TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/temporal-FD'
 MAX_TIME = 20
 PLAN_FILE = 'plan'
-#TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/') # tfd & temporal-FD
-TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
+TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/') # tfd & temporal-FD
+#TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
 
 # TODO: the search produces unsound plans when it prints the full state-space
 # TODO: still occasionally does this with the current settings
@@ -50,21 +50,23 @@ TFD_OPTIONS = {
     't': MAX_TIME,     # success timeout
     'T': MAX_TIME,     # failure timeout
     'g': False,   # greedy search
-    'l': False,    # disable lazy evaluation
+    'l': True,    # disable lazy evaluation
     'v': True,    # disable verbose
     'y+Y': False, # CEA heuristic
     'x+X': True,  # makespan heuristic
     'G': 't',     # g-value evaluation (using m finds incorrect plans)
-    'Q': 'p',     # queue
+    'Q': 'p',     # queue (r, p, h)
     'r': False,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
-    'O': 1,       # num ordered preferred ops
-    'C': 1,       # num cheapest preferred ops
+    #'O': 1,       # num ordered preferred ops, TFD doesn't support
+    #'C': 1,       # num cheapest preferred ops, TFD doesn't support
     #'E': 1000,    # num expensive preferred ops
     #'R': 1000,    # num random preferred ops,
     'e': True,    # epsilon internally
     'f': False,  # epsilon externally
-    'b': True,   # reset after solution
+    #'b': True,   # reset after solution, TFD doesn't support
 }
+
+# https://github.com/caelan/TemporalFastDownward/blob/020da65a39d3f44c821cc2062d1006ccb0fcd7e5/downward/search/best_first_search.cc#L376
 
 # best_first_search
 # makespan seems to be computed using timestep plus longest action
@@ -130,6 +132,7 @@ Options are:
 # i - reward_only_pref_op_queue
 # S - pref_ops_concurrent_mode
 # R - number_pref_ops_rand_mode
+# K use_known_by_logical_state_only=True
 
 # Default parameters (plan.py n {} {} {})
 """
