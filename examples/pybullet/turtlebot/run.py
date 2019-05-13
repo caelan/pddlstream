@@ -95,7 +95,7 @@ def get_test_cfree_traj_traj(problem):
 
 def get_motion_fn2(problem):
     robot = list(map(problem.get_body, problem.initial_confs))[0]
-    motion_fn = get_motion_fn(problem, max_distance=0.45, weights=WEIGHTS, resolutions=4*BASE_RESOLUTIONS)
+    motion_fn = get_motion_fn(problem, max_distance=0.45, weights=WEIGHTS, resolutions=BASE_RESOLUTIONS)
     def fn(q1, q2):
         return motion_fn(robot, q1, q2)
     return fn
@@ -164,7 +164,6 @@ def pddlstream_from_problem(problem, teleport=False):
     robot = list(map(problem.get_body, problem.initial_confs))[0]
     with LockRenderer():
         init += [('Conf', q) for _, n, q in create_vertices(problem, robot, [], samples_per_ft2=6)]
-    # Searching all pairs of edges is proving computationally expensive
 
     #vertices = {v for edge in edges for v in edge}
     #handles = []
@@ -363,17 +362,15 @@ def main(display=True, teleport=False):
         if args.algorithm == 'incremental':
             solution = solve_incremental(pddlstream,
                                          max_planner_time=max_planner_time,
-                                         success_cost=success_cost,
+                                         success_cost=success_cost, max_time=args.max_time,
                                          start_complexity=INF,
-                                         max_time=args.max_time,
-                                         verbose=True, debug=False)
+                                         verbose=True, debug=True)
         elif args.algorithm == 'focused':
             solution = solve_focused(pddlstream, stream_info=stream_info,
                                       max_planner_time=max_planner_time,
-                                      success_cost=success_cost,
-                                      max_time=args.max_time,
-                                      max_skeletons=None, bind=False, # TODO: don't greedily quit
-                                      verbose=True, debug=False)
+                                      success_cost=success_cost, max_time=args.max_time,
+                                      max_skeletons=None, bind=True, max_failures=INF,
+                                      verbose=True, debug=True)
         else:
             raise ValueError(args.algorithm)
 

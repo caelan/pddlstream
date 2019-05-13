@@ -50,13 +50,13 @@ TFD_OPTIONS = {
     't': MAX_TIME,     # success timeout
     'T': MAX_TIME,     # failure timeout
     'g': False,   # greedy search
-    'l': True,    # disable lazy evaluation
+    'l': False,    # disable lazy evaluation
     'v': True,    # disable verbose
     'y+Y': False, # CEA heuristic
     'x+X': True,  # makespan heuristic
-    'G': 't',     # g-value evaluation (using m finds incorrect plans)
+    'G': 'm',     # g-value evaluation
     'Q': 'p',     # queue (r, p, h)
-    'r': False,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
+    'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     #'O': 1,       # num ordered preferred ops, TFD doesn't support
     #'C': 1,       # num cheapest preferred ops, TFD doesn't support
     #'E': 1000,    # num expensive preferred ops

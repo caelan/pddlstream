@@ -46,7 +46,7 @@ def partition_externals(externals, verbose=False):
 def solve_focused(problem, constraints=PlanConstraints(),
                   stream_info={}, action_info={},
                   max_time=INF, max_iterations=INF, complexity_step=1,
-                  max_skeletons=INF, bind=True,
+                  max_skeletons=INF, bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
                   unit_efforts=False, max_effort=INF, effort_weight=None,
                   reorder=True, search_sample_ratio=0,
@@ -170,7 +170,8 @@ def solve_focused(problem, constraints=PlanConstraints(),
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
             skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
         else:
-            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=bind)
+            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
+                                bind=bind, max_failures=max_failures)
         sample_time += elapsed_time(start_time)
 
     write_stream_statistics(externals, verbose)

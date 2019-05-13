@@ -37,7 +37,7 @@ from pddlstream.utils import read, INF, get_file_path
 BASE_LINK = 'base_link'
 BASE_JOINTS = ['x', 'y', 'theta']
 #BASE_RESOLUTIONS = 0.05*np.ones(3) # Default
-BASE_RESOLUTIONS = np.array([0.05, 0.05, np.pi/16])
+BASE_RESOLUTIONS = np.array([0.02, 0.02, np.pi/16])
 
 def get_turtle_aabb(robot):
     return get_subtree_aabb(robot, link_from_name(robot, BASE_LINK))

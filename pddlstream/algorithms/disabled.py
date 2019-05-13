@@ -65,7 +65,8 @@ def process_instance(store, domain, instance, disable=True):
 
 ##################################################
 
-def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost, bind=True):
+def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
+                        bind=True, max_failures=0):
     # Bad old implementation of this method
     # The only advantage of this vs skeleton is that this can avoid the combinatorial growth in bindings
     if not is_plan(stream_plan):
@@ -73,7 +74,6 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
     if not stream_plan:
         store.add_plan(action_plan, cost)
         return
-    max_failures = 0 if bind else INF
     stream_plan = [result for result in stream_plan if result.optimistic]
     free_objects = get_free_objects(stream_plan)
     bindings = {}
@@ -93,11 +93,12 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
         new_results = process_instance(store, domain, bound_instance)
         if not bound_instance.enumerated:
             disabled.add(bound_instance)
-        if not new_results:
-            continue
-        bound_plan.append(new_results[0])
-        bindings = update_bindings(bindings, bound_result, bound_plan[-1])
-        cost = update_cost(cost, opt_result, bound_plan[-1])
+        for new_result in new_results:
+            if new_result.is_successful():
+                bound_plan.append(new_results[0])
+                bindings = update_bindings(bindings, bound_result, bound_plan[-1])
+                cost = update_cost(cost, opt_result, bound_plan[-1])
+                break
     if bind and (len(stream_plan) == len(bound_plan)):
         store.add_plan(bind_action_plan(action_plan, bindings), cost)
     # TODO: report back whether to try w/o optimistic values in the event that wild
