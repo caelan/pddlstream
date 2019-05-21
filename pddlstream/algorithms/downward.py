@@ -342,7 +342,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
     #except subprocess.CalledProcessError as e:
     #    print(e)
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
     if debug:
         print(output[:-1])
