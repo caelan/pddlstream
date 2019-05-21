@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import subprocess
 from collections import namedtuple, defaultdict
 from time import time
 
@@ -331,9 +332,18 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if debug:
         print('Search command:', command)
-    p = os.popen(command)  # NOTE - cannot pipe input easily with subprocess
-    output = p.read()
-    p.close()
+
+    # os.popen is deprecated
+    # run, call, check_call, check_output
+    #with subprocess.Popen(command.split(), stdout=subprocess.PIPE, shell=True, cwd=None) as proc:
+    #    output = proc.stdout.read()
+    # CalledProcessError
+    #try:
+    #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
+    #except subprocess.CalledProcessError as e:
+    #    print(e)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None)
+    output, error = proc.communicate()
     if debug:
         print(output[:-1])
         print('Search runtime:', time() - start_time)
