@@ -539,6 +539,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     proc = subprocess.call(command, shell=True, cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
     error = proc != 0
     print('Error:', error)
+    # TODO: close any opened resources
 
     temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE))

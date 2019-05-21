@@ -333,6 +333,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         print('Search command:', command)
     p = os.popen(command)  # NOTE - cannot pipe input easily with subprocess
     output = p.read()
+    p.close()
     if debug:
         print(output[:-1])
         print('Search runtime:', time() - start_time)

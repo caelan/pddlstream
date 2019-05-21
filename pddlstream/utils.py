@@ -91,6 +91,7 @@ def open_pdf(filename):
     # webbrowser.open(filename)
     user_input('Display?')
     # safe_remove(filename)
+    # TODO: close output
 
 ##################################################
 

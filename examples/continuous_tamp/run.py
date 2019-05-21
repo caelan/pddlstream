@@ -102,7 +102,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=0.002):
+def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, sec_per_step=0.002):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
@@ -124,25 +124,14 @@ def display_plan(tamp_problem, plan, display=True, time_step=0.01, sec_per_step=
     if display:
         user_input('Start?')
     if plan is not None:
-        #for action in plan:
-        #    i = action.start
-        #    print(action)
-        #    for j, state in enumerate(apply_action(state, action)):
-        #        print(i, j, state)
-        #        draw_state(viewer, state, colors)
-        #        viewer.save(os.path.join(directory, '{}_{}'.format(i, j)))
-        #        if display:
-        #            if sec_per_step is None:
-        #                user_input('Continue?')
-        #            else:
-        #                time.sleep(sec_per_step)
         for t in inclusive_range(0, duration, time_step):
             for action in plan:
                 if action.start <= t <= get_end(action):
                     update_state(state, action, t - action.start)
             print('t={} | {}'.format(t, state))
             draw_state(viewer, state, colors)
-            viewer.save(os.path.join(directory, 't={}'.format(t)))
+            if save:
+                viewer.save(os.path.join(directory, 't={}'.format(t)))
             if display:
                 if sec_per_step is None:
                     user_input('Continue?')
