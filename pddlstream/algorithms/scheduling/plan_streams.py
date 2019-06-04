@@ -20,7 +20,8 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
 from pddlstream.language.constants import And, Not, get_prefix, EQ
-from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, get_prefix, fact_from_evaluation
+from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
+    fact_from_evaluation, transform_plan_args, pddl_from_object, obj_from_pddl
 from pddlstream.language.external import Result
 from pddlstream.language.function import Function
 from pddlstream.language.stream import StreamResult
@@ -145,6 +146,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 def solve_optimistic_temporal(domain, stream_domain, applied_results, all_results,
                               opt_evaluations, node_from_atom, goal_expression,
                               effort_weight, debug=False, **kwargs):
+    # TODO: assert that the unused parameters are off
     assert domain is stream_domain
     #assert len(applied_results) == len(all_results)
     problem = get_problem(opt_evaluations, goal_expression, domain)
@@ -173,16 +175,11 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
                                 effort_weight, debug=False, **kwargs):
-    if isinstance(stream_domain, SimplifiedDomain):
-        return solve_optimistic_temporal(domain, stream_domain, applied_results, all_results,
-                                         opt_evaluations, node_from_atom, goal_expression,
-                                         effort_weight, debug=debug, **kwargs)
-
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
     with Verbose():
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
-        return instantiated, None, None, INF
+        return instantiated, None, INF
 
     cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
     if using_optimizers(applied_results):
@@ -198,12 +195,10 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
     renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if renamed_plan is None:
-        return instantiated, None, None, INF
+        return instantiated, None, INF
     action_instances = [action_from_name[name] for name, _ in renamed_plan]
     cost = get_plan_cost(action_instances, cost_from_action)
-    # plan = obj_from_pddl_plan(parse_action(instance.name) for instance in action_instances)
-    plan = obj_from_pddl_plan(map(pddl_from_instance, action_instances))
-    return instantiated, action_instances, plan, cost
+    return instantiated, action_instances, cost
 
 def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
                  simultaneous=False, reachieve=True, **kwargs):
@@ -225,10 +220,14 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
     if UNIVERSAL_TO_CONDITIONAL or using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)
-    instantiated, action_instances, action_plan, cost = solve_optimistic_sequential(
-        domain, stream_domain, applied_results, all_results, opt_evaluations, node_from_atom, goal_expression, effort_weight, **kwargs)
-    if action_plan is None:
-        return action_plan, cost
+
+    optimistic_fn = solve_optimistic_temporal if isinstance(stream_domain, SimplifiedDomain) \
+        else solve_optimistic_sequential
+    instantiated, action_instances, cost = optimistic_fn(
+        domain, stream_domain, applied_results, all_results, opt_evaluations,
+        node_from_atom, goal_expression, effort_weight, **kwargs)
+    if action_instances is None:
+        return action_instances, cost
 
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
@@ -238,6 +237,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression,
                                       stream_domain, node_from_atom, action_instances, axiom_plans, negative)
+    # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last
+    action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
 
     combined_plan = stream_plan + action_plan
     return combined_plan, cost

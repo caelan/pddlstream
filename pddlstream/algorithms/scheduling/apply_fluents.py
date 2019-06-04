@@ -6,10 +6,7 @@ from pddlstream.language.conversion import pddl_from_object
 from pddlstream.language.object import OptimisticObject, UniqueOptValue
 from pddlstream.utils import neighbors_from_orders, get_mapping
 
-
-def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom):
-    import pddl
-    assert len(real_states) == len(action_plan) + 1
+def get_steps_from_stream(stream_plan, step_from_fact, node_from_atom):
     steps_from_stream = {}
     for result in reversed(stream_plan):
         steps_from_stream[result] = set()
@@ -19,11 +16,17 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
         for fact in result.instance.get_domain():
             step_from_fact[fact] = step_from_fact.get(fact, set()) | steps_from_stream[result]
             # TODO: apply this recursively
+    return steps_from_stream
+
+def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom):
+    import pddl
+    assert len(real_states) == len(action_plan) + 1
+    steps_from_stream = get_steps_from_stream(stream_plan, step_from_fact, node_from_atom)
 
     # TODO: ensure that derived facts aren't in fluents?
     # TODO: handle case where costs depend on the outputs
-    _, outgoing_edges = neighbors_from_orders(get_partial_orders(
-        stream_plan, init_facts=map(fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom), real_states[0]))))
+    _, outgoing_edges = neighbors_from_orders(get_partial_orders(stream_plan, init_facts=map(
+        fact_from_fd, filter(lambda f: isinstance(f, pddl.Atom), real_states[0]))))
     static_plan = []
     fluent_plan = []
     for result in stream_plan:
@@ -37,7 +40,8 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
         #if (len(steps_from_stream[result]) != 1) and result.output_objects:
         #    raise NotImplementedError('Fluent stream required in multiple states: {}'.format(result))
         for state_index in steps_from_stream[result]:
-            new_output_objects = [  # OptimisticObject.from_opt(out.value, object())
+            new_output_objects = [
+                #OptimisticObject.from_opt(out.value, object())
                 OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), i))
                 for i, out in enumerate(result.output_objects)]
             if new_output_objects and (state_index < len(action_plan)):

@@ -165,11 +165,14 @@ def transform_action_args(action, fn):
     name, args = action
     return Action(name, tuple(map(fn, args)))
 
+def transform_plan_args(plan, fn):
+    if not is_plan(plan):
+        return plan
+    return [transform_action_args(action, fn) for action in plan]
+
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):
-    if not is_plan(pddl_plan):
-        return pddl_plan
-    return [transform_action_args(action, obj_from_pddl) for action in pddl_plan]
+    return transform_plan_args(pddl_plan, obj_from_pddl)
 
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
