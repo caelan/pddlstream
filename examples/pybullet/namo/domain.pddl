@@ -75,6 +75,17 @@
                       (AtGrasp ?r ?b ?g)))
   )
 
+  (:derived (UnsafeConf ?r ?q)
+    (exists (?b2 ?p2) (and (Conf ?r ?q) (Pose ?b2 ?p2)
+                           (not (CFreeConfPose ?r ?q ?b2 ?p2))
+                           (AtPose ?b2 ?p2)))
+  )
+  (:derived (UnsafeTraj ?r ?t)
+    (exists (?b2 ?p2) (and (Traj ?r ?t) (Pose ?b2 ?p2)
+                           (not (CFreeTrajPose ?r ?t ?b2 ?p2))
+                           (AtPose ?b2 ?p2)))
+  )
+
   ;(:derived (Reachable ?r ?q2)
   ;  (and (Conf ?r ?q2)
   ;      (or (AtConf ?r ?q2)
@@ -85,17 +96,4 @@
   ;                                (Reachable ?r ?q1)
   ;                           ))))
   ;)
-
-  (:derived (UnsafeConf ?r ?q)
-    (exists (?b2 ?p2) (and (Conf ?r ?q) (Pose ?b2 ?p2)
-                           (not (CFreeConfPose ?r ?q ?b2 ?p2))
-                           (AtPose ?b2 ?p2)))
-  )
-
-  (:derived (UnsafeTraj ?r ?t)
-    (exists (?b2 ?p2) (and (Traj ?r ?t) (Pose ?b2 ?p2)
-                           (not (CFreeTrajPose ?r ?t ?b2 ?p2))
-                           (AtPose ?b2 ?p2)))
-  )
-
 )
