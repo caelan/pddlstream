@@ -4,7 +4,7 @@ from .miscUtil import prettyString, makeDiag, argmaxWithVal
 from . import miscUtil
 
 from functools import reduce
-from numpy import *
+from numpy import exp, linalg, complex128, identity, mat, prod, zeros, mod
 import random
 import operator as op
 import copy
@@ -12,6 +12,8 @@ import scipy.stats
 import scipy.special as ss
 import scipy.stats as stats
 import operator
+import numpy as np
+import math
 
 trAlways = print
 
@@ -797,6 +799,7 @@ class MultivariateGaussianDistribution:
     def __ne__(self, other):
         return str(self) != str(other)
 
+UNIFORM_LABEL = 'u'
 
 # A mixture of Gaussians, with implicit "leftover" probability assigned to
 # a uniform
@@ -810,10 +813,10 @@ class GMU:
         if ranges:
             self.area = prod((hi - lo) for (lo, hi) in ranges)
         self.uniformWeight = 1 - sum(p for (d, p) in components)
-        assert ranges is None or self.uniformWeight < 10e-10
+        assert (ranges is None) or (self.uniformWeight < 10e-10)
         self.mixtureProbs = DDist(dict([(i, p) for (i, (c, p)) in \
                                         enumerate(self.components)] + \
-                                       [('u', self.uniformWeight)]))
+                                       [(UNIFORM_LABEL, self.uniformWeight)]))
 
     def copy(self):
         return GMU([[d.copy(), p] for (d, p) in self.components], self.ranges)
@@ -861,8 +864,7 @@ class GMU:
         c = self.mld()
         if c:
             return c.mu
-        else:
-            return None
+        return None
 
     # Diagonal variance of the most likely component, as a list
     def varTuple(self):
@@ -876,26 +878,23 @@ class GMU:
 
     def draw(self):
         c = self.mixtureProbs.draw()
-        if c == 'u':
+        if c == UNIFORM_LABEL:
             return tuple([random.randint(l, h) for (l, h) in self.ranges])
-        else:
-            return self.components[c][0].draw()
+        return self.components[c][0].draw()
 
     # Returns (dist, p) pair
     def mlc(self):
         # Most likely mixture component;  returns None if uniform
-        if len(self.components) > 0:
+        if len(self.components) != 0:
             return miscUtil.argmax(self.components, lambda pair: pair[1])
-        else:
-            return None
+        return None
 
     # Returns dist only
     def mld(self):
         # Most likely mixture component;  returns None if uniform
-        if len(self.components) > 0:
+        if len(self.components) != 0:
             return miscUtil.argmax(self.components, lambda pair: pair[1])[0]
-        else:
-            return None
+        return None
 
     def __str__(self):
         return 'GMU(' + ', '.join([prettyString(c) for c in self.components]) + ')'
