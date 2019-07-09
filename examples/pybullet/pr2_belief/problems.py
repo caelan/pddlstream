@@ -4,7 +4,7 @@ from __future__ import print_function
 from examples.discrete_belief.dist import UniformDist, DeltaDist, MixtureDist, MixtureDD
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import State
 from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm
+    arm_conf, REST_LEFT_ARM, close_arm, create_gripper
 from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, get_bodies, is_center_stable
 from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
@@ -26,6 +26,7 @@ class BeliefTask(object):
         self.goal_on = goal_on
         self.goal_localized = goal_localized
         self.goal_registered = goal_registered
+        self.gripper = None
     def get_bodies(self):
         return self.movable + self.surfaces + self.rooms
     @property
@@ -40,6 +41,10 @@ class BeliefTask(object):
         if body in self.rooms:
             return None
         raise ValueError(body)
+    def get_gripper(self, arm='left'):
+        if self.gripper is None:
+            self.gripper = create_gripper(self.robot, arm=arm)
+        return self.gripper
 
 
 # TODO: operate on histories to do open-world

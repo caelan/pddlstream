@@ -4,7 +4,7 @@ import numpy as np
 
 from examples.discrete_belief.dist import DDist
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory, \
-    create_trajectory, Attach, Detach, get_target_path
+    create_trajectory, Attach, Detach, get_target_path, SELF_COLLISIONS
 from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
 from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
     visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, get_viewcone, \
@@ -28,10 +28,11 @@ def get_in_range_test(task, range):
         return range[0] <= get_length(np.array(target_xy) - base_xy) <= range[1]
     return test
 
-def get_vis_base_gen(task, base_range):
+def get_vis_base_gen(task, base_range, collisions=False):
     robot = task.robot
-    fixed = get_fixed_bodies(task)
     base_joints = get_group_joints(robot, 'base')
+    obstacles = get_fixed_bodies(task) if collisions else []
+
     def gen(o, p):
         if o in task.rooms: # TODO: predicate instead
             return
@@ -45,7 +46,7 @@ def get_vis_base_gen(task, base_range):
             bq = Conf(robot, base_joints, next(base_generator))
             # bq = Pose(robot, get_pose(robot))
             bq.assign()
-            if any(pairwise_collision(robot, b) for b in fixed):
+            if any(pairwise_collision(robot, b) for b in obstacles):
                 yield None
             else:
                 yield (bq,)
@@ -55,6 +56,7 @@ def get_vis_base_gen(task, base_range):
 def get_inverse_visibility_fn(task):
     robot = task.robot
     head_joints = get_group_joints(robot, 'head')
+
     def fn(o, p, bq):
         set_pose(o, p.value) # p.assign()
         bq.assign()
@@ -62,7 +64,7 @@ def get_inverse_visibility_fn(task):
             waypoints = plan_scan_path(task.robot, tilt=ROOM_SCAN_TILT)
             set_group_conf(robot, 'head', waypoints[0])
             path = plan_waypoints_joint_motion(robot, head_joints, waypoints[1:],
-                                          obstacles=None, self_collisions=False)
+                                          obstacles=None, self_collisions=SELF_COLLISIONS)
             if path is None:
                 return None
             ht = create_trajectory(robot, head_joints, path)
@@ -84,7 +86,7 @@ def plan_head_traj(robot, head_conf):
     # head_path = [head_conf, hq.values]
     head_joints = get_group_joints(robot, 'head')
     head_path = plan_direct_joint_motion(robot, head_joints, head_conf,
-                                  obstacles=None, self_collisions=False)
+                                  obstacles=None, self_collisions=SELF_COLLISIONS)
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
 
@@ -104,7 +106,7 @@ def inspect_trajectory(trajectory):
     head_joints = get_group_joints(robot, 'head')
     #return create_trajectory(robot, head_joints, head_waypoints)
     head_path = plan_waypoints_joint_motion(robot, head_joints, head_waypoints,
-                                            obstacles=None, self_collisions=False)
+                                            obstacles=None, self_collisions=SELF_COLLISIONS)
     assert(head_path is not None)
     return create_trajectory(robot, head_joints, head_path)
 
@@ -142,7 +144,7 @@ def move_look_trajectory(trajectory, max_tilt=np.pi / 6):  # max_tilt=INF):
     #set_pose(robot, unit_pose())
     #set_group_conf(robot, 'base', current_conf)
     path = plan_waypoints_joint_motion(robot, joints, waypoints,
-                                       obstacles=None, self_collisions=False)
+                                       obstacles=None, self_collisions=SELF_COLLISIONS)
     return create_trajectory(robot, joints, path)
     #Pose(robot, pose_from_base_values(q, bq1.value))
     #new_traj.path.append(Pose(...))

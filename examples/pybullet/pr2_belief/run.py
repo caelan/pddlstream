@@ -9,6 +9,7 @@ except ImportError:
 
 import cProfile
 import pstats
+import argparse
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.search import ABSTRIPSLayer
@@ -114,7 +115,7 @@ def pddlstream_from_state(state, teleport=False):
            [('Registered', b) for b in task.goal_registered])
 
     stream_map = {
-        'sample-pose': get_stable_gen(task),
+        'sample-pose': from_gen_fn(get_stable_gen(task)),
         'sample-grasp': from_list_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
@@ -210,10 +211,10 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
 
 #######################################################
 
-def plan_commands(state, teleport=False, profile=False, verbose=True):
+def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state and not the real world
-    sim_world = connect(use_gui=True)
+    sim_world = connect(use_gui=viewer)
     #clone_world(client=sim_world)
     task = state.task
     robot_conf = get_configuration(task.robot)
@@ -264,8 +265,14 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 #######################################################
 
 def main(time_step=0.01):
+    parser = argparse.ArgumentParser()
+    #parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    #parser.add_argument('-display', action='store_true', help='displays the solution')
+    args = parser.parse_args()
+
     # TODO: closed world and open world
-    real_world = connect(use_gui=False)
+    real_world = connect(use_gui=not args.viewer)
     add_data_path()
     task, state = get_problem1(localized='rooms', p_other=0.5) # surfaces | rooms
     for body in task.get_bodies():
@@ -292,7 +299,7 @@ def main(time_step=0.01):
         print(step, state)
         #print({b: p.value for b, p in state.poses.items()})
         with ClientSaver():
-            commands = plan_commands(state)
+            commands = plan_commands(state, viewer=args.viewer)
         print()
         if commands is None:
             print('Failure!')
@@ -301,6 +308,7 @@ def main(time_step=0.01):
             print('Success!')
             break
         apply_commands(state, commands, time_step=time_step)
+        wait_for_interrupt()
 
     print(state)
     wait_for_interrupt()
