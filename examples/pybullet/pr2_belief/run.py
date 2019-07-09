@@ -134,11 +134,10 @@ def pddlstream_from_state(state, teleport=False):
 #######################################################
 
 def post_process(state, plan, replan_obs=True, replan_base=False, look_move=False):
-    problem = state.task
     if plan is None:
         return None
     # TODO: refine actions
-    robot = problem.robot
+    robot = state.task.robot
     commands = []
     uncertain_base = False
     expecting_obs = False
@@ -154,8 +153,8 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             # TODO: I could keep updating the head goal as the base moves along the path
             if look_move:
                 # TODO: some sort of new bug here where the trajectory repeats
-                new_commands = [move_look_trajectory(t)]
-                #new_commands = [inspect_trajectory(t), t]
+                new_commands = [move_look_trajectory(state.task, t)]
+                #new_commands = [inspect_trajectory(state.task, t), t]
             else:
                 new_commands = [t]
             if replan_base:
@@ -176,16 +175,16 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
             o, p, bq, hq, ht = args
-            ht0 = plan_head_traj(robot, hq.values)
+            ht0 = plan_head_traj(state.task, hq.values)
             new_commands = [ht0]
-            if o in problem.rooms:
+            if o in state.task.rooms:
                 attach, detach = get_cone_commands(robot)
                 new_commands += [attach, ht, ScanRoom(robot, o), detach]
             else:
                 new_commands += [ht, Scan(robot, o)]
                 #with BodySaver(robot):
                 #    for hq2 in ht.path:
-                #        st = plan_head_traj(robot, hq2.values)
+                #        st = plan_head_traj(state.task, hq2.values)
                 #        new_commands += [st, Scan(robot, o)]
                 #        hq2.step()
             # TODO: return to start conf?
@@ -195,7 +194,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             expecting_obs = True
         elif name == 'register':
             o, p, bq, hq, ht = args
-            ht0 = plan_head_traj(robot, hq.values)
+            ht0 = plan_head_traj(state.task, hq.values)
             register = Register(robot, o)
             new_commands = [ht0, register]
             expecting_obs = True

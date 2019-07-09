@@ -32,6 +32,8 @@ class BeliefTask(object):
     @property
     def fixed(self):
         movable = [self.robot] + list(self.movable)
+        if self.gripper is not None:
+            movable.append(self.gripper)
         return list(filter(lambda b: b not in movable, get_bodies()))
     def get_supports(self, body):
         if body in self.movable:
