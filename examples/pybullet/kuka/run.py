@@ -201,7 +201,6 @@ def main(display=True, teleport=False):
         #command.step()
         command.refine(num_steps=10).execute(time_step=0.001)
 
-    #wait_for_interrupt()
     user_input('Finish?')
     disconnect()
 

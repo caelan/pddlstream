@@ -25,7 +25,7 @@ from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, c
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, \
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_user, get_joint_positions, get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, \
     draw_base_limits
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, Trajectory, get_base_limits
@@ -283,7 +283,7 @@ def main(time_step=0.01):
     assert(USE_DRAKE_PR2 == is_drake_pr2(robot))
     attach_viewcone(robot) # Doesn't work for the normal pr2?
     draw_base_limits(get_base_limits(robot), color=(0, 1, 0))
-    #wait_for_interrupt()
+    #wait_for_user()
     # TODO: partially observable values
     # TODO: base movements preventing pick without look
 
@@ -308,10 +308,10 @@ def main(time_step=0.01):
             print('Success!')
             break
         apply_commands(state, commands, time_step=time_step)
-        wait_for_interrupt()
+        wait_for_user()
 
     print(state)
-    wait_for_interrupt()
+    wait_for_user()
     disconnect()
 
 
