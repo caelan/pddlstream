@@ -9,6 +9,8 @@ from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, g
 from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
 USE_DRAKE_PR2 = True
+OTHER = 'other'
+LOCALIZED_PROB = 0.99
 
 class BeliefTask(object):
     def __init__(self, robot, arms=tuple(), grasp_types=tuple(),
@@ -69,7 +71,10 @@ class BeliefState(State):
             #    self.poses[body] = Pose(body, (point, None))
         """
     def is_localized(self, body):
-        return len(self.b_on[body].support()) == 1
+        for surface in self.b_on[body].support():
+            if (surface != OTHER) and (LOCALIZED_PROB <= self.b_on[body].prob(surface)):
+                return True
+        return False
     def __repr__(self):
         items = []
         for b in sorted(self.b_on.keys()):
@@ -83,9 +88,8 @@ class BeliefState(State):
 
 #######################################################
 
-OTHER = 'other'
-
-def set_uniform_belief(task, b_on, body, p_other=0.5):
+def set_uniform_belief(task, b_on, body, p_other=0.):
+    # p_other is the probability that it doesn't actually exist
     # TODO: option to bias towards particular bottom
     other = DeltaDist(OTHER)
     uniform = UniformDist(task.get_supports(body))
@@ -122,7 +126,6 @@ def get_localized_surfaces(task, **kwargs):
         set_delta_belief(task, b_on, body)
     return BeliefState(task, b_on=b_on)
 
-
 def get_localized_movable(task):
     b_on = {}
     for body in (task.rooms + task.surfaces + task.movable):
@@ -152,15 +155,16 @@ def get_kitchen_task(arm='left', grasp_type='top'):
     surfaces = [table, sink, stove]
     rooms = [floor]
 
-    return BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
-                      class_from_body=class_from_body,
-                      movable=movable, surfaces=surfaces, rooms=rooms,
-                      #goal_localized=[cabbage],
-                      #goal_registered=[cabbage],
-                      #goal_holding=[(arm, cabbage)],
-                      #goal_on=[(cabbage, table)],
-                      goal_on=[(cabbage, sink)],
-                      )
+    return BeliefTask(
+        robot=pr2, arms=[arm], grasp_types=[grasp_type],
+        class_from_body=class_from_body,
+        movable=movable, surfaces=surfaces, rooms=rooms,
+        #goal_localized=[cabbage],
+        #goal_registered=[cabbage],
+        #goal_holding=[(arm, cabbage)],
+        #goal_on=[(cabbage, table)],
+        goal_on=[(cabbage, sink)],
+    )
 
 def get_problem1(localized='rooms', **kwargs):
     task = get_kitchen_task()

@@ -282,6 +282,16 @@ class DDist(DiscreteDist):
             d.normalize(z)
         return z  # prob(obs)
 
+    def ensureJDist(self):
+        """
+        If the argument is a C{DDist}, make it into a C{JDist}.
+        """
+        if isinstance(self, JDist):
+            return self
+        result = JDist([self.support()], name=[self.name])
+        result.d = dict([((e,), self.prob(e)) for e in self.support()])
+        return result
+
     def __repr__(self):
         if self.__d.items():
             dictRepr = reduce(operator.add, [repr(k) + ": " + prettyString(p) + ", " \
@@ -289,17 +299,6 @@ class DDist(DiscreteDist):
         else:
             dictRepr = '{}'
         return "DDist({" + dictRepr[:-2] + "})"
-
-    def ensureJDist(self):
-        """
-        If the argument is a C{DDist}, make it into a C{JDist}.
-        """
-        if isinstance(self, JDist):
-            return self
-        else:
-            result = JDist([self.support()], name=[self.name])
-            result.d = dict([((e,), self.prob(e)) for e in self.support()])
-            return result
 
     def __hash__(self):
         return hash(frozenset(self.__d.items()))

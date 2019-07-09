@@ -12,11 +12,14 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get
 from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
     plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, \
-    INF, get_length, multiply, wait_for_user, LockRenderer, set_color
+    INF, get_length, multiply, wait_for_user, LockRenderer, set_color, RED, GREEN, apply_alpha, dump_body, \
+    get_link_subtree, child_link_from_joint, get_link_name
 
 VIS_RANGE = (0.5, 1.5)
 REG_RANGE = (0.5, 1.5)
 ROOM_SCAN_TILT = np.pi / 6
+P_LOOK_FP = 0
+P_LOOK_FN = 0 # 1e-1
 
 def get_in_range_test(task, range):
     # TODO: could just test different visibility w/o ranges
@@ -163,7 +166,7 @@ class AttachCone(Command): # TODO: make extend Attach?
         self.cone = None
     def apply(self, state, **kwargs):
         with LockRenderer():
-            self.cone = get_viewcone(color=(1, 0, 0, 0.5))
+            self.cone = get_viewcone(color=apply_alpha(RED, 0.5))
             state.poses[self.cone] = None
             cone_pose = Pose(self.cone, unit_pose())
             attach = Attach(self.robot, self.group, cone_pose, self.cone)
@@ -195,7 +198,7 @@ def get_cone_commands(robot):
 
 #######################################################
 
-def get_observation_fn(surface, p_look_fp=0, p_look_fn=0):
+def get_observation_fn(surface, p_look_fp=P_LOOK_FP, p_look_fn=P_LOOK_FN):
     # TODO: clip probabilities so doesn't become zero
     def fn(s):
         # P(obs | s1=loc1, a=control_loc)
@@ -221,7 +224,7 @@ class Scan(Command):
     def apply(self, state, **kwargs):
         # TODO: identify surface automatically
         with LockRenderer():
-            cone = get_viewcone(color=(1, 0, 0, 0.5))
+            cone = get_viewcone(color=apply_alpha(RED, 0.5))
             set_pose(cone, get_link_pose(self.robot, self.link))
             wait_for_duration(1e-2)
         wait_for_duration(self._duration) # TODO: don't sleep if no viewer?
@@ -231,7 +234,10 @@ class Scan(Command):
         if self.detect:
             # TODO: the collision geometries are being visualized
             # TODO: free the renderer
-            detections = get_visual_detections(self.robot, camera_link=self.camera_frame)
+            head_joints = get_group_joints(self.robot, 'head')
+            exclude_links = set(get_link_subtree(self.robot, child_link_from_joint(head_joints[-1])))
+            detections = get_visual_detections(self.robot, camera_link=self.camera_frame, exclude_links=exclude_links,)
+                                               #color=apply_alpha(RED, 0.5))
             print('Detections:', detections)
             for body, dist in state.b_on.items():
                 obs = (body in detections) and (is_center_stable(body, self.surface))
@@ -308,12 +314,13 @@ class Register(Command):
         return get_kinect_registrations(self.robot)
 
     def apply(self, state, **kwargs):
+        # TODO: check if actually can register
         mesh, _ = get_detection_cone(self.robot, self.body, camera_link=self.camera_frame, depth=self.max_depth)
         if mesh is None:
             wait_for_user()
         assert(mesh is not None)
         with LockRenderer():
-            cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
+            cone = create_mesh(mesh, color=apply_alpha(GREEN, 0.5))
             set_pose(cone, get_link_pose(self.robot, self.link))
             wait_for_duration(1e-2)
         wait_for_duration(self._duration)
@@ -325,4 +332,3 @@ class Register(Command):
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, get_body_name(self.robot),
                                   get_name(self.body))
-

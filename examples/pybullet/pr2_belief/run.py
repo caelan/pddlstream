@@ -268,12 +268,14 @@ def main(time_step=0.01):
     #parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     #parser.add_argument('-display', action='store_true', help='displays the solution')
+    # TODO: arugment for selecting prior
     args = parser.parse_args()
 
+    # TODO: nonuniform distribution to bias towards other actions
     # TODO: closed world and open world
     real_world = connect(use_gui=not args.viewer)
     add_data_path()
-    task, state = get_problem1(localized='rooms', p_other=0.5) # surfaces | rooms
+    task, state = get_problem1(localized='rooms', p_other=0.25) # surfaces | rooms
     for body in task.get_bodies():
         add_body_name(body)
 
@@ -296,6 +298,7 @@ def main(time_step=0.01):
         step += 1
         print('\n' + 50 * '-')
         print(step, state)
+        wait_for_user()
         #print({b: p.value for b, p in state.poses.items()})
         with ClientSaver():
             commands = plan_commands(state, viewer=args.viewer)
@@ -307,7 +310,6 @@ def main(time_step=0.01):
             print('Success!')
             break
         apply_commands(state, commands, time_step=time_step)
-        wait_for_user()
 
     print(state)
     wait_for_user()
