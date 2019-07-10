@@ -15,12 +15,10 @@ import operator
 import numpy as np
 import math
 
-trAlways = print
-
 
 # Think of this as a mixture of a distribution and something like a uniform,
 # but it doesn't really work unless the universe is finite
-class HedgedDist:
+class HedgedDist(object):
     def __init__(self, baseDist, p, universe=None):
         self.baseDist = baseDist
         self.p = p
@@ -34,7 +32,7 @@ class HedgedDist:
                (1.0 / self.n) if self.n > 0 else 0
 
 
-class DiscreteDist:
+class DiscreteDist(object):
     """
     Probability distribution over a discrete domain.  This is a
     generic superclass;  do not instantiate it.  Any subclass has to
@@ -66,17 +64,16 @@ class DiscreteDist:
         raise Exception('Failed to draw from:' + str(self))
 
     def expectation(self, vals):
-        return sum([self.prob(x) * vals[x] for x in self.support()])
+        return sum(self.prob(x) * vals[x] for x in self.support())
 
     def expectationF(self, f):
-        return sum([self.prob(x) * f(x) for x in self.support()])
+        return sum(self.prob(x) * f(x) for x in self.support())
 
     def maxProbElt(self):
         """
         @returns: The element in this domain with maximum probability
         """
-        return argmaxWithVal(self.support(),
-                             lambda x: self.prob(x))
+        return argmaxWithVal(self.support(), self.prob)
 
     # Returns the x with highest weight
     def mode(self):
@@ -84,13 +81,13 @@ class DiscreteDist:
 
     # Estimate the mean.  Assumes that + and * are defined on the elements
     def mean(self):
-        return sum([x * self.prob(x) for x in self.support()])
+        return sum(x * self.prob(x) for x in self.support())
 
     # Estimate the variance.  Assumes we can do x * x, and then scale
     # and sum the results.
     def variance(self):
         mu = self.mean()
-        return sum([(x - mu) ** 2 * self.prob(x) for x in self.support()])
+        return sum((x - mu) ** 2 * self.prob(x) for x in self.support())
 
     def conditionOnVar(self, index, value):
         """
@@ -102,13 +99,13 @@ class DiscreteDist:
         of the elements (it's redundant at this point).
         """
         newElements = [elt for elt in self.support() if elt[index] == value]
-        z = sum([self.prob(elt) for elt in newElements])
-        return DDist(dict([(removeElt(elt, index), self.prob(elt) / z) \
-                           for elt in newElements]))
+        z = sum(self.prob(elt) for elt in newElements)
+        return DDist({removeElt(elt, index): self.prob(elt) / z
+                      for elt in newElements})
 
-    def verify(self):
-        z = sum([self.prob(elt) for elt in self.support()])
-        assert 0.99999 < z < 1.00001, 'degenerate distribution ' + str(self)
+    def verify(self, epsilon=1e-5):
+        z = sum(self.prob(elt) for elt in self.support())
+        assert 1 - epsilon < z < 1 + epsilon, 'degenerate distribution ' + str(self)
 
 
 def convertToDDist(oldD):
@@ -166,10 +163,7 @@ class DDist(DiscreteDist):
         """
         @returns: the probability associated with C{elt}
         """
-        if elt in self.__d:
-            return self.__d[elt]
-        else:
-            return 0
+        return self.__d.get(elt, 0)
 
     def setProb(self, elt, p):
         """
@@ -198,7 +192,7 @@ class DDist(DiscreteDist):
         values is zero.
         """
         if not z:
-            z = sum([self.prob(e) for e in self.support()])
+            z = sum(self.prob(e) for e in self.support())
         assert z > 0.0, 'degenerate distribution ' + str(self)
         alpha = 1.0 / z
         newD = {}
@@ -214,7 +208,7 @@ class DDist(DiscreteDist):
         (among elements with non-zero probabilty, seince we don't
         really know the universe; otherwiese, just normalize.
         """
-        z = sum([self.prob(e) for e in self.support()])
+        z = sum(self.prob(e) for e in self.support())
         assert z > 0.0, 'degenerate distribution ' + str(self)
         newD = DDist({})
         if z < 1:
@@ -252,7 +246,7 @@ class DDist(DiscreteDist):
         with each element replaced by f(elt)
         """
         newD = {}
-        for (key, val) in self.__d.items():
+        for key, val in self.__d.items():
             newK = f(key)
             newD[newK] = val + newD[newK] if newK in newD else val
         return DDist(newD)
@@ -268,18 +262,15 @@ class DDist(DiscreteDist):
                 # prob of transitioning to s from sPrime
                 new[s] = new.get(s, 0) + tDistS.prob(s) * oldP
         self.__d = new
-        if len(self.support()) > 0:
+        if 1 <= len(self.support()):
             self.update()
-        else:
-            return None
 
-    def obsUpdate(d, om, obs):
-        for si in d.support():
-            d.mulProb(si, om(si).prob(obs))
-
-        z = sum([d.prob(e) for e in d.support()])
-        if z > 0.0:
-            d.normalize(z)
+    def obsUpdate(self, om, obs):
+        for si in self.support():
+            self.mulProb(si, om(si).prob(obs))
+        z = sum(self.prob(e) for e in self.support())
+        if 0.0 < z:
+            self.normalize(z)
         return z  # prob(obs)
 
     def ensureJDist(self):
@@ -289,7 +280,7 @@ class DDist(DiscreteDist):
         if isinstance(self, JDist):
             return self
         result = JDist([self.support()], name=[self.name])
-        result.d = dict([((e,), self.prob(e)) for e in self.support()])
+        result.d = {(e,): self.prob(e) for e in self.support()}
         return result
 
     def __repr__(self):
@@ -326,7 +317,7 @@ def UniformDist(elts):
     @param elts: list of any kind of item
     """
     p = 1.0 / len(elts)
-    return DDist(dict([(e, p) for e in elts]))
+    return DDist({e: p for e in elts})
 
 
 class MixtureDist(DiscreteDist):
@@ -359,10 +350,10 @@ class MixtureDist(DiscreteDist):
             return self.d2.draw()
 
     def support(self):
-        return list(set(self.d1.support()).union(set(self.d2.support())))
+        return list(set(self.d1.support()) | set(self.d2.support()))
 
     def makeDDist(self):
-        return DDist(dict([(e, self.prob(e)) for e in self.support()]))
+        return DDist({e: self.prob(e) for e in self.support()})
 
     def __str__(self):
         result = 'MixtureDist({'
@@ -388,8 +379,8 @@ def MixtureDD(d1, d2, p):
     distributions.  Alternatively, we could assume that d1 and d2 are
     DDists and compute a new DDist.
     """
-    return DDist(dict([(e, p * d1.prob(e) + (1 - p) * d2.prob(e)) \
-                       for e in set(d1.support()).union(set(d2.support()))]))
+    return DDist({e: p * d1.prob(e) + (1 - p) * d2.prob(e)
+                  for e in set(d1.support()) | set(d2.support())})
 
 
 def triangleDist(peak, halfWidth, lo=None, hi=None):
@@ -400,8 +391,7 @@ def triangleDist(peak, halfWidth, lo=None, hi=None):
     either side of C{peak}.  Any probability mass that would be below
     C{lo} or above C{hi} is assigned to C{lo} or C{hi}
     """
-    d = {}
-    d[clip(peak, lo, hi)] = 1
+    d = {clip(peak, lo, hi): 1}
     total = 1
     fhw = float(halfWidth)
     for offset in range(1, halfWidth):
@@ -409,7 +399,7 @@ def triangleDist(peak, halfWidth, lo=None, hi=None):
         incrDictEntry(d, clip(peak + offset, lo, hi), p)
         incrDictEntry(d, clip(peak - offset, lo, hi), p)
         total += 2 * p
-    for (elt, value) in d.items():
+    for elt, value in d.items():
         d[elt] = value / total
     return DDist(d)
 
@@ -480,17 +470,19 @@ def totalProbability(PA, PBgA):
 ######################################################################
 #   Continuous distribution
 
-class GaussianDistribution:
+class GaussianDistribution(object):
     """
     Basic one-dimensional Gaussian.  
     """
 
-    def __init__(self, gmean, variance=None, stdev=None):
+    def __init__(self, gmean=0., variance=None, stdev=None):
         self.mean = gmean
         if variance:
+            assert stdev is None
             self.var = variance
             self.stdev = math.sqrt(self.var)
         elif stdev:
+            assert variance is None
             self.stdev = stdev
             self.var = stdev ** 2
         else:
@@ -501,6 +493,7 @@ class GaussianDistribution:
                prettyString(self.var) + ')'
 
     def prob(self, v):
+        # TODO: zero prob is v is the wrong type
         return gaussian(v, self.mean, self.stdev)
 
     def mean(self):
@@ -523,8 +516,7 @@ class GaussianDistribution:
 
     def update(self, obs, variance):
         varianceSum = self.var + variance
-        self.mean = ((variance * self.mean) + (self.var * obs)) / \
-                    varianceSum
+        self.mean = ((variance * self.mean) + (self.var * obs)) / varianceSum
         self.var = self.var * variance / varianceSum
         self.stdev = math.sqrt(self.var)
 
@@ -539,7 +531,7 @@ class GaussianDistribution:
         self.stdev = math.sqrt(self.var)
 
 
-class LogNormalDistribution:
+class LogNormalDistribution(object):
     """
     log d ~ Normal(mu, sigma)
     Note that in some references we use \rho = 1/\sigma^2
@@ -576,7 +568,7 @@ def fixSigma(sigma, ridge=1e-20):
         for j in range(i):
             if sigma[i, j] != sigma[j, i]:
                 if abs(sigma[i, j] - sigma[j, i]) > 1e-10:
-                    trAlways('found asymmetry mag:',
+                    print('found asymmetry mag:',
                              abs(sigma[i, j] - sigma[j, i]))
                 good = False
     if not good:
@@ -584,14 +576,14 @@ def fixSigma(sigma, ridge=1e-20):
 
     eigs = linalg.eigvalsh(sigma)
     if any([type(eig) in (complex, complex128) for eig in eigs]):
-        trAlways('Complex eigs', eigs)
+        print('Complex eigs', eigs)
         # Real symmetrix matrix should have real eigenvalues!
         raise Exception('Complex eigenvalues in COV')
     minEig = min(eigs)
     if minEig < ridge:
         if minEig < 0:
-            trAlways('Not positive definite', minEig)
-        trAlways('Added to matrix', (ridge - minEig))
+            print('Not positive definite', minEig)
+        print('Added to matrix', (ridge - minEig))
         # if -minEig > 1e-5:
         #     raw_input('okay?')
         sigma = sigma + 2 * (ridge - minEig) * identity(len(sigma))
@@ -802,7 +794,7 @@ UNIFORM_LABEL = 'u'
 
 # A mixture of Gaussians, with implicit "leftover" probability assigned to
 # a uniform
-class GMU:
+class GMU(object):
     def __init__(self, components, ranges=None):
         # A list of (mvg, p) pairs;  p's sum to <= 1
         # All same dimensionality (d)
@@ -937,13 +929,35 @@ def covPoses(data, mu):
     return sigma / n
 
 
-class ProductDistribution:
-    def __init__(self):
-        self.ds = None
+class CUniformDist(object):
+    """
+    Uniform distribution over a given finite one dimensional range
+    """
+
+    def __init__(self, xMin, xMax):
+        self.xMin = xMin
+        self.xMax = xMax
+        self.p = 1.0 / (xMax - xMin)
+
+    def prob(self, v):
+        if self.xMin <= v <= self.xMax:
+            return self.p
+        else:
+            return 0
+
+    def draw(self):
+        return self.xMin + random.random() * (self.xMax - self.xMin)
+
+
+######################################################################
+# Factored distributions
+
+class ProductDistribution(object):
+    def __init__(self, ds=[]):
+        self.ds = tuple(ds)
 
     def prob(self, vs):
-        return reduce(operator.mul, [d.prob(v) for (v, d) in \
-                                     zip(vs, self.ds)])
+        return reduce(operator.mul, [d.prob(v) for (v, d) in zip(vs, self.ds)])
 
     def mean(self):
         return [d.mean() for d in self.ds]
@@ -976,39 +990,16 @@ class ProductGaussianDistribution(ProductDistribution):
     """
 
     def __init__(self, means, stdevs):
-        self.ds = [GaussianDistribution(m, s) for (m, s) in zip(means, stdevs)]
-
+        super(ProductGaussianDistribution, self).__init__(
+            [GaussianDistribution(m, s) for (m, s) in zip(means, stdevs)])
+        
 
 class ProductUniformDistribution(ProductDistribution):
     def __init__(self, means, stdevs, n):
-        self.ds = [CUniformDist(m - n * s, m + n * s) \
-                   for (m, s) in zip(means, stdevs)]
+        super(ProductUniformDistribution, self).__init__(
+            [CUniformDist(m - n * s, m + n * s) for (m, s) in zip(means, stdevs)])
 
-
-class CUniformDist:
-    """
-    Uniform distribution over a given finite one dimensional range
-    """
-
-    def __init__(self, xMin, xMax):
-        self.xMin = xMin
-        self.xMax = xMax
-        self.p = 1.0 / (xMax - xMin)
-
-    def prob(self, v):
-        if self.xMin <= v <= self.xMax:
-            return self.p
-        else:
-            return 0
-
-    def draw(self):
-        return self.xMin + random.random() * (self.xMax - self.xMin)
-
-    ######################################################################
-
-
-# Utilities
-
+######################################################################
 # Multinomial distribution.  k items, probability p, independent, that
 # each one will flip.  How many flips?
 
@@ -1027,31 +1018,6 @@ def binCoeff(n, k):
         return binCoeff(n, n - k)
     else:
         return reduce(operator.mul, [j for j in range(k + 1, n + 1)], 1)
-
-
-def cartesianProduct(domains):
-    """
-    @param domains: list of lists
-    @returns: list of elements in the cartesian product of the domains
-    (all ways of selecting one element from each of the lists)
-    """
-    if len(domains) == 0:
-        return ((),)
-    else:
-        return tuple([(v1,) + rest for v1 in domains[0] \
-                      for rest in cartesianProduct(domains[1:])])
-
-
-def ensureList(x):
-    """
-    If C{x} is a string, put it in a list, otherwise return the
-    argument unchanged
-    """
-    if isinstance(x, type('')):
-        return [x]
-    else:
-        return x
-
 
 ######################################################################
 #   Utilities
@@ -1085,7 +1051,8 @@ def incrDictEntry(d, k, v):
         d[k] = v
 
 
-############################ Regression
+######################################################################
+# Regression
 
 # If we want the 1-pnm(delta) after an observation with obsSigma to be
 # < epsr, then what does the 1-pnm have to be before the update?
@@ -1112,7 +1079,7 @@ def regressGaussianPNMTransition(epsr, transSigma, delta):
 
     denom = (2 * ss.erfinv(1 - epsr) ** 2)
     if denom <= 0:
-        trAlways("Error in erf calculation, epsr=", epsr, ol=True)
+        print("Error in erf calculation, epsr=", epsr, ol=True)
         return 1.0
 
     resultVar = (delta ** 2) / denom
