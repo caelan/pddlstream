@@ -4,6 +4,7 @@ from .miscUtil import prettyString, makeDiag, argmaxWithVal
 from . import miscUtil
 
 from functools import reduce
+from itertools import product
 from numpy import exp, linalg, complex128, identity, mat, prod, zeros, mod
 import random
 import operator as op
@@ -248,7 +249,7 @@ class DDist(DiscreteDist):
         newD = {}
         for key, val in self.__d.items():
             newK = f(key)
-            newD[newK] = val + newD[newK] if newK in newD else val
+            newD[newK] = val + newD.get(newK, 0)
         return DDist(newD)
 
     def transitionUpdate(self, tDist):
@@ -265,13 +266,26 @@ class DDist(DiscreteDist):
         if 1 <= len(self.support()):
             self.update()
 
-    def obsUpdate(self, om, obs):
+    def obsUpdate(self, obs_model, obs):
         for si in self.support():
-            self.mulProb(si, om(si).prob(obs))
+            self.mulProb(si, obs_model(si).prob(obs))
         z = sum(self.prob(e) for e in self.support())
         if 0.0 < z:
             self.normalize(z)
-        return z  # prob(obs)
+        return z
+
+    def obsUpdates(self, obs_models, observations):
+        # Avoids explicitly computing the joint distribution
+        assert len(obs_models) == len(observations)
+        for si in self.support():
+            combo = to_tuple(si)
+            for obs_model, obs in zip(obs_models, observations):
+                self.mulProb(si, obs_model(*combo).prob(obs))
+                combo = combo + (obs,)
+        z = sum(self.prob(e) for e in self.support())
+        if 0.0 < z:
+            self.normalize(z)
+        return z
 
     def ensureJDist(self):
         """
@@ -419,7 +433,7 @@ def squareDist(lo, hi, loLimit=None, hiLimit=None):
     return DDist(d)
 
 
-def JDist(PA, PBgA):
+def JDist(PA, *PBgAs):
     """
     Create a joint distribution on P(A, B) (in that order),
     represented as a C{DDist}
@@ -429,14 +443,18 @@ def JDist(PA, PBgA):
     P(B | A) (that is, a function from elements of A to C{DDist}
     on B)
     """
-    d = {}
-    for a in PA.support():
-        for b in PBgA(a).support():
-            d[(a, b)] = PA.prob(a) * PBgA(a).prob(b)
-    return DDist(d)
+    joint = PA.project(to_tuple)
+    for PBgA in PBgAs:
+        d = {}
+        for a in joint.support():
+            PB = PBgA(*a)
+            for b in PB.support():
+                combo = a + (b,)
+                d[combo] = joint.prob(a) * PB.prob(b)
+        joint = DDist(d)
+    return joint
 
-
-def JDistIndep(PA, PB):
+def JDistIndep(*PAs):
     """
     Create a joint distribution on P(A, B) (in that order),
     represented as a C{DDist}.  Assume independent.
@@ -444,11 +462,12 @@ def JDistIndep(PA, PB):
     @param PA: a C{DDist} on some random var A
     @param PB: a C{DDist} on some random var B
     """
-    d = {}
-    for a in PA.support():
-        for b in PB.support():
-            d[(a, b)] = PA.prob(a) * PB.prob(b)
-    return DDist(d)
+    # TODO: could reduce to JDist
+    joint = {}
+    supports = [PA.support() for PA in PAs]
+    for combo in product(*supports):
+        joint[combo] = np.prod([PA.prob(x) for PA, x in zip(PAs, combo)])
+    return DDist(joint)
 
 
 def bayesEvidence(PA, PBgA, b):
@@ -464,7 +483,8 @@ def bayesEvidence(PA, PBgA, b):
 
 
 def totalProbability(PA, PBgA):
-    return JDist(PA, PBgA).project(lambda pair: pair[1])
+    PB = JDist(PA, PBgA)
+    return PB.project(lambda pair: pair[1])
 
 
 ######################################################################
@@ -716,7 +736,7 @@ class MultivariateGaussianDistribution:
 
     # if diagonal
     def varTuple(self):
-        return tuple([self.sigma[i, i] for i in range(self.sigma.shape[0])])
+        return tuple(self.sigma[i, i] for i in range(self.sigma.shape[0]))
 
     def pnm(self, deltas):
         assert not self.pose4
@@ -754,27 +774,27 @@ class MultivariateGaussianDistribution:
     def draw(self):
         return np.random.multivariate_normal(self.mu.flat, self.sigma)
 
-    def kalmanTransUpdate(mvg, u, transSigma):
+    def kalmanTransUpdate(self, u, transSigma):
         if type(u) in (list, tuple):
             u = np.mat(u).T
-        mu = mvg.mu + u
-        if mvg.pose4:
+        mu = self.mu + u
+        if self.pose4:
             mu[3, 0] = fixAnglePlusMinusPi(mu[3, 0])
-        sigma = mvg.sigma + transSigma
+        sigma = self.sigma + transSigma
         return MultivariateGaussianDistribution(mu, sigma)
 
-    def kalmanObsUpdate(mvg, obs, obsSigma):
+    def kalmanObsUpdate(self, obs, obsSigma):
         if type(obs) in (list, tuple):
             obs = np.mat(obs).T
-        innovation = np.transpose(obs - mvg.mu)
-        if mvg.pose4:
+        innovation = np.transpose(obs - self.mu)
+        if self.pose4:
             innovation[0, 3] = fixAnglePlusMinusPi(innovation[0, 3])
-        innovation_covariance = mvg.sigma + obsSigma
-        kalman_gain = mvg.sigma * np.linalg.inv(innovation_covariance)
-        size = mvg.mu.shape[0]
-        mu = mvg.mu + kalman_gain * innovation.T
-        sigma = (np.eye(size) - kalman_gain) * mvg.sigma
-        return MultivariateGaussianDistribution(mu, sigma, mvg.pose4)
+        innovation_covariance = self.sigma + obsSigma
+        kalman_gain = self.sigma * np.linalg.inv(innovation_covariance)
+        size = self.mu.shape[0]
+        mu = self.mu + kalman_gain * innovation.T
+        sigma = (np.eye(size) - kalman_gain) * self.sigma
+        return MultivariateGaussianDistribution(mu, sigma, self.pose4)
 
     def __str__(self):
         return 'G(' + prettyString(self.mu) + ',' + prettyString(self.sigma) + ')'
@@ -805,7 +825,7 @@ class GMU(object):
             self.area = prod((hi - lo) for (lo, hi) in ranges)
         self.uniformWeight = 1 - sum(p for (d, p) in components)
         assert (ranges is None) or (self.uniformWeight < 10e-10)
-        self.mixtureProbs = DDist(dict([(i, p) for (i, (c, p)) in \
+        self.mixtureProbs = DDist(dict([(i, p) for i, (c, p) in \
                                         enumerate(self.components)] + \
                                        [(UNIFORM_LABEL, self.uniformWeight)]))
 
@@ -814,7 +834,7 @@ class GMU(object):
 
     # probability that the value is within this range
     def discreteProb(self, ranges):
-        return sum([p * d.discreteProb(ranges) for (d, p) in self.components])
+        return sum(p * d.discreteProb(ranges) for (d, p) in self.components)
 
     def kalmanTransUpdate(self, u, transSigma):
         # Side effects
@@ -870,7 +890,7 @@ class GMU(object):
     def draw(self):
         c = self.mixtureProbs.draw()
         if c == UNIFORM_LABEL:
-            return tuple([random.randint(l, h) for (l, h) in self.ranges])
+            return tuple(random.randint(l, h) for (l, h) in self.ranges)
         return self.components[c][0].draw()
 
     # Returns (dist, p) pair
@@ -981,7 +1001,7 @@ class ProductDistribution(object):
             d.reset(o, v)
 
     def draw(self):
-        return tuple([d.draw() for d in self.ds])
+        return tuple(d.draw() for d in self.ds)
 
 
 class ProductGaussianDistribution(ProductDistribution):
@@ -1007,7 +1027,7 @@ def binomialDist(n, p):
     """
     Binomial distribution on C{n} items with probability C{p}.
     """
-    return DDist(dict([(k, binCoeff(n, k) * p ** k) for k in range(0, n + 1)]))
+    return DDist({k: binCoeff(n, k) * p ** k for k in range(0, n + 1)})
 
 
 def binCoeff(n, k):
@@ -1021,6 +1041,11 @@ def binCoeff(n, k):
 
 ######################################################################
 #   Utilities
+
+def to_tuple(e):
+    if isinstance(e, tuple):
+        return e
+    return (e,)
 
 
 def removeElt(items, i):
@@ -1248,6 +1273,5 @@ def varBeforeObs(obsVar, varAfterObs, maxV=1.0):
     # VB = VA VO / (VO - VA)
 
     # ov = undiag(obsVar)
-    result = [(x * y / (x - y) if x > y else maxV)
-              for (x, y) in zip(obsVar, varAfterObs)]
-    return tuple(result)
+    return tuple((x * y / (x - y) if x > y else maxV)
+                 for (x, y) in zip(obsVar, varAfterObs))
