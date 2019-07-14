@@ -11,12 +11,10 @@ from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
 from pddlstream.algorithms.reorder import separate_plan, reorder_stream_plan
-from pddlstream.algorithms.reorder_actions import reorder_combined_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
-from pddlstream.language.execution import get_action_info
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
 from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_with_optimizers
@@ -43,8 +41,7 @@ def partition_externals(externals, verbose=False):
             streams, functions, negative, optimizers))
     return streams, functions, negative, optimizers
 
-def solve_focused(problem, constraints=PlanConstraints(),
-                  stream_info={}, action_info={},
+def solve_focused(problem, constraints=PlanConstraints(), stream_info={},
                   max_time=INF, max_iterations=INF, complexity_step=1,
                   max_skeletons=INF, bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
@@ -56,7 +53,6 @@ def solve_focused(problem, constraints=PlanConstraints(),
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
-    :param action_info: a dictionary from stream name to ActionInfo for planning and execution
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
     :param max_skeletons: the maximum number of plan skeletons to consider
@@ -88,7 +84,6 @@ def solve_focused(problem, constraints=PlanConstraints(),
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
     store = SolutionStore(evaluations, max_time, success_cost, verbose)
-    full_action_info = get_action_info(action_info)
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
@@ -129,10 +124,7 @@ def solve_focused(problem, constraints=PlanConstraints(),
                 domain.axioms.remove(axiom)
         else:
             combined_plan, cost = INFEASIBLE, INF
-        if action_info:
-            combined_plan = reorder_combined_plan(evaluations, combined_plan, full_action_info, domain)
-            print('Combined plan: {}'.format(combined_plan))
-        stream_plan, action_plan = separate_plan(combined_plan, full_action_info)
+        stream_plan, action_plan = separate_plan(combined_plan)
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations

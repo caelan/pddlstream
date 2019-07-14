@@ -189,11 +189,6 @@ def main():
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
 
-    action_info = {
-        #'move': ActionInfo(terminal=True),
-        #'pick': ActionInfo(terminal=True),
-        #'place': ActionInfo(terminal=True),
-    }
     stream_info = {
         't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
@@ -224,8 +219,7 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, constraints=constraints,
-                                 action_info=action_info, stream_info=stream_info,
+        solution = solve_focused(pddlstream_problem, constraints=constraints, stream_info=stream_info,
                                  planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,
