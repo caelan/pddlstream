@@ -108,12 +108,13 @@ class DebugValue(object): # TODO: could just do an object
 ##################################################
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False, **kwargs):
+    def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False, defer=False, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
         self.opt_gen_fn = opt_gen_fn # TODO: call this an abstraction instead
         self.negate = negate
         self.simultaneous = simultaneous
+        self.defer = defer
         #self.order = 0
 
 ##################################################

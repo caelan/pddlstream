@@ -232,7 +232,7 @@ def main(display=True, teleport=False, partial=False):
     stream_info = {
         'sample-pose': StreamInfo(PartialInputs('?r')),
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2')),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer=True),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     } if partial else {
         'sample-pose': StreamInfo(from_fn(opt_pose_fn)),

@@ -158,24 +158,14 @@ def reorder_stream_plan(stream_plan, **kwargs):
 
 ##################################################
 
-def separate_plan(combined_plan, action_info=None, terminate=False, stream_only=True):
+def separate_plan(combined_plan):
     if not is_plan(combined_plan):
         return combined_plan, combined_plan
     stream_plan = []
     action_plan = []
-    terminated = False
     for operator in combined_plan:
-        if terminate and terminated:
-            break
         if isinstance(operator, Result):
-            if terminated:
-                if implies(stream_only, isinstance(operator, StreamResult)):
-                    action_plan.append(operator.get_tuple())
-            else:
-                stream_plan.append(operator)
+            stream_plan.append(operator)
         else:
             action_plan.append(operator)
-            if action_info is not None:
-                name = operator[0]
-                terminated |= action_info[name].terminal
     return stream_plan, action_plan
