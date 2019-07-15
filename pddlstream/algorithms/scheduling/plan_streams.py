@@ -21,9 +21,9 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
-from pddlstream.language.constants import And, Not, get_prefix, EQ
+from pddlstream.language.constants import And, Not, get_prefix, EQ, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
-    fact_from_evaluation, transform_plan_args, pddl_from_object, obj_from_pddl
+    fact_from_evaluation, transform_plan_args, transform_action_args, pddl_from_object, obj_from_pddl
 from pddlstream.language.external import Result
 from pddlstream.language.function import Function
 from pddlstream.language.stream import StreamResult
@@ -31,7 +31,7 @@ from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.temporal import SimplifiedDomain, solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import Verbose, INF
+from pddlstream.utils import Verbose, INF, flatten
 
 def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
     cost_from_action = {action: action.cost for action in instantiated.actions}
@@ -72,7 +72,7 @@ def pddl_from_instance(instance):
     action = instance.action
     args = [instance.var_mapping[p.name]
             for p in action.parameters[:action.num_external_parameters]]
-    return action.name, args
+    return Action(action.name, args)
 
 ##################################################
 
@@ -147,11 +147,22 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
                         step_from_fact, step_from_stream)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
 
-    stream_plan = [result for result in stream_plan if (result.opt_index != 0) or
-                   (step_from_stream[result] < replan_step)]
-    stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, steps_from_fact, node_from_atom)
+    eager_plan = []
+    actions_from_step = {}
+    for result in (stream_plan + list(function_plan)):
+        if (result.opt_index != 0) or (step_from_stream.get(result, 0) < replan_step):
+            eager_plan.append(result)
+        else:
+            actions_from_step.setdefault(step_from_stream[result], []).append(result.get_action())
+    eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
 
-    return stream_plan + list(function_plan)
+    # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
+    #action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
+    for step, action in enumerate(action_plan):
+        actions_from_step.setdefault(step, []).append(transform_action_args(
+            pddl_from_instance(action), obj_from_pddl))
+    action_plan = list(flatten(actions_from_step[step] for step in sorted(actions_from_step)))
+    return eager_plan, action_plan
 
 ##################################################
 
@@ -250,9 +261,6 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
                        if action.name in replan_actions] or [len(action_plan)])
-    stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
-                                      node_from_atom, action_instances, axiom_plans, negative, replan_step)
-    # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
-    action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
-
+    stream_plan, action_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
+                                                   node_from_atom, action_instances, axiom_plans, negative, replan_step)
     return stream_plan, action_plan, cost

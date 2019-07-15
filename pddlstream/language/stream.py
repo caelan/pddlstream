@@ -4,7 +4,7 @@ from itertools import count
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
@@ -130,6 +130,9 @@ class StreamResult(Result):
         self._certified = None
         self._stream_fact = None
     @property
+    def input_objects(self):
+        return self.instance.input_objects
+    @property
     def mapping(self):
         if self._mapping is None:
             self._mapping = get_mapping(self.external.outputs, self.output_objects)
@@ -149,13 +152,13 @@ class StreamResult(Result):
         return self._certified
     def get_certified(self):
         return self.certified
-    def get_tuple(self):
-        return self.external.name, self.instance.input_objects, self.output_objects
+    def get_action(self):
+        return StreamAction(self.external.name, self.input_objects, self.output_objects)
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
         #if not any(o in bindings for o in self.instance.get_objects()):
         #    return self
-        input_objects = apply_mapping(self.instance.input_objects, bindings)
+        input_objects = apply_mapping(self.input_objects, bindings)
         fluent_facts = [Fact(get_prefix(f), apply_mapping(get_args(f), bindings))
                         for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)

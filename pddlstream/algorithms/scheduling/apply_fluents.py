@@ -5,6 +5,7 @@ from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.language.conversion import pddl_from_object
 from pddlstream.language.object import OptimisticObject, UniqueOptValue
 from pddlstream.utils import neighbors_from_orders, get_mapping
+from pddlstream.language.function import FunctionResult
 
 def get_steps_from_stream(stream_plan, step_from_fact, node_from_atom):
     steps_from_stream = {}
@@ -31,7 +32,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
     fluent_plan = []
     for result in stream_plan:
         external = result.external
-        if (result.opt_index != 0) or (not external.is_fluent()):
+        if isinstance(result, FunctionResult) or (result.opt_index != 0) or (not external.is_fluent()):
             static_plan.append(result)
             continue
         if outgoing_edges[result]:

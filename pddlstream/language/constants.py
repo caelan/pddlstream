@@ -36,7 +36,7 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
 
 Action = namedtuple('Action', ['name', 'args'])
 DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
-Stream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+StreamAction = namedtuple('StreamAction', ['name', 'inputs', 'outputs'])
 
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
@@ -135,21 +135,35 @@ def str_from_plan(plan):
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = is_plan(plan)
+    if plan is None:
+        num_deferred = plan
+    else:
+        num_deferred = len([action for action in plan if isinstance(action, StreamAction)])
     print()
     print('Solved: {}'.format(solved))
     print('Cost: {}'.format(cost))
-    print('Length: {}'.format(get_length(plan)))
+    print('Length: {}'.format(get_length(plan) - num_deferred))
+    print('Deferred: {}'.format(num_deferred))
     print('Evaluations: {}'.format(len(evaluations)))
     if not solved:
         return
-    for i, action in enumerate(plan):
+    step = 1
+    for action in plan:
         if isinstance(action, DurativeAction):
             name, args, start, duration = action
-            print('{:.2f} - {:.2f}) {} {}'.format(start, start+duration, name, ' '.join(map(str_from_object, args))))
-        else:
+            print('{:.2f} - {:.2f}) {} {}'.format(start, start+duration, name,
+                                                  ' '.join(map(str_from_object, args))))
+        elif isinstance(action, Action):
             name, args = action
-            print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
-            #print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
+            print('{:2}) {} {}'.format(step, name, ' '.join(map(str_from_object, args))))
+            #print('{}) {}{}'.format(step, name, str_from_object(tuple(args))))
+            step += 1
+        elif isinstance(action, StreamAction):
+            name, inputs, outputs = action
+            print('    {}({})->({})'.format(name, ', '.join(map(str_from_object, inputs)),
+                                          ', '.join(map(str_from_object, outputs))))
+        else:
+            raise NotImplementedError(action)
 
 
 def get_function(term):

@@ -4,7 +4,7 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, Stream, \
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, StreamAction, \
     DurativeAction, Solution
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
@@ -160,11 +160,16 @@ def values_from_objects(objects):
     #return tuple(map(value_from_object, objects))
 
 def transform_action_args(action, fn):
-    if isinstance(action, DurativeAction):
+    if isinstance(action, Action):
+        name, args = action
+        return Action(name, tuple(map(fn, args)))
+    elif isinstance(action, DurativeAction):
         name, args, start, duration = action
         return DurativeAction(name, tuple(map(fn, args)), start, duration)
-    name, args = action
-    return Action(name, tuple(map(fn, args)))
+    elif isinstance(action, StreamAction):
+        name, inputs, outputs = action
+        return StreamAction(name, tuple(map(fn, inputs)), tuple(map(fn, outputs)))
+    raise NotImplementedError(action)
 
 def transform_plan_args(plan, fn):
     if not is_plan(plan):
@@ -191,13 +196,13 @@ def value_from_obj_plan(obj_plan):
         return obj_plan
     value_plan = []
     for action in obj_plan:
-        if isinstance(action, Stream):
+        if isinstance(action, StreamAction):
             name, inputs, outputs = action
-            new_inputs = params_from_objects(inputs) # values_from_objects
+            new_inputs = params_from_objects(inputs)
             new_outputs = outputs
-            if isinstance(new_outputs, collections.Sequence):
-                new_outputs = params_from_objects(new_outputs) # values_from_objects
-            new_action = (name, new_inputs, new_outputs)
+            #if isinstance(new_outputs, collections.Sequence): # TODO: what was this for?
+            new_outputs = params_from_objects(new_outputs)
+            new_action = StreamAction(name, new_inputs, new_outputs)
         elif isinstance(action, DurativeAction):
             name, args, start, duration = action
             name, index = name[:-2], int(name[-1])
