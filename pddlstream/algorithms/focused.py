@@ -41,7 +41,7 @@ def partition_externals(externals, verbose=False):
             streams, functions, negative, optimizers))
     return streams, functions, negative, optimizers
 
-def solve_focused(problem, constraints=PlanConstraints(), stream_info={},
+def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                   max_time=INF, max_iterations=INF, complexity_step=1,
                   max_skeletons=INF, bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
@@ -110,7 +110,8 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={},
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
             len(evaluations), eager_calls, store.best_cost, search_time, sample_time, store.elapsed_time()))
-        optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative, reachieve=use_skeletons,
+        optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
+                                                      replan_actions=replan_actions, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand

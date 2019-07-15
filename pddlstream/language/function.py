@@ -18,6 +18,7 @@ class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, **kwargs):
         super(FunctionInfo, self).__init__(**kwargs)
         self.opt_fn = opt_fn
+        self.defer = False
         #self.order = 0
 
 class FunctionResult(Result):

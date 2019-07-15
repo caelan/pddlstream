@@ -4,7 +4,8 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, DurativeAction, Solution
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, Stream, \
+    DurativeAction, Solution
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -176,7 +177,8 @@ def obj_from_pddl_plan(pddl_plan):
 
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
-        return obj.pddl
+        return repr(obj)
+        #return obj.pddl
     if isinstance(obj, Object):
         return obj.value
     raise ValueError(obj)
@@ -187,11 +189,9 @@ def params_from_objects(objects):
 def value_from_obj_plan(obj_plan):
     if not is_plan(obj_plan):
         return obj_plan
-    #return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
-    #return [(action, tuple(values_from_objects(args))) for action, args in obj_plan]
     value_plan = []
     for action in obj_plan:
-        if len(action) == 3:
+        if isinstance(action, Stream):
             name, inputs, outputs = action
             new_inputs = params_from_objects(inputs) # values_from_objects
             new_outputs = outputs
@@ -204,8 +204,10 @@ def value_from_obj_plan(obj_plan):
             if index != 0:
                 continue
             new_action = DurativeAction(name, tuple(map(param_from_object, args)), start, duration)
-        else:
+        elif isinstance(action, Action):
             new_action = transform_action_args(action, param_from_object) # values_from_objects
+        else:
+            raise ValueError(action)
         value_plan.append(new_action)
     return value_plan
 

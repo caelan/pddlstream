@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import copy
 
 from collections import defaultdict
@@ -103,7 +105,7 @@ def instantiate_optimizer_axioms(instantiated, domain, results):
 ##################################################
 
 def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_expression, domain, node_from_atom,
-                        action_plan, axiom_plans, negative):
+                        action_plan, axiom_plans, negative, replan_step):
     # Universally quantified conditions are converted into negative axioms
     # Existentially quantified conditions are made additional preconditions
     # Universally quantified effects are instantiated by doing the cartesian produce of types (slow)
@@ -122,22 +124,32 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
     positive_preimage = stream_preimage - negative_preimage
 
-    step_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
-    target_facts = {fact for fact in step_from_fact.keys() if get_prefix(fact) != EQ}
+    steps_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
+    target_facts = {fact for fact in steps_from_fact.keys() if get_prefix(fact) != EQ}
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
 
+    # TODO: get_steps_from_stream
     stream_plan = []
+    step_from_stream = {}
     for result in current_plan:
+        # TODO: actually compute when these are needed + dependencies
+        step_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
             function_plan.add(result) # Prevents these results from being pruned
         else:
             stream_plan.append(result)
+
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
     extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan)
+    step_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan,
+                        step_from_fact, step_from_stream)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
-    stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom)
+
+    stream_plan = [result for result in stream_plan if (result.opt_index != 0) or
+                   (step_from_stream[result] < replan_step)]
+    stream_plan = convert_fluent_streams(stream_plan, real_states, action_plan, steps_from_fact, node_from_atom)
 
     return stream_plan + list(function_plan)
 
@@ -201,7 +213,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     return instantiated, action_instances, cost
 
 def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
-                 simultaneous=False, reachieve=True, **kwargs):
+                 simultaneous=False, reachieve=True, replan_actions=set(), **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     #reachieve = reachieve and not using_optimizers(all_results)
@@ -235,9 +247,12 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     stream_plan, action_instances = recover_simultaneous(
         applied_results, negative, deferred_from_name, action_instances)
 
-    stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression,
-                                      stream_domain, node_from_atom, action_instances, axiom_plans, negative)
-    # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last
+    action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
+    replan_step = min([step+1 for step, action in enumerate(action_plan)
+                       if action.name in replan_actions] or [len(action_plan)])
+    stream_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
+                                      node_from_atom, action_instances, axiom_plans, negative, replan_step)
+    # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
 
     return stream_plan, action_plan, cost

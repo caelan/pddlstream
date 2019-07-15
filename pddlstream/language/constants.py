@@ -32,11 +32,11 @@ INFEASIBLE = False
 # TODO: rename PDDLProblem
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
-Stream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
 
 Action = namedtuple('Action', ['name', 'args'])
 DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
-Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
+Stream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
 
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
