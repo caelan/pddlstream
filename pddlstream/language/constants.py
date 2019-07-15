@@ -136,7 +136,7 @@ def print_solution(solution):
     plan, cost, evaluations = solution
     solved = is_plan(plan)
     if plan is None:
-        num_deferred = plan
+        num_deferred = 0
     else:
         num_deferred = len([action for action in plan if isinstance(action, StreamAction)])
     print()
