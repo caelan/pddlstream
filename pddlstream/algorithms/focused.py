@@ -10,7 +10,7 @@ from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
-from pddlstream.algorithms.reorder import separate_plan, reorder_stream_plan
+from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
@@ -118,13 +118,13 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={},
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            combined_plan, cost = iterative_plan_streams(evaluations, (streams + functions + optimizers),
-                                                         optimistic_solve_fn, complexity_limit, max_effort=max_effort)
+            stream_plan, action_plan, cost = iterative_plan_streams(
+                evaluations, (streams + functions + optimizers),
+                optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
         else:
-            combined_plan, cost = INFEASIBLE, INF
-        stream_plan, action_plan = separate_plan(combined_plan)
+            stream_plan, action_plan, cost = INFEASIBLE, INFEASIBLE, INF
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations

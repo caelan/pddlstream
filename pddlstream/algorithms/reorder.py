@@ -155,17 +155,3 @@ def reorder_stream_plan(stream_plan, **kwargs):
     valid_combine = lambda v, subset: out_stream_orders[v] <= subset
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
     return dynamic_programming(stream_plan, valid_combine, get_stream_stats, **kwargs)
-
-##################################################
-
-def separate_plan(combined_plan):
-    if not is_plan(combined_plan):
-        return combined_plan, combined_plan
-    stream_plan = []
-    action_plan = []
-    for operator in combined_plan:
-        if isinstance(operator, Result):
-            stream_plan.append(operator)
-        else:
-            action_plan.append(operator)
-    return stream_plan, action_plan

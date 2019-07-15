@@ -227,7 +227,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         domain, stream_domain, applied_results, all_results, opt_evaluations,
         node_from_atom, goal_expression, effort_weight, **kwargs)
     if action_instances is None:
-        return action_instances, cost
+        return None, None, cost
 
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
@@ -240,5 +240,4 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
 
-    combined_plan = stream_plan + action_plan
-    return combined_plan, cost
+    return stream_plan, action_plan, cost

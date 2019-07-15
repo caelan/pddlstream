@@ -4,7 +4,6 @@ from itertools import product
 from copy import deepcopy, copy
 
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.reorder import separate_plan
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
@@ -143,11 +142,8 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
         evaluations2 = copy(evaluations)
         goal_exp2 = add_plan_constraints(constraints, domain2, evaluations2, goal_exp, internal=True)
         max_cost2 = max_cost if constraints is None else min(max_cost, constraints.max_cost)
-        combined_plan, cost = plan_streams(evaluations2, goal_exp2, domain2, results, negative,
-                                           max_cost=max_cost2, **kwargs)
-        #print(combined_plan, cost)
-        #raw_input('Continue?')
-        return combined_plan, cost
+        return plan_streams(evaluations2, goal_exp2, domain2, results, negative,
+                            max_cost=max_cost2, **kwargs)
     return fn
 
 ##################################################
@@ -155,11 +151,10 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn, complexity_limit,
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
-        return None, INF, depth
-    combined_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-    if not is_plan(combined_plan):
-        return combined_plan, cost, depth
-    stream_plan, action_plan = separate_plan(combined_plan, stream_only=False)
+        return None, None, INF, depth
+    stream_plan, action_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
+    if not is_plan(action_plan):
+        return stream_plan, action_plan, cost, depth
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
     #print(depth, get_length(stream_plan))
@@ -174,10 +169,10 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #print()
 
     if is_refined(stream_plan):
-        return combined_plan, cost, depth
+        return stream_plan, action_plan, cost, depth
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not CONSTRAIN_STREAMS and not CONSTRAIN_PLANS:
-        return None, INF, depth + 1
+        return None, None, INF, depth + 1
     if CONSTRAIN_STREAMS:
         next_results = compute_stream_results(evaluations, new_results, externals, **effort_args)
     else:
@@ -195,14 +190,14 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     while True:
         num_iterations += 1
         results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit, **effort_args)
-        combined_plan, cost, final_depth = hierarchical_plan_streams(
+        stream_plan, action_plan, cost, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
         print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(results), final_depth, is_plan(combined_plan)))
-        if is_plan(combined_plan):
-            return combined_plan, cost
+            num_iterations, len(results), final_depth, is_plan(action_plan)))
+        if is_plan(action_plan):
+            return stream_plan, action_plan, cost
         if final_depth == 0:
             status = INFEASIBLE if exhausted else FAILED
-            return status, cost
+            return status, status, cost
     # TODO: should streams along the sampled path automatically have no optimistic value
