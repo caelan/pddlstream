@@ -5,6 +5,10 @@ from __future__ import print_function
 import cProfile
 import pstats
 import numpy as np
+import argparse
+
+import pddlstream.language.exogenous
+pddlstream.language.exogenous.EXOGENOUS_AXIOMS = True
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
@@ -54,7 +58,12 @@ def pddlstream_from_belief():
 
 ##################################################
 
-def main(focused=True):
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    args = parser.parse_args()
+    print('Arguments:', args)
+
     # TODO: maybe load problems as a domain explicitly
     pddlstream_problem = pddlstream_from_belief()
     _, _, _, _, init, goal = pddlstream_problem
@@ -62,11 +71,12 @@ def main(focused=True):
     print('Goal:', goal)
     pr = cProfile.Profile()
     pr.enable()
-    if focused:
+    if args.algorithm == 'focused':
         solution = solve_focused(pddlstream_problem, unit_costs=False)
-    else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=False)
+    elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, unit_costs=False)
+    else:
+        raise NotImplementedError(args.algorithm)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(5)
     print_solution(solution)

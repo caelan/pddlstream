@@ -10,7 +10,9 @@ from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
 
+EXOGENOUS_AXIOMS = True
 
+# TODO: timed initial literals
 # TODO: can do this whole story within the focused algorithm as well
 
 class FutureValue(object):
@@ -136,6 +138,7 @@ def replace_predicates(predicate_map, expression):
 
 def compile_to_exogenous_axioms(evaluations, domain, streams):
     # TODO: no attribute certified
+    # TODO: recover the streams that are required
     import pddl
     fluent_predicates = get_fluents(domain)
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
@@ -186,13 +189,13 @@ def get_exogenous_predicates(domain, streams):
     domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
     return list(domain_predicates & fluent_predicates)
 
-def compile_to_exogenous(evaluations, domain, streams, use_axioms=True):
+def compile_to_exogenous(evaluations, domain, streams):
     exogenous_predicates = get_exogenous_predicates(domain, streams)
     if not exogenous_predicates:
         return False
     print('Warning! The following predicates are mentioned in both action effects '
           'and stream domain conditions: {}'.format(exogenous_predicates))
-    if use_axioms:
+    if EXOGENOUS_AXIOMS:
         compile_to_exogenous_axioms(evaluations, domain, streams)
     else:
         compile_to_exogenous_actions(evaluations, domain, streams)
