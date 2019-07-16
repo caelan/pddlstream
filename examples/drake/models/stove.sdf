@@ -18,12 +18,9 @@
       <pose frame=''>0 0 0.025 0 0 0</pose>
       <geometry>
         <box> 
-          <size>0.25 0.25 0.05</size>
+          <size>0.249 0.249 0.049</size>
         </box>
       </geometry>
-      <material>
-        <diffuse>1 0 0 1</diffuse>
-      </material>
     </collision>
 
    </link>

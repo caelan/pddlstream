@@ -1,21 +1,25 @@
 (define (domain fluent)
   (:requirements :strips)
   (:predicates
-    (OnTable ?o)
-    (Holding ?o)
-    (Feasible1 ?o)
-    (Feasible2 ?o ?t)
-    (Test)
+    (Block ?b)
+    (OnTable ?b)
+    (Holding ?b)
+    (Pickable ?b ?t)
+    (Cleanable ?b ?t)
+    (Clean ?b)
+    (Cooked ?b)
   )
-  (:action pick1
-    :parameters (?o)
-    :precondition (and (OnTable ?o) (Feasible1 ?o))
-    :effect (and (Holding ?o) (not (OnTable ?o))))
-  (:action pick2
-    :parameters (?o ?t)
-    :precondition (and (OnTable ?o) (Feasible2 ?o ?t))
-    :effect (and (Holding ?o) (not (OnTable ?o))))
-  (:action default
-    :effect (Test)
-  )
+  (:action pick
+    :parameters (?b ?t)
+    :precondition (and (OnTable ?b) (Pickable ?b ?t))
+    :effect (and (Holding ?b) (not (OnTable ?b))))
+
+  (:action clean
+    :parameters (?b ?t)
+    :precondition (Cleanable ?b ?t)
+    :effect (Clean ?b))
+  (:action cook
+    :parameters (?b)
+    :precondition (and (Block ?b) (Clean ?b))
+    :effect (and (Cooked ?b) (not (Clean ?b))))
 )

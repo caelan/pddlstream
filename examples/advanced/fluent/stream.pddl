@@ -1,12 +1,17 @@
-(define (stream feasible)
-  ;(:state-stream test-feasible
-  (:stream test-feasible
-    :inputs (?o)
-    :domain (Block ?o)
+(define (stream fluent)
+  (:stream sample-pickable
+    :inputs (?b)
+    :domain (Block ?b)
     :fluents (OnTable)
-    ;:certified (Feasible1 ?o)
-
     :outputs (?t)
-    :certified (Feasible2 ?o ?t)
+    :certified (Pickable ?b ?t)
+  )
+
+  (:stream test-cleanable
+    :inputs (?b)
+    :domain (Block ?b)
+    :fluents (Cooked)
+    :outputs (?t)
+    :certified (Cleanable ?b ?t)
   )
 )

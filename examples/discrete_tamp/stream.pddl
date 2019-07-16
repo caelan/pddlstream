@@ -1,14 +1,9 @@
-(define (stream pick-and-place)
+(define (stream discrete-tamp)
   (:rule
     :inputs (?q ?p)
     :domain (Kin ?q ?p)
     :certified (and (Conf ?q) (Pose ?p))
   )
-  ;(:rule ; For debugging
-  ;  :inputs (?p)
-  ;  :domain (Pose ?p)
-  ;  :certified (Pose ?p)
-  ;)
   ;(:rule
   ;  :inputs (?b ?p)
   ;  :domain (AtPose ?b ?p) ; This is a fluent
@@ -18,9 +13,6 @@
   (:function (Distance ?q1 ?q2)
     (and (Conf ?q1) (Conf ?q2))
   )
-  ;(:predicate (Collision ?p1 ?p2)
-  ;  (and (Pose ?p1) (Pose ?p2))
-  ;)
 
   (:stream sample-pose
     :outputs (?p)

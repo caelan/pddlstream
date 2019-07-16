@@ -1,8 +1,8 @@
-from pddlstream.language.constants import And
+from pddlstream.language.constants import And, print_solution
 from pddlstream.language.stream import DEBUG
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import Equal, AND, PDDLProblem
-from pddlstream.utils import print_solution, read, INF, get_file_path, find_unique
+from pddlstream.language.constants import PDDLProblem
+from pddlstream.utils import read, get_file_path
 
 import cProfile
 import pstats
@@ -71,7 +71,7 @@ def main():
     problem = create_problem(initial_poses)
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(problem, unit_costs=True, planner='ff-eager', debug=True) # max_planner_time=5,
+    solution = solve_focused(problem, unit_costs=True, planner='ff-lazy', debug=False) # max_planner_time=5,
     pr.disable()
     print_solution(solution)
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)

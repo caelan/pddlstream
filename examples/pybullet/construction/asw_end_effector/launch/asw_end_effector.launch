@@ -1,6 +1,0 @@
-<launch>
-  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find asw_end_effector)/urdf/asw_eef.urdf'" />
-  <param name="use_gui" value="true" />
-  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find asw_end_effector)/config/robot_state_visualize.rviz" required="true" />
-</launch>

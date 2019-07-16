@@ -1,12 +1,14 @@
+from __future__ import print_function
+
 import os
 
 from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, NOT, MINIMIZE
+from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_plan, is_parameter, \
+    partition_facts
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.language.synthesizer import SynthStreamResult, decompose_stream_plan
-from pddlstream.utils import clear_dir, ensure_dir, str_from_plan
+from pddlstream.utils import clear_dir, ensure_dir, str_from_object
 
 # https://www.graphviz.org/doc/info/
 
@@ -23,7 +25,6 @@ STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
 ITERATION_TEMPLATE = 'iteration_{}.png'
 SYNTHESIZER_TEMPLATE = '{}_{}.png'
-POST_PROCESS = 'post'
 
 ##################################################
 
@@ -41,39 +42,44 @@ def reset_visualizations():
 
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
+    from pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     with open(PLAN_LOG_FILE, 'a+') as f:
         f.write('Iteration: {}\n'
+                'Component plan: {}\n'
                 'Stream plan: {}\n'
-                'Synthesizer plan: {}\n'
                 'Action plan: {}\n\n'.format(
                 iteration, decomposed_plan,
                 stream_plan, str_from_plan(action_plan)))
 
 def create_synthesizer_visualizations(result, iteration):
-    stream_plan = result.decompose()
-    filename = SYNTHESIZER_TEMPLATE.format(result.instance.external.name,
-                                           POST_PROCESS if iteration is None else iteration)
-    #constraints = get_optimistic_constraints(evaluations, stream_plan)
-    visualize_constraints(result.get_certified() + result.get_functions(),
-                          os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan,
-                                    os.path.join(STREAM_PLAN_DIR, filename))
+    from pddlstream.retired.synthesizer import decompose_result
+    stream_plan = decompose_result(result)
+    if len(stream_plan) <= 1:
+        return
+    # TODO: may overwrite another optimizer if both used on the same iteration
+    filename = SYNTHESIZER_TEMPLATE.format(result.external.name, iteration)
+    visualize_constraints(result.get_objectives(), os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, filename))
 
 def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
     # TODO: decompose any joint streams
+    from pddlstream.retired.synthesizer import decompose_stream_plan
     for result in stream_plan:
-        if isinstance(result, SynthStreamResult):
-            create_synthesizer_visualizations(result, iteration)
-    filename = ITERATION_TEMPLATE.format(POST_PROCESS if iteration is None else iteration)
+        create_synthesizer_visualizations(result, iteration)
+    filename = ITERATION_TEMPLATE.format(iteration)
     # visualize_stream_plan(stream_plan, path)
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
+    print('Constraints:', str_from_object(constraints))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
-    visualize_stream_plan_bipartite(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
-    visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
+    decomposed_plan = decompose_stream_plan(stream_plan)
+    if len(decomposed_plan) != len(stream_plan):
+        visualize_stream_plan(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
+    #visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
+    visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################
 
@@ -99,31 +105,13 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
 
-    functions = set()
-    negated = set()
-    heads = set()
-    for fact in constraints:
-        prefix = get_prefix(fact)
-        if prefix in (EQ, MINIMIZE):
-            functions.add(fact[1])
-        elif prefix == NOT:
-            negated.add(fact[1])
-        else:
-            heads.add(fact)
-    heads.update(functions)
-    heads.update(negated)
-
-    objects = {a for head in heads for a in get_args(head)}
-    optimistic_objects = filter(lambda o: isinstance(o, OptimisticObject), objects)
-    for opt_obj in optimistic_objects:
-        graph.add_node(str(opt_obj), shape='circle', color=PARAMETER_COLOR)
-
-    for head in heads:
-        if not use_functions and (head in functions):
-            continue
+    positive, negated, functions = partition_facts(constraints)
+    for head in positive + negated + functions:
         # TODO: prune values w/o free parameters?
         name = str_from_fact(head)
         if head in functions:
+            if not use_functions:
+                continue
             color = COST_COLOR
         elif head in negated:
             color = NEGATED_COLOR
@@ -131,8 +119,10 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
             color = CONSTRAINT_COLOR
         graph.add_node(name, shape='box', color=color)
         for arg in get_args(head):
-            if arg in optimistic_objects:
-                graph.add_edge(name, str(arg))
+            if isinstance(arg, OptimisticObject) or is_parameter(arg):
+                arg_name = str(arg)
+                graph.add_node(arg_name, shape='circle', color=PARAMETER_COLOR)
+                graph.add_edge(name, arg_name)
     graph.draw(filename, prog='dot') # neato | dot | twopi | circo | fdp | nop
     return graph
 
@@ -179,6 +169,7 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
     graph.graph_attr['ranksep'] = 0.25
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
+    # TODO: store these settings as a dictionary
 
     def add_fact(fact):
         head, color = (fact[1], COST_COLOR) if get_prefix(fact) == EQ else (fact, CONSTRAINT_COLOR)

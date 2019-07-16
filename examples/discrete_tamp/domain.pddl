@@ -1,4 +1,4 @@
-(define (domain pick-and-place)
+(define (domain discrete-tamp)
   (:requirements :strips :equality)
   (:constants q100)
   (:predicates
@@ -24,7 +24,7 @@
                        (AtConf ?q1) (CanMove))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1)) (not (CanMove))
-             (increase (total-cost) (Distance ?q1 ?q2)))
+                 (increase (total-cost) (Distance ?q1 ?q2)))
   )
   (:action pick
     :parameters (?b ?p ?q)
@@ -42,8 +42,9 @@
                  (not (Holding ?b))
                  (increase (total-cost) 1))
   )
-  (:derived (Unsafe ?p1)
-    (exists (?b ?p2) (and (Pose ?p1) (not (CFree ?p1 ?p2))
-                          (AtPose ?b ?p2)))
+  (:derived (Unsafe ?p)
+    (exists (?b2 ?p2) (and (Pose ?p) (Block ?b2) (Pose ?p2)
+                          (not (CFree ?p ?p2))
+                          (AtPose ?b2 ?p2)))
   )
 )

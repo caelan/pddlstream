@@ -6,7 +6,10 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_test, from_fn
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import print_solution, read, get_file_path
+from pddlstream.language.constants import And, print_solution
+from pddlstream.utils import read, get_file_path
+
+TRAJ = [0, 1]
 
 def feasibility_test(o, fluents=set()):
     for fact in fluents:
@@ -19,16 +22,21 @@ def feasibility_test(o, fluents=set()):
 def feasibility_fn(o, fluents=set()):
     if not feasibility_test(o, fluents=fluents):
         return None
-    t = [0, 1]
-    return (t,)
+    return (TRAJ,)
 
 def get_pddlstream_problem():
+    # TODO: bug where a trajectory sample could be used in a different state than anticipated (don't return the sample)
+    # TODO: enforce positive axiom preconditions requiring the state to be exactly some given value
+    #       then, the can outputs can be used in other streams only present at that state
+    # TODO: explicitly don't let the outputs of one fluent stream be the input to another on a different state
+
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
-        #'test-feasible': from_test(test_feasible),
-        'test-feasible': from_fn(feasibility_fn),
+        'sample-pickable': from_fn(feasibility_fn),
+        'test-cleanable': from_fn(lambda o, fluents=set(): (TRAJ,)),
+        #'test-cleanable': from_fn(lambda o, fluents=set(): None if fluents else (TRAJ,)),
     }
 
     init = [
@@ -38,7 +46,8 @@ def get_pddlstream_problem():
         ('OnTable', 'b2'),
     ]
 
-    goal = ('Holding', 'b1')
+    #goal = ('Holding', 'b1')
+    goal = And(('Clean', 'b1'), ('Cooked', 'b1'))
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 

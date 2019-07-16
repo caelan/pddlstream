@@ -9,8 +9,8 @@ from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
 from examples.discrete_belief.run import revisit_mdp_cost
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import And, Equal
-from pddlstream.utils import print_solution, read, get_file_path, INF
+from pddlstream.language.constants import And, Equal, print_solution
+from pddlstream.utils import read, get_file_path, INF
 
 ROOM = 'room'
 TABLE = 'table'

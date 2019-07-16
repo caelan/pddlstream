@@ -3,8 +3,9 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import write_sas_task, parse_solution, run_search, TEMP_DIR, sas_from_pddl, write_pddl, \
-    translate_and_write_pddl
+from pddlstream.language.temporal import solve_tfd
+from pddlstream.algorithms.downward import parse_solution, run_search, TEMP_DIR, write_pddl
+from pddlstream.algorithms.instantiate_task import write_sas_task, sas_from_pddl, translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
 # TODO: manual_patterns
@@ -13,36 +14,39 @@ from pddlstream.utils import INF, Verbose, safe_rm_dir
 # TODO: receding horizon planning
 # TODO: allow switch to higher-level in heuristic
 # TODO: recursive application of these
+# TODO: write the domain and problem PDDL files that are used for debugging purposes
 
-def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **search_args):
     # TODO: can solve using another planner and then still translate using FastDownward
+    # Can apply plan constraints (skeleton constraints) here as well
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
         write_sas_task(sas_task, temp_dir)
-        solution = run_search(temp_dir, debug=True, **kwargs)
+        solution = run_search(temp_dir, debug=True, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     #for axiom in sas_task.axioms:
-    #    # TODO: return the set of axioms as well
+    #    # TODO: return the set of axioms here as well
     #    var, value = axiom.effect
-    #    #names = sas_task.variables.value_names[var]
-    #    #axiom.dump()
-    return parse_solution(solution)
+    #    print(sas_task.variables.value_names[var])
+    #    axiom.dump()
+    return solution
 
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **kwargs):
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: combine with solve_from_task
+    #return solve_tfd(domain_pddl, problem_pddl)
     start_time = time()
     with Verbose(debug):
         write_pddl(domain_pddl, problem_pddl, temp_dir)
         #run_translate(temp_dir, verbose)
         translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-        solution = run_search(temp_dir, debug=debug, **kwargs)
+        solution = run_search(temp_dir, debug=debug, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
-    return parse_solution(solution)
+    return solution
 
 ##################################################
 
@@ -66,13 +70,15 @@ def parse_sas_plan(sas_task, plan):
 
 ##################################################
 
+SERIALIZE = 'serialize'
+
 def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
     full_plan = []
     full_cost = 0
     for subgoal in subgoal_plan:
         sas_task.goal.pairs = subgoal
         write_sas_task(sas_task, temp_dir)
-        plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
+        plan, cost = run_search(temp_dir, debug=True, **kwargs)
         if plan is None:
             return None, INF
         full_plan.extend(plan)
@@ -84,7 +90,7 @@ def plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs):
 
 def serialized_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
     # TODO: specify goal grouping / group by predicate & objects
-    # TODO: version that solves for all subgoals at once
+    # TODO: version that solves for all disjuctive subgoals at once
     start_time = time()
     with Verbose(debug):
         print('\n' + 50*'-' + '\n')
@@ -166,8 +172,10 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
-    if not hierarchy:
+    if hierarchy is None:
         return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+    if hierarchy == SERIALIZE:
+        return serialized_solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
@@ -178,7 +186,7 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
             prune_hierarchy_pre_eff(local_sas_task, hierarchy[level:]) # TODO: break if no pruned
             add_subgoals(local_sas_task, last_plan)
             write_sas_task(local_sas_task, temp_dir)
-            plan, cost = parse_solution(run_search(temp_dir, debug=True, **kwargs))
+            plan, cost = run_search(temp_dir, debug=True, **kwargs)
             if (level == len(hierarchy)) or (plan is None):
                 # TODO: fall back on standard search
                 break

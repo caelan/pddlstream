@@ -8,7 +8,8 @@ from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.utils import print_solution, read
+from pddlstream.utils import read
+from pddlstream.language.constants import print_solution
 
 
 def read_pddl(filename):
@@ -43,19 +44,15 @@ def get_problem():
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
-def solve_pddlstream(focused=True):
+def solve_pddlstream(focused=False):
     pddlstream_problem = get_problem()
     if focused:
         solution = solve_focused(pddlstream_problem, unit_costs=True)
     else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=True)
-        solution = solve_incremental(pddlstream_problem, unit_costs=True)
+        solution = solve_incremental(pddlstream_problem, unit_costs=True, planner='cerberus', debug=False)
     print_solution(solution)
 
 ##################################################
-
-# TODO: could extract the FD parser by itself
-# TODO: include my version of FD as a submodule
 
 def main():
     #solve_pddl()

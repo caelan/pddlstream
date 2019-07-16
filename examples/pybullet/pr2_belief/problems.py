@@ -4,11 +4,13 @@ from __future__ import print_function
 from examples.discrete_belief.dist import UniformDist, DeltaDist, MixtureDist, MixtureDD
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import State
 from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm
+    arm_conf, REST_LEFT_ARM, close_arm, create_gripper
 from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, get_bodies, is_center_stable
 from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
 USE_DRAKE_PR2 = True
+OTHER = 'other'
+LOCALIZED_PROB = 0.99
 
 class BeliefTask(object):
     def __init__(self, robot, arms=tuple(), grasp_types=tuple(),
@@ -26,8 +28,15 @@ class BeliefTask(object):
         self.goal_on = goal_on
         self.goal_localized = goal_localized
         self.goal_registered = goal_registered
+        self.gripper = None
     def get_bodies(self):
         return self.movable + self.surfaces + self.rooms
+    @property
+    def fixed(self):
+        movable = [self.robot] + list(self.movable)
+        if self.gripper is not None:
+            movable.append(self.gripper)
+        return list(filter(lambda b: b not in movable, get_bodies()))
     def get_supports(self, body):
         if body in self.movable:
             return self.surfaces
@@ -36,6 +45,10 @@ class BeliefTask(object):
         if body in self.rooms:
             return None
         raise ValueError(body)
+    def get_gripper(self, arm='left'):
+        if self.gripper is None:
+            self.gripper = create_gripper(self.robot, arm=arm)
+        return self.gripper
 
 
 # TODO: operate on histories to do open-world
@@ -58,7 +71,10 @@ class BeliefState(State):
             #    self.poses[body] = Pose(body, (point, None))
         """
     def is_localized(self, body):
-        return len(self.b_on[body].support()) == 1
+        for surface in self.b_on[body].support():
+            if (surface != OTHER) and (LOCALIZED_PROB <= self.b_on[body].prob(surface)):
+                return True
+        return False
     def __repr__(self):
         items = []
         for b in sorted(self.b_on.keys()):
@@ -72,9 +88,8 @@ class BeliefState(State):
 
 #######################################################
 
-OTHER = 'other'
-
-def set_uniform_belief(task, b_on, body, p_other=0.5):
+def set_uniform_belief(task, b_on, body, p_other=0.):
+    # p_other is the probability that it doesn't actually exist
     # TODO: option to bias towards particular bottom
     other = DeltaDist(OTHER)
     uniform = UniformDist(task.get_supports(body))
@@ -111,7 +126,6 @@ def get_localized_surfaces(task, **kwargs):
         set_delta_belief(task, b_on, body)
     return BeliefState(task, b_on=b_on)
 
-
 def get_localized_movable(task):
     b_on = {}
     for body in (task.rooms + task.surfaces + task.movable):
@@ -141,15 +155,16 @@ def get_kitchen_task(arm='left', grasp_type='top'):
     surfaces = [table, sink, stove]
     rooms = [floor]
 
-    return BeliefTask(robot=pr2, arms=[arm], grasp_types=[grasp_type],
-                      class_from_body=class_from_body,
-                      movable=movable, surfaces=surfaces, rooms=rooms,
-                      #goal_localized=[cabbage],
-                      #goal_registered=[cabbage],
-                      #goal_holding=[(arm, cabbage)],
-                      #goal_on=[(cabbage, table)],
-                      goal_on=[(cabbage, sink)],
-                      )
+    return BeliefTask(
+        robot=pr2, arms=[arm], grasp_types=[grasp_type],
+        class_from_body=class_from_body,
+        movable=movable, surfaces=surfaces, rooms=rooms,
+        #goal_localized=[cabbage],
+        #goal_registered=[cabbage],
+        #goal_holding=[(arm, cabbage)],
+        #goal_on=[(cabbage, table)],
+        goal_on=[(cabbage, sink)],
+    )
 
 def get_problem1(localized='rooms', **kwargs):
     task = get_kitchen_task()

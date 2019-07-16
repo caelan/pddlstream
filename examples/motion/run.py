@@ -7,18 +7,17 @@ import pstats
 import numpy as np
 
 from examples.motion.viewer import sample_box, get_distance, is_collision_free, \
-    create_box, draw_solution, draw_roadmap
+    create_box, draw_solution, draw_roadmap, draw_environment
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_test
-from pddlstream.utils import read, print_solution, user_input
+from pddlstream.utils import read, user_input, str_from_object, INF
+from pddlstream.language.constants import PDDLProblem, print_solution
+from pddlstream.algorithms.constraints import PlanConstraints
 
 
-def scale_distance(distance):
-    return int(np.ceil(1000 * distance))
-
-array = np.array # No hashing
-#array = list # No hashing
-#array = tuple # Hashing
+ARRAY = np.array # No hashing
+#ARRAY = list # No hashing
+#ARRAY = tuple # Hashing
 
 def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     directory = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +25,7 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     stream_pddl = read(os.path.join(directory, 'stream.pddl'))
     constant_map = {}
 
-    q0 = array([0, 0])
+    q0 = ARRAY([0, 0])
     init = [
         ('Conf', q0),
         ('AtConf', q0),
@@ -41,8 +40,11 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
     np.set_printoptions(precision=3)
     samples = []
     def region_gen(region):
+        lower, upper = regions[region]
+        area = np.product(upper - lower)
+        # TODO: sample proportional to area
         while True:
-            q = array(sample_box(regions[region]))
+            q = ARRAY(sample_box(regions[region]))
             samples.append(q)
             yield (q,)
 
@@ -63,23 +65,20 @@ def create_problem(goal, obstacles=(), regions={}, max_distance=.5):
             roadmap.append((q1, q2))
         return are_connected
 
-    def distance_fn(q1, q2):
-        return scale_distance(get_distance(q1, q2))
-
     stream_map = {
         'sample-region': from_gen_fn(region_gen),
         'connect':  from_test(connected_test),
-        'distance': distance_fn,
+        'distance': get_distance,
     }
 
-    problem = (domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-    return problem, roadmap
+    return problem, samples, roadmap
 
 
 ##################################################
 
-# TODO - algorithms that take advantage of metric space (RRT)
+# TODO: algorithms that take advantage of metric space (RRT)
 
 def main(max_time=20):
     """
@@ -91,33 +90,39 @@ def main(max_time=20):
     ]
     regions = {
         'env': create_box((.5, .5), (1, 1)),
-        #'goal': create_box((.8, .8), (.4, .4)),
+        'green': create_box((.8, .8), (.4, .4)),
     }
 
-    goal = array([1, 1])
-    #goal = 'goal'
+    goal = 'green'
+    if goal not in regions:
+        goal = ARRAY([1, 1])
 
     max_distance = 0.25 # 0.2 | 0.25 | 0.5 | 1.0
-    problem, roadmap = create_problem(goal, obstacles, regions, max_distance=max_distance)
+    problem, samples, roadmap = create_problem(goal, obstacles, regions, max_distance=max_distance)
+    print('Initial:', str_from_object(problem.init))
+    print('Goal:', str_from_object(problem.goal))
+    constraints = PlanConstraints(max_cost=1.25) # max_cost=INF)
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_incremental(problem, unit_costs=False, max_cost=0,
-        max_time=max_time, verbose=False)
+    solution = solve_incremental(problem, constraints=constraints, unit_costs=False, success_cost=0,
+                                 max_time=max_time, verbose=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
     print_solution(solution)
     plan, cost, evaluations = solution
-
-    print('Plan:', plan)
-    if plan is None:
-        return
+    #viewer = draw_environment(obstacles, regions)
+    #for sample in samples:
+    #    viewer.draw_point(sample)
+    #user_input('Continue?')
 
     # TODO: use the same viewer here
     draw_roadmap(roadmap, obstacles, regions) # TODO: do this in realtime
     user_input('Continue?')
 
+    if plan is None:
+        return
     segments = [args for name, args in plan]
     draw_solution(segments, obstacles, regions)
     user_input('Finish?')

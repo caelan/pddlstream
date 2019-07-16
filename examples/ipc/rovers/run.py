@@ -5,7 +5,8 @@ from __future__ import print_function
 import os
 
 from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.utils import read, get_length
+from pddlstream.utils import read
+from pddlstream.language.constants import get_length
 
 
 def read_pddl(filename):

@@ -1,6 +1,0 @@
-<robot file="kr6_r900_workspace.dae">
-  <Manipulator name="kr6_r900_workspace">
-    <base>robot_base_link</base>
-    <effector>robot_tool0</effector>
-  </Manipulator>
-</robot>

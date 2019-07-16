@@ -6,21 +6,17 @@ from pddlstream.utils import str_from_object, is_hashable
 USE_HASH = True
 USE_OBJ_STR = True
 USE_OPT_STR = True
-#USE_STRING = False
 
 class Object(object):
-    _prefix = 'v' # o
+    _prefix = 'v'
     _obj_from_id = {}
     _obj_from_value = {}
     _obj_from_name = {}
     def __init__(self, value, stream_instance=None, name=None):
-        # TODO: unique vs hash
         self.value = value
         self.index = len(Object._obj_from_name)
         if name is None:
             name = '{}{}'.format(self._prefix, self.index)
-        #if USE_STRING and isinstance(value, str):
-        #    name = value
         self.pddl = name
         self.stream_instance = stream_instance # TODO: store first created stream instance
         Object._obj_from_id[id(self.value)] = self
@@ -47,6 +43,11 @@ class Object(object):
     @staticmethod
     def from_name(name):
         return Object._obj_from_name[name]
+    @staticmethod
+    def reset():
+        Object._obj_from_id.clear()
+        Object._obj_from_value.clear()
+        Object._obj_from_name.clear()
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):
@@ -74,12 +75,14 @@ class OptimisticObject(object):
         OptimisticObject._obj_from_name[self.pddl] = self
         self.repr_name = self.pddl
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
+            # TODO: instead just endow UniqueOptValue with a string function
             parameter = self.param.instance.external.outputs[self.param.output_index]
             prefix = get_parameter_name(parameter)[:1]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
             self.repr_name = '#{}{}'.format(prefix, var_index) #self.index)
     @staticmethod
     def from_opt(value, param):
+        # TODO: make param have a default value?
         key = (value, param)
         if key not in OptimisticObject._obj_from_inputs:
             return OptimisticObject(value, param)
@@ -87,7 +90,13 @@ class OptimisticObject(object):
     @staticmethod
     def from_name(name):
         return OptimisticObject._obj_from_name[name]
+    @staticmethod
+    def reset():
+        OptimisticObject._obj_from_inputs.clear()
+        OptimisticObject._obj_from_name.clear()
+        OptimisticObject._count_from_prefix.clear()
     def __lt__(self, other): # For heapq on python3
         return self.index < other.index
     def __repr__(self):
         return self.repr_name
+        #return repr(self.repr_name) # Prints in quotations
