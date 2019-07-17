@@ -5,7 +5,7 @@ from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom, get_fluents
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import evaluation_from_fact, \
-    is_atom, fact_from_evaluation
+    is_atom, fact_from_evaluation, substitute_expression
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
@@ -34,6 +34,11 @@ class FutureStream(Stream):
         self.fluent_domain = tuple(fluent_domain)
         super(FutureStream, self).__init__(stream_name, stream.gen_fn, stream.inputs, static_domain,
                                            stream.outputs, static_certified, stream.info, stream.fluents)
+
+def get_fluent_domain(result):
+    if not isinstance(result.external, FutureStream):
+        return []
+    return substitute_expression(result.external.fluent_domain, result.get_mapping())
 
 ##################################################
 
@@ -93,11 +98,8 @@ def rename_atom(atom, mapping):
     return (mapping[name],) + get_args(atom)
 
 def compile_to_exogenous_actions(evaluations, domain, streams):
-    # TODO: automatically derive fluents
     # TODO: version of this that operates on fluents of length one?
     # TODO: better instantiation when have full parameters
-    # TODO: conversion from stream cost to real cost units?
-    # TODO: any predicates derived would need to be replaced as well
     fluent_predicates = get_fluents(domain)
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}

@@ -21,10 +21,10 @@ from pddlstream.language.constants import print_solution
 class Latent(object):
     pass
 
-# Point estimate, interval estimate
 
 class Uncertain(Latent):
     def __init__(self, mode=None, confidence=None):
+        # Point estimate, interval estimate
         self.mode = mode
         self.confidence = confidence
     def __repr__(self):
