@@ -9,48 +9,52 @@ import pstats
 import numpy as np
 from numpy import array
 
-from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST
+from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
 from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
+from pddlstream.language.temporal import retime_plan
 
 # Be careful about uniqueness here
-CONF0 = array([-7.5, 5.])
+#CONF0 = array([-7.5, 5.])
+CONF0 = array([-5., 6.])
 POSE0 = array([0, 0])
 POSE1 = array([-3, 0])
 
 INIT = [
     # TODO: use problem.init instead
-    ('block', 'b0'),
-    ('block', 'b1'),
+    ('block', 'A'),
+    ('block', 'B'),
     ('conf', CONF0),
-    ('contained', 'b0', POSE0, 'grey'),
-    ('contained', 'b1', POSE1, 'grey'),
-    ('placeable', 'b0', 'grey'),
-    ('placeable', 'b0', 'red'),
-    ('placeable', 'b1', 'grey'),
-    ('placeable', 'b1', 'red'),
-    ('pose', 'b0', POSE0),
-    ('pose', 'b1', POSE1),
+    ('contain', 'A', POSE0, 'grey'),
+    ('contain', 'B', POSE1, 'grey'),
+    ('placeable', 'A', 'grey'),
+    ('placeable', 'A', 'red'),
+    ('placeable', 'B', 'grey'),
+    ('placeable', 'B', 'red'),
+    ('pose', 'A', POSE0),
+    ('pose', 'B', POSE1),
+    ('grasp', 'A', GRASP),
+    ('grasp', 'B', GRASP),
     ('region', 'grey'),
     ('region', 'red'),
 ]
 
 # TODO: predicate (Not) constraints as well
 CONSTRAINTS = [
-    ('cfree', 'b0', '?p0', 'b1', POSE1),
-    ('cfree', 'b1', '?p1', 'b0', '?p0'),
+    ('cfree', 'A', '?p0', 'B', POSE1),
+    ('cfree', 'B', '?p1', 'A', '?p0'),
 
-    ('contained', 'b0', '?p0', 'red'),
-    ('contained', 'b1', '?p1', 'red'),
+    ('contain', 'A', '?p0', 'red'),
+    ('contain', 'B', '?p1', 'red'),
 
-    ('kin', 'b0', '?q0', POSE0),
-    ('kin', 'b0', '?q1', '?p0'),
-    ('kin', 'b1', '?q2', '?p1'),
-    ('kin', 'b1', '?q3', POSE1),
+    ('kin', 'A', '?q0', POSE0, '?g0'),
+    ('kin', 'A', '?q1', '?p0', '?g0'),
+    ('kin', 'B', '?q3', POSE1, '?g1'),
+    ('kin', 'B', '?q2', '?p1', '?g1'),
 
     ('motion', CONF0, '?t0', '?q0'),
     ('motion', '?q0', '?t1', '?q1'),
@@ -61,8 +65,8 @@ CONSTRAINTS = [
     #('conf', '?q1'),
     #('conf', '?q2'),
     #('conf', '?q3'),
-    #('pose', 'b0', '?p0'),
-    #('pose', 'b1', '?p1'),
+    ('pose', 'A', '?p0'),
+    ('pose', 'B', '?p1'),
     #('traj', '?t0'),
     #('traj', '?t1'),
     #('traj', '?t2'),
@@ -70,22 +74,22 @@ CONSTRAINTS = [
 ]
 
 SKELETON = [
-    ('move', [CONF0, '?t0', '?q0']),
-    ('pick', ['b0', POSE0, '?q0']),
-    ('move', ['?q0', '?t1', '?q1']),
-    ('place', ['b0', '?p0', '?q1']),
+    ('move', ['r0', CONF0, '?t0', '?q0']),
+    ('pick', ['r0', 'A', POSE0, '?g0', '?q0']),
+    ('move', ['r0', '?q0', '?t1', '?q1']),
+    ('place', ['r0', 'A', '?p0', '?g0', '?q1']),
 
-    ('move', ['?q1', '?t3', '?q3']),
-    ('pick', ['b1', POSE1, '?q3']),
-    ('move', ['?q3', '?t2', '?q2']),
-    ('place', ['b1', '?p1', '?q2']),
+    ('move', ['r0', '?q1', '?t3', '?q3']),
+    ('pick', ['r0', 'B', POSE1, '?g1', '?q3']),
+    ('move', ['r0', '?q3', '?t2', '?q2']),
+    ('place', ['r0', 'B', '?p1', '?g1', '?q2']),
 ]
 
 OBJECTIVES = [
-    Minimize(('distance', CONF0, '?q0')),
-    Minimize(('distance', '?q0', '?q1')),
-    Minimize(('distance', '?q1', '?q3')),
-    Minimize(('distance', '?q3', '?q2')),
+    Minimize(('dist', CONF0, '?q0')),
+    Minimize(('dist', '?q0', '?q1')),
+    Minimize(('dist', '?q1', '?q3')),
+    Minimize(('dist', '?q3', '?q2')),
 ]
 
 def set_deterministic(seed=0):
@@ -105,7 +109,7 @@ def main(success_cost=0):
     if args.deterministic:
         set_deterministic()
     print('Random seed:', get_random_seed())
-    tamp_problem = tight(n_blocks=2, n_goals=2)
+    tamp_problem = tight(n_robots=1, n_blocks=2, n_goals=2)
     print(tamp_problem)
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.gurobi,
@@ -117,7 +121,7 @@ def main(success_cost=0):
         #'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST), # Doesn't make a difference
     }
 
-    terms = CONSTRAINTS + OBJECTIVES
+    terms = CONSTRAINTS # + OBJECTIVES
     pr = cProfile.Profile()
     pr.enable()
     if args.algorithm == 'focused':
@@ -147,7 +151,7 @@ def main(success_cost=0):
     for name, args in SKELETON:
         new_args = [bindings[a] if is_parameter(a) else a for a in args]
         plan.append((name, new_args))
-    display_plan(tamp_problem, plan)
+    display_plan(tamp_problem, retime_plan(plan))
 
 if __name__ == '__main__':
     main()
