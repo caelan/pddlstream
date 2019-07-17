@@ -121,6 +121,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     evaluations = evaluations_from_init(init)
     goal_facts = set(filter(lambda f: evaluation_from_fact(f) not in evaluations, constraints))
     free_parameters = sorted(get_parameters(goal_facts))
+    print('Parameters:', free_parameters)
 
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info, unit_efforts=unit_efforts)
     stream_results = extract_streams(evaluations, externals, goal_facts)

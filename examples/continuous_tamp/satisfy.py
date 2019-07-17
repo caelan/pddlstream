@@ -120,7 +120,8 @@ def main(success_cost=0):
         #'t-cfree': StreamInfo(eager=False, negate=True),
         #'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST), # Doesn't make a difference
     }
-
+    print('Constraints:', CONSTRAINTS)
+    print('Objectives:', OBJECTIVES)
     terms = CONSTRAINTS # + OBJECTIVES
     pr = cProfile.Profile()
     pr.enable()
@@ -135,6 +136,7 @@ def main(success_cost=0):
                                                  success_cost=success_cost, max_time=args.max_time,
                                                  verbose=False, debug=False)
     else:
+        # TODO: likely need to make GRASP a stream to solve
         solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
                                            costs=not args.unit, success_cost=success_cost,
                                            max_time=args.max_time, search_sample_ratio=1,
