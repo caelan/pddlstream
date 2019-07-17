@@ -11,6 +11,7 @@ from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
 
 EXOGENOUS_AXIOMS = True
+REPLACE_STREAM = True
 
 # TODO: timed initial literals
 # TODO: can do this whole story within the focused algorithm as well
@@ -27,7 +28,16 @@ class FutureValue(object):
     def __repr__(self):
         return '@{}{}'.format(self.output_parameter[1:], self.index)
 
-def create_static_stream(stream, evaluations, fluent_predicates, get_future):
+class FutureStream(Stream):
+    def __init__(self, stream, static_domain, fluent_domain, static_certified):
+        stream_name = 'future-{}'.format(stream.name)
+        self.fluent_domain = tuple(fluent_domain)
+        super(FutureStream, self).__init__(stream_name, stream.gen_fn, stream.inputs, static_domain,
+                                           stream.outputs, static_certified, stream.info, stream.fluents)
+
+##################################################
+
+def create_static_stream(stream, evaluations, fluent_predicates, future_fn):
     def static_fn(*input_values):
         instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
         if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
@@ -45,15 +55,15 @@ def create_static_stream(stream, evaluations, fluent_predicates, get_future):
         # if I want to prevent switch from normal to static in opt
 
     # Focused algorithm naturally biases against using future because of axiom layers
-    stream_name = 'future-{}'.format(stream.name)
-    gen_fn = from_fn(static_fn)
-    static_domain = list(filter(lambda a: get_prefix(a) not in fluent_predicates, stream.domain))
-    new_domain = list(map(get_future, static_domain))
+    fluent_domain = list(filter(lambda a: get_prefix(a) in fluent_predicates, stream.domain))
+    static_domain = list(filter(lambda a: a not in fluent_domain, stream.domain))
+    new_domain = list(map(future_fn, static_domain))
     stream_atom = ('{}-result'.format(stream.name),) + tuple(stream.inputs + stream.outputs)
-    new_certified = [stream_atom] + list(map(get_future, stream.certified))
-    static_stream = Stream(stream_name, gen_fn, stream.inputs, new_domain,
-                          stream.outputs, new_certified, stream.info)
-    static_stream.opt_gen_fn = static_opt_gen_fn
+    new_certified = [stream_atom] + list(map(future_fn, stream.certified))
+    static_stream = FutureStream(stream, new_domain, fluent_domain, new_certified)
+    if REPLACE_STREAM:
+        static_stream.gen_fn = from_fn(static_fn)
+        static_stream.opt_gen_fn = static_opt_gen_fn
     return static_stream
 
 # def replace_gen_fn(stream):
@@ -92,12 +102,12 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
-    rename_future = lambda a: rename_atom(a, future_map)
+    future_fn = lambda a: rename_atom(a, future_map)
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
+        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
         stream_atom = streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(stream.domain)
@@ -112,7 +122,7 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
             effects=stream.certified,
             cost=effort))
         stream.certified = tuple(set(stream.certified) |
-                                 set(map(rename_future, stream.certified)))
+                                 set(map(future_fn, stream.certified)))
 
 ##################################################
 
@@ -151,9 +161,10 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
-    rename_future = lambda a: rename_atom(a, future_map)
+    future_fn = lambda a: rename_atom(a, future_map)
     derived_map = {p: 'd-{}'.format(p) for p in certified_predicates}
-    rename_derived = lambda a: rename_atom(a, derived_map)
+    derived_fn = lambda a: rename_atom(a, derived_map)
+    # TODO: could prune streams that don't need this treatment
 
     for action in domain.actions:
         action.precondition = replace_predicates(derived_map, action.precondition)
@@ -167,12 +178,13 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
+        # TODO: could replace the stream all-together
+        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
         stream_atom = streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
-        preconditions = [stream_atom] + list(map(rename_derived, stream.domain))
+        preconditions = [stream_atom] + list(map(derived_fn, stream.domain))
         for certified_fact in stream.certified:
-            derived_fact = rename_derived(certified_fact)
+            derived_fact = derived_fn(certified_fact)
             external_params = get_args(derived_fact)
             internal_params = tuple(p for p in (stream.inputs + stream.outputs)
                                     if p not in get_args(derived_fact))
@@ -187,7 +199,7 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
                     derived=derived_fact),
             ])
         stream.certified = tuple(set(stream.certified) |
-                                 set(map(rename_future, stream.certified)))
+                                 set(map(future_fn, stream.certified)))
 
 ##################################################
 
