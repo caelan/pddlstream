@@ -7,7 +7,7 @@ import subprocess
 from collections import namedtuple, defaultdict
 from time import time
 
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
@@ -358,7 +358,7 @@ def parse_action(line):
     entries = line.strip('( )').split(' ')
     name = entries[0]
     args = tuple(entries[1:])
-    return (name, args)
+    return Action(name, args)
 
 def parse_solution(solution):
     #action_regex = r'\((\w+(\s+\w+)\)' # TODO: regex
