@@ -12,7 +12,7 @@ from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 # from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.language.constants import is_parameter, get_length, partition_facts
+from pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
 from pddlstream.language.function import Function
@@ -20,8 +20,6 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
-
-BIND_ACTION = 'bindings'
 
 def obj_from_existential_expression(parent): # obj_from_value_expression
     return replace_expression(parent, lambda o: OptimisticObject
@@ -75,8 +73,7 @@ def bindings_from_plan(plan_skeleton, action_plan):
     if action_plan is None:
         return None
     bindings = {}
-    for (name1, args1), (name2, args2) in safe_zip(plan_skeleton, action_plan):
-        assert name1 == name2
+    for (args1,), (args2,) in safe_zip(plan_skeleton, action_plan):
         parameter_names = [o.value for o in args1]
         bindings.update(get_mapping(parameter_names, args2))
     return bindings
@@ -128,7 +125,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     externals = parse_stream_pddl(stream_pddl, stream_map, stream_info, unit_efforts=unit_efforts)
     stream_results = extract_streams(evaluations, externals, goal_facts)
     function_plan = plan_functions(negated + functions, externals)
-    plan_skeleton = [(BIND_ACTION, free_parameters)]
+    plan_skeleton = [Assignment(free_parameters)]
     cost = get_optimistic_cost(function_plan)
     if max_cost < cost:
         return None, INF, init
