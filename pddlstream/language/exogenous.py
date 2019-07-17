@@ -27,32 +27,6 @@ class FutureValue(object):
     def __repr__(self):
         return '@{}{}'.format(self.output_parameter[1:], self.index)
 
-# def replace_gen_fn(stream):
-#     future_gen_fn = from_fn(lambda *args: tuple(FutureValue(stream.name, args, o) for o in stream.outputs))
-#     gen_fn = stream.gen_fn
-#     def new_gen_fn(*input_values):
-#         if any(isinstance(value, FutureValue) for value in input_values):
-#             return future_gen_fn(*input_values)
-#         return gen_fn(*input_values)
-#     stream.gen_fn = new_gen_fn
-
-##################################################
-
-def augment_evaluations(evaluations, future_map):
-    for evaluation in list(filter(is_atom, evaluations)):
-        name = evaluation.head.function
-        if name in future_map:
-            new_head = Head(future_map[name], evaluation.head.args)
-            new_evaluation = Evaluation(new_head, evaluation.value)
-            add_fact(evaluations, fact_from_evaluation(new_evaluation),
-                     result=INTERNAL_EVALUATION, complexity=0)
-
-def rename_atom(atom, mapping):
-    name = get_prefix(atom)
-    if name not in mapping:
-        return atom
-    return (mapping[name],) + get_args(atom)
-
 def create_static_stream(stream, evaluations, fluent_predicates, get_future):
     def static_fn(*input_values):
         instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
@@ -81,6 +55,32 @@ def create_static_stream(stream, evaluations, fluent_predicates, get_future):
                           stream.outputs, new_certified, stream.info)
     static_stream.opt_gen_fn = static_opt_gen_fn
     return static_stream
+
+# def replace_gen_fn(stream):
+#     future_gen_fn = from_fn(lambda *args: tuple(FutureValue(stream.name, args, o) for o in stream.outputs))
+#     gen_fn = stream.gen_fn
+#     def new_gen_fn(*input_values):
+#         if any(isinstance(value, FutureValue) for value in input_values):
+#             return future_gen_fn(*input_values)
+#         return gen_fn(*input_values)
+#     stream.gen_fn = new_gen_fn
+
+##################################################
+
+def augment_evaluations(evaluations, future_map):
+    for evaluation in list(filter(is_atom, evaluations)):
+        name = evaluation.head.function
+        if name in future_map:
+            new_head = Head(future_map[name], evaluation.head.args)
+            new_evaluation = Evaluation(new_head, evaluation.value)
+            add_fact(evaluations, fact_from_evaluation(new_evaluation),
+                     result=INTERNAL_EVALUATION, complexity=0)
+
+def rename_atom(atom, mapping):
+    name = get_prefix(atom)
+    if name not in mapping:
+        return atom
+    return (mapping[name],) + get_args(atom)
 
 def compile_to_exogenous_actions(evaluations, domain, streams):
     # TODO: automatically derive fluents
@@ -116,6 +116,11 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
 
 ##################################################
 
+def get_exogenous_predicates(domain, streams):
+    fluent_predicates = get_fluents(domain)
+    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
+    return list(domain_predicates & fluent_predicates)
+
 def replace_literals(replace_fn, expression):
     import pddl.conditions
     if isinstance(expression, pddl.conditions.ConstantCondition):
@@ -135,6 +140,8 @@ def replace_predicates(predicate_map, expression):
         new_predicate = predicate_map.get(literal.predicate, literal.predicate)
         return literal.__class__(new_predicate, literal.args)
     return replace_literals(replace_fn, expression)
+
+##################################################
 
 def compile_to_exogenous_axioms(evaluations, domain, streams):
     # TODO: no attribute certified
@@ -183,11 +190,6 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
                                  set(map(rename_future, stream.certified)))
 
 ##################################################
-
-def get_exogenous_predicates(domain, streams):
-    fluent_predicates = get_fluents(domain)
-    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    return list(domain_predicates & fluent_predicates)
 
 def compile_to_exogenous(evaluations, domain, streams):
     exogenous_predicates = get_exogenous_predicates(domain, streams)
