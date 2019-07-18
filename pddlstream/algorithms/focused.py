@@ -23,9 +23,6 @@ from pddlstream.language.statistics import load_stream_statistics, \
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, elapsed_time, implies
 
-INITIAL_COMPLEXITY = 0
-#INITIAL_COMPLEXITY = INF
-
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
     negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated(), externals))
@@ -42,7 +39,8 @@ def partition_externals(externals, verbose=False):
     return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
-                  max_time=INF, max_iterations=INF, complexity_step=1,
+                  max_time=INF, max_iterations=INF,
+                  initial_complexity=0, complexity_step=1,
                   max_skeletons=INF, bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
                   unit_efforts=False, max_effort=INF, effort_weight=None,
@@ -59,6 +57,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
+    :param initial_complexity: the initial effort limit
     :param complexity_step: the increase in the effort limit after each failure
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
@@ -76,7 +75,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
     num_iterations = search_time = sample_time = eager_calls = 0
-    complexity_limit = float(INITIAL_COMPLEXITY)
+    complexity_limit = initial_complexity
     # TODO: make effort_weight be a function of the current cost
     # TODO: change the search algorithm and unit costs based on the best cost
     eager_disabled = effort_weight is None  # No point if no stream effort biasing
