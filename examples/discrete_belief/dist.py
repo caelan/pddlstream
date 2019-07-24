@@ -32,12 +32,14 @@ class HedgedDist(object):
         return self.baseDist.prob(v) * self.p + \
                (1.0 / self.n) if self.n > 0 else 0
 
+
 class Distribution(object):
 
     def draw(self):
         raise NotImplementedError()
 
-    sample = draw
+    def sample(self):
+        return self.draw()
 
 
 class DiscreteDist(Distribution):
