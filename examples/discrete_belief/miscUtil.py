@@ -188,12 +188,12 @@ def roundDownStr(n, dig):
 def prettyString(struct, eq=True):
     dig = eqDig if eq else nonEqDig
     if type(struct) == list:
-        return '[' + ', '.join([prettyString(item, eq) for item in struct]) + ']'
+        return '[' + ', '.join(prettyString(item, eq) for item in struct) + ']'
     elif type(struct) == tuple:
-        return '(' + ', '.join([prettyString(item, eq) for item in struct]) + ')'
+        return '(' + ', '.join(prettyString(item, eq) for item in struct) + ')'
     elif type(struct) == dict:
-        return '{' + ', '.join([str(item) + ':' + prettyString(struct[item], eq) \
-                                for item in sorted(struct.keys())]) + '}'
+        return '{' + ', '.join(str(item) + ':' + prettyString(struct[item], eq) \
+                               for item in sorted(struct.keys())) + '}'
     elif isinstance(struct, np.ndarray):
         # Could make this prettier...
         return prettyString(struct.tolist())
