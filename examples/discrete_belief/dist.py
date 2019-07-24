@@ -35,6 +35,9 @@ class HedgedDist(object):
 
 class Distribution(object):
 
+    def prob(self, x):
+        raise NotImplementedError()
+
     def draw(self):
         raise NotImplementedError()
 
@@ -48,9 +51,6 @@ class DiscreteDist(Distribution):
     generic superclass;  do not instantiate it.  Any subclass has to
     provide methods: C{prob}, C{setProb}, C{support}
     """
-
-    def prob(self, x):
-        raise NotImplementedError()
 
     def setProb(self, x, p):
         raise NotImplementedError()
@@ -112,7 +112,7 @@ class DiscreteDist(Distribution):
 
     def verify(self, epsilon=1e-5):
         z = sum(self.prob(elt) for elt in self.support())
-        assert 1 - epsilon < z < 1 + epsilon, 'degenerate distribution ' + str(self)
+        assert (1 - epsilon) < z < (1 + epsilon), 'degenerate distribution ' + str(self)
 
 
 def convertToDDist(oldD):
@@ -171,7 +171,7 @@ class DDist(DiscreteDist):
         """
         @returns: the probability associated with C{elt}
         """
-        return self.__d.get(elt, 0)
+        return self.__d.get(elt, 0.0)
 
     def setProb(self, elt, p):
         """
@@ -187,7 +187,7 @@ class DDist(DiscreteDist):
         @returns: A list (in any order) of the elements of this
         distribution with non-zero probability.
         """
-        return [x for x in self.__d.keys() if self.__d[x] > 0]
+        return [x for x in self.__d.keys() if self.__d[x] > 0.0]
 
     def normalize(self, z=None):
         """
@@ -242,7 +242,7 @@ class DDist(DiscreteDist):
         @param blurFactor: how much to blur; 1 obliterates everything,
                            0 has no effect
         """
-        eps = blurFactor * (1 / float(len(blurDomain)))
+        eps = blurFactor * (1.0 / len(blurDomain))
         for elt in blurDomain:
             self.addProb(elt, eps)
         self.normalize()
@@ -256,7 +256,7 @@ class DDist(DiscreteDist):
         newD = {}
         for key, val in self.__d.items():
             newK = f(key)
-            newD[newK] = val + newD.get(newK, 0)
+            newD[newK] = val + newD.get(newK, 0.0)
         return DDist(newD)
 
     def transitionUpdate(self, tDist):
@@ -268,7 +268,7 @@ class DDist(DiscreteDist):
             oldP = self.prob(sPrime)
             for s in tDistS.support():
                 # prob of transitioning to s from sPrime
-                new[s] = new.get(s, 0) + tDistS.prob(s) * oldP
+                new[s] = new.get(s, 0.0) + tDistS.prob(s) * oldP
         self.__d = new
         if 1 <= len(self.support()):
             self.update()
@@ -307,7 +307,8 @@ class DDist(DiscreteDist):
 
     def __repr__(self):
         return '{}{{{}}}'.format(self.__class__.__name__, ', '.join(
-            '{}: {:.3f}'.format(*pair) for pair in sorted(self.__d.items(), key=lambda pair: pair[1])))
+            '{}: {:.5f}'.format(*pair) for pair in sorted(
+                self.__d.items(), key=lambda pair: pair[1])))
 
     def __hash__(self):
         return hash(frozenset(self.__d.items()))
@@ -386,6 +387,7 @@ class MixtureDist(DiscreteDist):
 
 def mixDDists(dists):
     support = {key for dist in dists for key in dist.support()}
+    assert support
     return DDist({key: sum(weight*dist.prob(key) for dist, weight in dists.items())
                   for key in support})
 
