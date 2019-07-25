@@ -6,6 +6,7 @@ from pddlstream.utils import str_from_object, is_hashable
 USE_HASH = True
 USE_OBJ_STR = True
 USE_OPT_STR = True
+OPT_PREFIX = '#'
 
 class Object(object):
     _prefix = 'v'
@@ -61,7 +62,7 @@ class Object(object):
 UniqueOptValue = namedtuple('UniqueOpt', ['instance', 'sequence_index', 'output_index'])
 
 class OptimisticObject(object):
-    _prefix = '#o' # $ % #
+    _prefix = '{}o'.format(OPT_PREFIX) # $ % #
     _obj_from_inputs = {}
     _obj_from_name = {}
     _count_from_prefix = {}
@@ -79,7 +80,7 @@ class OptimisticObject(object):
             parameter = self.param.instance.external.outputs[self.param.output_index]
             prefix = get_parameter_name(parameter)[:1]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
-            self.repr_name = '#{}{}'.format(prefix, var_index) #self.index)
+            self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)
     @staticmethod
     def from_opt(value, param):
         # TODO: make param have a default value?

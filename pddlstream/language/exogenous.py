@@ -5,12 +5,13 @@ from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom, get_fluents
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import evaluation_from_fact, \
-    is_atom, fact_from_evaluation
+    is_atom, fact_from_evaluation, substitute_expression
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
 
 EXOGENOUS_AXIOMS = True
+REPLACE_STREAM = True
 
 # TODO: timed initial literals
 # TODO: can do this whole story within the focused algorithm as well
@@ -26,6 +27,49 @@ class FutureValue(object):
         # TODO: hash this?
     def __repr__(self):
         return '@{}{}'.format(self.output_parameter[1:], self.index)
+
+class FutureStream(Stream):
+    def __init__(self, stream, static_domain, fluent_domain, static_certified):
+        stream_name = 'future-{}'.format(stream.name)
+        self.fluent_domain = tuple(fluent_domain)
+        super(FutureStream, self).__init__(stream_name, stream.gen_fn, stream.inputs, static_domain,
+                                           stream.outputs, static_certified, stream.info, stream.fluents)
+
+def get_fluent_domain(result):
+    if not isinstance(result.external, FutureStream):
+        return []
+    return substitute_expression(result.external.fluent_domain, result.get_mapping())
+
+##################################################
+
+def create_static_stream(stream, evaluations, fluent_predicates, future_fn):
+    def static_fn(*input_values):
+        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
+        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
+            return None
+        return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
+
+    #opt_evaluations = None
+    def static_opt_gen_fn(*input_values):
+        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
+        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
+            return
+        for output_values in stream.opt_gen_fn(*input_values):
+            yield output_values
+        # TODO: need to replace regular opt_gen_fn to update opt_evaluations
+        # if I want to prevent switch from normal to static in opt
+
+    # Focused algorithm naturally biases against using future because of axiom layers
+    fluent_domain = list(filter(lambda a: get_prefix(a) in fluent_predicates, stream.domain))
+    static_domain = list(filter(lambda a: a not in fluent_domain, stream.domain))
+    new_domain = list(map(future_fn, static_domain))
+    stream_atom = ('{}-result'.format(stream.name),) + tuple(stream.inputs + stream.outputs)
+    new_certified = [stream_atom] + list(map(future_fn, stream.certified))
+    static_stream = FutureStream(stream, new_domain, fluent_domain, new_certified)
+    if REPLACE_STREAM:
+        static_stream.gen_fn = from_fn(static_fn)
+        static_stream.opt_gen_fn = static_opt_gen_fn
+    return static_stream
 
 # def replace_gen_fn(stream):
 #     future_gen_fn = from_fn(lambda *args: tuple(FutureValue(stream.name, args, o) for o in stream.outputs))
@@ -53,51 +97,19 @@ def rename_atom(atom, mapping):
         return atom
     return (mapping[name],) + get_args(atom)
 
-def create_static_stream(stream, evaluations, fluent_predicates, get_future):
-    def static_fn(*input_values):
-        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
-        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
-            return None
-        return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
-
-    #opt_evaluations = None
-    def static_opt_gen_fn(*input_values):
-        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
-        if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
-            return
-        for output_values in stream.opt_gen_fn(*input_values):
-            yield output_values
-        # TODO: need to replace regular opt_gen_fn to update opt_evaluations
-        # if I want to prevent switch from normal to static in opt
-
-    # Focused algorithm naturally biases against using future because of axiom layers
-    stream_name = 'future-{}'.format(stream.name)
-    gen_fn = from_fn(static_fn)
-    static_domain = list(filter(lambda a: get_prefix(a) not in fluent_predicates, stream.domain))
-    new_domain = list(map(get_future, static_domain))
-    stream_atom = ('{}-result'.format(stream.name),) + tuple(stream.inputs + stream.outputs)
-    new_certified = [stream_atom] + list(map(get_future, stream.certified))
-    static_stream = Stream(stream_name, gen_fn, stream.inputs, new_domain,
-                          stream.outputs, new_certified, stream.info)
-    static_stream.opt_gen_fn = static_opt_gen_fn
-    return static_stream
-
 def compile_to_exogenous_actions(evaluations, domain, streams):
-    # TODO: automatically derive fluents
     # TODO: version of this that operates on fluents of length one?
     # TODO: better instantiation when have full parameters
-    # TODO: conversion from stream cost to real cost units?
-    # TODO: any predicates derived would need to be replaced as well
     fluent_predicates = get_fluents(domain)
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
-    rename_future = lambda a: rename_atom(a, future_map)
+    future_fn = lambda a: rename_atom(a, future_map)
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
+        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
         stream_atom = streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(stream.domain)
@@ -112,9 +124,14 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
             effects=stream.certified,
             cost=effort))
         stream.certified = tuple(set(stream.certified) |
-                                 set(map(rename_future, stream.certified)))
+                                 set(map(future_fn, stream.certified)))
 
 ##################################################
+
+def get_exogenous_predicates(domain, streams):
+    fluent_predicates = get_fluents(domain)
+    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
+    return list(domain_predicates & fluent_predicates)
 
 def replace_literals(replace_fn, expression):
     import pddl.conditions
@@ -136,6 +153,8 @@ def replace_predicates(predicate_map, expression):
         return literal.__class__(new_predicate, literal.args)
     return replace_literals(replace_fn, expression)
 
+##################################################
+
 def compile_to_exogenous_axioms(evaluations, domain, streams):
     # TODO: no attribute certified
     # TODO: recover the streams that are required
@@ -144,9 +163,10 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     certified_predicates = {get_prefix(a) for s in streams for a in s.certified}
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
-    rename_future = lambda a: rename_atom(a, future_map)
+    future_fn = lambda a: rename_atom(a, future_map)
     derived_map = {p: 'd-{}'.format(p) for p in certified_predicates}
-    rename_derived = lambda a: rename_atom(a, derived_map)
+    derived_fn = lambda a: rename_atom(a, derived_map)
+    # TODO: could prune streams that don't need this treatment
 
     for action in domain.actions:
         action.precondition = replace_predicates(derived_map, action.precondition)
@@ -160,12 +180,13 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, rename_future))
+        # TODO: could replace the stream all-together
+        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
         stream_atom = streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
-        preconditions = [stream_atom] + list(map(rename_derived, stream.domain))
+        preconditions = [stream_atom] + list(map(derived_fn, stream.domain))
         for certified_fact in stream.certified:
-            derived_fact = rename_derived(certified_fact)
+            derived_fact = derived_fn(certified_fact)
             external_params = get_args(derived_fact)
             internal_params = tuple(p for p in (stream.inputs + stream.outputs)
                                     if p not in get_args(derived_fact))
@@ -180,14 +201,9 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
                     derived=derived_fact),
             ])
         stream.certified = tuple(set(stream.certified) |
-                                 set(map(rename_future, stream.certified)))
+                                 set(map(future_fn, stream.certified)))
 
 ##################################################
-
-def get_exogenous_predicates(domain, streams):
-    fluent_predicates = get_fluents(domain)
-    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    return list(domain_predicates & fluent_predicates)
 
 def compile_to_exogenous(evaluations, domain, streams):
     exogenous_predicates = get_exogenous_predicates(domain, streams)

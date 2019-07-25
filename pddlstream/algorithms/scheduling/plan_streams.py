@@ -5,7 +5,7 @@ import copy
 from collections import defaultdict
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd
+    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, conditions_hold
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -25,6 +25,7 @@ from pddlstream.language.constants import And, Not, get_prefix, EQ, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
     fact_from_evaluation, transform_plan_args, transform_action_args, pddl_from_object, obj_from_pddl
 from pddlstream.language.external import Result
+from pddlstream.language.exogenous import get_fluent_domain
 from pddlstream.language.function import Function
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.optimizer import UNSATISFIABLE
@@ -118,6 +119,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_plan = compute_function_plan(opt_evaluations, action_plan)
 
+    # TODO: record the supporting facts
     full_preimage = plan_preimage(combined_plan, [])
     stream_preimage = set(full_preimage) - real_states[0]
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
@@ -155,6 +157,21 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         else:
             actions_from_step.setdefault(step_from_stream[result], []).append(result.get_action())
     eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
+
+    # print(action_plan)
+    # # TODO: propagate this forward in the future
+    # start_from_stream = {}
+    # for result in eager_plan:
+    #     stuff = list(map(fd_from_fact, get_fluent_domain(result)))
+    #     index = len(real_states)
+    #     for i, state in enumerate(real_states):
+    #         if conditions_hold(state, stuff):
+    #             start_from_stream[result] = i
+    #             index = i
+    #             break
+    #     #else:
+    #     #start_from_stream[result] = len(real_states)
+    #     print(index, result)
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
     #action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)

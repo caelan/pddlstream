@@ -34,6 +34,7 @@ PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
 
+Assignment =  namedtuple('Assignment', ['args'])
 Action = namedtuple('Action', ['name', 'args'])
 DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
 StreamAction = namedtuple('StreamAction', ['name', 'inputs', 'outputs'])

@@ -33,24 +33,30 @@ class HedgedDist(object):
                (1.0 / self.n) if self.n > 0 else 0
 
 
-class DiscreteDist(object):
+class Distribution(object):
+
+    def prob(self, x):
+        raise NotImplementedError()
+
+    def draw(self):
+        raise NotImplementedError()
+
+    def sample(self):
+        return self.draw()
+
+
+class DiscreteDist(Distribution):
     """
     Probability distribution over a discrete domain.  This is a
     generic superclass;  do not instantiate it.  Any subclass has to
     provide methods: C{prob}, C{setProb}, C{support}
     """
 
-    def __init__(self):
-        raise Exception('Abstract class')
-
-    def prob(self, x):
-        raise Exception('Abstract class')
-
     def setProb(self, x, p):
-        raise Exception('Abstract class')
+        raise NotImplementedError()
 
     def support(self):
-        raise Exception('Abstract class')
+        raise NotImplementedError()
 
     def draw(self):
         """
@@ -106,7 +112,7 @@ class DiscreteDist(object):
 
     def verify(self, epsilon=1e-5):
         z = sum(self.prob(elt) for elt in self.support())
-        assert 1 - epsilon < z < 1 + epsilon, 'degenerate distribution ' + str(self)
+        assert (1 - epsilon) < z < (1 + epsilon), 'degenerate distribution ' + str(self)
 
 
 def convertToDDist(oldD):
@@ -127,7 +133,8 @@ class DDist(DiscreteDist):
         are their probabilities. """
         self.name = name
         """Optional name;  used in sum-out operations"""
-        self.update()
+        self.normalize()
+        #self.update()
 
     def copy(self):
         return DDist(self.__d, self.name)
@@ -164,7 +171,7 @@ class DDist(DiscreteDist):
         """
         @returns: the probability associated with C{elt}
         """
-        return self.__d.get(elt, 0)
+        return self.__d.get(elt, 0.0)
 
     def setProb(self, elt, p):
         """
@@ -178,9 +185,9 @@ class DDist(DiscreteDist):
     def support(self):
         """
         @returns: A list (in any order) of the elements of this
-        distribution with non-zero probabability.
+        distribution with non-zero probability.
         """
-        return [x for x in self.__d.keys() if self.__d[x] > 0]
+        return [x for x in self.__d.keys() if self.__d[x] > 0.0]
 
     def normalize(self, z=None):
         """
@@ -235,7 +242,7 @@ class DDist(DiscreteDist):
         @param blurFactor: how much to blur; 1 obliterates everything,
                            0 has no effect
         """
-        eps = blurFactor * (1 / float(len(blurDomain)))
+        eps = blurFactor * (1.0 / len(blurDomain))
         for elt in blurDomain:
             self.addProb(elt, eps)
         self.normalize()
@@ -249,7 +256,7 @@ class DDist(DiscreteDist):
         newD = {}
         for key, val in self.__d.items():
             newK = f(key)
-            newD[newK] = val + newD.get(newK, 0)
+            newD[newK] = val + newD.get(newK, 0.0)
         return DDist(newD)
 
     def transitionUpdate(self, tDist):
@@ -261,7 +268,7 @@ class DDist(DiscreteDist):
             oldP = self.prob(sPrime)
             for s in tDistS.support():
                 # prob of transitioning to s from sPrime
-                new[s] = new.get(s, 0) + tDistS.prob(s) * oldP
+                new[s] = new.get(s, 0.0) + tDistS.prob(s) * oldP
         self.__d = new
         if 1 <= len(self.support()):
             self.update()
@@ -293,17 +300,15 @@ class DDist(DiscreteDist):
         """
         if isinstance(self, JDist):
             return self
+        # TODO: fix this JDist bug
         result = JDist([self.support()], name=[self.name])
         result.d = {(e,): self.prob(e) for e in self.support()}
         return result
 
     def __repr__(self):
-        if self.__d.items():
-            dictRepr = reduce(operator.add, [repr(k) + ": " + prettyString(p) + ", " \
-                                             for (k, p) in self.__d.items()])
-        else:
-            dictRepr = '{}'
-        return "DDist({" + dictRepr[:-2] + "})"
+        return '{}{{{}}}'.format(self.__class__.__name__, ', '.join(
+            '{}: {:.5f}'.format(*pair) for pair in sorted(
+                self.__d.items(), key=lambda pair: pair[1])))
 
     def __hash__(self):
         return hash(frozenset(self.__d.items()))
@@ -336,11 +341,11 @@ def UniformDist(elts):
 
 class MixtureDist(DiscreteDist):
     """
-    A mixture of two probabability distributions, d1 and d2, with
+    A mixture of two probability distributions, d1 and d2, with
     mixture parameter p.  Probability of an
     element x under this distribution is p * d1(x) + (1 - p) * d2(x).
     It is as if we first flip a probability-p coin to decide which
-    distribution to draw from, and then choose from the approriate
+    distribution to draw from, and then choose from the appropriate
     distribution.
 
     This implementation is lazy;  it stores the component
@@ -380,21 +385,27 @@ class MixtureDist(DiscreteDist):
     __repr__ = __str__
 
 
+def mixDDists(dists):
+    support = {key for dist in dists for key in dist.support()}
+    assert support
+    return DDist({key: sum(weight*dist.prob(key) for dist, weight in dists.items())
+                  for key in support})
+
+
 def MixtureDD(d1, d2, p):
     """
-    A mixture of two probabability distributions, d1 and d2, with
+    A mixture of two probability distributions, d1 and d2, with
     mixture parameter p.  Probability of an
     element x under this distribution is p * d1(x) + (1 - p) * d2(x).
     It is as if we first flip a probability-p coin to decide which
-    distribution to draw from, and then choose from the approriate
+    distribution to draw from, and then choose from the appropriate
     distribution.
 
     This implementation is eager: it computes a DDist
     distributions.  Alternatively, we could assume that d1 and d2 are
     DDists and compute a new DDist.
     """
-    return DDist({e: p * d1.prob(e) + (1 - p) * d2.prob(e)
-                  for e in set(d1.support()) | set(d2.support())})
+    return mixDDists({d1: p, d2: 1 - p})
 
 
 def triangleDist(peak, halfWidth, lo=None, hi=None):
@@ -433,7 +444,7 @@ def squareDist(lo, hi, loLimit=None, hiLimit=None):
     return DDist(d)
 
 
-def JDist(PA, *PBgAs):
+def JDist(PA, *PBgAs, **kwargs):
     """
     Create a joint distribution on P(A, B) (in that order),
     represented as a C{DDist}
@@ -451,8 +462,9 @@ def JDist(PA, *PBgAs):
             for b in PB.support():
                 combo = a + (b,)
                 d[combo] = joint.prob(a) * PB.prob(b)
-        joint = DDist(d)
+        joint = DDist(d, **kwargs)
     return joint
+
 
 def JDistIndep(*PAs):
     """
@@ -490,7 +502,7 @@ def totalProbability(PA, PBgA):
 ######################################################################
 #   Continuous distribution
 
-class GaussianDistribution(object):
+class GaussianDistribution(Distribution):
     """
     Basic one-dimensional Gaussian.  
     """
@@ -551,7 +563,7 @@ class GaussianDistribution(object):
         self.stdev = math.sqrt(self.var)
 
 
-class LogNormalDistribution(object):
+class LogNormalDistribution(Distribution):
     """
     log d ~ Normal(mu, sigma)
     Note that in some references we use \rho = 1/\sigma^2
@@ -612,7 +624,7 @@ def fixSigma(sigma, ridge=1e-20):
 
 # Uses numpy matrices
 # pose4 is a big hack to deal with a case when the last element is a rotation
-class MultivariateGaussianDistribution:
+class MultivariateGaussianDistribution(Distribution):
     def __init__(self, mu, sigma, pose4=False):
         mu = mat(mu)
         if mu.shape[1] != 1 and mu.shape[0] == 1:
@@ -624,9 +636,8 @@ class MultivariateGaussianDistribution:
         self.pose4 = pose4
 
     def copy(self):
-        return MultivariateGaussianDistribution(np.copy(self.mu),
-                                                np.copy(self.sigma),
-                                                self.pose4)
+        return MultivariateGaussianDistribution(
+            np.copy(self.mu), np.copy(self.sigma), self.pose4)
 
     def prob(self, v):
         d = len(v)
@@ -814,7 +825,7 @@ UNIFORM_LABEL = 'u'
 
 # A mixture of Gaussians, with implicit "leftover" probability assigned to
 # a uniform
-class GMU(object):
+class GMU(Distribution):
     def __init__(self, components, ranges=None):
         # A list of (mvg, p) pairs;  p's sum to <= 1
         # All same dimensionality (d)
@@ -949,7 +960,7 @@ def covPoses(data, mu):
     return sigma / n
 
 
-class CUniformDist(object):
+class CUniformDist(Distribution):
     """
     Uniform distribution over a given finite one dimensional range
     """
@@ -962,17 +973,15 @@ class CUniformDist(object):
     def prob(self, v):
         if self.xMin <= v <= self.xMax:
             return self.p
-        else:
-            return 0
+        return 0
 
     def draw(self):
         return self.xMin + random.random() * (self.xMax - self.xMin)
 
-
 ######################################################################
 # Factored distributions
 
-class ProductDistribution(object):
+class ProductDistribution(Distribution):
     def __init__(self, ds=[]):
         self.ds = tuple(ds)
 
@@ -1008,7 +1017,6 @@ class ProductGaussianDistribution(ProductDistribution):
     """
     Product of independent Gaussians
     """
-
     def __init__(self, means, stdevs):
         super(ProductGaussianDistribution, self).__init__(
             [GaussianDistribution(m, s) for (m, s) in zip(means, stdevs)])
@@ -1147,8 +1155,7 @@ def probModeMoved(delta, var, obsVar):
 # chiSq = (0.71, 1.06, 1.65, 2.20, 3.36, 4.88, 5.99, 7.78, 9.49, 13.28, 18.47)
 # pValue = (0.95, 0.90, 0.80, 0.70, 0.50, 0.30, 0.20, 0.10, 0.05, 0.01, 0.001)
 
-pValue = (1.0, 0.995, 0.975, 0.20, 0.10, 0.05, 0.025, 0.02, 0.01, 0.005, 0.002,
-          0.001)
+pValue = (1.0, 0.995, 0.975, 0.20, 0.10, 0.05, 0.025, 0.02, 0.01, 0.005, 0.002, 0.001)
 chiSqTables = {
     1: (0.0, 0.0000393, 0.000982, 1.642, 2.706, 3.841, 5.024, 5.412, 6.635, 7.879, 9.550, 10.828),
     2: (0.0, 0.0100, 0.0506, 3.219, 4.605, 5.991, 7.378, 7.824, 9.210, 10.597, 12.429, 13.816),
@@ -1200,13 +1207,13 @@ def fixAnglePlusMinusPi(a):
 
 
 def clip(v, vMin, vMax):
-    if vMin == None:
-        if vMax == None:
+    if vMin is None:
+        if vMax is None:
             return v
         else:
             return min(v, vMax)
     else:
-        if vMax == None:
+        if vMax is None:
             return max(v, vMin)
         else:
             return max(min(v, vMax), vMin)

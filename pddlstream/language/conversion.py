@@ -5,7 +5,7 @@ from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
     Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, StreamAction, \
-    DurativeAction, Solution
+    DurativeAction, Solution, Assignment
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -169,6 +169,9 @@ def transform_action_args(action, fn):
     elif isinstance(action, StreamAction):
         name, inputs, outputs = action
         return StreamAction(name, tuple(map(fn, inputs)), tuple(map(fn, outputs)))
+    elif isinstance(action, Assignment):
+        args, = action
+        return Assignment(tuple(map(fn, args)))
     raise NotImplementedError(action)
 
 def transform_plan_args(plan, fn):
@@ -196,6 +199,7 @@ def value_from_obj_plan(obj_plan):
         return obj_plan
     value_plan = []
     for action in obj_plan:
+        # TODO: I shouldn't need this decomposition any more, right?
         if isinstance(action, StreamAction):
             name, inputs, outputs = action
             new_inputs = params_from_objects(inputs)
@@ -211,6 +215,8 @@ def value_from_obj_plan(obj_plan):
             new_action = DurativeAction(name, tuple(map(param_from_object, args)), start, duration)
         elif isinstance(action, Action):
             new_action = transform_action_args(action, param_from_object) # values_from_objects
+        elif isinstance(action, Assignment):
+            new_action = transform_action_args(action, param_from_object)
         else:
             raise ValueError(action)
         value_plan.append(new_action)
