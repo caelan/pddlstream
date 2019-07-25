@@ -7,7 +7,7 @@ import subprocess
 from collections import namedtuple, defaultdict
 from time import time
 
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
@@ -206,8 +206,9 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(isinstance(fd, pddl.Literal) and not fd.negated)
-    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    assert(isinstance(fd, pddl.Literal))
+    atom = (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    return Not(atom) if fd.negated else atom
 
 def evaluation_from_fd(fd):
     if isinstance(fd, pddl.Literal):
