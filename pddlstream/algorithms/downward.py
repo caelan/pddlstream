@@ -141,9 +141,16 @@ def set_cost_scale(cost_scale):
     pddl.f_expression.COST_SCALE = cost_scale
 
 def scale_cost(cost):
+    if cost == INF:
+        return INF
     return int_ceil(get_cost_scale() * float(cost))
 
-set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
+def convert_cost(cost):
+    if cost == INF:
+        return INFINITY
+    return int_ceil(cost)
+
+set_cost_scale(1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
@@ -315,14 +322,10 @@ def get_disjunctive_parts(condition):
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
 
-def convert_cost(cost):
-    if cost == INF:
-        return INFINITY
-    return int(cost)
-
-def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
+def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
+               max_cost=INF, debug=False):
     max_time = convert_cost(max_planner_time)
-    max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
+    max_cost = convert_cost(scale_cost(max_cost))
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     if planner == 'cerberus':
