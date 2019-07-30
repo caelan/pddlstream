@@ -134,38 +134,35 @@ class DDist(DiscreteDist):
         self.name = name
         """Optional name;  used in sum-out operations"""
         self.normalize()
-        #self.update()
 
     def copy(self):
         return DDist(self.__d, self.name)
 
     def update(self):
-        self.mpe = self.computeMPE()
+        pass
 
     def computeMPE(self):
+        # returns pair: (element, prob)
         return max(self.__d.items(), key=lambda pair: pair[1])
 
-    def maxProbElt(self):
-        # returns pair: (element, prob)
-        return self.mpe
+    maxProbElt = computeMPE
 
     def mode(self):
         # just the element
-        return self.mpe[0]
+        element, prob = self.maxProbElt()
+        return element
 
     def addProb(self, val, p):
         """
         Increase the probability of element C{val} by C{p}
         """
         self.setProb(val, self.prob(val) + p)
-        self.update()
 
     def mulProb(self, val, p):
         """
         Multiply the probability of element C{val} by C{p}
         """
         self.setProb(val, self.prob(val) * p)
-        self.update()
 
     def prob(self, elt):
         """
@@ -180,7 +177,6 @@ class DDist(DiscreteDist):
         Sets probability of C{elt} to be C{p}
         """
         self.__d[elt] = p
-        self.update()
 
     def support(self):
         """
@@ -207,7 +203,6 @@ class DDist(DiscreteDist):
         for e in self.support():
             newD[e] = self.__d[e] * alpha
         self.__d = newD
-        self.update()
         return self
 
     def normalizeOrSmooth(self):
@@ -247,6 +242,9 @@ class DDist(DiscreteDist):
             self.addProb(elt, eps)
         self.normalize()
 
+    def condition(self, test):
+        return DDist({e: self.prob(e) for e in self.support() if test(e)})
+
     # Used to be called map
     def project(self, f):
         """
@@ -270,8 +268,6 @@ class DDist(DiscreteDist):
                 # prob of transitioning to s from sPrime
                 new[s] = new.get(s, 0.0) + tDistS.prob(s) * oldP
         self.__d = new
-        if 1 <= len(self.support()):
-            self.update()
 
     def obsUpdate(self, obs_model, obs):
         for si in self.support():
@@ -293,17 +289,6 @@ class DDist(DiscreteDist):
         if 0.0 < z:
             self.normalize(z)
         return z
-
-    def ensureJDist(self):
-        """
-        If the argument is a C{DDist}, make it into a C{JDist}.
-        """
-        if isinstance(self, JDist):
-            return self
-        # TODO: fix this JDist bug
-        result = JDist([self.support()], name=[self.name])
-        result.d = {(e,): self.prob(e) for e in self.support()}
-        return result
 
     def __repr__(self):
         return '{}{{{}}}'.format(self.__class__.__name__, ', '.join(
