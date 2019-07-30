@@ -65,7 +65,7 @@ def get_belief_problem(deterministic, observable):
 
 ##################################################
 
-MAX_COST = MAX_FD_COST / (10 * get_cost_scale())
+MAX_COST = MAX_FD_COST / (100 * get_cost_scale())
 
 def clip_cost(cost, max_cost=MAX_COST): # TODO: move this to downward?
     if cost == INF:
