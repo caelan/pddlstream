@@ -178,6 +178,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
             pddl_from_instance(action), obj_from_pddl))
     action_plan = list(flatten(actions_from_step[step] for step in sorted(actions_from_step)))
 
+    # TODO: the returned facts have the same side-effect bug as above
     return_facts = set(map(fact_from_fd, positive_preimage)) # TODO: annotate when each is used
     for negative_result in negative_plan: # TODO: function_plan
         return_facts.update(negative_result.get_certified())
