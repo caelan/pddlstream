@@ -91,6 +91,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         reset_visualizations()
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
+    positive_externals = streams + functions + optimizers
     use_skeletons = max_skeletons is not None
     has_optimizers = bool(optimizers)
     assert implies(has_optimizers, use_skeletons)
@@ -118,21 +119,21 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            stream_plan, action_plan, cost = iterative_plan_streams(
-                evaluations, (streams + functions + optimizers),
+            stream_plan, opt_plan, cost = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
         else:
-            stream_plan, action_plan, cost = INFEASIBLE, INFEASIBLE, INF
+            stream_plan, opt_plan, cost = INFEASIBLE, INFEASIBLE, INF
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
-            stream_plan = reorder_stream_plan(stream_plan) # This may be redundant when using reorder_combined_plan
+            stream_plan = reorder_stream_plan(stream_plan)
 
         num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
+        action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
         print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan,
             get_length(action_plan), cost, str_from_plan(action_plan)))
@@ -157,12 +158,12 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
                 # TODO: post process a bound plan
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
-                skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
+                skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
-            skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
+            skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
         else:
-            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
+            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                 bind=bind, max_failures=max_failures)
         sample_time += elapsed_time(start_time)
 

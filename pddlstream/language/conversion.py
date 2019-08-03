@@ -5,7 +5,7 @@ from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
     Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, StreamAction, \
-    DurativeAction, Solution, Assignment
+    DurativeAction, Solution, Assignment, OptPlan, Certificate
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -227,10 +227,16 @@ def value_from_obj_plan(obj_plan):
 #def expression_holds(expression, evaluations):
 #    pass
 
-def revert_solution(obj_plan, cost, evaluations):
-    plan = value_from_obj_plan(obj_plan)
-    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
-    return Solution(plan, cost, init)
+def revert_solution(plan, cost, evaluations):
+    all_facts = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
+    if isinstance(plan, OptPlan):
+        action_plan = value_from_obj_plan(plan.action_plan)
+        preimage_facts = list(map(value_from_obj_expression, plan.preimage_facts))
+    else:
+        action_plan = value_from_obj_plan(plan)
+        preimage_facts = None
+    certificate = Certificate(all_facts, preimage_facts)
+    return Solution(action_plan, cost, certificate)
 
 #def opt_obj_from_value(value):
 #    if Object.has_value(value):

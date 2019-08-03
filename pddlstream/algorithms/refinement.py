@@ -7,7 +7,7 @@ from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
-from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan, str_from_plan, get_length
+from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
@@ -172,7 +172,7 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
         return stream_plan, action_plan, cost, depth
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not CONSTRAIN_STREAMS and not CONSTRAIN_PLANS:
-        return None, None, INF, depth + 1
+        return FAILED, FAILED, INF, depth + 1
     if CONSTRAIN_STREAMS:
         next_results = compute_stream_results(evaluations, new_results, externals, **effort_args)
     else:

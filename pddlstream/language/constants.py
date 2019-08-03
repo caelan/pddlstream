@@ -32,7 +32,12 @@ INFEASIBLE = False
 # TODO: rename PDDLProblem
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
-Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
+Solution = namedtuple('Solution', ['plan', 'cost', 'certificate'])
+Certificate = namedtuple('Certificate', ['all_facts', 'preimage_facts'])
+
+OptPlan = namedtuple('OptPlan', ['action_plan', 'preimage_facts'])
+# TODO: axiom plans
+# TODO: annotate which step each fact is first used
 
 Assignment =  namedtuple('Assignment', ['args'])
 Action = namedtuple('Action', ['name', 'args'])
