@@ -36,8 +36,8 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'certificate'])
 Certificate = namedtuple('Certificate', ['all_facts', 'preimage_facts'])
 
 OptPlan = namedtuple('OptPlan', ['action_plan', 'preimage_facts'])
-# TODO: axiom plans
-# TODO: annotate which step each fact is first used
+# TODO: stream and axiom plans
+# TODO: annotate which step each fact is first used via layer
 
 Assignment =  namedtuple('Assignment', ['args'])
 Action = namedtuple('Action', ['name', 'args'])
