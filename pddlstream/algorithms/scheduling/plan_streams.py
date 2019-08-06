@@ -118,7 +118,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_plan = compute_function_plan(opt_evaluations, action_plan)
 
-    full_preimage = plan_preimage(combined_plan, [])
+    full_preimage = plan_preimage(combined_plan, []) # Does not contain the stream preimage!
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, full_preimage))
     negative_plan = convert_negative(negative_preimage, negative_from_name, full_preimage, real_states)
     function_plan.update(negative_plan)
@@ -222,7 +222,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
                                 opt_evaluations, node_from_atom, goal_expression,
                                 effort_weight, debug=False, **kwargs):
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
-    with Verbose():
+    with Verbose(verbose=False):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return instantiated, None, INF

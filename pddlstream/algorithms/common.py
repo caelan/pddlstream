@@ -15,6 +15,7 @@ from pddlstream.utils import INF, elapsed_time
 COMPLEXITY_OP = max # max | sum
 INIT_EVALUATION = None
 INTERNAL_EVALUATION = False
+UNKNOWN_EVALUATION = 'unknown'
 
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'time'])

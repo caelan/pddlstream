@@ -72,6 +72,7 @@ def optimistic_stream_instantiation(instance, bindings, evaluations, opt_evaluat
             instance.get_domain(), mapping))) # TODO: could just instantiate first
         if domain_evaluations <= opt_evaluations:
             new_instance = instance.external.get_instance(input_combo)
+            # TODO: method for eagerly evaluating some of these?
             if (new_instance.opt_index != 0) and implies(only_immediate, domain_evaluations <= evaluations):
                 new_instance.opt_index -= 1
             new_instances.append(new_instance)

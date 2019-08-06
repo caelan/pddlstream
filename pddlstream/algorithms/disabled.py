@@ -1,4 +1,4 @@
-from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
+from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready, UNKNOWN_EVALUATION
 from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.constants import OptPlan
 from pddlstream.language.function import FunctionResult
@@ -65,7 +65,7 @@ def process_instance(store, domain, instance, disable=True):
         add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
         remove_blocked(store.evaluations, instance, new_results)
-    add_facts(store.evaluations, new_facts, result=None, complexity=0) # TODO: record the instance
+    add_facts(store.evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
     return new_results
 
 ##################################################
