@@ -69,16 +69,17 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
     assigned_predicate = ASSIGNED_PREDICATE.format(prefix)
     group_predicate = GROUP_PREDICATE.format(prefix)
     order_predicate = ORDER_PREDICATE.format(prefix)
+    new_facts = []
     for group in constraints.groups:
         for value in constraints.groups[group]:
             # TODO: could make all constants groups (like an equality group)
             fact = (group_predicate, to_obj(group), to_obj(value))
-            add_fact(evaluations, fact, result=INTERNAL_EVALUATION)
+            new_facts.append(fact)
     new_actions = []
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
         order_facts = make_order_facts(order_predicate, num, len(skeleton) + 1)
-        add_fact(evaluations, order_facts[0], result=INTERNAL_EVALUATION)
+        new_facts.append(order_facts[0])
         new_goals.append(order_facts[-1])
         bound_parameters = set()
         for step, (name, args) in enumerate(skeleton):
@@ -88,6 +89,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
                          if not is_parameter(a) and a != WILD]
             skeleton_parameters = list(filter(is_parameter, args))
             existing_parameters = [p for p in skeleton_parameters if p in bound_parameters]
+            new_parameters = [p for p in skeleton_parameters if p not in bound_parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
             group_preconditions = [(group_predicate if is_hashable(a) and (a in constraints.groups) else EQ,
@@ -97,17 +99,19 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
             new_action.precondition = pddl.Conjunction(
                 [new_action.precondition, make_preconditions(new_preconditions)]).simplified()
 
-            new_effects = make_assignment_facts(assigned_predicate, local_from_global, skeleton_parameters) \
+            new_effects = make_assignment_facts(assigned_predicate, local_from_global, new_parameters) \
                           + [Not(order_facts[step]), order_facts[step + 1]]
             new_action.effects.extend(make_effects(new_effects))
             # TODO: should also negate the effects of all other sequences here
 
             new_actions.append(new_action)
-            bound_parameters.update(skeleton_parameters)
+            bound_parameters.update(new_parameters)
             #new_action.dump()
     add_predicate(domain, make_predicate(order_predicate, ['?num', '?step']))
     if constraints.exact:
         domain.actions[:] = []
     domain.actions.extend(new_actions)
     new_goal_exp = And(goal_exp, Or(*new_goals))
+    for fact in new_facts:
+        add_fact(evaluations, fact, result=INTERNAL_EVALUATION)
     return new_goal_exp

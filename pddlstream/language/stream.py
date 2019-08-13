@@ -255,6 +255,7 @@ class StreamInstance(Instance):
         if verbose:
             if (not new_values and VERBOSE_FAILURES) or \
                     (new_values and self.info.verbose_success):
+                # TODO: just print True/False for test streams
                 print('{}) {}:{}->{}'.format(start_calls, self.external.name,
                                              str_from_object(self.get_input_values()),
                                              str_from_object(new_values)))
