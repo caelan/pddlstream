@@ -8,6 +8,8 @@ def extract_function_result(results_from_head, action, pddl_args):
     import pddl
     if action.cost is None:
         return None
+    # TODO: retrieve constant action costs
+    # TODO: associate costs with the steps they are applied
     expression = action.cost.expression
     if not isinstance(expression, pddl.PrimitiveNumericExpression):
         return None

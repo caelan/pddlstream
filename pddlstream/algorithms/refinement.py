@@ -7,7 +7,7 @@ from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
-from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan, str_from_plan, get_length
+from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
@@ -72,6 +72,7 @@ def optimistic_stream_instantiation(instance, bindings, evaluations, opt_evaluat
             instance.get_domain(), mapping))) # TODO: could just instantiate first
         if domain_evaluations <= opt_evaluations:
             new_instance = instance.external.get_instance(input_combo)
+            # TODO: method for eagerly evaluating some of these?
             if (new_instance.opt_index != 0) and implies(only_immediate, domain_evaluations <= evaluations):
                 new_instance.opt_index -= 1
             new_instances.append(new_instance)
@@ -172,7 +173,7 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
         return stream_plan, action_plan, cost, depth
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not CONSTRAIN_STREAMS and not CONSTRAIN_PLANS:
-        return None, None, INF, depth + 1
+        return FAILED, FAILED, INF, depth + 1
     if CONSTRAIN_STREAMS:
         next_results = compute_stream_results(evaluations, new_results, externals, **effort_args)
     else:

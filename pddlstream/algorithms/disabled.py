@@ -1,8 +1,9 @@
-from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
+from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready, UNKNOWN_EVALUATION
 from pddlstream.algorithms.algorithm import remove_blocked
+from pddlstream.language.constants import OptPlan
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.language.conversion import is_plan, transform_action_args
+from pddlstream.language.conversion import is_plan, transform_action_args, replace_expression
 from pddlstream.utils import INF, safe_zip, apply_mapping, flatten
 
 # TODO: disabled isn't quite like complexity. Stream instances below the complexity threshold might be called again
@@ -23,9 +24,13 @@ def update_cost(cost, opt_result, result):
         return cost
     return cost + (result.value - opt_result.value)
 
-def bind_action_plan(action_plan, mapping):
-    return [transform_action_args(action, lambda o: mapping.get(o, o))
-            for action in action_plan]
+def bind_action_plan(opt_plan, mapping):
+    fn = lambda o: mapping.get(o, o)
+    new_action_plan = [transform_action_args(action, fn)
+                       for action in opt_plan.action_plan]
+    new_preimage_facts = frozenset(replace_expression(fact, fn)
+                                   for fact in opt_plan.preimage_facts)
+    return OptPlan(new_action_plan, new_preimage_facts)
 
 def get_free_objects(stream_plan):
     return set(flatten(result.output_objects for result in stream_plan
@@ -60,7 +65,7 @@ def process_instance(store, domain, instance, disable=True):
         add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
         remove_blocked(store.evaluations, instance, new_results)
-    add_facts(store.evaluations, new_facts, result=None, complexity=0) # TODO: record the instance
+    add_facts(store.evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
     return new_results
 
 ##################################################
