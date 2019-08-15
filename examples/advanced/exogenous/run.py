@@ -111,6 +111,8 @@ def main(planner='max-astar', unit_costs=True):
     _, _, _, _, init, goal = pddlstream_problem
     print('Init:', sorted(init, key=lambda f: f[0]))
     print('Goal:', goal)
+    replan_actions = set()
+    #replan_actions = {'phone'}
     stream_info = {
         'motion': StreamInfo(defer=True),
     }
@@ -118,7 +120,8 @@ def main(planner='max-astar', unit_costs=True):
     pr = cProfile.Profile()
     pr.enable()
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, planner=planner, unit_costs=unit_costs)
+        solution = solve_focused(pddlstream_problem, replan_actions=replan_actions,
+                                 stream_info=stream_info, planner=planner, unit_costs=unit_costs)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, planner=planner, unit_costs=unit_costs)
     else:

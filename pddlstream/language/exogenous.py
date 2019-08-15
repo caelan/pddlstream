@@ -36,8 +36,9 @@ class FutureStream(Stream):
                                            stream.outputs, static_certified, stream.info, stream.fluents)
 
 def get_fluent_domain(result):
+    # TODO: add to the stream itself
     if not isinstance(result.external, FutureStream):
-        return []
+        return tuple()
     return substitute_expression(result.external.fluent_domain, result.get_mapping())
 
 ##################################################

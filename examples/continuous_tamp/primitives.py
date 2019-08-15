@@ -108,6 +108,7 @@ def get_pose_gen(regions):
 
 
 def plan_motion(q1, q2):
+    # TODO: scipy interpolation
     x1, y1 = q1
     x2, y2 = q2
     t = [q1,

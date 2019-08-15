@@ -5,7 +5,8 @@ import copy
 from collections import defaultdict, namedtuple
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, conditions_hold
+    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
+    conditions_hold, apply_action
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -119,18 +120,19 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
-    real_states, combined_plan = recover_negative_axioms(
+    real_states, full_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_from_instance = compute_function_plan(opt_evaluations, action_plan)
     function_plan = set(function_from_instance.values())
 
-    full_preimage = plan_preimage(combined_plan, [])
+    full_preimage = plan_preimage(full_plan, [])
     stream_preimage = set(full_preimage) - real_states[0]
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, stream_preimage))
     function_plan.update(convert_negative(negative_preimage, negative_from_name, full_preimage, real_states))
     positive_preimage = stream_preimage - negative_preimage
     #supporting_facts = set(map(fact_from_fd, full_preimage))
 
+    # TODO: this assumes that actions do not negate preimage goals
     steps_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage if not l.negated}
     target_facts = {fact for fact in steps_from_fact.keys() if get_prefix(fact) != EQ}
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
@@ -150,42 +152,61 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
     extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
     step_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan,
-                        step_from_fact, step_from_stream)
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan, step_from_fact, step_from_stream)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
 
-    eager_plan = []
-    actions_from_step = {}
-    for result in (stream_plan + list(function_plan)):
-        if (result.opt_index != 0) or (step_from_stream.get(result, 0) < replan_step):
-            eager_plan.append(result)
-        else:
-            actions_from_step.setdefault(step_from_stream[result], []).append(result.get_action())
-    eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
+    #local_plan = [] # TODO: not sure what this was for
+    #for fact, step in sorted(step_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
+    #    print(step, fact)
+    #    extract_stream_plan(node_from_atom, [fact], local_plan, step_from_fact, step_from_stream)
+    #print(local_plan)
 
-    # print(action_plan)
-    # # TODO: propagate this forward in the future
-    # start_from_stream = {}
-    # for result in eager_plan:
-    #     stuff = list(map(fd_from_fact, get_fluent_domain(result)))
-    #     index = len(real_states)
-    #     for i, state in enumerate(real_states):
-    #         if conditions_hold(state, stuff):
-    #             start_from_stream[result] = i
-    #             index = i
-    #             break
-    #     #else:
-    #     #start_from_stream[result] = len(real_states)
-    #     print(index, result)
+    # Each stream has an earliest evaluation time
+    # When computing the latest, use 0 if something isn't deferred
+    # Evaluate each stream as soon as possible
+    # Option to defer streams after a point in time?
+    # TODO: action costs for streams that encode uncertainty
+    remaining_results = stream_plan + list(function_plan)
+    state = set(real_task.init)
+    eager_results = []
+    combined_plan = []
+
+    # replan_step should depend on observations
+    assert 1 <= replan_step
+    for step, instance in enumerate(action_plan):
+        for result in list(remaining_results):
+            # TODO: could do this more efficiently if need be
+            latest_step = step_from_stream.get(result, 0)
+            if (result.opt_index != 0) or (latest_step < replan_step):
+                latest_step = 0
+            if step < latest_step:
+                # We only perform a deferred evaluation if it has all deferred dependencies
+                # TODO: make a flag that also allows dependencies to be deferred
+                continue
+            domain = result.get_domain() + get_fluent_domain(result)
+            if conditions_hold(state, map(fd_from_fact, domain)):
+                remaining_results.remove(result)
+                certified = {fact for fact in result.get_certified() if get_prefix(fact) != EQ}
+                state.update(map(fd_from_fact, certified))
+                if latest_step == 0: # instead of step == 0
+                    # Still adding the stream for a hypothetical evaluation
+                    eager_results.append(result)
+                if step != 0:
+                    combined_plan.append(result.get_action())
+            #else:
+            #    # replan_step affected by observations
+            #    replan_step = min(replan_step, step)
+        # TODO: assumes no fluent axiom domain conditions
+        combined_plan.append(pddl_from_instance(instance))
+        apply_action(state, instance)
+    assert not remaining_results
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
-    #action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
-    for step, action in enumerate(action_plan):
-        actions_from_step.setdefault(step, []).append(transform_action_args(
-            pddl_from_instance(action), obj_from_pddl))
-    action_plan = list(flatten(actions_from_step[step] for step in sorted(actions_from_step)))
+    eager_results = convert_fluent_streams(eager_results, real_states, action_plan, steps_from_fact, node_from_atom)
+    combined_plan = [transform_action_args(action, obj_from_pddl) if isinstance(action, Action) else action
+                     for action in combined_plan]
 
-    return eager_plan, action_plan
+    return eager_results, combined_plan
 
 ##################################################
 
@@ -286,7 +307,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)])
+                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
     stream_plan, action_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
                                                    node_from_atom, action_instances, axiom_plans, negative, replan_step)
     return stream_plan, action_plan, cost
