@@ -140,10 +140,10 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     # TODO: get_steps_from_stream
     stream_plan = []
-    step_from_stream = {}
+    last_from_stream = {}
     for result in current_plan:
         # TODO: actually compute when these are needed + dependencies
-        step_from_stream[result] = 0
+        last_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
             function_plan.add(result) # Prevents these results from being pruned
         else:
@@ -151,14 +151,15 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
     extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
-    step_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan, step_from_fact, step_from_stream)
+    last_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan, last_from_fact, last_from_stream)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
+    stream_plan.extend(function_plan)
 
     #local_plan = [] # TODO: not sure what this was for
-    #for fact, step in sorted(step_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
+    #for fact, step in sorted(last_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
     #    print(step, fact)
-    #    extract_stream_plan(node_from_atom, [fact], local_plan, step_from_fact, step_from_stream)
+    #    extract_stream_plan(node_from_atom, [fact], local_plan, last_from_fact, last_from_stream)
     #print(local_plan)
 
     # Each stream has an earliest evaluation time
@@ -166,45 +167,48 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     # Evaluate each stream as soon as possible
     # Option to defer streams after a point in time?
     # TODO: action costs for streams that encode uncertainty
-    remaining_results = stream_plan + list(function_plan)
     state = set(real_task.init)
-    eager_results = []
-    combined_plan = []
-
-    # replan_step should depend on observations
+    remaining_results = list(stream_plan)
+    first_from_stream = {}
     assert 1 <= replan_step
     for step, instance in enumerate(action_plan):
         for result in list(remaining_results):
             # TODO: could do this more efficiently if need be
-            latest_step = step_from_stream.get(result, 0)
-            if (result.opt_index != 0) or (latest_step < replan_step):
-                latest_step = 0
-            if step < latest_step:
-                # We only perform a deferred evaluation if it has all deferred dependencies
-                # TODO: make a flag that also allows dependencies to be deferred
-                continue
             domain = result.get_domain() + get_fluent_domain(result)
             if conditions_hold(state, map(fd_from_fact, domain)):
                 remaining_results.remove(result)
                 certified = {fact for fact in result.get_certified() if get_prefix(fact) != EQ}
                 state.update(map(fd_from_fact, certified))
-                if latest_step == 0: # instead of step == 0
-                    # Still adding the stream for a hypothetical evaluation
-                    eager_results.append(result)
                 if step != 0:
-                    combined_plan.append(result.get_action())
-            #else:
-            #    # replan_step affected by observations
-            #    replan_step = min(replan_step, step)
+                    first_from_stream[result] = step
         # TODO: assumes no fluent axiom domain conditions
-        combined_plan.append(pddl_from_instance(instance))
         apply_action(state, instance)
     assert not remaining_results
+    if first_from_stream:
+        replan_step = min(replan_step, *first_from_stream.values())
+
+    eager_results = []
+    results_from_step = defaultdict(list)
+    for result in stream_plan:
+        earliest_step = first_from_stream.get(result, 0)
+        latest_step = last_from_stream.get(result, 0)
+        #assert earliest_step <= latest_step
+        defer = (result.opt_index == 0) and (replan_step <= latest_step)
+        if not defer:
+            eager_results.append(result)
+        # We only perform a deferred evaluation if it has all deferred dependencies
+        # TODO: make a flag that also allows dependencies to be deferred
+        future = (earliest_step != 0) or defer
+        if future:
+            future_step = latest_step if defer else earliest_step
+            results_from_step[future_step].append(result)
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
     eager_results = convert_fluent_streams(eager_results, real_states, action_plan, steps_from_fact, node_from_atom)
-    combined_plan = [transform_action_args(action, obj_from_pddl) if isinstance(action, Action) else action
-                     for action in combined_plan]
+    combined_plan = []
+    for step, action in enumerate(action_plan):
+        combined_plan.extend(result.get_action() for result in results_from_step[step])
+        combined_plan.append(transform_action_args(pddl_from_instance(action), obj_from_pddl))
 
     return eager_results, combined_plan
 
