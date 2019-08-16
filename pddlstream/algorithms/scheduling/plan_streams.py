@@ -185,6 +185,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         preimage_facts.update(negative_result.get_certified())
     for result in eager_plan:
         preimage_facts.update(result.get_domain())
+        preimage_facts.update(result.get_certified()) # Some facts might not be in the preimage
     return eager_plan, OptPlan(action_plan, preimage_facts)
 
 ##################################################
@@ -251,6 +252,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     #reachieve = reachieve and not using_optimizers(all_results)
+    #for i, result in enumerate(all_results):
+    #    print(i, result)
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, deferred_from_name = add_stream_actions(domain, deferred_results)

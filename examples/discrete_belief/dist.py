@@ -62,6 +62,7 @@ class DiscreteDist(Distribution):
         """
         @returns: a randomly drawn element from the distribution
         """
+        # TODO: numpy.random.choice
         r = random.random()
         total = 0.0
         for v in self.support():
