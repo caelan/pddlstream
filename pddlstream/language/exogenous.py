@@ -30,14 +30,20 @@ class FutureValue(object):
 
 class FutureStream(Stream):
     def __init__(self, stream, static_domain, fluent_domain, static_certified):
-        stream_name = 'future-{}'.format(stream.name)
+        prefix = 'future-' if REPLACE_STREAM else ''
+        stream_name = '{}{}'.format(prefix, stream.name)
+        self.original = stream
         self.fluent_domain = tuple(fluent_domain)
         super(FutureStream, self).__init__(stream_name, stream.gen_fn, stream.inputs, static_domain,
                                            stream.outputs, static_certified, stream.info, stream.fluents)
+    @property
+    def pddl_name(self):
+        return self.original.pddl_name
 
 def get_fluent_domain(result):
+    # TODO: add to the stream itself
     if not isinstance(result.external, FutureStream):
-        return []
+        return tuple()
     return substitute_expression(result.external.fluent_domain, result.get_mapping())
 
 ##################################################
@@ -105,12 +111,13 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
     future_map = {p: 'f-{}'.format(p) for p in certified_predicates}
     augment_evaluations(evaluations, future_map)
     future_fn = lambda a: rename_atom(a, future_map)
+    new_streams = []
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
         # TODO: could also just have conditions asserting that one of the fluent conditions fails
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
-        stream_atom = streams[-1].certified[0]
+        new_streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
+        stream_atom = new_streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(stream.domain)
         effort = 1 # TODO: use stream info
@@ -125,6 +132,10 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
             cost=effort))
         stream.certified = tuple(set(stream.certified) |
                                  set(map(future_fn, stream.certified)))
+    if REPLACE_STREAM:
+        streams.extend(new_streams)
+    else:
+        streams[:] = new_streams
 
 ##################################################
 
@@ -177,12 +188,12 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
         axiom.condition = replace_predicates(derived_map, axiom.condition)
 
     #fluent_predicates.update(certified_predicates)
+    new_streams = []
     for stream in list(streams):
         if not isinstance(stream, Stream):
             raise NotImplementedError(stream)
-        # TODO: could replace the stream all-together
-        streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
-        stream_atom = streams[-1].certified[0]
+        new_streams.append(create_static_stream(stream, evaluations, fluent_predicates, future_fn))
+        stream_atom = new_streams[-1].certified[0]
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(map(derived_fn, stream.domain))
         for certified_fact in stream.certified:
@@ -202,6 +213,10 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
             ])
         stream.certified = tuple(set(stream.certified) |
                                  set(map(future_fn, stream.certified)))
+    if REPLACE_STREAM:
+        streams.extend(new_streams)
+    else:
+        streams[:] = new_streams
 
 ##################################################
 

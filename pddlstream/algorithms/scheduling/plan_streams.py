@@ -2,10 +2,11 @@ from __future__ import print_function
 
 import copy
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd
+    conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, \
+    plan_preimage, fact_from_fd
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -25,20 +26,26 @@ from pddlstream.language.constants import Not, get_prefix, EQ, Action, FAILED, O
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
     fact_from_evaluation, transform_plan_args, transform_action_args, obj_from_pddl
 from pddlstream.language.external import Result
+from pddlstream.language.exogenous import get_fluent_domain
 from pddlstream.language.function import Function
 from pddlstream.language.stream import StreamResult
 from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.temporal import SimplifiedDomain, solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import Verbose, INF, flatten
+from pddlstream.utils import Verbose, INF
+
+OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
+                                         'supporting_facts', 'axiom_plan'])
+
+##################################################
 
 def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
-    cost_from_action = {action: action.cost for action in instantiated.actions}
     if effort_weight is None:
-        return cost_from_action
+        return
     # TODO: make effort just a multiplier (or relative) to avoid worrying about the scale
-    #efforts = [] # TODO: regularize & normalize across the problem?
+    # TODO: regularize & normalize across the problem?
+    #efforts = []
     for instance in instantiated.actions:
         # TODO: prune stream actions here?
         # TODO: round each effort individually to penalize multiple streams
@@ -46,12 +53,10 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
         #effort = COMBINE_OP([0] + [node_from_atom[fact].effort for fact in facts])
         stream_plan = []
         extract_stream_plan(node_from_atom, facts, stream_plan)
-        if effort_weight is not None:
-            effort = compute_plan_effort(stream_plan, **kwargs)
-            instance.cost += scale_cost(effort_weight*effort)
-            #efforts.append(effort)
+        effort = compute_plan_effort(stream_plan, **kwargs)
+        instance.cost += scale_cost(effort_weight*effort)
+        #efforts.append(effort)
     #print(min(efforts), efforts)
-    return cost_from_action
 
 ##################################################
 
@@ -79,6 +84,7 @@ def pddl_from_instance(instance):
 def get_plan_cost(action_plan, cost_from_action):
     if action_plan is None:
         return INF
+    # TODO: return cost per action instance
     #return sum([0.] + [instance.cost for instance in action_plan])
     scaled_cost = sum([0.] + [cost_from_action[instance] for instance in action_plan])
     return scaled_cost / get_cost_scale()
@@ -114,15 +120,17 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
-    real_states, combined_plan = recover_negative_axioms(
+    real_states, full_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
-    function_plan = compute_function_plan(opt_evaluations, action_plan)
+    function_from_instance = compute_function_plan(opt_evaluations, action_plan)
+    function_plan = set(function_from_instance.values())
 
-    full_preimage = plan_preimage(combined_plan, []) # Does not contain the stream preimage!
+    full_preimage = plan_preimage(full_plan, []) # Does not contain the stream preimage!
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, full_preimage))
     negative_plan = convert_negative(negative_preimage, negative_from_name, full_preimage, real_states)
     function_plan.update(negative_plan)
 
+    # TODO: this assumes that actions do not negate preimage goals
     positive_preimage = {l for l in (set(full_preimage) - real_states[0] - negative_preimage) if not l.negated}
     steps_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage}
     target_facts = {fact for fact in steps_from_fact.keys() if get_prefix(fact) != EQ}
@@ -131,10 +139,10 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     # TODO: get_steps_from_stream
     stream_plan = []
-    step_from_stream = {}
+    last_from_stream = {}
     for result in current_plan:
         # TODO: actually compute when these are needed + dependencies
-        step_from_stream[result] = 0
+        last_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
             function_plan.add(result) # Prevents these results from being pruned
         else:
@@ -142,41 +150,64 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
     extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
-    step_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan,
-                        step_from_fact, step_from_stream)
+    last_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan, last_from_fact, last_from_stream)
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
+    stream_plan.extend(function_plan)
+
+    #local_plan = [] # TODO: not sure what this was for
+    #for fact, step in sorted(last_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
+    #    print(step, fact)
+    #    extract_stream_plan(node_from_atom, [fact], local_plan, last_from_fact, last_from_stream)
+    #print(local_plan)
+
+    # Each stream has an earliest evaluation time
+    # When computing the latest, use 0 if something isn't deferred
+    # Evaluate each stream as soon as possible
+    # Option to defer streams after a point in time?
+    # TODO: action costs for streams that encode uncertainty
+    state = set(real_task.init)
+    remaining_results = list(stream_plan)
+    first_from_stream = {}
+    assert 1 <= replan_step
+    for step, instance in enumerate(action_plan):
+        for result in list(remaining_results):
+            # TODO: could do this more efficiently if need be
+            domain = result.get_domain() + get_fluent_domain(result)
+            if conditions_hold(state, map(fd_from_fact, domain)):
+                remaining_results.remove(result)
+                certified = {fact for fact in result.get_certified() if get_prefix(fact) != EQ}
+                state.update(map(fd_from_fact, certified))
+                if step != 0:
+                    first_from_stream[result] = step
+        # TODO: assumes no fluent axiom domain conditions
+        apply_action(state, instance)
+    assert not remaining_results
+    if first_from_stream:
+        replan_step = min(replan_step, *first_from_stream.values())
 
     eager_plan = []
-    actions_from_step = {}
-    for result in (stream_plan + list(function_plan)):
-        if (result.opt_index != 0) or (step_from_stream.get(result, 0) < replan_step):
+    results_from_step = defaultdict(list)
+    for result in stream_plan:
+        earliest_step = first_from_stream.get(result, 0)
+        latest_step = last_from_stream.get(result, 0)
+        #assert earliest_step <= latest_step
+        defer = (result.opt_index == 0) and (replan_step <= latest_step)
+        if not defer:
             eager_plan.append(result)
-        else:
-            actions_from_step.setdefault(step_from_stream[result], []).append(result.get_action())
-    eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
-
-    # print(action_plan)
-    # # TODO: propagate this forward in the future
-    # start_from_stream = {}
-    # for result in eager_plan:
-    #     stuff = list(map(fd_from_fact, get_fluent_domain(result)))
-    #     index = len(real_states)
-    #     for i, state in enumerate(real_states):
-    #         if conditions_hold(state, stuff):
-    #             start_from_stream[result] = i
-    #             index = i
-    #             break
-    #     #else:
-    #     #start_from_stream[result] = len(real_states)
-    #     print(index, result)
+        # We only perform a deferred evaluation if it has all deferred dependencies
+        # TODO: make a flag that also allows dependencies to be deferred
+        future = (earliest_step != 0) or defer
+        if future:
+            future_step = latest_step if defer else earliest_step
+            results_from_step[future_step].append(result)
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
-    #action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
+    eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
+    combined_plan = []
     for step, action in enumerate(action_plan):
-        actions_from_step.setdefault(step, []).append(transform_action_args(
-            pddl_from_instance(action), obj_from_pddl))
-    action_plan = list(flatten(actions_from_step[step] for step in sorted(actions_from_step)))
+        combined_plan.extend(result.get_action() for result in results_from_step[step])
+        combined_plan.append(transform_action_args(pddl_from_instance(action), obj_from_pddl))
 
     # TODO: the returned facts have the same side-effect bug as above
     preimage_facts = {fact_from_fd(l) for l in full_preimage
@@ -186,7 +217,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     for result in eager_plan:
         preimage_facts.update(result.get_domain())
         preimage_facts.update(result.get_certified()) # Some facts might not be in the preimage
-    return eager_plan, OptPlan(action_plan, preimage_facts)
+    return eager_plan, OptPlan(combined_plan, preimage_facts)
 
 ##################################################
 
@@ -228,7 +259,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     if instantiated is None:
         return instantiated, None, INF
 
-    cost_from_action = add_stream_efforts(node_from_atom, instantiated, effort_weight)
+    cost_from_action = {action: action.cost for action in instantiated.actions}
+    add_stream_efforts(node_from_atom, instantiated, effort_weight)
     if using_optimizers(applied_results):
         add_optimizer_effects(instantiated, node_from_atom)
         # TODO: reachieve=False when using optimizers or should add applied facts
@@ -246,6 +278,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     action_instances = [action_from_name[name] for name, _ in renamed_plan]
     cost = get_plan_cost(action_instances, cost_from_action)
     return instantiated, action_instances, cost
+
+##################################################
 
 def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
                  simultaneous=False, reachieve=True, replan_actions=set(), **kwargs):
@@ -286,7 +320,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)])
+                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)
     return stream_plan, opt_plan, cost
