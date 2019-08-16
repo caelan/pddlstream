@@ -169,7 +169,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     state = set(real_task.init)
     remaining_results = list(stream_plan)
     first_from_stream = {}
-    assert 1 <= replan_step
+    #assert 1 <= replan_step # Plan could be empty
     for step, instance in enumerate(action_plan):
         for result in list(remaining_results):
             # TODO: could do this more efficiently if need be
@@ -182,7 +182,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
                     first_from_stream[result] = step
         # TODO: assumes no fluent axiom domain conditions
         apply_action(state, instance)
-    assert not remaining_results
+    #assert not remaining_results # Not true if retrace
     if first_from_stream:
         replan_step = min(replan_step, *first_from_stream.values())
 
