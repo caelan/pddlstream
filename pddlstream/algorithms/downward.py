@@ -617,3 +617,10 @@ def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]
              types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
              predicates=predicates, predicate_dict={p.name: p for p in predicates},
              functions=functions, actions=actions, axioms=axioms)
+
+
+def pddl_from_instance(instance):
+    action = instance.action
+    args = [instance.var_mapping[p.name]
+            for p in action.parameters[:action.num_external_parameters]]
+    return Action(action.name, args)

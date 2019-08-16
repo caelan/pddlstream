@@ -5,8 +5,8 @@ import copy
 from collections import defaultdict, namedtuple
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, \
-    plan_preimage, fact_from_fd
+    conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
+    pddl_from_instance
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -22,7 +22,7 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
-from pddlstream.language.constants import Not, get_prefix, EQ, Action, FAILED, OptPlan
+from pddlstream.language.constants import Not, get_prefix, EQ, FAILED, OptPlan
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
     fact_from_evaluation, transform_plan_args, transform_action_args, obj_from_pddl
 from pddlstream.language.external import Result
@@ -72,12 +72,6 @@ def rename_instantiated_actions(instantiated):
         action_from_name[renamed_name] = action # Change reachable_action_params?
     instantiated.actions[:] = renamed_actions
     return action_from_name
-
-def pddl_from_instance(instance):
-    action = instance.action
-    args = [instance.var_mapping[p.name]
-            for p in action.parameters[:action.num_external_parameters]]
-    return Action(action.name, args)
 
 ##################################################
 
@@ -253,6 +247,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
                                 effort_weight, debug=False, **kwargs):
+    #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
     with Verbose(verbose=False):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
