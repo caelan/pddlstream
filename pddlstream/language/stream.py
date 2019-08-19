@@ -109,14 +109,14 @@ class DebugValue(object): # TODO: could just do an object
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False,
-                 defer=False, verbose_success=True, **kwargs):
+                 defer=False, verbose=True, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
         self.opt_gen_fn = opt_gen_fn # TODO: call this an abstraction instead
         self.negate = negate
         self.simultaneous = simultaneous
         self.defer = defer
-        self.verbose_success = verbose_success
+        self.verbose = verbose
         # TODO: make this false by default for test streams
         #self.order = 0
 
@@ -254,7 +254,7 @@ class StreamInstance(Instance):
         self.update_statistics(start_time, new_results)
         if verbose:
             if (not new_values and VERBOSE_FAILURES) or \
-                    (new_values and self.info.verbose_success):
+                    (new_values and self.info.verbose):
                 # TODO: just print True/False for test streams
                 print('{}) {}:{}->{}'.format(start_calls, self.external.name,
                                              str_from_object(self.get_input_values()),
