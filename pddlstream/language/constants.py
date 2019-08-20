@@ -63,6 +63,10 @@ def Not(expression):
     return (NOT, expression)
 
 
+def Imply(expression1, expression2):
+    return (IMPLY, expression1, expression2)
+
+
 def Equal(expression1, expression2):
     return (EQ, expression1, expression2)
 

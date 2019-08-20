@@ -296,21 +296,25 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
 
 def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
-    cluster = set()
+    cluster = []
     queue = deque()
     def add_cluster(v):
         if v not in processed:
             processed.add(v)
-            cluster.add(v)
+            cluster.append(v)
             queue.append(v)
 
     for v0 in sources:
         add_cluster(v0)
     while queue:
+        # TODO: add clusters here to ensure proper BFS
         v1 = queue.popleft()
         for v2 in edges[v1]:
             add_cluster(v2)
     return cluster
+
+def breadth_first_search(source, edges, **kwargs):
+    return grow_component([source], edges, **kwargs)
 
 def get_connected_components(vertices, edges):
     undirected_edges = adjacent_from_edges(edges)
