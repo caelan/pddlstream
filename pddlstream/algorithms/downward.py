@@ -259,7 +259,7 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
 
 
 def task_from_domain_problem(domain, problem):
-    # TODO: prune eval
+    # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
     task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
@@ -272,6 +272,7 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
 
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,

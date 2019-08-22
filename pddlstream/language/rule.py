@@ -3,7 +3,7 @@ from collections import deque
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.stream import Stream, StreamInfo
 from pddlstream.language.external import parse_lisp_list
-from pddlstream.language.generator import from_test
+from pddlstream.language.generator import from_test, universe_test
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression
 
 # TODO: could signal a rule by making its gen_fn just the constant True
@@ -18,7 +18,7 @@ def parse_rule(lisp_list, stream_map, stream_info):
     assert set(value_from_attribute) <= {':inputs', ':domain', ':certified'}
     # TODO: if len(certified) == 1, augment existing streams
     RULES.append(Stream(name='rule{}'.format(len(RULES)),
-                        gen_fn=from_test(lambda *args: True),
+                        gen_fn=from_test(universe_test),
                         inputs=value_from_attribute.get(':inputs', []),
                         domain=list_from_conjunction(value_from_attribute.get(':domain', [])),
                         fluents=[],

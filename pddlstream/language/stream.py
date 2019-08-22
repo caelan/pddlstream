@@ -1,6 +1,5 @@
 import time
-from collections import Counter, defaultdict, namedtuple, Sequence
-from itertools import count
+from collections import Counter, Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
@@ -9,9 +8,9 @@ from pddlstream.language.conversion import list_from_conjunction, substitute_exp
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list
-from pddlstream.language.generator import get_next, from_fn
-from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, INF
+from pddlstream.language.generator import get_next, from_fn, universe_test
+from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -34,39 +33,31 @@ def get_identity_fn(indices):
 
 ##################################################
 
-# TODO: make wild the default output
-
-class WildOutput(object):
-    def __init__(self, values=[], facts=[], enumerated=False, replan=False):
-        self.values = values
-        self.facts = facts
-        self.enumerated = enumerated
-        self.replan = replan # Reports back whether the problem has changed substantially
-    def __iter__(self):
-        return iter([self.values, self.facts])
-
-class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
-    @property
-    def values(self):
-        return values_from_objects(self.input_objects)
-
 class PartialInputs(object):
-    def __init__(self, inputs='', unique=DEFAULT_UNIQUE): #, num=1):
+    def __init__(self, inputs='', unique=DEFAULT_UNIQUE, test=universe_test): #, num=1):
         self.inputs = tuple(inputs.split())
-        self.unique = unique
+        self.unique = unique # TODO: refactor this
+        self.test = test
         #self.num = num
+        self.stream = None
+    def register(self, stream):
+        assert self.stream is None
+        self.stream = stream
     def get_opt_gen_fn(self, stream_instance):
+        # TODO: just condition on the stream
         stream = stream_instance.external
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
         # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
+            if not self.test(*input_values):
+                return
             input_objects = stream_instance.input_objects
             mapping = get_mapping(stream.inputs, input_objects)
             selected_objects = tuple(mapping[inp] for inp in inputs)
             #for _ in irange(self.num):
             for _ in irange(stream_instance.num_optimistic):
-                yield [tuple(OptValue(stream.name, inputs, selected_objects, out)
+                yield [tuple(SharedOptValue(stream.name, inputs, selected_objects, out)
                              for out in stream.outputs)]
         return gen_fn
     def __repr__(self):
@@ -77,8 +68,6 @@ def get_constant_gen_fn(stream, constant):
         assert (len(stream.inputs) == len(input_values))
         yield [tuple(constant for _ in range(len(stream.outputs)))]
     return gen_fn
-
-##################################################
 
 # def get_unique_fn(stream):
 #     # TODO: this should take into account the output number...
@@ -93,19 +82,18 @@ def get_constant_gen_fn(stream, constant):
 def get_debug_gen_fn(stream):
     return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
-class DebugValue(object): # TODO: could just do an object
-    _output_counts = defaultdict(count)
-    _prefix = '@' # $ | @
-    def __init__(self, stream, input_values, output_parameter):
-        self.stream = stream
-        self.input_values = input_values
-        self.output_parameter = output_parameter
-        self.index = next(self._output_counts[output_parameter])
-    def __repr__(self):
-        # Can also just return first letter of the prefix
-        return '{}{}{}'.format(self._prefix, self.output_parameter[1:], self.index)
-
 ##################################################
+
+# TODO: make wild the default output
+
+class WildOutput(object):
+    def __init__(self, values=[], facts=[], enumerated=False, replan=False):
+        self.values = values
+        self.facts = facts
+        self.enumerated = enumerated
+        self.replan = replan # Reports back whether the problem has changed substantially
+    def __iter__(self):
+        return iter([self.values, self.facts])
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False,
@@ -117,7 +105,7 @@ class StreamInfo(ExternalInfo):
         self.simultaneous = simultaneous
         self.defer = defer
         self.verbose = verbose
-        # TODO: make this false by default for test streams
+        # TODO: make this false by default for negated test streams
         #self.order = 0
 
 ##################################################
@@ -255,14 +243,14 @@ class StreamInstance(Instance):
         if verbose:
             if (not new_values and VERBOSE_FAILURES) or \
                     (new_values and self.info.verbose):
-                # TODO: just print True/False for test streams
-                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
-                                             str_from_object(self.get_input_values()),
-                                             str_from_object(new_values)))
+                print('iter={}, outs={}) {}:{}->{}'.format(
+                    start_calls, len(new_values), self.external.name,
+                    str_from_object(self.get_input_values()), str_from_object(new_values)))
             if VERBOSE_WILD and new_facts:
                 # TODO: format all_new_facts
-                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
-                                             str_from_object(self.get_input_values()), new_facts))
+                print('iter={}, facts={}) {}:{}->{}'.format(
+                    start_calls, self.external.name, str_from_object(self.get_input_values()),
+                    new_facts, len(new_facts)))
         facts = list(map(obj_from_value_expression, new_facts))
         if not self.external.outputs and self.successes:
             # Set of possible outputs is exhausted

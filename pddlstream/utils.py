@@ -117,7 +117,7 @@ def apply_mapping(sequence, mapping):
 
 
 def negate_test(test):
-    return lambda *args: not test(*args)
+    return lambda *args, **kwargs: not test(*args, **kwargs)
 
 
 def flatten(iterable_of_iterables):

@@ -95,6 +95,7 @@ def negate_test(test):
 
 def empty_gen():
     return lambda *args, **kwargs: iter([])
+#empty_gen = lambda *args, **kwargs: iter([])
 
 ##################################################
 
@@ -102,6 +103,9 @@ def empty_gen():
 
 def fn_from_constant(constant):
     return lambda *args, **kwargs: constant
+
+universe_test = fn_from_constant(True)
+empty_test = fn_from_constant(False)
 
 ##################################################
 
