@@ -127,6 +127,7 @@ class Binding(object):
         return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
+        # TODO: include the complexity here as well
         remaining = len(self.skeleton.stream_plan) - self.index
         priority = Priority(self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
@@ -200,17 +201,19 @@ class SkeletonQueue(Sized):
 
     def greedily_process(self, max_attempts=0):
         while self.is_active():
+            # TODO: break if the complexity limit is exceeded
             key, _ = self.queue[0]
             if max_attempts < key.attempts:
                 break
             self._process_root()
 
-    def process_until_new(self):
+    def process_until_new(self, complexity_limit):
         # TODO: process the entire queue once instead
+        print('Sampling until new output values')
         is_new = False
         while self.is_active() and (not is_new):
             is_new |= self._process_root()
-            self.greedily_process()
+            self.greedily_process(complexity_limit)
         return is_new
 
     def process_complexity(self, complexity_limit):
@@ -230,11 +233,11 @@ class SkeletonQueue(Sized):
             heappush(self.queue, binding.get_element())
         # TODO: increment the complexity level even more if nothing below in the queue
 
-    def timed_process(self, max_time):
+    def timed_process(self, complexity_limit, max_time):
         start_time = time.time()
         while self.is_active() and (elapsed_time(start_time) <= max_time):
             self._process_root()
-            self.greedily_process()
+            self.greedily_process(complexity_limit)
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: detect infeasibility when an intermediate stream fails
@@ -243,13 +246,13 @@ class SkeletonQueue(Sized):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
         elif stream_plan is INFEASIBLE: # Move this after process_complexity
-            self.process_until_new()
+            self.process_until_new(complexity_limit)
         #if not is_plan(stream_plan):
         #    print('Complexity:', complexity_limit)
         #    self.process_complexity(complexity_limit)
         remaining_time = max_time - elapsed_time(start_time)
-        print('Time:', remaining_time)
-        self.timed_process(remaining_time)
+        print('Remaining sampling time: {:.3f} seconds'.format(remaining_time))
+        self.timed_process(complexity_limit, remaining_time)
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()
 

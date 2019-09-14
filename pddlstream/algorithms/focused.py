@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import SolutionStore, stream_plan_complexity
+from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
@@ -17,11 +17,11 @@ from pddlstream.algorithms.visualization import reset_visualizations, create_vis
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
-from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_with_optimizers
+from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time, implies
+from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -39,7 +39,7 @@ def partition_externals(externals, verbose=False):
     return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
-                  max_time=INF, max_iterations=INF,
+                  max_time=INF, max_iterations=INF, max_memory=INF,
                   initial_complexity=0, complexity_step=1,
                   max_skeletons=INF, bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
@@ -82,7 +82,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
-    store = SolutionStore(evaluations, max_time, success_cost, verbose)
+    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
@@ -97,7 +97,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
-    while (not store.is_terminated()) and (num_iterations < max_iterations):
+    while (not store.is_terminated()) and (num_iterations < max_iterations) and check_memory(max_memory):
         start_time = time.time()
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
@@ -130,6 +130,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
+            # TODO: this blows up memory wise for long stream plans
             stream_plan = reorder_stream_plan(stream_plan)
 
         num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0

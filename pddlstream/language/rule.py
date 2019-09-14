@@ -24,7 +24,7 @@ def parse_rule(lisp_list, stream_map, stream_info):
                         fluents=[],
                         outputs=[],
                         certified=list_from_conjunction(value_from_attribute.get(':certified', [])),
-                        info=StreamInfo(eager=True, p_success=1, overhead=0)))
+                        info=StreamInfo(eager=True, p_success=1, overhead=0, verbose=False)))
     return RULES[-1]
     # TODO: could make p_success=0 to prevent use in search
 

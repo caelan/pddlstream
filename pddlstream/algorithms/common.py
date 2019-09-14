@@ -3,7 +3,7 @@ from collections import namedtuple, OrderedDict
 
 from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.utils import INF, elapsed_time, check_memory
 
 # Complexity is a way to characterize the number of external evaluations required for a solution
 # Most algorithms regularize to prefer lower complexity solutions
@@ -23,7 +23,7 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 SOLUTIONS = []
 
 class SolutionStore(object):
-    def __init__(self, evaluations, max_time, success_cost, verbose):
+    def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
         # TODO: store a map from head to value?
         # TODO: include other problem information here?
         # TODO: determine when the plan converges
@@ -31,6 +31,7 @@ class SolutionStore(object):
         #self.initial_evaluations = copy.copy(evaluations)
         self.start_time = time.time()
         self.max_time = max_time
+        self.max_memory = max_memory
         self.success_cost = success_cost # Inclusive
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
@@ -52,7 +53,7 @@ class SolutionStore(object):
     def elapsed_time(self):
         return elapsed_time(self.start_time)
     def is_timeout(self):
-        return self.max_time <= self.elapsed_time()
+        return (self.max_time <= self.elapsed_time()) or not check_memory(self.max_memory)
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
     #def __repr__(self):

@@ -33,6 +33,9 @@ def get_identity_fn(indices):
 
 ##################################################
 
+#UNIQUE_OPT =  False
+#DEFAULT_OPT = None
+
 class PartialInputs(object):
     def __init__(self, inputs='', unique=DEFAULT_UNIQUE, test=universe_test): #, num=1):
         self.inputs = tuple(inputs.split())
@@ -40,9 +43,23 @@ class PartialInputs(object):
         self.test = test
         #self.num = num
         self.stream = None
-    def register(self, stream):
-        assert self.stream is None
-        self.stream = stream
+    #def register(self, stream):
+    #    assert self.stream is None
+    #    self.stream = stream
+    #    if self.unique:
+    #        self.inputs = tuple(stream.inputs)
+    #    assert set(self.inputs) <= set(stream.inputs)
+    #def __call__(self, *input_values):
+    #    assert self.stream is not None
+    #    if not self.test(*input_values):
+    #        return
+    #    input_objects = stream_instance.input_objects
+    #    mapping = get_mapping(self.stream.inputs, input_objects)
+    #    selected_objects = tuple(mapping[inp] for inp in self.inputs)
+    #    # for _ in irange(self.num):
+    #    for _ in irange(stream_instance.num_optimistic):
+    #        yield [tuple(SharedOptValue(self.stream.name, self.inputs, selected_objects, out)
+    #                     for out in self.stream.outputs)]
     def get_opt_gen_fn(self, stream_instance):
         # TODO: just condition on the stream
         stream = stream_instance.external
@@ -52,6 +69,7 @@ class PartialInputs(object):
         def gen_fn(*input_values):
             if not self.test(*input_values):
                 return
+            # TODO: recover input_objects from input_values
             input_objects = stream_instance.input_objects
             mapping = get_mapping(stream.inputs, input_objects)
             selected_objects = tuple(mapping[inp] for inp in inputs)
@@ -96,11 +114,12 @@ class WildOutput(object):
         return iter([self.values, self.facts])
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False,
+    def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
                  defer=False, verbose=True, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
-        self.opt_gen_fn = opt_gen_fn # TODO: call this an abstraction instead
+        # TODO: call this an abstraction instead
+        self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
         self.negate = negate
         self.simultaneous = simultaneous
         self.defer = defer
@@ -361,8 +380,10 @@ class Stream(External):
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
-        if isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique:
-            self.num_opt_fns = 0
+        if isinstance(self.info.opt_gen_fn, PartialInputs):
+            #self.info.opt_gen_fn.register(self)
+            if self.info.opt_gen_fn.unique:
+                self.num_opt_fns = 0
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 

@@ -174,6 +174,33 @@ def randomize(iterable):
     random.shuffle(sequence)
     return sequence
 
+def get_peak_memory_in_kb():
+    # TODO: use psutil instead
+    try:
+        # This will only work on Linux systems.
+        with open("/proc/self/status") as status_file:
+            for line in status_file:
+                parts = line.split()
+                if parts[0] == "VmPeak:":
+                    return int(parts[1])
+    except IOError:
+        pass
+    return 0
+
+BYTES_PER_KILOBYTE = math.pow(2, 10)
+BYTES_PER_GIGABYTE = math.pow(2, 30)
+KILOBYTES_PER_GIGABYTE = BYTES_PER_GIGABYTE / BYTES_PER_KILOBYTE
+
+def check_memory(max_memory):
+    if max_memory == INF:
+        return True
+    peak_memory = get_peak_memory_in_kb()
+    if peak_memory <= max_memory:
+        return True
+    print('Peak memory of {} KB exceeds memory limit of {} KB'.format(
+        int(peak_memory), int(max_memory)))
+    return False
+
 ##################################################
 
 

@@ -169,7 +169,9 @@ def instantiate_task(task, check_infeasible=True, **kwargs):
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
         reachable_action_params = get_reachable_action_params(actions)
-    #print(list(map(fact_from_fd, sorted(atoms, key=lambda a: a.predicate))))
+    #for atom in sorted(filter(lambda a: isinstance(a, pddl.Literal), set(task.init) | set(atoms)),
+    #                   key=lambda a: a.predicate):
+    #    print(fact_from_fd(atom))
     #print(axioms)
     #for i, action in enumerate(sorted(actions, key=lambda a: a.name)):
     #    print(i, transform_action_args(pddl_from_instance(action), obj_from_pddl))
