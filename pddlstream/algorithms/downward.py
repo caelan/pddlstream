@@ -257,6 +257,7 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
 
+IDENTICAL = "identical" # lowercase is critical
 
 def task_from_domain_problem(domain, problem):
     # TODO: prune evaluation that aren't needed in actions
@@ -273,7 +274,12 @@ def task_from_domain_problem(domain, problem):
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
     # TODO: optimistically evaluate (not (= ?o1 ?o2))
-
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)

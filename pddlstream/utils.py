@@ -174,27 +174,54 @@ def randomize(iterable):
     random.shuffle(sequence)
     return sequence
 
-def get_peak_memory_in_kb():
-    # TODO: use psutil instead
-    try:
-        # This will only work on Linux systems.
-        with open("/proc/self/status") as status_file:
-            for line in status_file:
-                parts = line.split()
-                if parts[0] == "VmPeak:":
-                    return int(parts[1])
-    except IOError:
-        pass
-    return 0
+##################################################
 
 BYTES_PER_KILOBYTE = math.pow(2, 10)
 BYTES_PER_GIGABYTE = math.pow(2, 30)
 KILOBYTES_PER_GIGABYTE = BYTES_PER_GIGABYTE / BYTES_PER_KILOBYTE
 
+def get_peak_memory_in_kb():
+    # TODO: use psutil instead
+    import psutil
+    # https://pypi.org/project/psutil/
+    # https://psutil.readthedocs.io/en/latest/
+    #rss: aka "Resident Set Size", this is the non-swapped physical memory a process has used. (bytes)
+    #vms: aka "Virtual Memory Size", this is the total amount of virtual memory used by the process. (bytes)
+    #shared: (Linux) memory that could be potentially shared with other processes.
+    #text (Linux, BSD): aka TRS (text resident set) the amount of memory devoted to executable code.
+    #data (Linux, BSD): aka DRS (data resident set) the amount of physical memory devoted to other than executable code.
+    #lib (Linux): the memory used by shared libraries.
+    #dirty (Linux): the number of dirty pages.
+    #pfaults (macOS): number of page faults.
+    #pageins (macOS): number of actual pageins.
+    process = psutil.Process(os.getpid())
+    #process.pid()
+    #process.ppid()
+    pmem = process.memory_info() # this seems to actually get the current memory!
+    memory_in_kb = pmem.vms / BYTES_PER_KILOBYTE
+    return memory_in_kb
+    #print(process.memory_full_info())
+    #print(process.memory_percent())
+    # process.rlimit(psutil.RLIMIT_NOFILE)  # set resource limits (Linux only)
+    #print(psutil.virtual_memory())
+    #print(psutil.swap_memory())
+    #print(psutil.pids())
+    #try:
+    #    # This will only work on Linux systems.
+    #    with open("/proc/self/status") as status_file:
+    #        for line in status_file:
+    #            parts = line.split()
+    #            if parts[0] == "VmPeak:":
+    #                return float(parts[1])
+    #except IOError:
+    #    pass
+    #return 0.
+
 def check_memory(max_memory):
     if max_memory == INF:
         return True
     peak_memory = get_peak_memory_in_kb()
+    #print('Peak memory: {} | Max memory: {}'.format(peak_memory, max_memory))
     if peak_memory <= max_memory:
         return True
     print('Peak memory of {} KB exceeds memory limit of {} KB'.format(

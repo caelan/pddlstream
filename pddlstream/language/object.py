@@ -26,6 +26,10 @@ class Object(object):
         Object._obj_from_name[self.pddl] = self
         if is_hashable(value):
             Object._obj_from_value[self.value] = self
+    def is_unique(self):
+        return True
+    def is_shared(self):
+        return False
     @staticmethod
     def from_id(value):
         if id(value) not in Object._obj_from_id:
@@ -108,6 +112,10 @@ class OptimisticObject(object):
             prefix = get_parameter_name(parameter)[:PREFIX_LEN]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
             self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)
+    def is_unique(self):
+        return isinstance(self.param, UniqueOptValue)
+    def is_shared(self):
+        return isinstance(self.param, SharedOptValue)
     @staticmethod
     def from_opt(value, param):
         # TODO: make param have a default value?

@@ -136,6 +136,8 @@ class Binding(object):
             for binding in child.post_order():
                 yield binding
         yield self
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.result)
 
 ##################################################
 
@@ -167,12 +169,14 @@ class SkeletonQueue(Sized):
             self.store.add_plan(action_plan, binding.cost)
             return False, True
         binding.attempts += 1
+        instance = binding.result.instance
         if PRUNE_BINDINGS and not binding.do_evaluate():
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to reenable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
+            #if instance.enumerated:
+            #    return False, is_new
             return None, is_new
-        instance = binding.result.instance
         #if not is_instance_ready(self.evaluations, instance):
         #    raise RuntimeError(instance)
         if binding.up_to_date():
@@ -211,9 +215,27 @@ class SkeletonQueue(Sized):
         # TODO: process the entire queue once instead
         print('Sampling until new output values')
         is_new = False
+        attempts = 0
+        print_frequency = 1.0
+        last_time = time.time()
+        standy = []
         while self.is_active() and (not is_new):
-            is_new |= self._process_root()
+            attempts += 1
+            key, binding = heappop(self.queue)
+            readd, is_new = self._process_binding(binding)
+            if readd is True:
+                heappush(self.queue, binding.get_element())
+            elif readd is None:
+                standy.append(binding)
+            #is_new |= self._process_root()
             self.greedily_process(complexity_limit)
+            if print_frequency <= elapsed_time(last_time):
+                print('Queue: {} | Attempts: {} | Time: {:.3f}'.format(
+                    len(self.queue), attempts, elapsed_time(last_time)))
+                last_time = time.time()
+        if is_new:
+            for binding in standy:
+                heappush(self.queue, binding.get_element())
         return is_new
 
     def process_complexity(self, complexity_limit):
@@ -245,8 +267,9 @@ class SkeletonQueue(Sized):
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
-        elif stream_plan is INFEASIBLE: # Move this after process_complexity
-            self.process_until_new(complexity_limit)
+        elif stream_plan is INFEASIBLE and not self.process_until_new(complexity_limit):
+            # Move this after process_complexity
+            return False
         #if not is_plan(stream_plan):
         #    print('Complexity:', complexity_limit)
         #    self.process_complexity(complexity_limit)
@@ -255,6 +278,7 @@ class SkeletonQueue(Sized):
         self.timed_process(complexity_limit, remaining_time)
         # TODO: accelerate the best bindings
         #self.accelerate_best_bindings()
+        return True
 
     def __len__(self):
         return len(self.queue)

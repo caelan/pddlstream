@@ -96,7 +96,7 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
 
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
-def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
+def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
     # 2^N rather than N!
     # TODO: can just do on the infos themselves
     dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
@@ -117,7 +117,9 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
     queue = deque([subset]) # Acyclic because subsets
     subproblems = {subset: Subproblem(0, None, None)}
     while queue:
-        subset = queue.popleft()
+        if store.is_terminated():
+            return vertices
+        subset = queue.popleft() # TODO: greedy version of this
         applied = set()
         for v in priority_ordering:
             if greedy and applied:
@@ -149,7 +151,7 @@ def dynamic_programming(vertices, valid_head_fn, stats_fn, prune=True, greedy=Fa
 
 ##################################################
 
-def reorder_stream_plan(stream_plan, **kwargs):
+def reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     indices = range(len(stream_plan))
@@ -164,7 +166,7 @@ def reorder_stream_plan(stream_plan, **kwargs):
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
     #stats_fn = get_stream_stats
     stats_fn = lambda idx: get_stream_stats(stream_plan[idx])
-    ordering = dynamic_programming(nodes, valid_combine, stats_fn, **kwargs)
+    ordering = dynamic_programming(store, nodes, valid_combine, stats_fn, **kwargs)
     #gc.collect()
     ordering = [stream_plan[index] for index in ordering]
     return ordering

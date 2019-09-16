@@ -97,7 +97,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
-    while (not store.is_terminated()) and (num_iterations < max_iterations) and check_memory(max_memory):
+    while (not store.is_terminated()) and (num_iterations < max_iterations):
         start_time = time.time()
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
@@ -131,7 +131,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
             # TODO: this blows up memory wise for long stream plans
-            stream_plan = reorder_stream_plan(stream_plan)
+            stream_plan = reorder_stream_plan(store, stream_plan)
 
         num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
         action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
@@ -162,7 +162,8 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
-            skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
+            if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
+                break
         else:
             process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                 bind=bind, max_failures=max_failures)
