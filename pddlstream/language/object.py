@@ -102,20 +102,23 @@ class OptimisticObject(object):
         self.value = value
         self.param = param
         self.index = len(OptimisticObject._obj_from_inputs)
-        self.pddl = '{}{}'.format(self._prefix, self.index)
-        OptimisticObject._obj_from_inputs[(value, param)] = self
-        OptimisticObject._obj_from_name[self.pddl] = self
-        self.repr_name = self.pddl
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
             # TODO: instead just endow UniqueOptValue with a string function
             parameter = self.param.instance.external.outputs[self.param.output_index]
             prefix = get_parameter_name(parameter)[:PREFIX_LEN]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
             self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)
+            self.pddl = self.repr_name
+        else:
+            self.pddl = '{}{}'.format(self._prefix, self.index)
+            self.repr_name = self.pddl
+        OptimisticObject._obj_from_inputs[(value, param)] = self
+        OptimisticObject._obj_from_name[self.pddl] = self
     def is_unique(self):
         return isinstance(self.param, UniqueOptValue)
     def is_shared(self):
-        return isinstance(self.param, SharedOptValue)
+        #return isinstance(self.param, SharedOptValue)
+        return not isinstance(self.param, UniqueOptValue) # OptValue
     @staticmethod
     def from_opt(value, param):
         # TODO: make param have a default value?

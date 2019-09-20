@@ -5,7 +5,6 @@ from pddlstream.language.constants import AND, OR, OBJECT, TOTAL_COST, TOTAL_TIM
     CONNECTIVES, QUANTIFIERS
 from pddlstream.language.conversion import pddl_from_object, is_atom, is_negated_atom, objects_from_evaluations
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.algorithms.downward import fd_from_evaluation
 
 DEFAULT_TYPE = OBJECT # number
 
@@ -74,9 +73,10 @@ def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
     return s + ')\n'
 
 
-def get_problem_pddl(evaluations, goal_exp, domain_pddl):
+def get_problem_pddl(evaluations, goal_exp, domain_pddl, temporal=True):
     [domain_name] = re.findall(r'\(domain ([^ ]+)\)', domain_pddl)
     problem_name = domain_name
-    problem_pddl = pddl_problem(domain_name, problem_name, evaluations, goal_exp, objective=TOTAL_TIME)
+    objective = TOTAL_TIME if temporal else TOTAL_COST
+    problem_pddl = pddl_problem(domain_name, problem_name, evaluations, goal_exp, objective=objective)
     #write_pddl(domain_pddl, problem_pddl, TEMP_DIR)
     return problem_pddl

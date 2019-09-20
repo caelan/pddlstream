@@ -11,6 +11,7 @@ from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix,
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.language.write_pddl import get_problem_pddl
 
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
@@ -159,12 +160,13 @@ def parse_lisp(lisp):
 
 # TODO: dynamically generate type_dict and predicate_dict
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
-                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
+                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms', 'pddl'])
 
 def parse_sequential_domain(domain_pddl):
     if isinstance(domain_pddl, Domain):
         return domain_pddl
-    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    args = list(parse_domain_pddl(parse_lisp(domain_pddl))) + [domain_pddl]
+    domain = Domain(*args)
     # for action in domain.actions:
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
@@ -177,12 +179,13 @@ def has_costs(domain):
     return False
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
-                                 'objects', 'init', 'goal', 'use_metric'])
+                                 'objects', 'init', 'goal', 'use_metric', 'pddl'])
 
 def parse_problem(domain, problem_pddl):
     if isinstance(problem_pddl, Problem):
         return problem_pddl
-    return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
+    args = list(parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict)) + [problem_pddl]
+    return Problem(*args)
 
 #def parse_action(lisp_list):
 #    action = [':action', 'test'
@@ -254,16 +257,19 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_goal(goal_expression, domain)
+    #problem_pddl = None
+    problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
+    write_pddl(domain.pddl, problem_pddl)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
-                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
+                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs, pddl=problem_pddl)
 
-IDENTICAL = "identical" # lowercase is critical
+IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
 def task_from_domain_problem(domain, problem):
     # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
-    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
+    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric, problem_pddl = problem
 
     assert domain.name == task_domain_name
     requirements = pddl.Requirements(sorted(set(domain.requirements.requirements +
@@ -623,7 +629,7 @@ def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]
     return Domain(name='', requirements=pddl.Requirements([]),
              types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
              predicates=predicates, predicate_dict={p.name: p for p in predicates},
-             functions=functions, actions=actions, axioms=axioms)
+             functions=functions, actions=actions, axioms=axioms, pddl=None)
 
 
 def pddl_from_instance(instance):

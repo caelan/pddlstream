@@ -10,7 +10,7 @@ import sys
 from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
-    parse_sequential_domain, get_conjunctive_parts
+    parse_sequential_domain, get_conjunctive_parts, write_pddl
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
@@ -310,16 +310,6 @@ def parse_temporal_solution(solution):
         makespan = max(action.start + action.duration, makespan)
     return plan, makespan
 
-def write_pddl(domain_pddl, problem_pddl):
-    # TODO: already in downward.py
-    safe_rm_dir(TEMP_DIR)  # Ensures not using old plan
-    ensure_dir(TEMP_DIR)
-    domain_path = TEMP_DIR + DOMAIN_INPUT
-    problem_path = TEMP_DIR + PROBLEM_INPUT
-    write(domain_path, domain_pddl)
-    write(problem_path, problem_pddl)
-    return domain_path, problem_path
-
 def parse_plans(temp_path, plan_files):
     best_plan, best_makespan = None, INF
     for plan_file in plan_files:
@@ -349,8 +339,8 @@ def retime_plan(plan, duration=1):
 
 ##################################################
 
-TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
-                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
+#TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
+#                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
 
 SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                                'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
