@@ -11,8 +11,6 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, set_
     link_from_name, get_max_limit, get_movable_joints, set_joint_position, unit_pose, create_box, RED, set_point, \
     stable_z, set_camera_pose, LockRenderer, add_line, multiply, invert, get_relative_pose
 
-# TODO: KIVA_SHELF_SDF
-
 # https://www.generationrobots.com/en/403318-fe-gripper-for-panda-robotic-arm.html
 # /usr/local/lib/python2.7/site-packages/pybullet_data/gripper/
 # drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf

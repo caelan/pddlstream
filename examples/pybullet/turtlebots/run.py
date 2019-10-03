@@ -28,7 +28,6 @@ from pddlstream.language.constants import And, print_solution, PDDLProblem, Equa
 from pddlstream.language.generator import from_test, from_fn, negate_test
 from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range
 
-# TODO: Kiva robot and Amazon shelves
 
 TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
