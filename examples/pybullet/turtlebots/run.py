@@ -9,8 +9,8 @@ import numpy as np
 
 from examples.continuous_tamp.primitives import get_value_at_time
 from pddlstream.language.temporal import get_end, compute_duration
-from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
-    point_from_conf, BASE_RESOLUTIONS, get_turtle_aabb, get_motion_fn, create_vertices
+from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
+    get_custom_limits, point_from_conf, get_motion_fn, create_vertices
 from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
