@@ -105,10 +105,10 @@ Additional PDDLStream + Drake examples can be found at: https://github.com/Robot
 
 ## Publications
 
-* [STRIPStream: Integrating Symbolic Planners and Blackbox Samplers](https://arxiv.org/abs/1802.08705
+* [PDDLStream: Integrating Symbolic Planners and Blackbox Samplers](https://arxiv.org/abs/1802.08705
 )
 * [STRIPStream: Planning In Infinite Domains](https://arxiv.org/abs/1701.00287)
 
 ## Citation
 
-Caelan R. Garrett, Tomas Lozano-Perez, Leslie P. Kaelbling. STRIPStream: Integrating Symbolic Planners and Blackbox Samplers, 2018.
+Caelan R. Garrett, Tomas Lozano-Perez, Leslie P. Kaelbling. PDDLStream: Integrating Symbolic Planners and Blackbox Samplers, 2018.
