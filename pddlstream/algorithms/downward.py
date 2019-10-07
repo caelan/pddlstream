@@ -10,7 +10,7 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove
 from pddlstream.language.write_pddl import get_problem_pddl
 
 filepath = os.path.abspath(__file__)
@@ -21,6 +21,11 @@ if ' ' in filepath:
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 FD_PATH = get_file_path(__file__, '../../FastDownward/')
 USE_CERBERUS = False
+
+USE_FORBID = False
+FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
+FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}' # topk,topq,topkq,diverse
+FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 
 def find_build(fd_path):
     for release in ['release64', 'release32']:  # TODO: list the directory
@@ -347,6 +352,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+
+    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
+    domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
+    problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
+    if USE_FORBID:
+        command = FORBID_COMMAND.format(num=2, domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)
 
@@ -359,12 +370,22 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
     #except subprocess.CalledProcessError as e:
     #    print(e)
+
+    for filename in os.listdir(temp_path):
+        if filename.startswith(SEARCH_OUTPUT):
+            safe_remove(os.path.join(temp_path, filename))
+
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
+
+    if USE_FORBID:
+        for filename in os.listdir(FORBID_PATH):
+            if filename.startswith(SEARCH_OUTPUT):
+                os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
+
     if debug:
         print(output[:-1])
         print('Search runtime:', time() - start_time)
-    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)
@@ -392,6 +413,7 @@ def parse_solution(solution):
     return plan, cost
 
 def parse_solutions(temp_path, plan_files):
+    # TODO: return multiple solutions for focused
     best_plan, best_cost = None, INF
     for plan_file in plan_files:
         solution = read(os.path.join(temp_path, plan_file))

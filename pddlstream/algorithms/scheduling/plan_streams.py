@@ -60,14 +60,14 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
 
 ##################################################
 
-def rename_instantiated_actions(instantiated):
+def rename_instantiated_actions(instantiated, rename=True):
     # TODO: rename SAS instead?
     actions = instantiated.actions[:]
     renamed_actions = []
     action_from_name = {}
     for i, action in enumerate(actions):
         renamed_actions.append(copy.copy(action))
-        renamed_name = 'a{}'.format(i)
+        renamed_name = 'a{}'.format(i) if rename else action.name
         renamed_actions[-1].name = '({})'.format(renamed_name)
         action_from_name[renamed_name] = action # Change reachable_action_params?
     instantiated.actions[:] = renamed_actions
@@ -246,7 +246,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, debug=False, **kwargs):
+                                effort_weight, debug=False, rename=True, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
     with Verbose(verbose=False):
@@ -260,7 +260,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         add_optimizer_effects(instantiated, node_from_atom)
         # TODO: reachieve=False when using optimizers or should add applied facts
         instantiate_optimizer_axioms(instantiated, domain, all_results)
-    action_from_name = rename_instantiated_actions(instantiated)
+    action_from_name = rename_instantiated_actions(instantiated, rename=rename)
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
@@ -270,7 +270,10 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if renamed_plan is None:
         return instantiated, None, INF
-    action_instances = [action_from_name[name] for name, _ in renamed_plan]
+    if rename:
+        action_instances = [action_from_name[name] for name, _ in renamed_plan]
+    else:
+        action_instances = [action_from_name['({} {})'.format(name, ' '.join(args))] for name, args in renamed_plan]
     cost = get_plan_cost(action_instances, cost_from_action)
     return instantiated, action_instances, cost
 

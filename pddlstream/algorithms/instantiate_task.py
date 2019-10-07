@@ -10,7 +10,7 @@ from pddlstream.algorithms.downward import get_literals, get_precondition, get_f
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import transform_action_args, obj_from_pddl
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose, safe_remove, ensure_dir
 
 import pddl
 import instantiate
@@ -250,8 +250,10 @@ def sas_from_instantiated(instantiated_task):
 ##################################################
 
 def write_sas_task(sas_task, temp_dir):
-    clear_dir(temp_dir)
     translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
+    #clear_dir(temp_dir)
+    safe_remove(translate_path)
+    ensure_dir(translate_path)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return translate_path
