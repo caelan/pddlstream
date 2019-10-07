@@ -253,6 +253,7 @@ def main(display=True, teleport=False):
                                          max_time=args.max_time, verbose=True)
         else:
             raise ValueError(args.algorithm)
+        saver.restore()
 
     print_solution(solution)
     plan, cost, evaluations = solution
