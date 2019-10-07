@@ -8,6 +8,10 @@ from pddlstream.algorithms.downward import parse_solution, run_search, TEMP_DIR,
 from pddlstream.algorithms.instantiate_task import write_sas_task, sas_from_pddl, translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
 
+PYPLANNERS_PATH = '/Users/caelan/Programs/pyplanners'
+# TODO: instantiate using FD and then call my own search
+# https://github.mit.edu/caelan/stripstream/blob/c8c6cd1d6bd5e2e8e31cd5603e28a8e0d7bb2cdc/stripstream/algorithms/search/pyplanners.py
+
 # TODO: manual_patterns
 # Specify on the discrete variables that are updated via conditional effects
 # http://www.fast-downward.org/Doc/PatternCollectionGenerator

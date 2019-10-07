@@ -105,9 +105,12 @@ def get_debug_gen_fn(stream):
 # TODO: make wild the default output
 
 class WildOutput(object):
-    def __init__(self, values=[], facts=[], enumerated=False, replan=False):
+    def __init__(self, values=[], facts=[], actions=[], enumerated=False, replan=False):
         self.values = values
         self.facts = facts
+        self.actions = actions
+        if self.actions:
+            raise NotImplementedError()
         self.enumerated = enumerated
         self.replan = replan # Reports back whether the problem has changed substantially
     def __iter__(self):
