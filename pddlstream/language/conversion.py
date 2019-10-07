@@ -4,7 +4,8 @@ import collections
 from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
-    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, DurativeAction, Solution
+    Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, StreamAction, \
+    DurativeAction, Solution, Assignment, OptPlan, Certificate
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -159,11 +160,19 @@ def values_from_objects(objects):
     #return tuple(map(value_from_object, objects))
 
 def transform_action_args(action, fn):
-    if isinstance(action, DurativeAction):
+    if isinstance(action, Action):
+        name, args = action
+        return Action(name, tuple(map(fn, args)))
+    elif isinstance(action, DurativeAction):
         name, args, start, duration = action
         return DurativeAction(name, tuple(map(fn, args)), start, duration)
-    name, args = action
-    return Action(name, tuple(map(fn, args)))
+    elif isinstance(action, StreamAction):
+        name, inputs, outputs = action
+        return StreamAction(name, tuple(map(fn, inputs)), tuple(map(fn, outputs)))
+    elif isinstance(action, Assignment):
+        args, = action
+        return Assignment(tuple(map(fn, args)))
+    raise NotImplementedError(action)
 
 def transform_plan_args(plan, fn):
     if not is_plan(plan):
@@ -176,7 +185,8 @@ def obj_from_pddl_plan(pddl_plan):
 
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
-        return obj.pddl
+        return repr(obj)
+        #return obj.pddl
     if isinstance(obj, Object):
         return obj.value
     raise ValueError(obj)
@@ -187,25 +197,28 @@ def params_from_objects(objects):
 def value_from_obj_plan(obj_plan):
     if not is_plan(obj_plan):
         return obj_plan
-    #return [(action,) + tuple(values_from_objects(args)) for action, args in obj_plan]
-    #return [(action, tuple(values_from_objects(args))) for action, args in obj_plan]
     value_plan = []
     for action in obj_plan:
-        if len(action) == 3:
+        # TODO: I shouldn't need this decomposition any more, right?
+        if isinstance(action, StreamAction):
             name, inputs, outputs = action
-            new_inputs = params_from_objects(inputs) # values_from_objects
+            new_inputs = params_from_objects(inputs)
             new_outputs = outputs
-            if isinstance(new_outputs, collections.Sequence):
-                new_outputs = params_from_objects(new_outputs) # values_from_objects
-            new_action = (name, new_inputs, new_outputs)
+            #if isinstance(new_outputs, collections.Sequence): # TODO: what was this for?
+            new_outputs = params_from_objects(new_outputs)
+            new_action = StreamAction(name, new_inputs, new_outputs)
         elif isinstance(action, DurativeAction):
             name, args, start, duration = action
             name, index = name[:-2], int(name[-1])
             if index != 0:
                 continue
             new_action = DurativeAction(name, tuple(map(param_from_object, args)), start, duration)
-        else:
+        elif isinstance(action, Action):
             new_action = transform_action_args(action, param_from_object) # values_from_objects
+        elif isinstance(action, Assignment):
+            new_action = transform_action_args(action, param_from_object)
+        else:
+            raise ValueError(action)
         value_plan.append(new_action)
     return value_plan
 
@@ -214,10 +227,16 @@ def value_from_obj_plan(obj_plan):
 #def expression_holds(expression, evaluations):
 #    pass
 
-def revert_solution(obj_plan, cost, evaluations):
-    plan = value_from_obj_plan(obj_plan)
-    init = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
-    return Solution(plan, cost, init)
+def revert_solution(plan, cost, evaluations):
+    all_facts = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
+    if isinstance(plan, OptPlan):
+        action_plan = value_from_obj_plan(plan.action_plan)
+        preimage_facts = list(map(value_from_obj_expression, plan.preimage_facts))
+    else:
+        action_plan = value_from_obj_plan(plan)
+        preimage_facts = None
+    certificate = Certificate(all_facts, preimage_facts)
+    return Solution(action_plan, cost, certificate)
 
 #def opt_obj_from_value(value):
 #    if Object.has_value(value):

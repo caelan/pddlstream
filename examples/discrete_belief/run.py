@@ -65,13 +65,12 @@ def get_belief_problem(deterministic, observable):
 
 ##################################################
 
-SCALE_COST = 1e3
-MAX_COST = MAX_FD_COST / (10 * SCALE_COST)
+MAX_COST = MAX_FD_COST / (100 * get_cost_scale())
 
-def clip_cost(cost): # TODO: move this to downward?
+def clip_cost(cost, max_cost=MAX_COST): # TODO: move this to downward?
     if cost == INF:
-        return MAX_COST
-    return min(cost, MAX_COST)
+        return max_cost
+    return min(cost, max_cost)
 
 
 #def clip_p(p, min_p=1e-3, max_p=1-1e-3):
@@ -273,7 +272,6 @@ def main(deterministic=False, observable=False, collisions=True, focused=True, f
     # TODO: global search over the state
     belief_problem = get_belief_problem(deterministic, observable)
     pddlstream_problem = to_pddlstream(belief_problem, collisions)
-    set_cost_scale(SCALE_COST)
     print('Cost scale:', get_cost_scale())
 
     pr = cProfile.Profile()

@@ -19,7 +19,8 @@ from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn
 from pddlstream.language.constants import Equal, AND, print_solution
 from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.stream import StreamInfo, PartialInputs, OptValue
+from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.language.object import SharedOptValue
 from collections import namedtuple
 
 BASE_CONSTANT = 1
@@ -63,7 +64,7 @@ def extract_point2d(v):
         return v.values[:2]
     if isinstance(v, Pose):
         return point_from_pose(v.value)[:2]
-    if isinstance(v, OptValue):
+    if isinstance(v, SharedOptValue):
         if v.stream == 'sample-pose':
             r, = v.values
             return point_from_pose(get_pose(r))[:2]
@@ -232,7 +233,7 @@ def main(display=True, teleport=False, partial=False):
     stream_info = {
         'sample-pose': StreamInfo(PartialInputs('?r')),
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2')),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer=True),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     } if partial else {
         'sample-pose': StreamInfo(from_fn(opt_pose_fn)),

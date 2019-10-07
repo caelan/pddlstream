@@ -117,19 +117,19 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
 
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
-    synthesizers = [
-        #StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
-        #                                       'TrajPoseCollision': 0, 'TrajGraspCollision': 0, 'TrajArmCollision': 0},
-        #                  from_fn(get_base_motion_synth(problem, teleport))),
-    ]
+    #synthesizers = [
+    #    StreamSynthesizer('safe-base-motion', {'plan-base-motion': 1,
+    #                                           'TrajPoseCollision': 0, 'TrajGraspCollision': 0, 'TrajArmCollision': 0},
+    #                      from_fn(get_base_motion_synth(problem, teleport))),
+    #]
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
-    print('Synthesizers:', synthesizers)
+    #print('Synthesizers:', synthesizers)
 
     pr = cProfile.Profile()
     pr.enable()
-    solution = solve_focused(pddlstream_problem, synthesizers=synthesizers, success_cost=INF)
+    solution = solve_focused(pddlstream_problem, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

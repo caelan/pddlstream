@@ -1,11 +1,14 @@
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from itertools import count
 from pddlstream.language.constants import get_parameter_name
+#from pddlstream.language.conversion import values_from_objects
 from pddlstream.utils import str_from_object, is_hashable
 
 USE_HASH = True
 USE_OBJ_STR = True
 USE_OPT_STR = True
+OPT_PREFIX = '#'
+PREFIX_LEN = 1
 
 class Object(object):
     _prefix = 'v'
@@ -23,6 +26,10 @@ class Object(object):
         Object._obj_from_name[self.pddl] = self
         if is_hashable(value):
             Object._obj_from_value[self.value] = self
+    def is_unique(self):
+        return True
+    def is_shared(self):
+        return False
     @staticmethod
     def from_id(value):
         if id(value) not in Object._obj_from_id:
@@ -55,13 +62,38 @@ class Object(object):
             return str_from_object(self.value) # str
         return self.pddl
 
+##################################################
+
+class UniqueOptValue(namedtuple('UniqueOptValue', ['instance', 'sequence_index', 'output_index'])):
+    @property
+    def parameter(self):
+        return self.instance.external.outputs[self.output_index]
+
+class SharedOptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
+    @property
+    def values(self):
+        return tuple(obj.value for obj in self.input_objects)
+        #return values_from_objects(self.input_objects)
+
+class DebugValue(object): # TODO: could just do an object
+    _output_counts = defaultdict(count)
+    _prefix = '@' # $ | @
+    def __init__(self, stream, input_values, output_parameter):
+        self.stream = stream
+        self.input_values = input_values
+        self.output_parameter = output_parameter
+        self.index = next(self._output_counts[output_parameter])
+    def __repr__(self):
+        # Can also just return first letter of the prefix
+        return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), self.index)
+
+##################################################
+
 # TODO: just one object class or have Optimistic extend Object
 # TODO: make a parameter class that has access to some underlying value
 
-UniqueOptValue = namedtuple('UniqueOpt', ['instance', 'sequence_index', 'output_index'])
-
 class OptimisticObject(object):
-    _prefix = '#o' # $ % #
+    _prefix = '{}o'.format(OPT_PREFIX) # $ % #
     _obj_from_inputs = {}
     _obj_from_name = {}
     _count_from_prefix = {}
@@ -70,16 +102,23 @@ class OptimisticObject(object):
         self.value = value
         self.param = param
         self.index = len(OptimisticObject._obj_from_inputs)
-        self.pddl = '{}{}'.format(self._prefix, self.index)
-        OptimisticObject._obj_from_inputs[(value, param)] = self
-        OptimisticObject._obj_from_name[self.pddl] = self
-        self.repr_name = self.pddl
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
             # TODO: instead just endow UniqueOptValue with a string function
             parameter = self.param.instance.external.outputs[self.param.output_index]
-            prefix = get_parameter_name(parameter)[:1]
+            prefix = get_parameter_name(parameter)[:PREFIX_LEN]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
-            self.repr_name = '#{}{}'.format(prefix, var_index) #self.index)
+            self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)
+            self.pddl = self.repr_name
+        else:
+            self.pddl = '{}{}'.format(self._prefix, self.index)
+            self.repr_name = self.pddl
+        OptimisticObject._obj_from_inputs[(value, param)] = self
+        OptimisticObject._obj_from_name[self.pddl] = self
+    def is_unique(self):
+        return isinstance(self.param, UniqueOptValue)
+    def is_shared(self):
+        #return isinstance(self.param, SharedOptValue)
+        return not isinstance(self.param, UniqueOptValue) # OptValue
     @staticmethod
     def from_opt(value, param):
         # TODO: make param have a default value?

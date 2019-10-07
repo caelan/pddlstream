@@ -7,10 +7,11 @@ import subprocess
 from collections import namedtuple, defaultdict
 from time import time
 
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove
+from pddlstream.language.write_pddl import get_problem_pddl
 
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
@@ -20,6 +21,11 @@ if ' ' in filepath:
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 FD_PATH = get_file_path(__file__, '../../FastDownward/')
 USE_CERBERUS = False
+
+USE_FORBID = False
+FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
+FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}' # topk,topq,topkq,diverse
+FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 
 def find_build(fd_path):
     for release in ['release64', 'release32']:  # TODO: list the directory
@@ -141,9 +147,16 @@ def set_cost_scale(cost_scale):
     pddl.f_expression.COST_SCALE = cost_scale
 
 def scale_cost(cost):
+    if cost == INF:
+        return INF
     return int_ceil(get_cost_scale() * float(cost))
 
-set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
+def convert_cost(cost):
+    if cost == INF:
+        return INFINITY
+    return int_ceil(cost)
+
+set_cost_scale(1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
@@ -152,12 +165,13 @@ def parse_lisp(lisp):
 
 # TODO: dynamically generate type_dict and predicate_dict
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
-                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
+                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms', 'pddl'])
 
 def parse_sequential_domain(domain_pddl):
     if isinstance(domain_pddl, Domain):
         return domain_pddl
-    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    args = list(parse_domain_pddl(parse_lisp(domain_pddl))) + [domain_pddl]
+    domain = Domain(*args)
     # for action in domain.actions:
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
@@ -170,12 +184,13 @@ def has_costs(domain):
     return False
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
-                                 'objects', 'init', 'goal', 'use_metric'])
+                                 'objects', 'init', 'goal', 'use_metric', 'pddl'])
 
 def parse_problem(domain, problem_pddl):
     if isinstance(problem_pddl, Problem):
         return problem_pddl
-    return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
+    args = list(parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict)) + [problem_pddl]
+    return Problem(*args)
 
 #def parse_action(lisp_list):
 #    action = [':action', 'test'
@@ -206,8 +221,9 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(isinstance(fd, pddl.Literal) and not fd.negated)
-    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    assert(isinstance(fd, pddl.Literal))
+    atom = (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    return Not(atom) if fd.negated else atom
 
 def evaluation_from_fd(fd):
     if isinstance(fd, pddl.Literal):
@@ -246,15 +262,19 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_goal(goal_expression, domain)
+    #problem_pddl = None
+    problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
+    write_pddl(domain.pddl, problem_pddl)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
-                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
+                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs, pddl=problem_pddl)
 
+IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
 def task_from_domain_problem(domain, problem):
-    # TODO: prune eval
+    # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
-    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
+    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric, problem_pddl = problem
 
     assert domain.name == task_domain_name
     requirements = pddl.Requirements(sorted(set(domain.requirements.requirements +
@@ -264,7 +284,13 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
-
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)
@@ -315,14 +341,10 @@ def get_disjunctive_parts(condition):
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
 
-def convert_cost(cost):
-    if cost == INF:
-        return INFINITY
-    return int(cost)
-
-def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
+def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
+               max_cost=INF, debug=False):
     max_time = convert_cost(max_planner_time)
-    max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
+    max_cost = convert_cost(scale_cost(max_cost))
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     if planner == 'cerberus':
@@ -330,6 +352,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+
+    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
+    domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
+    problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
+    if USE_FORBID:
+        command = FORBID_COMMAND.format(num=2, domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)
 
@@ -342,12 +370,22 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
     #except subprocess.CalledProcessError as e:
     #    print(e)
+
+    for filename in os.listdir(temp_path):
+        if filename.startswith(SEARCH_OUTPUT):
+            safe_remove(os.path.join(temp_path, filename))
+
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
+
+    if USE_FORBID:
+        for filename in os.listdir(FORBID_PATH):
+            if filename.startswith(SEARCH_OUTPUT):
+                os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
+
     if debug:
         print(output[:-1])
         print('Search runtime:', time() - start_time)
-    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)
@@ -358,7 +396,7 @@ def parse_action(line):
     entries = line.strip('( )').split(' ')
     name = entries[0]
     args = tuple(entries[1:])
-    return (name, args)
+    return Action(name, args)
 
 def parse_solution(solution):
     #action_regex = r'\((\w+(\s+\w+)\)' # TODO: regex
@@ -375,6 +413,7 @@ def parse_solution(solution):
     return plan, cost
 
 def parse_solutions(temp_path, plan_files):
+    # TODO: return multiple solutions for focused
     best_plan, best_cost = None, INF
     for plan_file in plan_files:
         solution = read(os.path.join(temp_path, plan_file))
@@ -612,4 +651,11 @@ def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]
     return Domain(name='', requirements=pddl.Requirements([]),
              types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
              predicates=predicates, predicate_dict={p.name: p for p in predicates},
-             functions=functions, actions=actions, axioms=axioms)
+             functions=functions, actions=actions, axioms=axioms, pddl=None)
+
+
+def pddl_from_instance(instance):
+    action = instance.action
+    args = [instance.var_mapping[p.name]
+            for p in action.parameters[:action.num_external_parameters]]
+    return Action(action.name, args)

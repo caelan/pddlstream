@@ -32,11 +32,17 @@ INFEASIBLE = False
 # TODO: rename PDDLProblem
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
                                          'stream_pddl', 'stream_map', 'init', 'goal'])
-Stream = namedtuple('PDDLStream', ['name', 'inputs', 'outputs'])
+Solution = namedtuple('Solution', ['plan', 'cost', 'certificate'])
+Certificate = namedtuple('Certificate', ['all_facts', 'preimage_facts'])
 
+OptPlan = namedtuple('OptPlan', ['action_plan', 'preimage_facts'])
+# TODO: stream and axiom plans
+# TODO: annotate which step each fact is first used via layer
+
+Assignment =  namedtuple('Assignment', ['args'])
 Action = namedtuple('Action', ['name', 'args'])
 DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
-Solution = namedtuple('Solution', ['plan', 'cost', 'facts'])
+StreamAction = namedtuple('StreamAction', ['name', 'inputs', 'outputs'])
 
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
@@ -55,6 +61,10 @@ def Or(*expressions):
 
 def Not(expression):
     return (NOT, expression)
+
+
+def Imply(expression1, expression2):
+    return (IMPLY, expression1, expression2)
 
 
 def Equal(expression1, expression2):
@@ -135,21 +145,35 @@ def str_from_plan(plan):
 def print_solution(solution):
     plan, cost, evaluations = solution
     solved = is_plan(plan)
+    if plan is None:
+        num_deferred = 0
+    else:
+        num_deferred = len([action for action in plan if isinstance(action, StreamAction)])
     print()
     print('Solved: {}'.format(solved))
     print('Cost: {}'.format(cost))
-    print('Length: {}'.format(get_length(plan)))
+    print('Length: {}'.format(get_length(plan) - num_deferred))
+    print('Deferred: {}'.format(num_deferred))
     print('Evaluations: {}'.format(len(evaluations)))
     if not solved:
         return
-    for i, action in enumerate(plan):
+    step = 1
+    for action in plan:
         if isinstance(action, DurativeAction):
             name, args, start, duration = action
-            print('{:.2f} - {:.2f}) {} {}'.format(start, start+duration, name, ' '.join(map(str_from_object, args))))
-        else:
+            print('{:.2f} - {:.2f}) {} {}'.format(start, start+duration, name,
+                                                  ' '.join(map(str_from_object, args))))
+        elif isinstance(action, Action):
             name, args = action
-            print('{}) {} {}'.format(i+1, name, ' '.join(map(str_from_object, args))))
-            #print('{}) {}{}'.format(i+1, name, str_from_object(tuple(args))))
+            print('{:2}) {} {}'.format(step, name, ' '.join(map(str_from_object, args))))
+            #print('{}) {}{}'.format(step, name, str_from_object(tuple(args))))
+            step += 1
+        elif isinstance(action, StreamAction):
+            name, inputs, outputs = action
+            print('    {}({})->({})'.format(name, ', '.join(map(str_from_object, inputs)),
+                                          ', '.join(map(str_from_object, outputs))))
+        else:
+            raise NotImplementedError(action)
 
 
 def get_function(term):

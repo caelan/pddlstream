@@ -143,15 +143,16 @@ def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, s
 ##################################################
 
 TIGHT_SKELETON = [
-    ('move', ['?q0', WILD, '?q1']),
-    ('pick', ['b1', '?p0', '?q1']),
-    ('move', ['?q1', WILD, '?q2']),
-    ('place', ['b1', '?p1', '?q2']),
+    ('move', ['r0', '?q0', WILD, '?q1']),
+    ('pick', ['r0', 'B', '?p0', '?g0', '?q1']),
+    ('move', ['r0', '?q1', WILD, '?q2']),
+    ('place', ['r0', 'B', '?p1', '?g0', '?q2']),
 
-    ('move', ['?q2', WILD, '?q3']),
-    ('pick', ['b0', '?p2', '?q3']),
-    ('move', ['?q3', WILD, '?q4']),
-    ('place', ['b0', '?p3', '?q4']),
+    ('move', ['r0', '?q2', WILD, '?q3']),
+    ('pick', ['r0', 'A', '?p2', '?g1', '?q3']),
+    ('move', ['r0', '?q3', WILD, '?q4']),
+    ('place', ['r0', 'A', '?p3', '?g1', '?q4']),
+    ('move', ['r0', '?q4', WILD, '?q5']),
 ]
 
 MUTEXES = [
@@ -189,11 +190,6 @@ def main():
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
 
-    action_info = {
-        #'move': ActionInfo(terminal=True),
-        #'pick': ActionInfo(terminal=True),
-        #'place': ActionInfo(terminal=True),
-    }
     stream_info = {
         't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
@@ -207,6 +203,7 @@ def main():
     ]
 
     skeletons = [TIGHT_SKELETON] if args.skeleton else None
+    assert implies(args.skeleton, args.problem == 'tight')
     max_cost = INF # 8*MOVE_COST
     constraints = PlanConstraints(skeletons=skeletons,
                                   #skeletons=[],
@@ -224,8 +221,7 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, constraints=constraints,
-                                 action_info=action_info, stream_info=stream_info,
+        solution = solve_focused(pddlstream_problem, constraints=constraints, stream_info=stream_info,
                                  planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
                                  max_time=args.max_time, max_iterations=INF, verbose=True,
                                  unit_costs=args.unit, success_cost=success_cost,

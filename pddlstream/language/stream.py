@@ -1,17 +1,16 @@
 import time
-from collections import Counter, defaultdict, namedtuple, Sequence
-from itertools import count
+from collections import Counter, Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list
-from pddlstream.language.generator import get_next, from_fn
-from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, INF
+from pddlstream.language.generator import get_next, from_fn, universe_test
+from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -34,39 +33,49 @@ def get_identity_fn(indices):
 
 ##################################################
 
-# TODO: make wild the default output
-
-class WildOutput(object):
-    def __init__(self, values=[], facts=[], enumerated=False, replan=False):
-        self.values = values
-        self.facts = facts
-        self.enumerated = enumerated
-        self.replan = replan # Reports back whether the problem has changed substantially
-    def __iter__(self):
-        return iter([self.values, self.facts])
-
-class OptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
-    @property
-    def values(self):
-        return values_from_objects(self.input_objects)
+#UNIQUE_OPT =  False
+#DEFAULT_OPT = None
 
 class PartialInputs(object):
-    def __init__(self, inputs='', unique=DEFAULT_UNIQUE): #, num=1):
+    def __init__(self, inputs='', unique=DEFAULT_UNIQUE, test=universe_test): #, num=1):
         self.inputs = tuple(inputs.split())
-        self.unique = unique
+        self.unique = unique # TODO: refactor this
+        self.test = test
         #self.num = num
+        self.stream = None
+    #def register(self, stream):
+    #    assert self.stream is None
+    #    self.stream = stream
+    #    if self.unique:
+    #        self.inputs = tuple(stream.inputs)
+    #    assert set(self.inputs) <= set(stream.inputs)
+    #def __call__(self, *input_values):
+    #    assert self.stream is not None
+    #    if not self.test(*input_values):
+    #        return
+    #    input_objects = stream_instance.input_objects
+    #    mapping = get_mapping(self.stream.inputs, input_objects)
+    #    selected_objects = tuple(mapping[inp] for inp in self.inputs)
+    #    # for _ in irange(self.num):
+    #    for _ in irange(stream_instance.num_optimistic):
+    #        yield [tuple(SharedOptValue(self.stream.name, self.inputs, selected_objects, out)
+    #                     for out in self.stream.outputs)]
     def get_opt_gen_fn(self, stream_instance):
+        # TODO: just condition on the stream
         stream = stream_instance.external
         inputs = stream.inputs if self.unique else self.inputs
         assert set(inputs) <= set(stream.inputs)
         # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
+            if not self.test(*input_values):
+                return
+            # TODO: recover input_objects from input_values
             input_objects = stream_instance.input_objects
             mapping = get_mapping(stream.inputs, input_objects)
             selected_objects = tuple(mapping[inp] for inp in inputs)
             #for _ in irange(self.num):
             for _ in irange(stream_instance.num_optimistic):
-                yield [tuple(OptValue(stream.name, inputs, selected_objects, out)
+                yield [tuple(SharedOptValue(stream.name, inputs, selected_objects, out)
                              for out in stream.outputs)]
         return gen_fn
     def __repr__(self):
@@ -77,8 +86,6 @@ def get_constant_gen_fn(stream, constant):
         assert (len(stream.inputs) == len(input_values))
         yield [tuple(constant for _ in range(len(stream.outputs)))]
     return gen_fn
-
-##################################################
 
 # def get_unique_fn(stream):
 #     # TODO: this should take into account the output number...
@@ -93,27 +100,34 @@ def get_constant_gen_fn(stream, constant):
 def get_debug_gen_fn(stream):
     return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
-class DebugValue(object): # TODO: could just do an object
-    _output_counts = defaultdict(count)
-    _prefix = '@' # $ | @
-    def __init__(self, stream, input_values, output_parameter):
-        self.stream = stream
-        self.input_values = input_values
-        self.output_parameter = output_parameter
-        self.index = next(self._output_counts[output_parameter])
-    def __repr__(self):
-        # Can also just return first letter of the prefix
-        return '{}{}{}'.format(self._prefix, self.output_parameter[1:], self.index)
-
 ##################################################
 
+# TODO: make wild the default output
+
+class WildOutput(object):
+    def __init__(self, values=[], facts=[], actions=[], enumerated=False, replan=False):
+        self.values = values
+        self.facts = facts
+        self.actions = actions
+        if self.actions:
+            raise NotImplementedError()
+        self.enumerated = enumerated
+        self.replan = replan # Reports back whether the problem has changed substantially
+    def __iter__(self):
+        return iter([self.values, self.facts])
+
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=PartialInputs(), negate=False, simultaneous=False, **kwargs):
+    def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
+                 defer=False, verbose=True, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
-        self.opt_gen_fn = opt_gen_fn # TODO: call this an abstraction instead
+        # TODO: call this an abstraction instead
+        self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
         self.negate = negate
         self.simultaneous = simultaneous
+        self.defer = defer
+        self.verbose = verbose
+        # TODO: make this false by default for negated test streams
         #self.order = 0
 
 ##################################################
@@ -128,6 +142,9 @@ class StreamResult(Result):
         self._mapping = None
         self._certified = None
         self._stream_fact = None
+    @property
+    def input_objects(self):
+        return self.instance.input_objects
     @property
     def mapping(self):
         if self._mapping is None:
@@ -148,13 +165,13 @@ class StreamResult(Result):
         return self._certified
     def get_certified(self):
         return self.certified
-    def get_tuple(self):
-        return self.external.name, self.instance.input_objects, self.output_objects
+    def get_action(self):
+        return StreamAction(self.external.name, self.input_objects, self.output_objects)
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
         #if not any(o in bindings for o in self.instance.get_objects()):
         #    return self
-        input_objects = apply_mapping(self.instance.input_objects, bindings)
+        input_objects = apply_mapping(self.input_objects, bindings)
         fluent_facts = [Fact(get_prefix(f), apply_mapping(get_args(f), bindings))
                         for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
@@ -246,14 +263,16 @@ class StreamInstance(Instance):
                        for list_index, output_objects in enumerate(new_objects)]
         self.update_statistics(start_time, new_results)
         if verbose:
-            if VERBOSE_FAILURES or new_values:
-                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
-                                             str_from_object(self.get_input_values()),
-                                             str_from_object(new_values)))
+            if (not new_values and VERBOSE_FAILURES) or \
+                    (new_values and self.info.verbose):
+                print('iter={}, outs={}) {}:{}->{}'.format(
+                    start_calls, len(new_values), self.external.name,
+                    str_from_object(self.get_input_values()), str_from_object(new_values)))
             if VERBOSE_WILD and new_facts:
                 # TODO: format all_new_facts
-                print('{}) {}:{}->{}'.format(start_calls, self.external.name,
-                                             str_from_object(self.get_input_values()), new_facts))
+                print('iter={}, facts={}) {}:{}->{}'.format(
+                    start_calls, self.external.name, str_from_object(self.get_input_values()),
+                    new_facts, len(new_facts)))
         facts = list(map(obj_from_value_expression, new_facts))
         if not self.external.outputs and self.successes:
             # Set of possible outputs is exhausted
@@ -364,8 +383,10 @@ class Stream(External):
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
         self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
-        if isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique:
-            self.num_opt_fns = 0
+        if isinstance(self.info.opt_gen_fn, PartialInputs):
+            #self.info.opt_gen_fn.register(self)
+            if self.info.opt_gen_fn.unique:
+                self.num_opt_fns = 0
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 

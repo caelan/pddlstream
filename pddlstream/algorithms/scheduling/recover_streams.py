@@ -58,15 +58,27 @@ def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
                               if check_effort(n.effort, max_effort)}
     return result_from_evaluation
 
-def extract_stream_plan(node_from_atom, target_facts, stream_plan):
+def extract_stream_plan(node_from_atom, target_facts, stream_plan,
+                        step_from_fact=None, step_from_stream=None):
     # TODO: prune with rules
     # TODO: linearization that takes into account satisfied goals at each level
     # TODO: can optimize for all streams & axioms all at once
     for fact in target_facts:
         if fact not in node_from_atom:
-            raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
+            #raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
+            #RuntimeError: Preimage fact ('new-axiom@0',) is not achievable!
+            return
         result = node_from_atom[fact].result
-        if (result is None) or (result in stream_plan):
+        if result is None:
             continue
-        extract_stream_plan(node_from_atom, result.instance.get_domain(), stream_plan)
-        stream_plan.append(result) # TODO: don't add if satisfied
+        if step_from_fact is not None:
+            assert step_from_stream is not None
+            step = step_from_fact[fact] if result.external.info.defer else 0
+            step_from_stream[result] = min(step, step_from_stream.get(result, INF))
+            for domain_fact in result.instance.get_domain():
+                step_from_fact[domain_fact] = min(step_from_stream[result], step_from_stream.get(result, INF))
+        extract_stream_plan(node_from_atom, result.instance.get_domain(), stream_plan,
+                            step_from_fact, step_from_stream)
+        # TODO: dynamic programming version of this
+        if result not in stream_plan:
+            stream_plan.append(result) # TODO: don't add if satisfied

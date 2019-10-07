@@ -9,13 +9,13 @@ import numpy as np
 
 from examples.continuous_tamp.primitives import get_value_at_time
 from pddlstream.language.temporal import get_end, compute_duration
-from examples.pybullet.namo.run import get_base_joints, set_base_conf, get_custom_limits, \
-    point_from_conf, BASE_RESOLUTIONS, get_turtle_aabb, get_motion_fn, create_vertices
+from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
+    get_custom_limits, point_from_conf, get_motion_fn, create_vertices
 from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, wait_for_interrupt, \
+    HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
     link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW
@@ -28,7 +28,6 @@ from pddlstream.language.constants import And, print_solution, PDDLProblem, Equa
 from pddlstream.language.generator import from_test, from_fn, negate_test
 from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range
 
-# TODO: Kiva robot and Amazon shelves
 
 TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS

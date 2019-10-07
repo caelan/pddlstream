@@ -5,8 +5,8 @@ from pddlstream.language.constants import get_prefix, get_args, get_parameter_na
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import PredicateResult, FunctionResult
-from pddlstream.language.object import Object
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
+from pddlstream.language.object import Object, SharedOptValue
+from pddlstream.language.stream import StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
 from pddlstream.language.generator import get_next
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
@@ -64,7 +64,7 @@ def get_effort_fn(optimizer_name):
     # This might happen if the variable is certified to have a property after construction
     def effort_fn(*input_values):
         parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
-        optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
+        optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, SharedOptValue)
                               if input_values[i].stream.startswith(optimizer_name)]
         #if not parameter_indices and not optimizer_indices:
         #    return INF

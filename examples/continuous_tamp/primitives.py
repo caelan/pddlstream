@@ -108,6 +108,7 @@ def get_pose_gen(regions):
 
 
 def plan_motion(q1, q2):
+    # TODO: scipy interpolation
     x1, y1 = q1
     x2, y2 = q2
     t = [q1,
@@ -151,7 +152,7 @@ def mirror(n_blocks=1, n_robots=2):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-def tight(n_blocks=3, n_goals=2, n_robots=2):
+def tight(n_blocks=2, n_goals=2, n_robots=1):
     confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
     robots = ['r{}'.format(x) for x in range(n_robots)]
     initial_confs = dict(zip(robots, confs))

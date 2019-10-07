@@ -1,5 +1,5 @@
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore
+from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore, UNKNOWN_EVALUATION
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
 from pddlstream.algorithms.instantiate_task import sas_from_pddl
@@ -26,7 +26,7 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
         for evaluation in add_certified(evaluations, result):
             instantiator.add_atom(evaluation, complexity)
     fact_complexity = 0 # TODO: record the instance or treat as initial?
-    for evaluation in add_facts(evaluations, new_facts, result=None, complexity=fact_complexity):
+    for evaluation in add_facts(evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=fact_complexity):
         instantiator.add_atom(evaluation, fact_complexity)
     if not instance.enumerated:
         instantiator.push_instance(instance)

@@ -30,6 +30,10 @@ class Result(object):
     def external(self):
         return self.instance.external
 
+    @property
+    def info(self):
+        return self.external.info
+
     def get_domain(self):
         return self.instance.get_domain()
 
@@ -79,6 +83,10 @@ class Instance(object):
         self.opt_results = []
         self._mapping = None
         self._domain = None
+
+    @property
+    def info(self):
+        return self.external.info
 
     @property
     def num_calls(self):

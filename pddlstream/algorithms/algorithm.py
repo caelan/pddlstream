@@ -13,9 +13,9 @@ from pddlstream.language.fluent import compile_fluent_streams, get_predicate_map
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import parse_optimizer, ConstraintStream, UNSATISFIABLE
-from pddlstream.language.rule import parse_rule, apply_rules_to_streams
+from pddlstream.language.rule import parse_rule, apply_rules_to_streams, RULES
 from pddlstream.language.stream import parse_stream, Stream, StreamInstance
-from pddlstream.utils import find_unique, get_mapping
+from pddlstream.utils import find_unique, get_mapping, INF
 
 UNIVERSAL_TO_CONDITIONAL = False
 
@@ -76,6 +76,7 @@ def reset_globals():
     # TODO: maintain these dictionaries in an object
     Object.reset()
     OptimisticObject.reset()
+    RULES[:] = []
     SOLUTIONS[:] = []
 
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
@@ -255,7 +256,8 @@ def parse_streams(streams, rules, stream_pddl, procedure_map, procedure_info, us
 
 def set_unit_efforts(externals):
     for external in externals:
-        external.info.effort = 1
+        if external.get_effort() < INF:
+            external.info.effort = 1
 
 def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_costs=False, unit_efforts=False):
     externals = []

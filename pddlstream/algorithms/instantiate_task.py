@@ -6,10 +6,11 @@ from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
     TRANSLATE_OUTPUT, parse_sequential_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
-    get_effects, get_conjunctive_parts, get_conditional_effects
+    get_effects, get_conjunctive_parts, get_conditional_effects, fact_from_fd, pddl_from_instance
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose
+from pddlstream.language.conversion import transform_action_args, obj_from_pddl
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose, safe_remove, ensure_dir
 
 import pddl
 import instantiate
@@ -168,6 +169,12 @@ def instantiate_task(task, check_infeasible=True, **kwargs):
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
         reachable_action_params = get_reachable_action_params(actions)
+    #for atom in sorted(filter(lambda a: isinstance(a, pddl.Literal), set(task.init) | set(atoms)),
+    #                   key=lambda a: a.predicate):
+    #    print(fact_from_fd(atom))
+    #print(axioms)
+    #for i, action in enumerate(sorted(actions, key=lambda a: a.name)):
+    #    print(i, transform_action_args(pddl_from_instance(action), obj_from_pddl))
     print('Infeasible:', not relaxed_reachable)
     print('Instantiation time:', elapsed_time(start_time))
     if check_infeasible and not relaxed_reachable:
@@ -243,8 +250,10 @@ def sas_from_instantiated(instantiated_task):
 ##################################################
 
 def write_sas_task(sas_task, temp_dir):
-    clear_dir(temp_dir)
     translate_path = os.path.join(temp_dir, TRANSLATE_OUTPUT)
+    #clear_dir(temp_dir)
+    safe_remove(translate_path)
+    ensure_dir(translate_path)
     with open(os.path.join(temp_dir, TRANSLATE_OUTPUT), "w") as output_file:
         sas_task.output(output_file)
     return translate_path

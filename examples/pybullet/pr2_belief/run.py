@@ -9,6 +9,7 @@ except ImportError:
 
 import cProfile
 import pstats
+import argparse
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.search import ABSTRIPSLayer
@@ -24,7 +25,7 @@ from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, c
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, wait_for_interrupt, get_joint_positions, get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, \
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_user, get_joint_positions, get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, \
     draw_base_limits
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, Trajectory, get_base_limits
@@ -114,7 +115,7 @@ def pddlstream_from_state(state, teleport=False):
            [('Registered', b) for b in task.goal_registered])
 
     stream_map = {
-        'sample-pose': get_stable_gen(task),
+        'sample-pose': from_gen_fn(get_stable_gen(task)),
         'sample-grasp': from_list_fn(get_grasp_gen(task)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(task, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(task, teleport=teleport)),
@@ -133,11 +134,10 @@ def pddlstream_from_state(state, teleport=False):
 #######################################################
 
 def post_process(state, plan, replan_obs=True, replan_base=False, look_move=False):
-    problem = state.task
     if plan is None:
         return None
     # TODO: refine actions
-    robot = problem.robot
+    robot = state.task.robot
     commands = []
     uncertain_base = False
     expecting_obs = False
@@ -153,8 +153,8 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             # TODO: I could keep updating the head goal as the base moves along the path
             if look_move:
                 # TODO: some sort of new bug here where the trajectory repeats
-                new_commands = [move_look_trajectory(t)]
-                #new_commands = [inspect_trajectory(t), t]
+                new_commands = [move_look_trajectory(state.task, t)]
+                #new_commands = [inspect_trajectory(state.task, t), t]
             else:
                 new_commands = [t]
             if replan_base:
@@ -175,16 +175,16 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             new_commands = [t, detach, t.reverse()]
         elif name == 'scan':
             o, p, bq, hq, ht = args
-            ht0 = plan_head_traj(robot, hq.values)
+            ht0 = plan_head_traj(state.task, hq.values)
             new_commands = [ht0]
-            if o in problem.rooms:
+            if o in state.task.rooms:
                 attach, detach = get_cone_commands(robot)
                 new_commands += [attach, ht, ScanRoom(robot, o), detach]
             else:
                 new_commands += [ht, Scan(robot, o)]
                 #with BodySaver(robot):
                 #    for hq2 in ht.path:
-                #        st = plan_head_traj(robot, hq2.values)
+                #        st = plan_head_traj(state.task, hq2.values)
                 #        new_commands += [st, Scan(robot, o)]
                 #        hq2.step()
             # TODO: return to start conf?
@@ -194,7 +194,7 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
             expecting_obs = True
         elif name == 'register':
             o, p, bq, hq, ht = args
-            ht0 = plan_head_traj(robot, hq.values)
+            ht0 = plan_head_traj(state.task, hq.values)
             register = Register(robot, o)
             new_commands = [ht0, register]
             expecting_obs = True
@@ -210,10 +210,10 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
 
 #######################################################
 
-def plan_commands(state, teleport=False, profile=False, verbose=True):
+def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state and not the real world
-    sim_world = connect(use_gui=True)
+    sim_world = connect(use_gui=viewer)
     #clone_world(client=sim_world)
     task = state.task
     robot_conf = get_configuration(task.robot)
@@ -264,10 +264,18 @@ def plan_commands(state, teleport=False, profile=False, verbose=True):
 #######################################################
 
 def main(time_step=0.01):
+    parser = argparse.ArgumentParser()
+    #parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    #parser.add_argument('-display', action='store_true', help='displays the solution')
+    # TODO: arugment for selecting prior
+    args = parser.parse_args()
+
+    # TODO: nonuniform distribution to bias towards other actions
     # TODO: closed world and open world
-    real_world = connect(use_gui=False)
+    real_world = connect(use_gui=not args.viewer)
     add_data_path()
-    task, state = get_problem1(localized='rooms', p_other=0.5) # surfaces | rooms
+    task, state = get_problem1(localized='rooms', p_other=0.25) # surfaces | rooms
     for body in task.get_bodies():
         add_body_name(body)
 
@@ -276,7 +284,7 @@ def main(time_step=0.01):
     assert(USE_DRAKE_PR2 == is_drake_pr2(robot))
     attach_viewcone(robot) # Doesn't work for the normal pr2?
     draw_base_limits(get_base_limits(robot), color=(0, 1, 0))
-    #wait_for_interrupt()
+    #wait_for_user()
     # TODO: partially observable values
     # TODO: base movements preventing pick without look
 
@@ -290,9 +298,10 @@ def main(time_step=0.01):
         step += 1
         print('\n' + 50 * '-')
         print(step, state)
+        wait_for_user()
         #print({b: p.value for b, p in state.poses.items()})
         with ClientSaver():
-            commands = plan_commands(state)
+            commands = plan_commands(state, viewer=args.viewer)
         print()
         if commands is None:
             print('Failure!')
@@ -303,7 +312,7 @@ def main(time_step=0.01):
         apply_commands(state, commands, time_step=time_step)
 
     print(state)
-    wait_for_interrupt()
+    wait_for_user()
     disconnect()
 
 
