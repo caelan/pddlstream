@@ -139,6 +139,7 @@ def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, s
                     time.sleep(sec_per_step)
     if display:
         user_input('Finish?')
+    return state
 
 ##################################################
 

@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, Bod
 from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, \
     Point, set_default_camera, stable_z, \
     BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
-    disconnect, DRAKE_IIWA_URDF, get_bodies, user_input, HideOutput
+    disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
 from pddlstream.utils import read, INF, get_file_path, find_unique
@@ -118,7 +118,8 @@ def load_world():
     # TODO: store internal world info here to be reloaded
     with HideOutput():
         robot = load_model(DRAKE_IIWA_URDF)
-        # robot = load_model(KUKA_IIWA_URDF)
+        #add_data_path()
+        #robot = load_pybullet(KUKA_IIWA_URDF)
         floor = load_model('models/short_floor.urdf')
         sink = load_model(SINK_URDF, pose=Pose(Point(x=-0.5)))
         stove = load_model(STOVE_URDF, pose=Pose(Point(x=+0.5)))
@@ -194,14 +195,14 @@ def main(display=True, teleport=False):
 
     command = postprocess_plan(plan)
     if args.simulate:
-        user_input('Simulate?')
+        wait_for_user('Simulate?')
         command.control()
     else:
-        user_input('Execute?')
+        wait_for_user('Execute?')
         #command.step()
         command.refine(num_steps=10).execute(time_step=0.001)
 
-    user_input('Finish?')
+    wait_for_user('Finish?')
     disconnect()
 
 if __name__ == '__main__':
