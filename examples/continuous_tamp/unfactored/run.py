@@ -2,8 +2,6 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
 import numpy as np
 
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
@@ -13,7 +11,7 @@ from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import user_input, read, INF, get_file_path
+from pddlstream.utils import user_input, read, INF, get_file_path, Profiler
 from pddlstream.language.constants import print_solution
 
 from copy import deepcopy
@@ -62,7 +60,6 @@ def place_fn(s1, r, b, q, p, g):
     s2 = deepcopy(s1)
     s2.block_poses[b] = p
     del s2.holding[r]
-    print(s2)
     return (s2,)
 
 def get_goal_test(tamp_problem):
@@ -122,7 +119,9 @@ def pddlstream_from_tamp(tamp_problem):
 
 ##################################################
 
-def main(focused=False, deterministic=False, unit_costs=True):
+
+
+def main(deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -141,20 +140,11 @@ def main(focused=False, deterministic=False, unit_costs=True):
     }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    pr = cProfile.Profile()
-    pr.enable()
-    if focused:
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 max_time=10, success_cost=INF, debug=False,
-                                 effort_weight=None, unit_costs=unit_costs,
-                                 visualize=False)
-    else:
-        solution = solve_incremental(pddlstream_problem, complexity_step=1,
+    with Profiler():
+        solution = solve_incremental(pddlstream_problem, complexity_step=1, max_time=30,
                                      unit_costs=unit_costs, verbose=False)
-    print_solution(solution)
-    plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
+        print_solution(solution)
+        plan, cost, evaluations = solution
     if plan is None:
         return
 

@@ -7,6 +7,8 @@ import shutil
 import sys
 import time
 import random
+import cProfile
+import pstats
 
 from collections import defaultdict, deque
 from heapq import heappush, heappop
@@ -230,35 +232,65 @@ def check_memory(max_memory):
 
 ##################################################
 
+class Saver(object):
+    # TODO: contextlib
+    def save(self):
+        raise NotImplementedError()
+    def restore(self):
+        raise NotImplementedError()
+    def __enter__(self):
+        # TODO: move the saving to enter?
+        self.save()
+        return self
+    def __exit__(self, type, value, traceback):
+        self.restore()
 
-class Verbose(object): # TODO: use DisableOutput
+
+class Profiler(Saver):
+    fields = ['tottime', 'cumtime']
+    def __init__(self, field='tottime', num=10):
+        assert field in self.fields
+        self.field = field
+        self.num = num
+        self.pr = cProfile.Profile()
+    def save(self):
+        self.pr.enable()
+        return self.pr
+    def restore(self):
+        self.pr.disable()
+        stats = pstats.Stats(self.pr).sort_stats(self.field)
+        stats.print_stats(self.num)
+        return stats
+
+
+class Verbose(Saver): # TODO: use DisableOutput
     def __init__(self, verbose=False):
         self.verbose = verbose
-    def __enter__(self):
-        if not self.verbose:
-            self.stdout = sys.stdout
-            self.devnull = open(os.devnull, 'w')
-            sys.stdout = self.devnull
-            #self.stderr = sys.stderr
-            #self.devnull = open(os.devnull, 'w')
-            #sys.stderr = self.stderr
-        return self
-    def __exit__(self, type, value, traceback):
-        if not self.verbose:
-            sys.stdout = self.stdout
-            self.devnull.close()
-            #sys.stderr = self.stderr
-            #self.devnull.close()
+    def save(self):
+        if self.verbose:
+            return
+        self.stdout = sys.stdout
+        self.devnull = open(os.devnull, 'w')
+        sys.stdout = self.devnull
+        #self.stderr = sys.stderr
+        #self.devnull = open(os.devnull, 'w')
+        #sys.stderr = self.stderr
+    def restore(self):
+        if self.verbose:
+            return
+        sys.stdout = self.stdout
+        self.devnull.close()
+        #sys.stderr = self.stderr
+        #self.devnull.close()
 
 
-class TmpCWD(object):
+class TmpCWD(Saver):
     def __init__(self, temp_cwd):
         self.tmp_cwd = temp_cwd
-    def __enter__(self):
+    def save(self):
         self.old_cwd = os.getcwd()
         os.chdir(self.tmp_cwd)
-        return self
-    def __exit__(self, type, value, traceback):
+    def restore(self):
         os.chdir(self.old_cwd)
 
 ##################################################
