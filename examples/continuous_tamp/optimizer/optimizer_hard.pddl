@@ -25,8 +25,8 @@
     ; TODO: can fix variables in the optimization using necessary conditions
     ;(:constraint (Contain?b ?p ?r) ; TODO: make this a cluster of constraints?
     ; :necessary (and (Placeable ?b ?r) (Pose ?b ?p)))
-    (:constraint (Kin ?b ?q ?p)
-      :necessary (and (Pose ?b ?p) (Conf ?q)))
+    (:constraint (Kin ?b ?q ?p ?g)
+      :necessary (and (Pose ?b ?p) (Grasp ?b ?g) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
       :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
     ; TODO: maybe prevent initial configurations from being considered

@@ -8,7 +8,7 @@ import pstats
 import random
 import numpy as np
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
+from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, get_random_seed, GROUND_NAME, GRASP
 from pddlstream.algorithms.incremental import solve_incremental
@@ -23,12 +23,12 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     initial = tamp_problem.initial
     assert(not initial.holding)
 
-    domain_pddl = read(get_file_path(__file__, 'temporal_domain.pddl'))
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     external_paths = []
     if use_stream:
-        external_paths.append(get_file_path(__file__, 'stream.pddl'))
+        external_paths.append(get_file_path(__file__, '../stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, '../optimizer/optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {'{}'.format(name).lower(): name

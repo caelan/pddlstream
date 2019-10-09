@@ -10,7 +10,7 @@ import random
 import numpy as np
 import time
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
+from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
@@ -42,7 +42,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
     if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
+        external_paths.append(get_file_path(__file__, 'optimizer/optimizer.pddl')) # optimizer | optimizer_hard
     external_pddl = [read(path) for path in external_paths]
 
     constant_map = {}
