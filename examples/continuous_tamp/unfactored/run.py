@@ -120,7 +120,6 @@ def pddlstream_from_tamp(tamp_problem):
 ##################################################
 
 
-
 def main(deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
@@ -131,13 +130,6 @@ def main(deterministic=False, unit_costs=True):
     problem_fn = tight  # get_tight_problem | get_blocked_problem
     tamp_problem = problem_fn(n_blocks=1, n_goals=1, n_robots=1)
     print(tamp_problem)
-
-    stream_info = {
-        #'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        #'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
-        #'trajcollision': StreamInfo(p_success=1),  # bound_fn is None
-        #'cfree': StreamInfo(eager=True),
-    }
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     with Profiler():

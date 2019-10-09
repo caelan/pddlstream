@@ -8,18 +8,15 @@
     (Mode ?m)
     (Motion ?m ?q1 ?t ?q2)
     (Switch ?m1 ?m2 ?q)
-    (AtGoal)
+    (GoalState ?m ?q)
 
     ; Fluent predicates
     (AtMode ?m)
     (AtConf ?q)
-
-    ; Derived predicates
-    ;(In ?b ?s)
   )
 
   (:action move
-    :parameters (?m ?q1 ?t ?q2)
+    :parameters (?m ?q1 ?q2 ?t)
     :precondition (and (Motion ?m ?q1 ?t ?q2)
                        (AtMode ?m) (AtConf ?q1)
                        (CanMove)
@@ -32,12 +29,6 @@
     :parameters (?m1 ?m2 ?q)
     :precondition (and (Switch ?m1 ?m2 ?q)
                        (AtMode ?m1) (AtConf ?q))
-    :effect (and (AtMode ?m2)
-                 (CanMove)
+    :effect (and (AtMode ?m2) (CanMove)
                  (not (AtMode ?m1))))
-
-  ;(:derived (In ?b ?s) ; TODO: conf/mode satisfies goal
-  ;  (exists (?p) (and (Contain ?b ?p ?s)
-  ;                    (AtPose ?b ?p))))
-  ;
 )

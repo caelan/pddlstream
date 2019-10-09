@@ -10,7 +10,7 @@
     :inputs (?m1)
     :domain (Mode ?m1)
     :outputs (?m2)
-    :certified (and (Mode ?m2) (Adjacent ?m1 ?m2)))
+    :certified (and (Mode ?m2) (Adjacent ?m1 ?m2))) ; (Adjacent ?m2 ?m1)
 
   (:stream s-intersection
     :inputs (?m1 ?m2)
@@ -30,6 +30,11 @@
     :domain (and (Conf ?m ?q1) (Conf ?m ?q2))
     :outputs (?t)
     :certified (Motion ?m ?q1 ?t ?q2))
+
+  (:stream t-goal
+    :inputs (?m ?q)
+    :domain (Conf ?m ?q)
+    :certified (GoalState ?m ?q))
 
   ;(:function (Duration ?t)
   ;           (Traj ?t))

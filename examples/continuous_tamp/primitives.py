@@ -35,7 +35,8 @@ def get_block_interval(b, p):
 ##################################################
 
 def collision_test(b1, p1, b2, p2):
-    return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
+    return interval_overlap(get_block_interval(b1, p1),
+                            get_block_interval(b2, p2))
 
 
 def distance_fn(q1, q2):
@@ -43,18 +44,33 @@ def distance_fn(q1, q2):
     return MOVE_COST + COST_PER_DIST*np.linalg.norm(q2 - q1, ord=ord)
 
 
-def inverse_kin_fn(b, p, g):
+def forward_kin(q, g):
+    p = q + g
+    return p
+
+
+def inverse_kin(p, g):
     q = p - g
-    #return (q,)
+    return q
+
+
+def approach_kin(q):
     a = q - APPROACH
+    return a
+
+
+def inverse_kin_fn(b, p, g):
+    q = inverse_kin(p, g)
+    #return (q,)
+    a = approach_kin(q)
     return (a,)
 
 
-def unreliable_ik_fn(b, p):
+def unreliable_ik_fn(*args):
     # For testing the algorithms
     while 1e-2 < np.random.random():
         yield None
-    yield inverse_kin_fn(b, p)
+    yield inverse_kin_fn(*args)
 
 
 def get_region_test(regions):
@@ -212,21 +228,26 @@ PROBLEMS = [
 
 ##################################################
 
+def draw_robot(viewer, robot, pose, **kwargs):
+    x, y = pose
+    viewer.draw_robot(x, y, name=robot, **kwargs)
+
+def draw_block(viewer, block, pose, **kwargs):
+    x, y = pose
+    viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, name=block, **kwargs)
+
 def draw_state(viewer, state, colors):
     # TODO: could draw the current time
     viewer.clear_state()
     #viewer.draw_environment()
     for robot, conf in state.robot_confs.items():
-        viewer.draw_robot(*conf, name=robot)
+        draw_robot(viewer, robot, conf)
     for block, pose in state.block_poses.items():
-        x, y = pose
-        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
-                          name=block, color=colors[block])
+        viewer.draw_block(viewer, block, pose, color=colors[block])
     for robot, holding in state.holding.items():
         block, grasp = holding
-        x, y = state.robot_confs[robot] + grasp
-        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
-                          name=block, color=colors[block])
+        pose = forward_kin(state.robot_confs[robot], grasp)
+        viewer.draw_block(viewer, block, pose, color=colors[block])
     viewer.tk.update()
 
 def get_random_seed():
