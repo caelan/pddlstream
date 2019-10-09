@@ -243,11 +243,11 @@ def draw_state(viewer, state, colors):
     for robot, conf in state.robot_confs.items():
         draw_robot(viewer, robot, conf)
     for block, pose in state.block_poses.items():
-        viewer.draw_block(viewer, block, pose, color=colors[block])
+        draw_block(viewer, block, pose, color=colors[block])
     for robot, holding in state.holding.items():
         block, grasp = holding
         pose = forward_kin(state.robot_confs[robot], grasp)
-        viewer.draw_block(viewer, block, pose, color=colors[block])
+        draw_block(viewer, block, pose, color=colors[block])
     viewer.tk.update()
 
 def get_random_seed():

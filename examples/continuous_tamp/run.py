@@ -163,7 +163,7 @@ MUTEXES = [
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
+    parser.add_argument('-p', '--problem', default='tight', help='The name of the problem to solve')
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')

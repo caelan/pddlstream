@@ -4,8 +4,9 @@
   (:predicates
     ; Static predicates
     (CanMove)
-    (Conf ?q)
+    (Conf ?m ?q)
     (Mode ?m)
+    (Adjacent ?m1 ?m2)
     (Motion ?m ?q1 ?t ?q2)
     (Switch ?m1 ?m2 ?q)
     (GoalState ?m ?q)

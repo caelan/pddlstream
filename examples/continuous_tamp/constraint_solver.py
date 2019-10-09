@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.continuous_tamp.primitives import BLOCK_WIDTH, GRASP, sample_region, plan_motion
+from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.language.optimizer import OptimizerOutput
 
@@ -45,10 +45,10 @@ def collision_constraint(model, name, b1, p1, b2, p2):
     model.addConstr(BLOCK_WIDTH + MIN_CLEARANCE, GRB.LESS_EQUAL, abs_dist, name=name)
     model.addGenConstrAbs(abs_dist, dist, name=name)  # abs_
 
-def kinematics_constraint(model, name, b, q, p):
+def kinematics_constraint(model, name, b, q, p, g):
     from gurobipy import GRB
     for i in range(len(q)):
-        model.addConstr(q[i] + GRASP[i], GRB.EQUAL, p[i], name=name)
+        model.addConstr(q[i] + g[i], GRB.EQUAL, p[i], name=name)
     model.addConstr(p[1], GRB.EQUAL, 0, name=name)  # IK vs pick/place semantics
 
 def contained_constraint(model, regions, name, b, p, r):

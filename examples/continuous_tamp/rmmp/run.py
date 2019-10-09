@@ -14,7 +14,6 @@ from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, ge
     inverse_kin, forward_kin, collision_test, draw_block, draw_robot
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import user_input, read, INF, get_file_path, Profiler, randomize
@@ -53,7 +52,7 @@ def sample_forward(problem):
                 mode2 = mode1.copy()
                 mode2[block] = Mode(GRASP, robot)
                 yield (mode2,)
-        # TODO: reject inconsistent modes
+        # TODO: reject inconsistent modes?
     return gen
 
 def sample_intersection(problem):
@@ -167,6 +166,7 @@ def main(deterministic=False, unit_costs=True):
     if plan is None:
         return
 
+    # TODO: might still be a planning bug
     viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
     conf = conf_from_state(tamp_problem.initial)
     print()

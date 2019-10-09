@@ -17,9 +17,9 @@
       :domain (Placeable ?b ?r)
       :graph (and (Contain ?b ?p ?r) (Pose ?b ?p)))
     (:variables (?q)
-      :inputs (?b ?p)
-      :domain (Pose ?b ?p)
-      :graph (and (Kin ?b ?q ?p) (Conf ?q)))
+      :inputs (?b ?p ?g)
+      :domain (and (Pose ?b ?p) (Grasp ?b ?g))
+      :graph (and (Kin ?b ?q ?p ?g) (Conf ?q)))
     (:constraint (CFree ?b1 ?p1 ?b2 ?p2)
       :necessary (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)))
 
