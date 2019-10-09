@@ -3,10 +3,12 @@
   (:requirements :strips :equality)
   (:predicates
     ; Static predicates
+    (CanMove)
     (Conf ?q)
     (Mode ?m)
-    (Motion ?m ?q1 ?q2)
+    (Motion ?m ?q1 ?t ?q2)
     (Switch ?m1 ?m2 ?q)
+    (AtGoal)
 
     ; Fluent predicates
     (AtMode ?m)
@@ -17,8 +19,8 @@
   )
 
   (:action move
-    :parameters (?m ?q1 ?q2)
-    :precondition (and (Motion ?m ?q1 ?q2)
+    :parameters (?m ?q1 ?t ?q2)
+    :precondition (and (Motion ?m ?q1 ?t ?q2)
                        (AtMode ?m) (AtConf ?q1)
                        (CanMove)
                   )

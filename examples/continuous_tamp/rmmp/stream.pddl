@@ -27,8 +27,9 @@
 
   (:stream s-connection
     :inputs (?m ?q1 ?q2)
-    :domain (and (Conf ?m ?q1) (Conf ?m ?q1))
-    :certified (Motion ?m ?q1 ?q2))
+    :domain (and (Conf ?m ?q1) (Conf ?m ?q2))
+    :outputs (?t)
+    :certified (Motion ?m ?q1 ?t ?q2))
 
   ;(:function (Duration ?t)
   ;           (Traj ?t))
