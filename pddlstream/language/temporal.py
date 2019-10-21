@@ -343,8 +343,8 @@ def retime_plan(plan, duration=1):
 #                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
 
 SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
-                                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
-                                               'durative_actions', 'pddl'])
+                                                   'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
+                                                   'durative_actions', 'pddl'])
 
 
 def parse_temporal_domain(domain_pddl):
