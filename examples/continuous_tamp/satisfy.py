@@ -10,7 +10,7 @@ import numpy as np
 from numpy import array
 
 from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
-from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
+from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
@@ -92,8 +92,7 @@ OBJECTIVES = [
     Minimize(('dist', '?q3', '?q2')),
 ]
 
-def set_deterministic(seed=0):
-    np.random.seed(seed)
+##################################################
 
 def main(success_cost=0):
     parser = argparse.ArgumentParser()

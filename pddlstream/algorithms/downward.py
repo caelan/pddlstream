@@ -262,8 +262,8 @@ def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
     goal = parse_goal(goal_expression, domain)
-    #problem_pddl = None
-    problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
+    problem_pddl = None
+    #problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
     write_pddl(domain.pddl, problem_pddl)
     return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs, pddl=problem_pddl)

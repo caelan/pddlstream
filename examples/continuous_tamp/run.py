@@ -74,7 +74,6 @@ def create_problem(tamp_problem):
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
 
-
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     external_paths = []
     if use_stream:
@@ -168,26 +167,26 @@ MUTEXES = [
     # TODO: add mutexes to reduce search over skeletons
 ]
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--problem', default='tight', help='The name of the problem to solve')
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+##################################################
+
+def set_deterministic(seed=0):
+    random.seed(seed=seed)
+    np.random.seed(seed=seed)
+
+def initialize(parser):
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
-    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
-    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
-    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
-    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
+    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
+    parser.add_argument('-p', '--problem', default='tight', help='The name of the problem to solve')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
+
     args = parser.parse_args()
     print('Arguments:', args)
-
     np.set_printoptions(precision=2)
     if args.deterministic:
-        random.seed(seed=0)
-        np.random.seed(seed=0)
+        set_deterministic()
     print('Random seed:', get_random_seed())
 
     problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
@@ -197,7 +196,22 @@ def main():
     problem_fn = problem_from_name[args.problem]
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
+    return tamp_problem, args
 
+def dump_pddlstream(pddlstream_problem):
+    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
+    print('Goal:', str_from_object(pddlstream_problem.goal))
+
+##################################################
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
+    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
+
+    tamp_problem, args = initialize(parser)
     stream_info = {
         't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
         't-cfree': StreamInfo(eager=False, negate=True),
@@ -221,8 +235,7 @@ def main():
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
-    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
-    print('Goal:', str_from_object(pddlstream_problem.goal))
+    dump_pddlstream(pddlstream_problem)
     pr = cProfile.Profile()
     pr.enable()
     success_cost = 0 if args.optimal else INF

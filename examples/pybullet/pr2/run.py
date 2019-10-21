@@ -15,6 +15,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_p
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
     get_distance, LockRenderer, get_min_limit, get_max_limit
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.constants import Equal, AND, print_solution
 from pddlstream.utils import read, INF, get_file_path, find_unique
@@ -55,7 +56,8 @@ def place_movable(certified):
 def move_cost_fn(c):
     [t] = c.commands
     distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
-    return BASE_CONSTANT + distance / BASE_VELOCITY
+    #return BASE_CONSTANT + distance / BASE_VELOCITY
+    return 1
 
 #######################################################
 
@@ -83,7 +85,8 @@ def extract_point2d(v):
 def opt_move_cost_fn(t):
     q1, q2 = t.values
     distance = get_distance(extract_point2d(q1), extract_point2d(q2))
-    return BASE_CONSTANT + distance / BASE_VELOCITY
+    #return BASE_CONSTANT + distance / BASE_VELOCITY
+    return 1
 
 #######################################################
 
@@ -249,7 +252,8 @@ def main(display=True, teleport=False, partial=False):
     pr = cProfile.Profile()
     pr.enable()
     with LockRenderer():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF)
+        #solution = solve_incremental(pddlstream_problem, debug=True)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=True)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()

@@ -123,7 +123,7 @@ def get_pose_gen(regions):
     return gen_fn
 
 
-def plan_motion(q1, q2):
+def plan_motion(q1, q2, fluents=[]):
     # TODO: scipy interpolation
     x1, y1 = q1
     x2, y2 = q2
