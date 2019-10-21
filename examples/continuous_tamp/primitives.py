@@ -15,6 +15,19 @@ APPROACH = -np.array([0, CARRY_Y]) - GRASP
 MOVE_COST = 10.
 COST_PER_DIST = 1.
 
+def get_block_box(b, p=np.zeros(2)):
+    extent = np.array([BLOCK_WIDTH, BLOCK_HEIGHT]) # TODO: vary per block
+    lower = p - extent/2.
+    upper = p + extent/2.
+    return lower, upper
+
+
+def boxes_overlap(box1, box2):
+    lower1, upper1 = box1
+    lower2, upper2 = box2
+    return np.less_equal(lower1, upper2).all() and \
+           np.less_equal(lower2, upper1).all()
+
 
 def interval_contains(i1, i2):
     """
@@ -30,7 +43,8 @@ def interval_overlap(i1, i2):
 
 
 def get_block_interval(b, p):
-    return p[0]*np.ones(2) + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
+    lower, upper = get_block_box(b, p)
+    return lower[0], upper[0]
 
 ##################################################
 
@@ -123,14 +137,49 @@ def get_pose_gen(regions):
     return gen_fn
 
 
+def str_eq(s1, s2, ignore_case=True):
+    if ignore_case:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    return s1 == s2
+
+
+def interpolate(waypoints, velocity=1):
+    import scipy
+    differences = [0.] + [np.linalg.norm(q2 - q1) for q1, q2 in zip(waypoints[:-1], waypoints[1:])]
+    times = np.cumsum(differences) / velocity
+    return scipy.interpolate.interp1d(times, waypoints, kind='linear')
+
+
 def plan_motion(q1, q2, fluents=[]):
-    # TODO: scipy interpolation
     x1, y1 = q1
     x2, y2 = q2
-    t = [q1,
-         np.array([x1, CARRY_Y]),
-         np.array([x2, CARRY_Y]),
-         q2]
+    t = [q1, np.array([x1, CARRY_Y]), np.array([x2, CARRY_Y]), q2]
+
+    grasp = None
+    placed = {}
+    for fluent in fluents:
+        predicate, args = fluent[0], fluent[1:]
+        if str_eq(predicate, 'AtGrasp'):
+            assert grasp is None
+            r, b, g = args
+            grasp = g
+        elif str_eq(predicate, 'AtPose'):
+            b, p = args
+            assert b not in placed
+            placed[b] = p
+        else:
+            raise NotImplementedError(predicate)
+
+    if grasp is None:
+        return (t,)
+    for q in [q2]:
+        p1 = forward_kin(q, grasp)
+        box1 = get_block_box(None, p1)
+        for b2, p2 in placed.items():
+            box2 = get_block_box(b2, p2)
+            if boxes_overlap(box1, box2):
+                return None
     return (t,)
 
 ##################################################

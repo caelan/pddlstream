@@ -108,7 +108,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, sec_per_step=0.002):
+def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.025, sec_per_step=1e-3):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 

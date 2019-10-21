@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse
 
-from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin_fn, \
+from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin, \
     get_region_test, plan_motion, MOVE_COST
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
 from pddlstream.algorithms.focused import solve_focused
@@ -25,7 +25,7 @@ def pddlstream_from_tamp(tamp_problem):
         's-motion': from_fn(plan_motion),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
-        's-ik': from_fn(inverse_kin_fn),
+        's-ik': from_fn(lambda b, p, g: (inverse_kin(p, g),)),
         'dist': distance_fn,
     }
     init, goal = create_problem(tamp_problem)

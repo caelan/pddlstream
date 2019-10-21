@@ -334,6 +334,7 @@ def compute_duration(plan):
 def retime_plan(plan, duration=1):
     if plan is None:
         return plan
+    # TODO: duration per action
     return [DurativeAction(name, args, i * duration, duration)
             for i, (name, args) in enumerate(plan)]
 
