@@ -33,22 +33,13 @@ def duration_fn(traj):
 
 ##################################################
 
-def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
+def create_problem(tamp_problem):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    external_paths = []
-    if use_stream:
-        external_paths.append(get_file_path(__file__, 'stream.pddl'))
-    if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer/optimizer.pddl')) # optimizer | optimizer_hard
-    external_pddl = [read(path) for path in external_paths]
-
-    constant_map = {}
     init = [
-        ('Region', GROUND_NAME),
-        Equal((TOTAL_COST,), 0)] + \
+       ('Region', GROUND_NAME),
+       Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('Grasp', b, GRASP) for b in initial.block_poses] + \
@@ -65,7 +56,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             ('HandEmpty', r),
         ]
         if tamp_problem.goal_conf is not None:
-            #goal_literals += [('AtConf', tamp_problem.goal_conf)]
+            # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
 
     for b, r in tamp_problem.goal_regions.items():
@@ -76,9 +67,23 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             init += [('Pose', b, r)]
             goal_literals += [('AtPose', b, r)]
 
-    #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
+    # goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
     goal = And(*goal_literals)
 
+    return init, goal
+
+def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
+
+
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    external_paths = []
+    if use_stream:
+        external_paths.append(get_file_path(__file__, 'stream.pddl'))
+    if use_optimizer:
+        external_paths.append(get_file_path(__file__, 'optimizer/optimizer.pddl')) # optimizer | optimizer_hard
+    external_pddl = [read(path) for path in external_paths]
+
+    constant_map = {}
     stream_map = {
         's-motion': from_fn(plan_motion),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
@@ -97,6 +102,8 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             'rrt': from_fn(cfree_motion_fn),
         })
     #stream_map = 'debug'
+
+    init, goal = create_problem(tamp_problem)
 
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
 
