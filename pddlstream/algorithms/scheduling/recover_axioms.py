@@ -171,7 +171,7 @@ def recover_axioms_plans(instantiated, action_instances):
     axioms_from_effect = defaultdict(list)
     for axiom in axioms:
         axioms_from_effect[axiom.effect].append(axiom)
-    axioms_from_name = get_derived_predicates(axioms)
+    axioms_from_name = get_derived_predicates(instantiated.task.axioms)
 
     state = set(instantiated.task.init) | set(axiom_init)
     axiom_plans = []
@@ -183,7 +183,7 @@ def recover_axioms_plans(instantiated, action_instances):
 
         action.applied_effects = []
         for effects in [action.add_effects, action.del_effects]:
-            negate = effects is action.del_effects
+            negate = (effects is action.del_effects)
             for i, (conditions, effect) in reversed(list(enumerate(effects))):
                 if all(literal_holds(state, literal) or (literal in axiom_from_atom) for literal in conditions):
                     action.precondition.extend(conditions)
@@ -201,6 +201,6 @@ def recover_axioms_plans(instantiated, action_instances):
             print(all_conditions)
             print(action)
             print(axioms)
-        #assert success
+            raise RuntimeError('Could not extract axioms')
         apply_action(state, action)
     return axiom_plans
