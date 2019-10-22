@@ -185,6 +185,8 @@ class StreamResult(Result):
                                   str_from_object(self.instance.input_objects),
                                   str_from_object(self.output_objects))
 
+##################################################
+
 class StreamInstance(Instance):
     _Result = StreamResult
     def __init__(self, stream, input_objects, fluent_facts):
@@ -347,9 +349,12 @@ class StreamInstance(Instance):
         else:
             self.disabled = True
 
-    def enable(self, evaluations):
+    def enable(self, evaluations, domain):
         if not self.disabled:
             return
+        #if self._disabled_axiom is not None:
+        #    domain.axioms.remove(self._disabled_axiom)
+        #    self._disabled_axiom = None
         #super(StreamInstance, self).enable(evaluations) # TODO: strange infinite loop bug if enabled
         evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), default=None)
 

@@ -281,7 +281,7 @@ def parse_stream_pddl(pddl_list, stream_procedures, stream_info={}, unit_costs=F
 
 ##################################################
 
-def remove_blocked(evaluations, instance, new_results):
+def remove_blocked(evaluations, domain, instance, new_results):
     # TODO: finish refactoring this
     if new_results and isinstance(instance, StreamInstance):
-        instance.enable(evaluations)
+        instance.enable(evaluations, domain)

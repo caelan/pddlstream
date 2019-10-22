@@ -39,7 +39,6 @@ def main():
     tamp_problem, args = initialize(parser)
     stream_info = {
         't-region': StreamInfo(eager=False, p_success=0),
-        's-motion': StreamInfo(overhead=1e2),
         'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
     }
 

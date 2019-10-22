@@ -149,7 +149,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         if not is_plan(stream_plan):
             complexity_limit += complexity_step
             if not eager_disabled:
-                reenable_disabled(evaluations, disabled)
+                reenable_disabled(evaluations, domain, disabled)
 
         #print(stream_plan_complexity(evaluations, stream_plan))
         if use_skeletons:

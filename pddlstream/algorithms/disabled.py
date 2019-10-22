@@ -46,9 +46,9 @@ def push_disabled(instantiator, disabled):
             # TODO: only add if not already queued
             instantiator.push_instance(instance)
 
-def reenable_disabled(evaluations, disabled):
+def reenable_disabled(evaluations, domain, disabled):
     for instance in disabled:
-        instance.enable(evaluations)
+        instance.enable(evaluations, domain)
     disabled.clear()
 
 def process_instance(store, domain, instance, disable=True):
@@ -64,7 +64,7 @@ def process_instance(store, domain, instance, disable=True):
             result.compute_complexity(store.evaluations)
         add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
-        remove_blocked(store.evaluations, instance, new_results)
+        remove_blocked(store.evaluations, domain, instance, new_results)
     add_facts(store.evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
     return new_results
 

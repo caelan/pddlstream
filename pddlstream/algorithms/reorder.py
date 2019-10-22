@@ -19,7 +19,7 @@ def get_partial_orders(stream_plan, init_facts=set()):
             if new_facts & set(stream2.instance.get_domain()):
                 partial_orders.add((stream1, stream2))
             if isinstance(stream1, StreamResult) and \
-                    (set(stream1.output_objects) & set(stream2.instance.input_objects)):
+                    (set(stream1.output_objects) & stream2.instance.get_objects()):
                 partial_orders.add((stream1, stream2))
     return partial_orders
 

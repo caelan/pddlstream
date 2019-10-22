@@ -20,6 +20,7 @@ def get_steps_from_stream(stream_plan, step_from_fact, node_from_atom):
     return steps_from_stream
 
 def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom):
+    #return stream_plan
     import pddl
     assert len(real_states) == len(action_plan) + 1
     steps_from_stream = get_steps_from_stream(stream_plan, step_from_fact, node_from_atom)

@@ -173,7 +173,7 @@ def plan_motion(q1, q2, fluents=[]):
 
     if grasp is None:
         return (t,)
-    for q in [q2]:
+    for q in t:
         p1 = forward_kin(q, grasp)
         box1 = get_block_box(None, p1)
         for b2, p2 in placed.items():
