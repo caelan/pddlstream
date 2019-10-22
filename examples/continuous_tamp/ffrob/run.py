@@ -7,14 +7,31 @@ import argparse
 from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin, \
     get_region_test, plan_motion, MOVE_COST
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.generator import from_gen_fn, from_test, from_fn
-from pddlstream.language.stream import StreamInfo
+from pddlstream.language.generator import from_gen_fn, from_test, from_fn, from_list_fn
+from pddlstream.language.stream import StreamInfo, WildOutput
 from pddlstream.language.temporal import retime_plan
 from pddlstream.utils import read, INF, get_file_path, Profiler
 
+def test_cfree(r, b1, g1, b2, g2):
+    return True
+
+def get_connect(initial_state):
+    vertices = list(initial_state.robot_confs.values())
+
+    def fn(q2):
+        facts = []
+        for q1 in vertices:
+            (t,) = plan_motion(q1, q2)
+            facts.extend([
+                ('Motion', q1, t, q2),
+                ('Traj', t),
+            ])
+        vertices.append(q2)
+        return WildOutput(facts=facts)
+    return fn
 
 def pddlstream_from_tamp(tamp_problem):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -22,7 +39,8 @@ def pddlstream_from_tamp(tamp_problem):
 
     constant_map = {}
     stream_map = {
-        's-motion': from_fn(plan_motion),
+        'connect': from_list_fn(get_connect(tamp_problem.initial)),
+        't-cfree': from_test(test_cfree),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(lambda b, p, g: (inverse_kin(p, g),)),
@@ -34,28 +52,13 @@ def pddlstream_from_tamp(tamp_problem):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
 
     tamp_problem, args = initialize(parser)
-    stream_info = {
-        't-region': StreamInfo(eager=False, p_success=0),
-        'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
-    }
-
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     dump_pddlstream(pddlstream_problem)
 
-    success_cost = 0 if args.optimal else INF
-    planner = 'max-astar'
-    #planner = 'ff-wastar1'
     with Profiler():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 planner=planner, max_planner_time=10, debug=False,
-                                 max_time=args.max_time, max_iterations=INF, verbose=True,
-                                 unit_costs=args.unit, success_cost=success_cost,
-                                 unit_efforts=False, effort_weight=0,
-                                 max_skeletons=None, bind=True,
-                                 visualize=args.visualize)
+        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=False)
 
         print_solution(solution)
     plan, cost, evaluations = solution
