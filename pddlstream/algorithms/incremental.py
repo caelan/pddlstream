@@ -2,7 +2,7 @@ from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore, UNKNOWN_EVALUATION
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
-from pddlstream.algorithms.instantiate_task import sas_from_pddl
+from pddlstream.algorithms.instantiate_task import sas_from_pddl, solve_pyplanners, instantiate_task
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_plan
@@ -11,8 +11,9 @@ from pddlstream.language.fluent import ensure_no_fluent_streams
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import INF
+from pddlstream.utils import INF, Verbose
 
+USE_PYPLANNERS = False
 UPDATE_STATISTICS = False
 
 def process_instance(instantiator, evaluations, instance, verbose=False): #, **complexity_args):
@@ -38,8 +39,13 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
         pddl_plan, cost = solve_tfd(domain.pddl, problem, debug=debug)
     else:
         task = task_from_domain_problem(domain, get_problem(evaluations, goal_exp, domain, unit_costs))
-        sas_task = sas_from_pddl(task, debug=debug)
-        pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
+        if USE_PYPLANNERS:
+            with Verbose(debug):
+                instantiated = instantiate_task(task)
+            pddl_plan, cost = solve_pyplanners(instantiated)
+        else:
+            sas_task = sas_from_pddl(task, debug=debug)
+            pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
     plan = obj_from_pddl_plan(pddl_plan)
     return plan, cost
 
