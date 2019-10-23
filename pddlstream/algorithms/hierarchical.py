@@ -6,7 +6,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.conversion import Certificate, Object, \
     obj_from_value_expression, fact_from_evaluation, evaluation_from_fact, value_from_obj_expression, \
     transform_plan_args, value_from_evaluation
-from pddlstream.language.constants import PDDLProblem, Action, get_function, get_prefix
+from pddlstream.language.constants import PDDLProblem, Action, get_function, get_prefix, print_solution
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
     get_action_instances, apply_action, fact_from_fd, evaluation_from_fd, \
     conditions_hold, has_costs, get_fluents
@@ -39,27 +39,34 @@ def solve_execution(initial_problem, stream_info={}, unit_costs=False, unit_effo
     state = list(init)
     while True:
         # TODO: option in algorithms to existing facts
+        for stream in streams:
+            stream.reset()
         print('Goal:', str_from_object(goal))
-        local_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, state, goal) # No strict need to reuse streams
-        #local_problem = PDDLProblem(domain_pddl, constant_map, streams, None, state, goal)
+        #local_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, state, goal) # No strict need to reuse streams
+        local_problem = PDDLProblem(domain_pddl, constant_map, streams, None, state, goal)
         with Verbose(verbose):
-            local_plan, local_cost, local_certificate = solve_focused(
-                local_problem, stream_info=stream_info, unit_costs=unit_costs, unit_efforts=unit_efforts, verbose=True, **kwargs)
+            solution = solve_focused(local_problem, stream_info=stream_info, unit_costs=unit_costs,
+                                     unit_efforts=unit_efforts, verbose=True, **kwargs)
+        print_solution(solution)
+        local_plan, local_cost, local_certificate = solution
         if local_plan is None:
             # TODO: replan upon failure
             global_certificate = Certificate(all_facts={}, preimage_facts=None)
             return None, INF, global_certificate
         if not local_plan:
             break
+        # TODO: record failed facts
         local_plan = local_plan[:1]
         global_plan.extend(local_plan)  # TODO: compute preimage of the executed plan
         global_cost += local_cost
         #state = local_certificate.all_facts # TODO: include functions
         state = local_certificate.preimage_facts # + static_init # ensures can use these facts in the future
+        #print('State:', state)
 
         static_state, fluent_state = partition_facts(domain, state)
         #global_all.extend(partition_facts(domain, local_certificate.all_facts)[0])
         #global_preimage.extend(static_state)
+        print('Static:', static_state)
 
         evaluations = evaluations_from_init(state)
         goal_exp = obj_from_value_expression(goal)
@@ -71,10 +78,12 @@ def solve_execution(initial_problem, stream_info={}, unit_costs=False, unit_effo
         fluents = get_fluents(domain)
         fluent_state = [value_from_evaluation(evaluation_from_fd(atom))
                         for atom in task.init if isinstance(atom, pddl.Atom) and atom.predicate in fluents]
+        print('Fluent:', fluent_state)
         state = static_state + fluent_state
         print(SEPARATOR)
         user_input('Continue?')
         # TODO: could also just test the goal here
+        # TODO: constrain future plan skeletons
 
     global_certificate = Certificate(all_facts={}, preimage_facts=None)
     return global_plan, global_cost, global_certificate

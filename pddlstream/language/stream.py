@@ -366,7 +366,7 @@ class StreamInstance(Instance):
         #    domain.axioms.remove(self._disabled_axiom)
         #    self._disabled_axiom = None
         super(StreamInstance, self).enable(evaluations, domain) # TODO: strange infinite loop bug if enabled?
-        evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), default=None)
+        evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), None)
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
