@@ -38,7 +38,8 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
         problem = get_problem_pddl(evaluations, goal_exp, domain.pddl)
         pddl_plan, cost = solve_tfd(domain.pddl, problem, debug=debug)
     else:
-        task = task_from_domain_problem(domain, get_problem(evaluations, goal_exp, domain, unit_costs))
+        problem = get_problem(evaluations, goal_exp, domain, unit_costs)
+        task = task_from_domain_problem(domain, problem)
         if has_attachments(domain):
             with Verbose(debug):
                 instantiated = instantiate_task(task)

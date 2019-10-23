@@ -98,6 +98,7 @@ def compute_complexity(evaluations, facts):
         return 0
     return COMPLEXITY_OP(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
 
+
 def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
     if not is_plan(stream_plan):
         return INF
@@ -124,6 +125,7 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
                 optimistic_facts[fact] = result_complexity
         total_complexity = COMPLEXITY_OP(total_complexity, result_complexity)
     return total_complexity
+
 
 def is_instance_ready(evaluations, instance):
     return all(evaluation_from_fact(f) in evaluations

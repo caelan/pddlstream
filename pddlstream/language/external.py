@@ -122,7 +122,7 @@ class Instance(object):
     #    return self.online_success != 0
 
     def reset(self):
-        #self.enable()
+        self.enable(evaluations={}, domain=None)
         self.opt_index = self.external.num_opt_fns
         self.num_calls = 0
         self.enumerated = False
@@ -190,9 +190,9 @@ class External(Performance):
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
         self.num_opt_fns = 0
-    def reset(self):
+    def reset(self, *args, **kwargs):
         for instance in self.instances.values():
-            instance.reset()
+            instance.reset(*args, **kwargs)
     def is_fluent(self):
         raise NotImplementedError()
     def is_negated(self):

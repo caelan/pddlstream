@@ -35,6 +35,9 @@ def obj_from_value_expression(parent):
 def value_from_obj_expression(parent):
     return replace_expression(parent, lambda o: o.value)
 
+def value_from_evaluation(evaluation):
+    return value_from_obj_expression(fact_from_evaluation(evaluation))
+
 ##################################################
 
 def get_formula_operators(formula):
@@ -228,7 +231,7 @@ def value_from_obj_plan(obj_plan):
 #    pass
 
 def revert_solution(plan, cost, evaluations):
-    all_facts = list(map(value_from_obj_expression, map(fact_from_evaluation, evaluations)))
+    all_facts = list(map(value_from_evaluation, evaluations))
     if isinstance(plan, OptPlan):
         action_plan = value_from_obj_plan(plan.action_plan)
         preimage_facts = list(map(value_from_obj_expression, plan.preimage_facts))

@@ -10,7 +10,7 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove, safe_zip
 from pddlstream.language.write_pddl import get_problem_pddl
 
 filepath = os.path.abspath(__file__)
@@ -230,9 +230,9 @@ def evaluation_from_fd(fd):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
     if isinstance(fd, pddl.f_expression.Assign):
-        raise not NotImplementedError()
+        raise NotImplementedError(fd)
         #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
-        #return Evaluation(head, float(fd.expression.value) / COST_SCALE) # Need to be careful
+        #return Evaluation(head, float(fd.expression.value) / get_cost_scale())  # Need to be careful due to rounding
     raise ValueError(fd)
 
 def fd_from_evaluation(evaluation):
@@ -512,19 +512,19 @@ def get_function_assignments(task):
 def get_action_instances(task, action_plan):
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     function_assignments = get_function_assignments(task)
+    predicate_to_atoms = instantiate.get_atoms_by_predicate(task.init)
     fluent_facts = MockSet()
     init_facts = set()
     action_instances = []
     for name, objects in action_plan:
         # TODO: what if more than one action of the same name due to normalization?
         # Normalized actions have same effects, so I just have to pick one
+        # TODO: conditional effects and internal parameters
         action = find_unique(lambda a: a.name == name, task.actions)
         args = list(map(pddl_from_object, objects))
-        assert (len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                                      fluent_facts, type_to_objects,
-                                      task.use_min_cost_metric, function_assignments)
+        variable_mapping = {p.name: a for p, a in safe_zip(action.parameters, args)}
+        instance = action.instantiate(variable_mapping, init_facts, fluent_facts, type_to_objects,
+                                      task.use_min_cost_metric, function_assignments, predicate_to_atoms)
         assert (instance is not None)
         action_instances.append(instance)
     return action_instances

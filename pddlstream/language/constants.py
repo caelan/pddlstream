@@ -197,6 +197,7 @@ def partition_facts(facts):
             positive.append(func)
     return positive, negated, functions
 
+
 def is_cost(o):
     return get_prefix(o) == MINIMIZE
 

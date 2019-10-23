@@ -365,7 +365,7 @@ class StreamInstance(Instance):
         #    self.external.disabled_instances.remove(self)
         #    domain.axioms.remove(self._disabled_axiom)
         #    self._disabled_axiom = None
-        #super(StreamInstance, self).enable(evaluations) # TODO: strange infinite loop bug if enabled
+        super(StreamInstance, self).enable(evaluations, domain) # TODO: strange infinite loop bug if enabled?
         evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), default=None)
 
     def __repr__(self):
@@ -410,7 +410,7 @@ class Stream(External):
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
         else:
             self.blocked_predicate = '~{}'.format(self.name)
-        self.disabled_instances = []
+        self.disabled_instances = [] # For tracking disabled axioms
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
 
         if self.is_negated():
