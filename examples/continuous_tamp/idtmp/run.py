@@ -9,6 +9,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inver
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
 from examples.continuous_tamp.unfactored.run import step_plan
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_test, from_fn
@@ -23,7 +24,7 @@ def pddlstream_from_tamp(tamp_problem):
 
     constant_map = {}
     stream_map = {
-        's-motion': from_fn(plan_motion),
+        #'s-motion': from_fn(plan_motion),
         't-reachable': from_test(test_reachable),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
@@ -51,13 +52,14 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     with Profiler():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 planner=planner, max_planner_time=10, debug=False,
-                                 max_time=args.max_time, max_iterations=INF, verbose=True,
-                                 unit_costs=args.unit, success_cost=success_cost,
-                                 unit_efforts=False, effort_weight=0,
-                                 max_skeletons=None, bind=True,
-                                 visualize=args.visualize)
+        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=False)
+        # solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+        #                          planner=planner, max_planner_time=10, debug=False,
+        #                          max_time=args.max_time, max_iterations=INF, verbose=True,
+        #                          unit_costs=args.unit, success_cost=success_cost,
+        #                          unit_efforts=False, effort_weight=0,
+        #                          max_skeletons=None, bind=True,
+        #                          visualize=args.visualize)
 
         print_solution(solution)
     plan, cost, evaluations = solution

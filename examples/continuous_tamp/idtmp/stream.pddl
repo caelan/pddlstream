@@ -11,12 +11,12 @@
     :outputs (?q)
     :certified (and (Conf ?q) (Kin ?b ?q ?p ?g)))
 
-  (:stream s-motion
-    :inputs (?q1 ?q2)
-    :domain (and (Conf ?q1) (Conf ?q2))
-    :fluents (AtPose AtGrasp) ; TODO: AtConf for other robots
-    :outputs (?t)
-    :certified (Motion ?q1 ?t ?q2))
+  ;(:stream s-motion
+  ;  :inputs (?q1 ?q2)
+  ;  :domain (and (Conf ?q1) (Conf ?q2))
+  ;  :fluents (AtPose AtGrasp) ; TODO: AtConf for other robots
+  ;  :outputs (?t)
+  ;  :certified (Motion ?q1 ?t ?q2))
 
   (:stream t-reachable
     :inputs (?q1 ?q2)

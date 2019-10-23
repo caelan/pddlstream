@@ -32,7 +32,7 @@
 
   (:action move
     :parameters (?r ?q1 ?q2)
-    :precondition (and (Robot ?r) (Reachable ?q1 ?q2)
+    :precondition (and (Robot ?r) (Conf ?q1) (Conf ?q2) (Reachable ?q1 ?q2)
     ;:parameters (?r ?q1 ?t ?q2)
     ;:precondition (and (Robot ?r) (Motion ?q1 ?t ?q2)
                        (AtConf ?r ?q1) (CanMove ?r))

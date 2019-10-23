@@ -387,7 +387,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
-        self.num_opt_fns = 1 if self.outputs else 0 # Always unique if no outputs
+        self.num_opt_fns = 0 if self.is_test() else 1 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             #self.info.opt_gen_fn.register(self)
             if self.info.opt_gen_fn.unique:
@@ -410,6 +410,9 @@ class Stream(External):
             for certified in self.certified:
                 if not (set(self.inputs) <= set(get_args(certified))):
                     raise ValueError('Negated streams must have certified facts including all input parameters')
+
+    def is_test(self):
+        return len(self.outputs) == 0
 
     def is_fluent(self):
         return self.fluents
