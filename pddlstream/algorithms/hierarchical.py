@@ -35,6 +35,7 @@ def partition_facts(domain, facts):
 ##################################################
 
 def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_efforts=False, verbose=True, **kwargs):
+    # TODO: be careful of CanMove deadends
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = initial_problem
     _, _, domain, streams = parse_problem(
         initial_problem, stream_info, constraints=None, unit_costs=unit_costs, unit_efforts=unit_efforts)
@@ -44,6 +45,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
     global_cost = 0
     state = list(init)
     goals = serialize_goal(goal)
+    # TODO: instead just track how init updates
     for i in range(len(goals)):
         # TODO: option in algorithms to pass in existing facts
         for stream in streams:
@@ -51,8 +53,8 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         goal = And(*goals[:i+1])
         print('Goal:', str_from_object(goal))
         # No strict need to reuse streams because generator functions
-        local_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, state, goal)
-        #local_problem = PDDLProblem(domain_pddl, constant_map, streams, None, state, goal)
+        #local_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, state, goal)
+        local_problem = PDDLProblem(domain_pddl, constant_map, streams, None, state, goal)
         with Verbose(verbose):
             solution = solve_focused(local_problem, stream_info=stream_info, unit_costs=unit_costs,
                                      unit_efforts=unit_efforts, verbose=True, **kwargs)
@@ -66,7 +68,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         #    break
         _, fluent_facts = partition_facts(domain, state)
         #state = local_certificate.all_facts # TODO: include functions
-        state = fluent_facts + local_certificate.preimage_facts + static_init
+        state = static_init + fluent_facts + local_certificate.preimage_facts
         #print('State:', state)
 
         # TODO: record failed facts
@@ -92,7 +94,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         print('Fluent:', fluent_state)
         state = static_state + fluent_state
         print(SEPARATOR)
-        user_input('Continue?')
+        #user_input('Continue?')
         # TODO: could also just test the goal here
         # TODO: constrain future plan skeletons
 

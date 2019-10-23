@@ -122,7 +122,8 @@ class Instance(object):
     #    return self.online_success != 0
 
     def reset(self):
-        self.enable(evaluations={}, domain=None)
+        #self.enable(evaluations={}, domain=None)
+        self.disabled = False
         self.opt_index = self.external.num_opt_fns
         self.num_calls = 0
         self.enumerated = False

@@ -14,6 +14,7 @@ from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_op
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
+from pddlstream.algorithms.hierarchical import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
@@ -47,6 +48,14 @@ def create_problem(tamp_problem):
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
     goal_literals = []
 
+    for b, r in tamp_problem.goal_regions.items():
+        if isinstance(r, str):
+            init += [('Region', r), ('Placeable', b, r)]
+            goal_literals += [('In', b, r)]
+        else:
+            init += [('Pose', b, r)]
+            goal_literals += [('AtPose', b, r)]
+
     for r, q in initial.robot_confs.items():
         init += [
             ('Robot', r),
@@ -58,14 +67,6 @@ def create_problem(tamp_problem):
         if tamp_problem.goal_conf is not None:
             # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
-
-    for b, r in tamp_problem.goal_regions.items():
-        if isinstance(r, str):
-            init += [('Region', r), ('Placeable', b, r)]
-            goal_literals += [('In', b, r)]
-        else:
-            init += [('Pose', b, r)]
-            goal_literals += [('AtPose', b, r)]
 
     # goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
     goal = And(*goal_literals)
@@ -242,14 +243,15 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, constraints=constraints, stream_info=stream_info,
-                                 planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
-                                 max_time=args.max_time, max_iterations=INF, verbose=True,
-                                 unit_costs=args.unit, success_cost=success_cost,
-                                 unit_efforts=False, effort_weight=0,
-                                 search_sample_ratio=1,
-                                 #max_skeletons=None, bind=True,
-                                 visualize=args.visualize)
+        solver = solve_serialized  # solve_focused | solve_serialized
+        solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
+                          planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
+                          max_time=args.max_time, max_iterations=INF, verbose=True,
+                          unit_costs=args.unit, success_cost=success_cost,
+                          unit_efforts=False, effort_weight=0,
+                          search_sample_ratio=1,
+                          #max_skeletons=None, bind=True,
+                          visualize=args.visualize)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      complexity_step=2, planner=planner, hierarchy=hierarchy,
