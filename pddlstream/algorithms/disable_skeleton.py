@@ -53,7 +53,7 @@ def compute_failed_indices(skeleton):
     failed_indices = set()
     for binding in skeleton.root.post_order():
         result = binding.result
-        if (result is not None) and result.instance.num_calls and (not result.instance.successes):
+        if (result is not None) and result.instance.num_calls and (not result.instance.successful):
             failed_indices.add(binding.index)
             #assert not binding.children
     return sorted(failed_indices)

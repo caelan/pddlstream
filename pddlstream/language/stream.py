@@ -192,13 +192,10 @@ class StreamInstance(Instance):
     def __init__(self, stream, input_objects, fluent_facts):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
-        self.opt_index = stream.num_opt_fns
         self.fluent_facts = frozenset(fluent_facts)
         opt_gen_fn = self.external.info.opt_gen_fn
         self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
             if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
-        self.num_optimistic = 1
-        self.previous_outputs = set()
         self._axiom_predicate = None
         self._disabled_axiom = None
         # TODO: keep track of unique outputs to prune repeated ones
@@ -219,15 +216,17 @@ class StreamInstance(Instance):
             raise ValueError('Output wild facts for wild stream [{}] is not a sequence: {}'.format(
                 self.external.name, new_facts))
 
+    def reset(self):
+        super(StreamInstance, self).reset()
+        self.previous_outputs = set()
+        self.num_optimistic = 1
+
     def get_result(self, output_objects, opt_index=None, list_index=None, optimistic=True):
         # TODO: ideally would increment a flag per stream for each failure
         call_index = self.num_calls
         #call_index = self.successes # Only counts iterations that return results for complexity
         return self._Result(self, tuple(output_objects), opt_index=opt_index,
                             call_index=call_index, list_index=list_index, optimistic=optimistic)
-
-    def use_unique(self):
-        return self.opt_index == 0
 
     def get_objects(self): # TODO: lazily compute
         return set(self.input_objects) | {o for f in self.fluent_facts for o in get_args(f)}
@@ -246,24 +245,25 @@ class StreamInstance(Instance):
 
     def _next_outputs(self):
         self._create_generator()
-        output, self.enumerated = get_next(self._generator, default=[])
-        if not isinstance(output, WildOutput):
-            output = WildOutput(output, [])
+        # TODO: shuffle history
+        # TODO: return all test stream outputs at once
+        if self.num_calls == len(self.history):
+            output, self.enumerated = get_next(self._generator, default=[])
+            if not isinstance(output, WildOutput):
+                output = WildOutput(values=output)
+            self.history.append(output)
+        output = self.history[self.num_calls]
+        self.num_calls += 1
         return output
 
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
         start_calls = self.num_calls
+        start_history = len(self.history)
         new_values, new_facts = self._next_outputs()
         self._check_output_values(new_values)
         self._check_wild_facts(new_facts)
-        new_objects = [tuple(map(Object.from_value, output_values)) for output_values in new_values]
-        new_objects = list(filter(lambda o: o not in self.previous_outputs, new_objects))
-        self.previous_outputs.update(new_objects) # Only counting new outputs as successes
-        new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)
-                       for list_index, output_objects in enumerate(new_objects)]
-        self.update_statistics(start_time, new_results)
         if verbose:
             if (not new_values and VERBOSE_FAILURES) or \
                     (new_values and self.info.verbose):
@@ -275,11 +275,20 @@ class StreamInstance(Instance):
                 print('iter={}, facts={}) {}:{}->{}'.format(
                     start_calls, self.external.name, str_from_object(self.get_input_values()),
                     new_facts, len(new_facts)))
-        facts = list(map(obj_from_value_expression, new_facts))
-        if not self.external.outputs and self.successes:
-            # Set of possible outputs is exhausted
-            self.enumerated = True
-        return new_results, facts
+
+        objects = [tuple(map(Object.from_value, output_values)) for output_values in new_values]
+        new_objects = list(filter(lambda o: o not in self.previous_outputs, objects))
+        self.previous_outputs.update(new_objects) # Only counting new outputs as successes
+        new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)
+                       for list_index, output_objects in enumerate(new_objects)]
+        if start_history < len(self.history):
+            self.update_statistics(start_time, new_results)
+        new_facts = list(map(obj_from_value_expression, new_facts))
+        self.successful |= any(r.is_successful() for r in new_results)
+        #if self.external.is_test() and self.successful:
+        #    # Set of possible test stream outputs is exhausted (excluding wild)
+        #   self.enumerated = True
+        return new_results, new_facts
 
     def next_optimistic(self):
         # TODO: compute this just once and store
@@ -297,7 +306,7 @@ class StreamInstance(Instance):
                 for output_index, value in enumerate(output_values):
                     # TODO: maybe record history of values here?
                     unique = UniqueOptValue(self, len(self.opt_results), output_index) # object()
-                    param = unique if self.use_unique() else value
+                    param = unique if (self.opt_index == 0) else value
                     output_objects.append(OptimisticObject.from_opt(value, param))
                 output_objects = tuple(output_objects)
                 if output_objects not in output_set:
@@ -314,7 +323,7 @@ class StreamInstance(Instance):
 
     def _disable_fluent(self, evaluations, domain):
         assert self.external.is_fluent()
-        if self.successes or (self._axiom_predicate is not None):
+        if self.successful or (self._axiom_predicate is not None):
             return
         self.disabled = True
         index = len(self.external.disabled_instances)
@@ -334,7 +343,7 @@ class StreamInstance(Instance):
 
     def _disable_negated(self, evaluations):
         assert self.external.is_negated()
-        if self.successes:
+        if self.successful:
             return
         self.disabled = True
         add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION)
@@ -353,6 +362,7 @@ class StreamInstance(Instance):
         if not self.disabled:
             return
         #if self._disabled_axiom is not None:
+        #    self.external.disabled_instances.remove(self)
         #    domain.axioms.remove(self._disabled_axiom)
         #    self._disabled_axiom = None
         #super(StreamInstance, self).enable(evaluations) # TODO: strange infinite loop bug if enabled
@@ -411,8 +421,12 @@ class Stream(External):
                 if not (set(self.inputs) <= set(get_args(certified))):
                     raise ValueError('Negated streams must have certified facts including all input parameters')
 
+    #def reset(self):
+    #    super(Stream, self).reset()
+    #    self.disabled_instances = []
+
     def is_test(self):
-        return len(self.outputs) == 0
+        return not self.outputs
 
     def is_fluent(self):
         return self.fluents

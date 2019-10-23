@@ -53,7 +53,6 @@ class FunctionInstance(Instance):
     #_opt_value = 0
     def __init__(self, external, input_objects):
         super(FunctionInstance, self).__init__(external, input_objects)
-        self.value = None
         self._head = None
     @property
     def head(self):
@@ -62,29 +61,39 @@ class FunctionInstance(Instance):
         return self._head
     def get_head(self):
         return self.head
-    def next_results(self, verbose=False):
-        start_time = time.time()
-        assert not self.enumerated
+    @property
+    def value(self):
+        assert len(self.history) == 1
+        return self.history[0]
+    def _compute_output(self):
         self.enumerated = True
+        self.num_calls += 1
+        if self.history:
+            return self.value
         input_values = self.get_input_values()
         value = self.external.fn(*input_values)
-        self.value = self.external.codomain(value)
         # TODO: cast the inputs and test whether still equal?
-        #if not (type(self.value) is self.external._codomain):
-        #if not isinstance(self.value, self.external.codomain):
-        if self.value < 0:
-            raise ValueError('Function [{}] produced a negative value [{}]'.format(
-                self.external.name, self.value))
-        if (self.value is not False) and verbose:
-            start_call = 0
-            print('{}) {}{}={}'.format(start_call, get_prefix(self.external.head),
-                                       str_from_object(self.get_input_values()), self.value))
-        results = [self._Result(self, self.value, opt_index=None, optimistic=False)]
-        #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
-        #    self.update_statistics(start_time, [])
-        self.update_statistics(start_time, results)
+        # if not (type(self.value) is self.external._codomain):
+        # if not isinstance(self.value, self.external.codomain):
+        if value < 0:
+            raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, value))
+        self.history.append(self.external.codomain(value))
+        return self.value
+    def next_results(self, verbose=False):
+        assert not self.enumerated
+        start_time = time.time()
+        start_calls = self.num_calls
+        start_history = len(self.history)
+        value = self._compute_output()
+        if (value is not False) and verbose:
+            print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
+                                       str_from_object(self.get_input_values()), value))
+        new_results = [self._Result(self, value, opt_index=None, optimistic=False)]
         new_facts = []
-        return results, new_facts
+        if start_history < len(self.history):
+            self.update_statistics(start_time, new_results)
+        self.successful |= any(r.is_successful() for r in new_results)
+        return new_results, new_facts
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -110,7 +119,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
-        self.fn = opt_fn if fn == DEBUG else fn
+        self.fn = opt_fn if (fn == DEBUG) else fn
         #arg_spec = get_arg_spec(self.fn)
         #if len(self.inputs) != len(arg_spec.args):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(

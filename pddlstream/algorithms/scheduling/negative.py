@@ -20,7 +20,7 @@ def convert_negative_predicate(negative, literal, negative_plan):
 
 def get_negative_result(negative, input_objects, fluent_facts=frozenset()):
     instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
-    optimistic = not instance.successes # TODO: clean this up
+    optimistic = not instance.successful # TODO: clean this up
     return instance._Result(instance, output_objects=tuple(), opt_index=instance.opt_index,
                             call_index=instance.num_calls, optimistic=optimistic)
 
@@ -39,7 +39,7 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
     for fluent_facts in fluent_facts_list:
         result = get_negative_result(negative, input_objects, fluent_facts)
-        #if not result.instance.successes: # Doesn't work with reachieve=True
+        #if not result.instance.successful: # Doesn't work with reachieve=True
         negative_plan.add(result)
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):

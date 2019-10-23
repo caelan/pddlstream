@@ -75,22 +75,17 @@ class Instance(object):
     def __init__(self, external, input_objects):
         self.external = external
         self.input_objects = tuple(input_objects)
-        self.enumerated = False
         self.disabled = False # TODO: perform disabled using complexity
-        self.opt_index = 0
-        self.results_history = [] # TODO: facts history
-        self.successes = 0
+        self.history = [] # TODO: facts history
+        self.results_history = []
         self.opt_results = []
         self._mapping = None
         self._domain = None
+        self.reset()
 
     @property
     def info(self):
         return self.external.info
-
-    @property
-    def num_calls(self):
-        return len(self.results_history)
 
     @property
     def mapping(self):
@@ -126,6 +121,13 @@ class Instance(object):
     #def has_previous_success(self):
     #    return self.online_success != 0
 
+    def reset(self):
+        #self.enable()
+        self.opt_index = self.external.num_opt_fns
+        self.num_calls = 0
+        self.enumerated = False
+        self.successful = False
+
     def next_results(self, verbose=False):
         raise NotImplementedError()
 
@@ -158,7 +160,7 @@ class Instance(object):
         successes = len([r.is_successful() for r in results])
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
-        self.successes += successes
+        #self.successes += successes
 
     def disable(self, evaluations, domain):
         self.disabled = True
@@ -187,6 +189,10 @@ class External(Performance):
             print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
+        self.num_opt_fns = 0
+    def reset(self):
+        for instance in self.instances.values():
+            instance.reset()
     def is_fluent(self):
         raise NotImplementedError()
     def is_negated(self):
