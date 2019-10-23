@@ -182,6 +182,9 @@ def plan_motion(q1, q2, fluents=[]):
                 return None
     return (t,)
 
+def test_reachable(*args, **kwargs):
+    return plan_motion(*args, **kwargs) is not None
+
 ##################################################
 
 TAMPState = namedtuple('TAMPState', ['robot_confs', 'holding', 'block_poses'])
@@ -289,6 +292,7 @@ def draw_state(viewer, state, colors):
     # TODO: could draw the current time
     viewer.clear_state()
     #viewer.draw_environment()
+    print(state)
     for robot, conf in state.robot_confs.items():
         draw_robot(viewer, robot, conf)
     for block, pose in state.block_poses.items():
@@ -309,7 +313,11 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name, args = action[:2]
     if name == 'move':
-        robot, _, traj, _ = args
+        if len(args) == 4:
+            robot, _, traj, _ = args
+        else:
+            robot, q1, q2 = args
+            traj = [q1, q2]
         #traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
         for conf in traj[1:]:
             robot_confs[robot] = conf
@@ -327,6 +335,8 @@ def apply_action(state, action):
         yield TAMPState(robot_confs, holding, block_poses)
     else:
         raise ValueError(name)
+
+##################################################
 
 def prune_duplicates(traj):
     # TODO: could use the more general sparcify function

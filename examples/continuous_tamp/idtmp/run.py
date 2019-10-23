@@ -5,8 +5,9 @@ from __future__ import print_function
 import argparse
 
 from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin, \
-    get_region_test, plan_motion, MOVE_COST
+    get_region_test, plan_motion, MOVE_COST, test_reachable
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
+from examples.continuous_tamp.unfactored.run import step_plan
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.language.function import FunctionInfo
@@ -23,6 +24,7 @@ def pddlstream_from_tamp(tamp_problem):
     constant_map = {}
     stream_map = {
         's-motion': from_fn(plan_motion),
+        't-reachable': from_test(test_reachable),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(lambda b, p, g: (inverse_kin(p, g),)),
@@ -59,8 +61,9 @@ def main():
 
         print_solution(solution)
     plan, cost, evaluations = solution
-    if plan is not None:
-        display_plan(tamp_problem, retime_plan(plan))
+    step_plan(tamp_problem, plan)
+    #if plan is not None:
+    #    display_plan(tamp_problem, retime_plan(plan))
 
 if __name__ == '__main__':
     main()

@@ -7,6 +7,7 @@ import argparse
 from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin, \
     get_region_test, plan_motion, MOVE_COST
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
+from examples.continuous_tamp.unfactored.run import step_plan
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.language.function import FunctionInfo
@@ -59,11 +60,11 @@ def main():
 
     with Profiler():
         solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=False)
-
         print_solution(solution)
     plan, cost, evaluations = solution
-    if plan is not None:
-        display_plan(tamp_problem, retime_plan(plan))
+    step_plan(tamp_problem, plan)
+    #if plan is not None:
+    #    display_plan(tamp_problem, retime_plan(plan))
 
 if __name__ == '__main__':
     main()

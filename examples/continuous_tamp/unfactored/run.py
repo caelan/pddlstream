@@ -5,7 +5,7 @@ from __future__ import print_function
 import numpy as np
 
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
-    tight, blocked, draw_state, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT
+    tight, blocked, draw_state, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT, apply_action
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.focused import solve_focused
@@ -119,6 +119,27 @@ def pddlstream_from_tamp(tamp_problem):
 
 ##################################################
 
+def step_plan(tamp_problem, plan):
+    if plan is None:
+        return
+    # TODO: could also use the old version of this
+    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
+    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
+    state = tamp_problem.initial
+    print()
+    print(state)
+    draw_state(viewer, state, colors)
+    user_input('Start?')
+    for i, action in enumerate(plan):
+        name, args = action
+        print(i, name, args)
+        for state in apply_action(state, action):
+            print(state)
+            draw_state(viewer, state, colors)
+            user_input('Continue?')
+    user_input('Finish?')
+
+##################################################
 
 def main(deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
@@ -137,23 +158,7 @@ def main(deterministic=False, unit_costs=True):
                                      unit_costs=unit_costs, verbose=False)
         print_solution(solution)
         plan, cost, evaluations = solution
-    if plan is None:
-        return
-
-    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
-    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
-    state = tamp_problem.initial
-    print()
-    print(state)
-    draw_state(viewer, state, colors)
-    for i, (action, args) in enumerate(plan):
-        user_input('Continue?')
-        print(i, action, args)
-        state = args[-1]
-        print(state)
-        draw_state(viewer, state, colors)
-    user_input('Finish?')
-
+    step_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()
