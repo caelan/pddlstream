@@ -95,7 +95,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
-    ensure_no_fluent_streams(externals)
+    ensure_no_fluent_streams(domain, externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
     num_iterations = num_calls = 0
