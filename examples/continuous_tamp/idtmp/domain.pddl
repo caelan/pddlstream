@@ -38,7 +38,8 @@
                        (AtConf ?r ?q1) (CanMove ?r))
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r))
-                 (increase (total-cost) (Dist ?q1 ?q2))))
+                 (increase (total-cost) 1)))
+                 ;(increase (total-cost) (Dist ?q1 ?q2))))
 
   (:action pick
     :parameters (?r ?b ?p ?g ?q)
@@ -46,7 +47,7 @@
                        (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r))
     :effect (and (AtGrasp ?r ?b ?g) (CanMove ?r)
                  (not (AtPose ?b ?p)) (not (HandEmpty ?r))
-                 (increase (total-cost) 10)))
+                 (increase (total-cost) 1)))
 
   (:action place
     :parameters (?r ?b ?p ?g ?q)
@@ -54,7 +55,7 @@
                        (AtConf ?r ?q) (AtGrasp ?r ?b ?g))
     :effect (and (AtPose ?b ?p) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?b ?g))
-                 (increase (total-cost) 10))
+                 (increase (total-cost) 1))
   )
 
   (:derived (In ?b ?s)

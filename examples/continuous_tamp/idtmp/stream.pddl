@@ -29,7 +29,7 @@
     :domain (and (Pose ?b ?p) (Placeable ?b ?r))
     :certified (Contain ?b ?p ?r))
 
-  (:function (Dist ?q1 ?q2)
-    (and (Conf ?q1) (Conf ?q2))
-  )
+  ;(:function (Dist ?q1 ?q2)
+  ;  (and (Conf ?q1) (Conf ?q2))
+  ;)
 )

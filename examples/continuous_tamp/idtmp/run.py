@@ -52,7 +52,7 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     with Profiler():
-        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=False)
+        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=True)
         # solution = solve_focused(pddlstream_problem, stream_info=stream_info,
         #                          planner=planner, max_planner_time=10, debug=False,
         #                          max_time=args.max_time, max_iterations=INF, verbose=True,

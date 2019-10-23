@@ -13,7 +13,7 @@ def has_attachments(domain):
 
 def compile_fluent_attachments(domain, externals):
     import pddl
-    state_streams = list(filter(lambda e: isinstance(e, Stream) and e.is_fluent(), externals)) # is_special
+    state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent(), externals)) # is_special
     predicate_map = get_predicate_map(state_streams)
     if predicate_map and not os.path.exists(PYPLANNERS_PATH):
         raise NotImplementedError('Algorithm does not support fluent streams: {}'.format(
@@ -40,7 +40,7 @@ def compile_fluent_attachments(domain, externals):
         #fn = lambda l: pddl.Truth() if l.predicate in predicate_map else l
         #action.precondition = replace_literals(fn, action.precondition).simplified()
         #action.dump()
-    return predicate_map
+    return [external for external in externals if external not in state_streams]
 
 def get_predicate_map(state_streams):
     predicate_map = {}

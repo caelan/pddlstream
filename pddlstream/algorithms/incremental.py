@@ -95,12 +95,12 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
-    compile_fluent_attachments(domain, externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
+    static_externals = compile_fluent_attachments(domain, externals)
     num_iterations = num_calls = 0
     complexity_limit = start_complexity
-    instantiator = Instantiator(externals, evaluations)
+    instantiator = Instantiator(static_externals, evaluations)
     num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
     while not store.is_terminated() and (num_iterations <= max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
