@@ -429,8 +429,10 @@ class Stream(External):
         return self.is_fluent() or self.is_negated()
 
     def get_instance(self, input_objects, fluent_facts=frozenset()):
+        input_objects = tuple(input_objects)
+        fluent_facts = frozenset(fluent_facts)
         assert all(isinstance(obj, Object) or isinstance(obj, OptimisticObject) for obj in input_objects)
-        key = (tuple(input_objects), frozenset(fluent_facts))
+        key = (input_objects, fluent_facts)
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)
         return self.instances[key]

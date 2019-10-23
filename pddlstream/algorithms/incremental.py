@@ -7,7 +7,7 @@ from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import obj_from_pddl_plan
-from pddlstream.language.fluent import ensure_no_fluent_streams
+from pddlstream.language.fluent import compile_fluent_attachments, has_attachments
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
@@ -39,7 +39,7 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
         pddl_plan, cost = solve_tfd(domain.pddl, problem, debug=debug)
     else:
         task = task_from_domain_problem(domain, get_problem(evaluations, goal_exp, domain, unit_costs))
-        if USE_PYPLANNERS:
+        if has_attachments(domain):
             with Verbose(debug):
                 instantiated = instantiate_task(task)
             pddl_plan, cost = solve_pyplanners(instantiated)
@@ -95,7 +95,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
-    ensure_no_fluent_streams(domain, externals)
+    compile_fluent_attachments(domain, externals)
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
     num_iterations = num_calls = 0

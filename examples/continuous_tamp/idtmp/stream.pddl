@@ -19,10 +19,10 @@
   ;  :certified (Motion ?q1 ?t ?q2))
 
   (:stream t-reachable
-    :inputs (?q1 ?q2)
-    :domain (and (Conf ?q1) (Conf ?q2))
+    :inputs (?l1 ?l2)
+    :domain (and (Conf ?l1) (Conf ?l2))
     :fluents (AtPose AtGrasp)
-    :certified (Reachable ?q1 ?q2))
+    :certified (Reachable ?l1 ?l2))
 
   (:stream t-region
     :inputs (?b ?p ?r)

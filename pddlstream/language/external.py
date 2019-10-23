@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping
+from pddlstream.utils import elapsed_time, get_mapping, flatten
 
 DEBUG = 'debug'
 
@@ -78,7 +78,7 @@ class Instance(object):
         self.enumerated = False
         self.disabled = False # TODO: perform disabled using complexity
         self.opt_index = 0
-        self.results_history = []
+        self.results_history = [] # TODO: facts history
         self.successes = 0
         self.opt_results = []
         self._mapping = None
@@ -128,6 +128,11 @@ class Instance(object):
 
     def next_results(self, verbose=False):
         raise NotImplementedError()
+
+    def all_results(self, **kwargs):
+        while not self.enumerated:
+            self.next_results(**kwargs)
+        return self.get_results()
 
     def get_results(self, start=0):
         results = []

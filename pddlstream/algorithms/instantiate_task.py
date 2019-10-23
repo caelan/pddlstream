@@ -6,11 +6,11 @@ from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
     TRANSLATE_OUTPUT, parse_sequential_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
-    get_effects, get_conjunctive_parts, get_conditional_effects, fact_from_fd, pddl_from_instance
+    get_effects, get_conjunctive_parts, get_conditional_effects, fact_from_fd, pddl_from_instance, fd_from_fact
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import transform_action_args, obj_from_pddl
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose, safe_remove, ensure_dir, INF
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose, safe_remove, ensure_dir, INF, invert_dict
 
 import pddl
 import instantiate
@@ -282,6 +282,22 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
 # TODO: move elsewhere
 PYPLANNERS_PATH = '/Users/caelan/Programs/pyplanners'
 
+def get_attachment_test(action_instance):
+    from pddlstream.algorithms.scheduling.apply_fluents import get_fluent_instance
+    from pddlstream.language.fluent import remap_certified
+    # TODO: ensure no OptimisticObjects
+    def test(state):
+        for literal, stream in action_instance.action.attachments.items():
+            param_from_inp = remap_certified(literal, stream)
+            input_objects = tuple(obj_from_pddl(
+                action_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
+            stream_instance = get_fluent_instance(stream, input_objects, state)
+            failure = not stream_instance.all_results()
+            if literal.negated != failure:
+                return False
+        return True
+    return test
+
 def solve_pyplanners(instantiated):
     # TODO: could operate on SAS instead
     # https://github.com/caelan/pyplanners
@@ -308,7 +324,7 @@ def solve_pyplanners(instantiated):
             assert not condition
             py_action.effects.add(effect)
         py_action.cost = action.cost
-        py_action.test = lambda state: True
+        py_action.test = get_attachment_test(action)
         py_actions.append(py_action)
     py_axioms = []
     for axiom in instantiated.axioms:
@@ -316,9 +332,14 @@ def solve_pyplanners(instantiated):
         py_axiom.conditions = set(axiom.condition)
         py_axiom.effects = {axiom.effect}
         py_axioms.append(py_axiom)
-
-    initial = State(atom for atom in instantiated.task.init if isinstance(atom, pddl.Literal))
     goal = PartialState(instantiated.goal_list)
+
+    fluents = {f.positive() for f in goal.conditions}
+    for py_operator in py_actions + py_axioms:
+        fluents.update(f.positive() for f in py_operator.conditions)
+
+    initial = State(atom for atom in instantiated.task.init
+                    if isinstance(atom, pddl.Atom) and (atom in fluents))
     plan, state_space = default_derived_plan(initial, goal, py_actions, py_axioms)
     if plan is None:
         return None, INF

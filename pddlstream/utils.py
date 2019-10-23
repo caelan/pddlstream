@@ -168,7 +168,7 @@ def argmax(fn, iterable):
 
 
 def invert_dict(d):
-    return dict((v, k) for k, v in d.items())
+    return {v: k for k, v in d.items()}
 
 
 def randomize(iterable):

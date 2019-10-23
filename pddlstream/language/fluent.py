@@ -8,7 +8,10 @@ from pddlstream.utils import find_unique, get_mapping
 
 import os
 
-def ensure_no_fluent_streams(domain, externals):
+def has_attachments(domain):
+    return any(action.attachments for action in domain.actions)
+
+def compile_fluent_attachments(domain, externals):
     import pddl
     state_streams = list(filter(lambda e: isinstance(e, Stream) and e.is_fluent(), externals)) # is_special
     predicate_map = get_predicate_map(state_streams)
@@ -37,6 +40,7 @@ def ensure_no_fluent_streams(domain, externals):
         #fn = lambda l: pddl.Truth() if l.predicate in predicate_map else l
         #action.precondition = replace_literals(fn, action.precondition).simplified()
         #action.dump()
+    return predicate_map
 
 def get_predicate_map(state_streams):
     predicate_map = {}
