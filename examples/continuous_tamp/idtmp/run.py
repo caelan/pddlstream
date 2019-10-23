@@ -37,6 +37,7 @@ def pddlstream_from_tamp(tamp_problem):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--attachments', action='store_true')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
 
     tamp_problem, args = initialize(parser)
@@ -52,14 +53,16 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     with Profiler():
-        solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=True)
-        # solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-        #                          planner=planner, max_planner_time=10, debug=False,
-        #                          max_time=args.max_time, max_iterations=INF, verbose=True,
-        #                          unit_costs=args.unit, success_cost=success_cost,
-        #                          unit_efforts=False, effort_weight=0,
-        #                          max_skeletons=None, bind=True,
-        #                          visualize=args.visualize)
+        if args.attachments:
+            solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=True)
+        else:
+            solution = solve_focused(pddlstream_problem, stream_info=stream_info,
+                                     planner=planner, max_planner_time=10, debug=False,
+                                     max_time=args.max_time, max_iterations=INF, verbose=True,
+                                     unit_costs=args.unit, success_cost=success_cost,
+                                     unit_efforts=False, effort_weight=0,
+                                     max_skeletons=None, bind=True,
+                                     visualize=args.visualize)
 
         print_solution(solution)
     plan, cost, evaluations = solution
