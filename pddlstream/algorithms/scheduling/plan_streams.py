@@ -116,8 +116,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
     real_states, full_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
-    function_from_instance = compute_function_plan(opt_evaluations, action_plan)
-    function_plan = set(function_from_instance.values())
+    function_plan = compute_function_plan(opt_evaluations, action_plan)
 
     full_preimage = plan_preimage(full_plan, []) # Does not contain the stream preimage!
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, full_preimage))
@@ -127,14 +126,17 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     # TODO: this assumes that actions do not negate preimage goals
     positive_preimage = {l for l in (set(full_preimage) - real_states[0] - negative_preimage) if not l.negated}
     steps_from_fact = {fact_from_fd(l): full_preimage[l] for l in positive_preimage}
-    target_facts = {fact for fact in steps_from_fact.keys() if get_prefix(fact) != EQ}
+    last_from_fact = {fact: min(steps) for fact, steps in steps_from_fact.items() if get_prefix(fact) != EQ}
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
+    for result, step in function_plan.items():
+        for fact in result.get_domain():
+            last_from_fact[fact] = min(step, last_from_fact.get(fact, INF))
 
     # TODO: get_steps_from_stream
     stream_plan = []
-    last_from_stream = {}
-    for result in current_plan:
+    last_from_stream = dict(function_plan)
+    for result in current_plan: # + negative_plan?
         # TODO: actually compute when these are needed + dependencies
         last_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
@@ -143,10 +145,9 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
             stream_plan.append(result)
 
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
-    extraction_facts = target_facts - set(map(fact_from_evaluation, curr_evaluations))
-    last_from_fact = {fact: min(steps_from_fact[fact]) for fact in extraction_facts}
+    extraction_facts = set(last_from_fact) - set(map(fact_from_evaluation, curr_evaluations))
     extract_stream_plan(node_from_atom, extraction_facts, stream_plan, last_from_fact, last_from_stream)
-    stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, target_facts)
+    stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, last_from_fact)
     stream_plan.extend(function_plan)
 
     #local_plan = [] # TODO: not sure what this was for

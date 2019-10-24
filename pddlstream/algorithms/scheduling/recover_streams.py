@@ -72,12 +72,13 @@ def extract_stream_plan(node_from_atom, target_facts, stream_plan,
             continue
         if step_from_fact is not None:
             assert step_from_stream is not None
-            step = step_from_fact[fact] if result.external.info.defer else 0
+            step = step_from_fact[fact] if result.is_unique() and result.external.info.defer else 0
             step_from_stream[result] = min(step, step_from_stream.get(result, INF))
             for domain_fact in result.instance.get_domain():
                 step_from_fact[domain_fact] = min(step_from_stream[result], step_from_stream.get(result, INF))
         extract_stream_plan(node_from_atom, result.instance.get_domain(), stream_plan,
                             step_from_fact, step_from_stream)
-        # TODO: dynamic programming version of this
         if result not in stream_plan:
-            stream_plan.append(result) # TODO: don't add if satisfied
+            # TODO: dynamic programming version that doesn't reconsider facts
+            # TODO: don't add if the fact is already satisfied
+            stream_plan.append(result)

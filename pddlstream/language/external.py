@@ -34,6 +34,9 @@ class Result(object):
     def info(self):
         return self.external.info
 
+    def is_unique(self):
+        return self.opt_index == 0
+
     def get_domain(self):
         return self.instance.get_domain()
 

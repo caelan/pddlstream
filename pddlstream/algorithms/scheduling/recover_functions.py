@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from pddlstream.utils import INF
 from pddlstream.language.constants import is_parameter, Head
 from pddlstream.language.conversion import obj_from_pddl
 
@@ -27,13 +28,14 @@ def compute_function_plan(opt_evaluations, action_plan):
     results_from_head = defaultdict(list)
     for evaluation, result in opt_evaluations.items():
         results_from_head[evaluation.head].append(result)
-    function_from_instance = {}
-    for action_instance in action_plan:
+    step_from_function = {}
+    for step, action_instance in enumerate(action_plan):
         action = action_instance.action
         if action is None:
             continue
         args = [action_instance.var_mapping[p.name] for p in action.parameters]
         result = extract_function_result(results_from_head, action, args)
         if result is not None:
-            function_from_instance[action_instance] = result
-    return function_from_instance
+            step_from_function[result] = min(step, step_from_function.get(result, INF))
+            #function_from_instance[action_instance] = result
+    return step_from_function
