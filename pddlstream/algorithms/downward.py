@@ -248,20 +248,20 @@ def fd_from_evaluation(evaluation):
 
 ##################################################
 
-def parse_goal(goal_expression, domain):
+def parse_goal(goal_exp, domain):
     #try:
     #    pass
     #except SystemExit as e:
     #    return False
-    return parse_condition(pddl_list_from_expression(goal_expression),
+    return parse_condition(pddl_list_from_expression(goal_exp),
                            domain.type_dict, domain.predicate_dict).simplified()
 
-def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
-    objects = objects_from_evaluations(init_evaluations)
+def get_problem(evaluations, goal_exp, domain, unit_costs=False):
+    objects = objects_from_evaluations(evaluations)
     typed_objects = list({pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
-    init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
-    goal = parse_goal(goal_expression, domain)
+    init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+    goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
     problem_pddl = None
     #problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
     write_pddl(domain.pddl, problem_pddl)

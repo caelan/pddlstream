@@ -32,6 +32,26 @@ def partition_facts(domain, facts):
             static_facts.append(fact)
     return static_facts, fluent_facts
 
+def apply_actions(domain, state, plan, unit_costs=False):
+    # Goal serialization just assumes the tail of the plan includes an abstract action to achieve each condition
+    static_state, _ = partition_facts(domain, state)
+    print('Static:', static_state)
+    # TODO: might need properties that involve an object that aren't useful yet
+    evaluations = evaluations_from_init(state)
+    #goal_exp = obj_from_value_expression(goal)
+    goal_exp = None
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs)
+    task = task_from_domain_problem(domain, problem)
+    task.init = set(task.init)
+    for instance in get_action_instances(task, transform_plan_args(plan, Object.from_value)):
+        apply_action(task.init, instance)
+    fluents = get_fluents(domain)
+    fluent_state = [value_from_evaluation(evaluation_from_fd(atom))
+                    for atom in task.init if isinstance(atom, pddl.Atom) and atom.predicate in fluents]
+    print('Fluent:', fluent_state)
+    state = static_state + fluent_state
+    return state
+
 ##################################################
 
 def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_efforts=False, verbose=True, **kwargs):
@@ -45,7 +65,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
     global_cost = 0
     state = list(init)
     goals = serialize_goal(goal)
-    # TODO: instead just track how init updates
+    # TODO: instead just track how the true init updates
     for i in range(len(goals)):
         # TODO: option in algorithms to pass in existing facts
         for stream in streams:
@@ -70,7 +90,8 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         #state = local_certificate.all_facts # TODO: include functions
         state = static_init + fluent_facts + local_certificate.preimage_facts
         #print('State:', state)
-
+        # TODO: indicate when each fact is used
+        # TODO: return all facts that were the output of something that is in the preimage (otherwise can't reachieve)
         # TODO: record failed facts
         #local_plan = local_plan[:1]
         global_plan.extend(local_plan)  # TODO: compute preimage of the executed plan
@@ -80,19 +101,8 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         #global_all.extend(partition_facts(domain, local_certificate.all_facts)[0])
         #global_preimage.extend(static_state)
         print('Static:', static_state)
-
-        evaluations = evaluations_from_init(state)
-        goal_exp = obj_from_value_expression(goal)
-        problem = get_problem(evaluations, goal_exp, domain, unit_costs)
-        task = task_from_domain_problem(domain, problem)
-        task.init = set(task.init)
-        for instance in get_action_instances(task, transform_plan_args(local_plan, Object.from_value)):
-            apply_action(task.init, instance)
-        fluents = get_fluents(domain)
-        fluent_state = [value_from_evaluation(evaluation_from_fd(atom))
-                        for atom in task.init if isinstance(atom, pddl.Atom) and atom.predicate in fluents]
-        print('Fluent:', fluent_state)
-        state = static_state + fluent_state
+        # TODO: might need properties that involve an object that aren't useful yet
+        state = apply_actions(domain, state, local_plan, unit_costs=unit_costs)
         print(SEPARATOR)
         #user_input('Continue?')
         # TODO: could also just test the goal here
