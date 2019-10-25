@@ -122,6 +122,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     negative_preimage = set(filter(lambda a: a.predicate in negative_from_name, full_preimage))
     negative_plan = convert_negative(negative_preimage, negative_from_name, full_preimage, real_states)
     function_plan.update(negative_plan)
+    # TODO: OrderedDict for these plans
 
     # TODO: this assumes that actions do not negate preimage goals
     positive_preimage = {l for l in (set(full_preimage) - real_states[0] - negative_preimage) if not l.negated}
@@ -186,8 +187,8 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     for result in stream_plan:
         earliest_step = first_from_stream.get(result, 0)
         latest_step = last_from_stream.get(result, 0)
-        #assert earliest_step <= latest_step
-        defer = (result.opt_index == 0) and (replan_step <= latest_step)
+        assert earliest_step <= latest_step
+        defer = replan_step <= latest_step
         if not defer:
             eager_plan.append(result)
         # We only perform a deferred evaluation if it has all deferred dependencies

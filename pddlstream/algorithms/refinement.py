@@ -24,7 +24,7 @@ def is_refined(stream_plan):
     if not is_plan(stream_plan):
         return True
     # TODO: some of these opt_index equal None
-    return all((result.opt_index is None) or (result.opt_index == 0)
+    return all((result.opt_index is None) or result.is_refined()
                for result in stream_plan)
 
 ##################################################

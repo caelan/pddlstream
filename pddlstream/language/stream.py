@@ -125,7 +125,7 @@ class StreamInfo(ExternalInfo):
         self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
         self.negate = negate
         self.simultaneous = simultaneous
-        self.defer = defer
+        self.defer = lambda *args, **kwargs: defer
         self.verbose = verbose
         # TODO: make this false by default for negated test streams
         #self.order = 0
