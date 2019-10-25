@@ -5,7 +5,7 @@ from itertools import product
 
 from pddlstream.language.constants import EQ, AND, OR, NOT, CONNECTIVES, QUANTIFIERS, OPERATORS, OBJECTIVES, \
     Head, Evaluation, get_prefix, get_args, is_parameter, is_plan, Fact, Not, Equal, Action, StreamAction, \
-    DurativeAction, Solution, Assignment, OptPlan, Certificate
+    FunctionAction, DurativeAction, Solution, Assignment, OptPlan, Certificate
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -168,10 +168,16 @@ def transform_action_args(action, fn):
         return Action(name, tuple(map(fn, args)))
     elif isinstance(action, DurativeAction):
         name, args, start, duration = action
+        #name, index = name[:-2], int(name[-1])
+        #if index != 0: # TODO: what was this for?
+        #    return None
         return DurativeAction(name, tuple(map(fn, args)), start, duration)
     elif isinstance(action, StreamAction):
         name, inputs, outputs = action
         return StreamAction(name, tuple(map(fn, inputs)), tuple(map(fn, outputs)))
+    elif isinstance(action, FunctionAction):
+        name, inputs = action
+        return FunctionAction(name, tuple(map(fn, inputs)))
     elif isinstance(action, Assignment):
         args, = action
         return Assignment(tuple(map(fn, args)))
@@ -197,34 +203,6 @@ def param_from_object(obj):
 def params_from_objects(objects):
     return tuple(map(param_from_object, objects))
 
-def value_from_obj_plan(obj_plan):
-    if not is_plan(obj_plan):
-        return obj_plan
-    value_plan = []
-    for action in obj_plan:
-        # TODO: I shouldn't need this decomposition any more, right?
-        if isinstance(action, StreamAction):
-            name, inputs, outputs = action
-            new_inputs = params_from_objects(inputs)
-            new_outputs = outputs
-            #if isinstance(new_outputs, collections.Sequence): # TODO: what was this for?
-            new_outputs = params_from_objects(new_outputs)
-            new_action = StreamAction(name, new_inputs, new_outputs)
-        elif isinstance(action, DurativeAction):
-            name, args, start, duration = action
-            name, index = name[:-2], int(name[-1])
-            if index != 0:
-                continue
-            new_action = DurativeAction(name, tuple(map(param_from_object, args)), start, duration)
-        elif isinstance(action, Action):
-            new_action = transform_action_args(action, param_from_object) # values_from_objects
-        elif isinstance(action, Assignment):
-            new_action = transform_action_args(action, param_from_object)
-        else:
-            raise ValueError(action)
-        value_plan.append(new_action)
-    return value_plan
-
 ##################################################
 
 #def expression_holds(expression, evaluations):
@@ -233,10 +211,10 @@ def value_from_obj_plan(obj_plan):
 def revert_solution(plan, cost, evaluations):
     all_facts = list(map(value_from_evaluation, evaluations))
     if isinstance(plan, OptPlan):
-        action_plan = value_from_obj_plan(plan.action_plan)
+        action_plan = transform_plan_args(plan.action_plan, param_from_object)
         preimage_facts = list(map(value_from_obj_expression, plan.preimage_facts))
     else:
-        action_plan = value_from_obj_plan(plan)
+        action_plan = transform_plan_args(plan, param_from_object)
         preimage_facts = None
     certificate = Certificate(all_facts, preimage_facts)
     return Solution(action_plan, cost, certificate)

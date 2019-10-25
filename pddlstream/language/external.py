@@ -9,12 +9,17 @@ from pddlstream.utils import elapsed_time, get_mapping, flatten
 
 DEBUG = 'debug'
 
+never_defer = lambda *args, **kwargs: False
+defer_unique = lambda result, **kwargs: result.is_refined()
+defer_shared = lambda *args, **kwargs: True
+
 class ExternalInfo(PerformanceInfo):
-    def __init__(self, eager=False, p_success=None, overhead=None, effort=None):
+    def __init__(self, eager=False, p_success=None, overhead=None, effort=None, defer_fn=never_defer):
         super(ExternalInfo, self).__init__(p_success, overhead, effort)
         # TODO: enable eager=True for inexpensive test streams by default
         # TODO: make any info just a dict
         self.eager = eager
+        self.defer_fn = defer_fn
         #self.complexity_fn = complexity_fn
 
 ##################################################
@@ -34,8 +39,19 @@ class Result(object):
     def info(self):
         return self.external.info
 
+    @property
+    def name(self):
+        return self.external.name
+
+    @property
+    def input_objects(self):
+        return self.instance.input_objects
+
     def is_refined(self):
         return self.opt_index == 0 # TODO: base on output objects instead?
+
+    def is_deferrable(self):
+        return self.info.defer_fn(self)
 
     def get_domain(self):
         return self.instance.get_domain()
@@ -49,7 +65,7 @@ class Result(object):
     def get_unsatisfiable(self):
         return [self.get_components()]
 
-    def get_tuple(self):
+    def get_action(self):
         raise NotImplementedError()
 
     def remap_inputs(self, bindings):

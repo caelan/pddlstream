@@ -39,10 +39,11 @@ OptPlan = namedtuple('OptPlan', ['action_plan', 'preimage_facts'])
 # TODO: stream and axiom plans
 # TODO: annotate which step each fact is first used via layer
 
-Assignment =  namedtuple('Assignment', ['args'])
+Assignment = namedtuple('Assignment', ['args'])
 Action = namedtuple('Action', ['name', 'args'])
 DurativeAction = namedtuple('DurativeAction', ['name', 'args', 'start', 'duration'])
 StreamAction = namedtuple('StreamAction', ['name', 'inputs', 'outputs'])
+FunctionAction = namedtuple('FunctionAction', ['name', 'inputs'])
 
 Head = namedtuple('Head', ['function', 'args'])
 Evaluation = namedtuple('Evaluation', ['head', 'value'])
@@ -148,7 +149,8 @@ def print_solution(solution):
     if plan is None:
         num_deferred = 0
     else:
-        num_deferred = len([action for action in plan if isinstance(action, StreamAction)])
+        num_deferred = len([action for action in plan if isinstance(action, StreamAction)
+                            or isinstance(action, FunctionAction)])
     print()
     print('Solved: {}'.format(solved))
     print('Cost: {}'.format(cost))
@@ -172,6 +174,9 @@ def print_solution(solution):
             name, inputs, outputs = action
             print('    {}({})->({})'.format(name, ', '.join(map(str_from_object, inputs)),
                                           ', '.join(map(str_from_object, outputs))))
+        elif isinstance(action, FunctionAction):
+            name, inputs = action
+            print('    {}({})'.format(name, ', '.join(map(str_from_object, inputs))))
         else:
             raise NotImplementedError(action)
 

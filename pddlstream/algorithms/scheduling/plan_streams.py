@@ -130,6 +130,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     last_from_fact = {fact: min(steps) for fact, steps in steps_from_fact.items() if get_prefix(fact) != EQ}
     #stream_plan = reschedule_stream_plan(evaluations, target_facts, domain, stream_results)
     # visualize_constraints(map(fact_from_fd, target_facts))
+
     for result, step in function_plan.items():
         for fact in result.get_domain():
             last_from_fact[fact] = min(step, last_from_fact.get(fact, INF))

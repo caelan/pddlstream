@@ -118,14 +118,13 @@ class WildOutput(object):
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
-                 defer=False, verbose=True, **kwargs):
+                 verbose=True, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
         # TODO: call this an abstraction instead
         self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
         self.negate = negate
         self.simultaneous = simultaneous
-        self.defer = lambda *args, **kwargs: defer
         self.verbose = verbose
         # TODO: make this false by default for negated test streams
         #self.order = 0
@@ -142,9 +141,6 @@ class StreamResult(Result):
         self._mapping = None
         self._certified = None
         self._stream_fact = None
-    @property
-    def input_objects(self):
-        return self.instance.input_objects
     @property
     def mapping(self):
         if self._mapping is None:
@@ -166,7 +162,7 @@ class StreamResult(Result):
     def get_certified(self):
         return self.certified
     def get_action(self):
-        return StreamAction(self.external.name, self.input_objects, self.output_objects)
+        return StreamAction(self.name, self.input_objects, self.output_objects)
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
         #if not any(o in bindings for o in self.instance.get_objects()):

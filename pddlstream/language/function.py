@@ -1,7 +1,7 @@
 import time
 
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
-from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head
+from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -18,7 +18,6 @@ class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, **kwargs):
         super(FunctionInfo, self).__init__(**kwargs)
         self.opt_fn = opt_fn
-        self.defer = False
         #self.order = 0
 
 class FunctionResult(Result):
@@ -34,8 +33,8 @@ class FunctionResult(Result):
         return self._certified
     def get_certified(self):
         return self.certified
-    def get_tuple(self):
-        return self.external.name, self.instance.input_objects, self.value
+    def get_action(self):
+        return FunctionAction(self.name, self.input_objects)
     def remap_inputs(self, bindings):
         #if not any(o in bindings for o in self.instance.get_objects()):
         #    return self

@@ -18,6 +18,7 @@ from pddlstream.algorithms.hierarchical import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
+from pddlstream.language.external import never_defer, defer_unique, defer_shared
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
@@ -212,10 +213,14 @@ def main():
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
 
+    defer_fn = defer_unique
     tamp_problem, args = initialize(parser)
     stream_info = {
-        't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
-        't-cfree': StreamInfo(eager=False, negate=True),
+        's-region': StreamInfo(defer_fn=never_defer),
+        's-ik': StreamInfo(defer_fn=defer_fn),
+        's-motion': StreamInfo(defer_fn=defer_fn),
+        't-cfree': StreamInfo(defer_fn=defer_fn, eager=False, negate=True),
+        't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
         'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),
@@ -233,6 +238,8 @@ def main():
                                   #skeletons=[skeleton, []],
                                   exact=True,
                                   max_cost=max_cost)
+    #replan_actions = set()
+    replan_actions = {'move', 'pick', 'place'}
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
@@ -243,9 +250,9 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solver = solve_serialized  # solve_focused | solve_serialized
+        solver = solve_focused  # solve_focused | solve_serialized
         solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
-                          planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
+                          replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
                           max_time=args.max_time, max_iterations=INF, verbose=True,
                           unit_costs=args.unit, success_cost=success_cost,
                           unit_efforts=False, effort_weight=0,

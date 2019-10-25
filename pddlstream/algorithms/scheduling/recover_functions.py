@@ -37,5 +37,7 @@ def compute_function_plan(opt_evaluations, action_plan):
         result = extract_function_result(results_from_head, action, args)
         if result is not None:
             step_from_function[result] = min(step, step_from_function.get(result, INF))
+            if not result.is_deferrable():
+                step_from_function[result] = 0
             #function_from_instance[action_instance] = result
     return step_from_function

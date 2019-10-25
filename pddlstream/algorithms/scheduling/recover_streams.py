@@ -72,10 +72,10 @@ def extract_stream_plan(node_from_atom, target_facts, stream_plan,
             continue
         if step_from_fact is not None:
             assert step_from_stream is not None
-            step = step_from_fact[fact] if result.external.info.defer(result.input_objects) else 0
+            step = step_from_fact[fact] if result.is_deferrable() else 0
             step_from_stream[result] = min(step, step_from_stream.get(result, INF))
             for domain_fact in result.instance.get_domain():
-                step_from_fact[domain_fact] = min(step_from_stream[result], step_from_stream.get(result, INF))
+                step_from_fact[domain_fact] = min(step_from_stream[result], step_from_fact.get(domain_fact, INF))
         extract_stream_plan(node_from_atom, result.instance.get_domain(), stream_plan,
                             step_from_fact, step_from_stream)
         if result not in stream_plan:
