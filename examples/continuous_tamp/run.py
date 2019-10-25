@@ -213,7 +213,7 @@ def main():
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
 
-    defer_fn = defer_unique
+    defer_fn = defer_unique # defer_unique | defer_shared
     tamp_problem, args = initialize(parser)
     stream_info = {
         's-region': StreamInfo(defer_fn=never_defer),
@@ -221,7 +221,7 @@ def main():
         's-motion': StreamInfo(defer_fn=defer_fn),
         't-cfree': StreamInfo(defer_fn=defer_fn, eager=False, negate=True),
         't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
-        'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
+        'dist': FunctionInfo(defer_fn=defer_fn, opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),

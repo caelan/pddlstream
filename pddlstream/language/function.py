@@ -21,8 +21,8 @@ class FunctionInfo(ExternalInfo):
         #self.order = 0
 
 class FunctionResult(Result):
-    def __init__(self, instance, value, opt_index=None, optimistic=True):
-        super(FunctionResult, self).__init__(instance, opt_index, 0, optimistic)
+    def __init__(self, instance, value, optimistic=True):
+        super(FunctionResult, self).__init__(instance, opt_index=0, call_index=0, optimistic=optimistic)
         self.instance = instance
         self.value = value
         self._certified = None
@@ -40,8 +40,7 @@ class FunctionResult(Result):
         #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
-        new_instance.opt_index = self.instance.opt_index
-        return self.__class__(new_instance, self.value, self.opt_index, self.optimistic)
+        return self.__class__(new_instance, self.value, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
@@ -87,7 +86,7 @@ class FunctionInstance(Instance):
         if (value is not False) and verbose:
             print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
                                        str_from_object(self.get_input_values()), value))
-        new_results = [self._Result(self, value, opt_index=None, optimistic=False)]
+        new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
         if start_history < len(self.history):
             self.update_statistics(start_time, new_results)
@@ -97,7 +96,7 @@ class FunctionInstance(Instance):
         if self.enumerated or self.disabled:
             return []
         opt_value = self.external.opt_fn(*self.get_input_values())
-        self.opt_results = [self._Result(self, opt_value, opt_index=self.opt_index, optimistic=True)]
+        self.opt_results = [self._Result(self, opt_value, optimistic=True)]
         return self.opt_results
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
