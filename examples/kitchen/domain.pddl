@@ -53,7 +53,7 @@
     	:parameters (?gripper ?pose ?pose2 ?control)
     	:precondition
     		(and (Motion ?gripper ?pose ?pose2 ?control)
-    			 (CanMove ?gripper) ; (Empty ?gripper)
+    			 ; (CanMove ?gripper) ; (Empty ?gripper)
     			 (AtPose ?gripper ?pose) (not (Unsafe ?control)))
     	:effect
     		(and (AtPose ?gripper ?pose2)

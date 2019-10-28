@@ -27,6 +27,7 @@ def linear_order(actions):
 
 class PlanConstraints(object):
     def __init__(self, skeletons=None, groups={}, exact=True, hint=False, max_cost=INF):
+        # TODO: constraint that the skeleton is the tail of the plan
         if skeletons is not None:
             skeletons = [skeleton if isinstance(skeleton, OrderedSkeleton)
                          else OrderedSkeleton(skeleton, linear_order(skeleton)) for skeleton in skeletons]

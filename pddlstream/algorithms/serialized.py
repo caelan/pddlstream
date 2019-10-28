@@ -54,7 +54,8 @@ def apply_actions(domain, state, plan, unit_costs=False):
 
 ##################################################
 
-def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_efforts=False, verbose=True, **kwargs):
+def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_efforts=False, verbose=True,
+                     retain_facts=True, **kwargs):
     # TODO: be careful of CanMove deadends
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = initial_problem
     _, _, domain, streams = parse_problem(
@@ -84,16 +85,15 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
             # TODO: replan upon failure
             global_certificate = Certificate(all_facts={}, preimage_facts=None)
             return None, INF, global_certificate
-        #if not local_plan:
-        #    break
-        _, fluent_facts = partition_facts(domain, state)
-        #state = local_certificate.all_facts # TODO: include functions
-        state = static_init + fluent_facts + local_certificate.preimage_facts
+
+        if retain_facts:
+            state = local_certificate.all_facts
+        else:
+            _, fluent_facts = partition_facts(domain, state)
+            state = static_init + fluent_facts + local_certificate.preimage_facts # TODO: include functions
         #print('State:', state)
         # TODO: indicate when each fact is used
-        # TODO: return all facts that were the output of something that is in the preimage (otherwise can't reachieve)
         # TODO: record failed facts
-        #local_plan = local_plan[:1]
         global_plan.extend(local_plan)  # TODO: compute preimage of the executed plan
         global_cost += local_cost
 
@@ -101,7 +101,6 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         #global_all.extend(partition_facts(domain, local_certificate.all_facts)[0])
         #global_preimage.extend(static_state)
         print('Static:', static_state)
-        # TODO: might need properties that involve an object that aren't useful yet
         state = apply_actions(domain, state, local_plan, unit_costs=unit_costs)
         print(SEPARATOR)
         #user_input('Continue?')

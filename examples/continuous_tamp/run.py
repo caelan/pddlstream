@@ -14,7 +14,7 @@ from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_op
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.hierarchical import solve_serialized
+from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR

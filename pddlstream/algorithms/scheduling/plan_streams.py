@@ -207,13 +207,16 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         combined_plan.append(transform_action_args(pddl_from_instance(action), obj_from_pddl))
 
     # TODO: the returned facts have the same side-effect bug as above
+    # TODO: annotate when each preimage fact is used
     preimage_facts = {fact_from_fd(l) for l in full_preimage
-                      if (l.predicate != EQ) and not l.negated} # TODO: annotate when each is used
+                      if (l.predicate != EQ) and not l.negated}
     for negative_result in negative_plan: # TODO: function_plan
         preimage_facts.update(negative_result.get_certified())
     for result in eager_plan:
         preimage_facts.update(result.get_domain())
+        # Might not be able to regenerate facts involving the outputs of streams
         preimage_facts.update(result.get_certified()) # Some facts might not be in the preimage
+    # TODO: record streams and axioms
     return eager_plan, OptPlan(combined_plan, preimage_facts)
 
 ##################################################
