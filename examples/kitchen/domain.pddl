@@ -53,130 +53,135 @@
     	:parameters (?gripper ?pose ?pose2 ?control)
     	:precondition
     		(and (Motion ?gripper ?pose ?pose2 ?control)
-    			(Empty ?gripper) (CanMove ?gripper)
-    			(AtPose ?gripper ?pose) (not (Unsafe ?control)))
+    			 (CanMove ?gripper) ; (Empty ?gripper)
+    			 (AtPose ?gripper ?pose) (not (Unsafe ?control)))
     	:effect
     		(and (AtPose ?gripper ?pose2)
-    			(not (AtPose ?gripper ?pose))
-    			(not (CanMove ?gripper)) ;This is to avoid double move
-    			(increase (total-cost) 1))
+    			 (not (AtPose ?gripper ?pose))
+    			 (not (CanMove ?gripper))
+    			 (increase (total-cost) 1))
     )
-    (:action move-holding
-    	:parameters (?gripper ?pose ?cup ?grasp ?pose2 ?control)
-    	:precondition
-    		(and (MotionH ?gripper ?pose ?cup ?grasp ?pose2 ?control)
-    			(not (Empty ?gripper)) (AtPose ?gripper ?pose)
-    			(Grasped ?cup ?grasp) (CanMove ?gripper) (not (Unsafe ?control)))
-    	:effect
-    		(and (AtPose ?gripper ?pose2) (not (AtPose ?gripper ?pose))
-    			(not (CanMove ?gripper)) (increase (total-cost) 1))
-    )
+    ;(:action move-holding
+    ;	:parameters (?gripper ?pose ?cup ?grasp ?pose2 ?control)
+    ;	:precondition
+    ;		(and (MotionH ?gripper ?pose ?cup ?grasp ?pose2 ?control)
+    ;			 (not (Empty ?gripper)) (AtPose ?gripper ?pose)
+    ;		     (Grasped ?cup ?grasp) (CanMove ?gripper) (not (Unsafe ?control)))
+    ;	:effect
+    ;		(and (AtPose ?gripper ?pose2) (not (AtPose ?gripper ?pose))
+    ;			 (not (CanMove ?gripper))
+    ;            (increase (total-cost) 1))
+    ;)
     (:action push
     	:parameters (?gripper ?pose ?pose2 ?block ?pose3 ?pose4 ?control)
     	:precondition
     		(and (CanPush ?gripper ?pose ?pose2 ?block ?pose3 ?pose4 ?control)
-    			(AtPose ?gripper ?pose) (AtPose ?block ?pose3)
-    			(Empty ?gripper) (Clear ?block))
+    			 (AtPose ?gripper ?pose) (AtPose ?block ?pose3)
+    			 (Empty ?gripper) (Clear ?block))
     	:effect
     		(and (AtPose ?gripper ?pose2) (AtPose ?block ?pose4)
-    			(CanMove ?gripper) (not (AtPose ?gripper ?pose))
-    			(not (AtPose ?block ?pose3)) (increase (total-cost) 1))
+    			 (CanMove ?gripper) (not (AtPose ?gripper ?pose))
+    			 (not (AtPose ?block ?pose3))
+    			 (increase (total-cost) 1))
     )
     (:action pick
     	:parameters	(?gripper ?pose ?cup ?pose2 ?grasp ?control)
     	:precondition
     		(and (CanGrasp ?gripper ?pose ?cup ?pose2 ?grasp ?control)
-    			(AtPose ?gripper ?pose) (AtPose ?cup ?pose2)
-    			(Empty ?gripper) (TableSupport ?pose2))
+    			 (AtPose ?gripper ?pose) (AtPose ?cup ?pose2)
+    			 (Empty ?gripper) (TableSupport ?pose2))
     	:effect
     		(and (Grasped ?cup ?grasp) (CanMove ?gripper)
-    			(not (AtPose ?cup ?pose2)) (not (Empty ?gripper))
-    			(increase (total-cost) 1))
+    			 (not (AtPose ?cup ?pose2)) (not (Empty ?gripper))
+    			 (increase (total-cost) 1))
     )
     (:action place
 		:parameters (?gripper ?pose ?cup ?pose2 ?grasp ?control)
 		:precondition
 			(and (CanGrasp ?gripper ?pose ?cup ?pose2 ?grasp ?control)
-				(AtPose ?gripper ?pose) (TableSupport ?pose2)
-				(Grasped ?cup ?grasp) (not (Scooped ?cup)))
+				 (AtPose ?gripper ?pose) (TableSupport ?pose2)
+				 (Grasped ?cup ?grasp) (not (Scooped ?cup)))
 		:effect
 			(and (AtPose ?cup ?pose2) (Empty ?gripper)
-				(CanMove ?gripper) (not (Grasped ?cup ?grasp))
-				(increase (total-cost) 1))
+				 (CanMove ?gripper) (not (Grasped ?cup ?grasp))
+				 (increase (total-cost) 1))
     )
     (:action stack
     	:parameters (?gripper ?pose ?cup ?pose2 ?grasp ?block ?pose3 ?control)
     	:precondition
     		(and (CanGrasp ?gripper ?pose ?cup ?pose2 ?grasp ?control)
-    			(BlockSupport ?cup ?pose2 ?block ?pose3)
-    			(AtPose ?gripper ?pose) (Grasped ?cup ?grasp)
-    			(AtPose ?block ?pose3) (Clear ?block))
+    			 (BlockSupport ?cup ?pose2 ?block ?pose3)
+    			 (AtPose ?gripper ?pose) (Grasped ?cup ?grasp)
+    			 (AtPose ?block ?pose3) (Clear ?block))
     	:effect
     		(and (AtPose ?cup ?pose2) (Empty ?gripper)
-    			(CanMove ?gripper) (not (Grasped ?cup ?grasp))
-    			(not (Clear ?block)) (increase (total-cost) 1))
+    			 (CanMove ?gripper) (not (Grasped ?cup ?grasp))
+    			 (not (Clear ?block))
+    			 (increase (total-cost) 1))
     )
     (:action fill
     	:parameters (?gripper ?pose ?cup ?grasp)
     	:precondition
     		(and (BelowFaucet ?gripper ?pose ?cup ?grasp)
-    		    (AtPose ?gripper ?pose) (Grasped ?cup ?grasp))
+    		     (AtPose ?gripper ?pose) (Grasped ?cup ?grasp))
     	:effect
     		(and (HasCoffee ?cup) (CanMove ?gripper)
-    			(increase (total-cost) 1))
+    			 (increase (total-cost) 1))
     )
     (:action pour
-    	; why named kettle
     	:parameters (?gripper ?pose ?cup ?grasp ?kettle ?pose2 ?control)
     	:precondition
     		(and (CanPour ?gripper ?pose ?cup ?grasp ?kettle ?pose2 ?control)
-    			(AtPose ?gripper ?pose) (Grasped ?cup ?grasp)
-    			(AtPose ?kettle ?pose2) (HasCream ?cup))
+    			 (AtPose ?gripper ?pose) (Grasped ?cup ?grasp)
+    			 (AtPose ?kettle ?pose2) (HasCream ?cup))
 
     	:effect
     		(and (HasCream ?kettle) (CanMove ?gripper)
-    			(not (HasCream ?cup)) (increase (total-cost) 1))
+    			 (not (HasCream ?cup))
+    			 (increase (total-cost) 1))
     )
     (:action scoop
     	:parameters (?gripper ?pose ?pose2 ?spoon ?grasp ?kettle ?pose3 ?control)
     	:precondition
     		(and (CanScoop ?gripper ?pose ?pose2 ?spoon ?grasp ?kettle ?pose3 ?control)
-    			(AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
-    			(AtPose ?kettle ?pose3) (HasSugar ?kettle))
+    			 (AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
+    			 (AtPose ?kettle ?pose3) (HasSugar ?kettle))
     	:effect
     		(and (AtPose ?gripper ?pose2) (HasSugar ?spoon)
-    			(CanMove ?gripper) (Scooped ?spoon)
-    			(not (AtPose ?gripper ?pose)) (increase (total-cost) 1))
+    			 (CanMove ?gripper) (Scooped ?spoon)
+    			 (not (AtPose ?gripper ?pose))
+    			 (increase (total-cost) 1))
     )
     (:action dump
     	:parameters (?gripper ?pose ?pose3 ?spoon ?grasp ?kettle ?pose2 ?control)
     	:precondition
     		(and (CanDump ?gripper ?pose ?pose3 ?spoon ?grasp ?kettle ?pose2 ?control)
-    			(AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
-    			(AtPose ?kettle ?pose2) (HasSugar ?spoon))
+    			 (AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
+    			 (AtPose ?kettle ?pose2) (HasSugar ?spoon))
     	:effect
     		(and (HasSugar ?kettle) (CanMove ?gripper)
-    			(not (HasSugar ?spoon)) (not (Scooped ?spoon))
-    			(not (AtPose ?gripper ?pose)) (AtPose ?gripper ?pose3)
-    			(increase (total-cost) 1))
+    			 (not (HasSugar ?spoon)) (not (Scooped ?spoon))
+    			 (not (AtPose ?gripper ?pose)) (AtPose ?gripper ?pose3)
+    			 (increase (total-cost) 1))
     )
     (:action stir
     	:parameters (?gripper ?pose ?spoon ?grasp ?kettle ?pose2 ?control)
     	:precondition
     		(and (CanStir ?gripper ?pose ?spoon ?grasp ?kettle ?pose2 ?control)
-    			(AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
-    			(AtPose ?kettle ?pose2) (HasCoffee ?kettle)
-    			(HasCream ?kettle) (HasSugar ?kettle))
+    			 (AtPose ?gripper ?pose) (Grasped ?spoon ?grasp)
+    			 (AtPose ?kettle ?pose2) (HasCoffee ?kettle)
+    			 (HasCream ?kettle) (HasSugar ?kettle))
     	:effect
     		(and (Mixed ?kettle) (CanMove ?gripper)
-    			(increase (total-cost) 1))
+    			 (increase (total-cost) 1))
     )
 
-    (:derived (Unsafe ?control)
-        (exists (?cup ?pose) (and (Collision ?control ?cup ?pose) (AtPose ?cup ?pose)))
-    )
+    ;(:derived (Unsafe ?control)
+    ;    (exists (?cup ?pose) (and (Collision ?control ?cup ?pose) (AtPose ?cup ?pose)))
+    ;)
     (:derived (Holding ?cup)
-        (exists (?grasp) (and (IsGrasp ?cup ?grasp) (Grasped ?cup ?grasp)))
+        (exists (?grasp) (and (IsGrasp ?cup ?grasp)
+                              (Grasped ?cup ?grasp)))
     )
     (:derived (On ?cup ?block)
         (exists (?pose ?pose2) (and (BlockSupport ?cup ?pose ?block ?pose2)
