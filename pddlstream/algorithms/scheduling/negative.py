@@ -10,12 +10,12 @@ from pddlstream.utils import safe_zip, INF
 
 def convert_negative_predicate(negative, literal, step_from_atom, negative_plan):
     input_objects = tuple(map(obj_from_pddl, literal.args)) # Might be negative
-    predicate_instance = negative.get_instance(input_objects)
+    instance = negative.get_instance(input_objects)
     value = not literal.negated
-    if predicate_instance.enumerated:
-        assert (predicate_instance.value == value)
+    if instance.enumerated:
+        assert (instance.value == value)
     else:
-        result = PredicateResult(predicate_instance, value, opt_index=predicate_instance.opt_index)
+        result = PredicateResult(instance, value, optimistic=True)
         negative_plan[result] = min(step_from_atom[literal] | {negative_plan.get(result, INF)})
 
 def get_negative_result(negative, input_objects, fluent_facts=frozenset()):

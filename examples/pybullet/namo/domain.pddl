@@ -90,7 +90,7 @@
   ;  (and (Conf ?r ?q2)
   ;      (or (AtConf ?r ?q2)
   ;          (exists (?q1 ?t) (and (Motion ?r ?q1 ?q2 ?t)
-  ;                                ; TODO: current don't support negated predicates in axioms
+  ;                                ; TODO: currently don't support negated predicates in axioms
   ;                                ; (extraction of an axiom plan fails to consider them)
   ;                                (not (UnsafeTraj ?r ?t))
   ;                                (Reachable ?r ?q1)

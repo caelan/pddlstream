@@ -253,7 +253,7 @@ def main(display=True, teleport=False, partial=False):
     pr.enable()
     with LockRenderer():
         #solution = solve_incremental(pddlstream_problem, debug=True)
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=True)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
     print_solution(solution)
     plan, cost, evaluations = solution
     pr.disable()
