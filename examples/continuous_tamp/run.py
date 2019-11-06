@@ -18,7 +18,7 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import never_defer, defer_unique, defer_shared, defer_unbound
+from pddlstream.language.external import never_defer, defer_unique, defer_shared, get_defer_all_unbound, defer_any_unbound
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
@@ -218,11 +218,11 @@ def main():
     stream_info = {
         's-region': StreamInfo(defer_fn=defer_fn),
         's-grasp': StreamInfo(defer_fn=defer_fn),
-        's-ik': StreamInfo(defer_fn=defer_unbound), # defer_fn | defer_unbound
-        's-motion': StreamInfo(defer_fn=defer_fn),
-        't-cfree': StreamInfo(defer_fn=defer_unbound, eager=False, negate=True), # defer_fn |  defer_unbound
+        's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
+        's-motion': StreamInfo(defer_fn=defer_any_unbound),
+        't-cfree': StreamInfo(defer_fn=defer_any_unbound, eager=False, negate=True), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
-        'dist': FunctionInfo(defer_fn=defer_fn, opt_fn=lambda q1, q2: MOVE_COST),
+        'dist': FunctionInfo(defer_fn=defer_any_unbound, opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),

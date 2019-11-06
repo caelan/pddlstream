@@ -3,7 +3,7 @@ from collections import Counter
 from pddlstream.algorithms.common import compute_complexity
 from pddlstream.language.constants import get_args, is_parameter
 from pddlstream.language.conversion import values_from_objects, substitute_fact
-from pddlstream.language.object import Object
+from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
 from pddlstream.utils import elapsed_time, get_mapping, flatten
 
@@ -13,13 +13,22 @@ never_defer = lambda *args, **kwargs: False
 defer_unique = lambda result, *args, **kwargs: result.is_refined()
 defer_shared = lambda *args, **kwargs: True
 
-def defer_unbound(result, bound_objects=set(), *args, **kwargs):
-    # TODO: defer if any bound (as opposed to all)
-    # TODO: could also choose to only pass relevant objects
+def defer_any_unbound(result, bound_objects=set(), *args, **kwargs):
     # The set bound_objects may contain shared objects in which case replanning is required
-    #assert len(result.input_objects) == len(bound)
-    # TODO: check whether shared vs unique
     return not all(isinstance(obj, Object) or (obj in bound_objects) for obj in result.input_objects)
+
+def get_defer_all_unbound(inputs=''): # TODO: shortcut for all inputs
+    input_parameters = tuple(inputs.split())
+    # Empty implies defer_shared
+
+    def defer_all_unbound(result, bound_objects=set(), *args, **kwargs):
+        assert set(input_parameters) <= set(result.external.inputs)
+        indices = [result.external.inputs.index(inp) for inp in input_parameters]
+        #objects = result.input_objects
+        objects = [result.input_objects[i] for i in indices]
+        # TODO: check whether shared vs unique
+        return not any(isinstance(obj, Object) or (obj in bound_objects) for obj in objects)
+    return defer_all_unbound
 
 ##################################################
 
