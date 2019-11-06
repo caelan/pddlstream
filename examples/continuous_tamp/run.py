@@ -44,11 +44,11 @@ def create_problem(tamp_problem):
        Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Grasp', b, GRASP) for b in initial.block_poses] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
-    goal_literals = []
+          #[('Grasp', b, GRASP) for b in initial.block_poses]
 
+    goal_literals = []
     for b, r in tamp_problem.goal_regions.items():
         if isinstance(r, str):
             init += [('Region', r), ('Placeable', b, r)]
@@ -86,15 +86,15 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     constant_map = {}
     stream_map = {
-        's-motion': from_fn(plan_motion),
+        's-grasp': from_fn(lambda b: (GRASP,)),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
-        't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
+        's-motion': from_fn(plan_motion),
+        't-region': from_test(get_region_test(tamp_problem.regions)),
+        't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
         'dist': distance_fn,
         'duration': duration_fn,
-
-        't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
     }
     if use_optimizer:
         # To avoid loading gurobi
@@ -213,10 +213,11 @@ def main():
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
 
-    defer_fn = defer_shared # never_defer | defer_unique | defer_shared
+    defer_fn = defer_unique # never_defer | defer_unique | defer_shared
     tamp_problem, args = initialize(parser)
     stream_info = {
-        's-region': StreamInfo(defer_fn=never_defer),
+        's-region': StreamInfo(defer_fn=defer_fn),
+        's-grasp': StreamInfo(defer_fn=defer_fn),
         's-ik': StreamInfo(defer_fn=defer_unbound), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=defer_fn),
         't-cfree': StreamInfo(defer_fn=defer_unbound, eager=False, negate=True), # defer_fn |  defer_unbound

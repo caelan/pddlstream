@@ -7,7 +7,8 @@ from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate, fd_from_fact
 from pddlstream.language.constants import Or, And, is_parameter, Equal, Not, str_from_plan, EQ, Imply
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, breadth_first_search
+from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, \
+    get_ancestors, get_descendants
 
 OrderedSkeleton = namedtuple('OrderedSkeleton', ['actions', 'orders']) # TODO: AND/OR tree
 
@@ -89,7 +90,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
     new_goals = []
     for num, skeleton in enumerate(constraints.skeletons):
         actions, orders = skeleton
-        incoming_orders, outgoing_orders = neighbors_from_orders(orders)
+        incoming_orders, _ = neighbors_from_orders(orders)
         order_facts = [(order_predicate, to_obj('n{}'.format(num)), to_obj('t{}'.format(step)))
                        for step in range(len(actions))]
         for step, (name, args) in enumerate(actions):
@@ -97,8 +98,7 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
             new_action = deepcopy(find_unique(lambda a: a.name == name, domain.actions))
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
-            ancestors = set(breadth_first_search(step, incoming_orders)) - {step}
-            descendants = set(breadth_first_search(step, outgoing_orders)) - {step}
+            ancestors, descendants = get_ancestors(step, orders), get_descendants(step, orders)
             parallel = set(range(len(actions))) - ancestors - descendants - {step}
 
             parameters = set(filter(is_parameter, args))

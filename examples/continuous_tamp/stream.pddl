@@ -5,6 +5,11 @@
     :domain (Placeable ?b ?r)
     :outputs (?p)
     :certified (and (Pose ?b ?p) (Contain ?b ?p ?r)))
+  (:stream s-grasp
+    :inputs (?b)
+    :domain (Block ?b)
+    :outputs (?g)
+    :certified (Grasp ?b ?g))
   (:stream s-ik
     :inputs (?b ?p ?g)
     :domain (and (Pose ?b ?p) (Grasp ?b ?g))

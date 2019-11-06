@@ -402,6 +402,12 @@ def grow_component(sources, edges, disabled=set()):
 def breadth_first_search(source, edges, **kwargs):
     return grow_component([source], edges, **kwargs)
 
+def get_ancestors(source, edges):
+    return set(breadth_first_search(source, incoming_from_edges(edges))) - {source}
+
+def get_descendants(source, edges):
+    return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
+
 def get_connected_components(vertices, edges):
     undirected_edges = adjacent_from_edges(edges)
     clusters = []

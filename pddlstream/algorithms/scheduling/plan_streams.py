@@ -34,7 +34,7 @@ from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.temporal import SimplifiedDomain, solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.language.object import Object
-from pddlstream.utils import Verbose, INF, topological_sort
+from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
                                          'supporting_facts', 'axiom_plan'])
@@ -154,26 +154,28 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     stream_plan.extend(function_plan)
 
     # Useful to recover the correct DAG
-    #partial_orders = set()
-    #for result in stream_plan:
-    #    for fact in result.get_domain():
-    #        parent = node_from_atom[fact].result
-    #        if parent is not None:
-    #            partial_orders.add((parent, result))
+    partial_orders = set()
+    for child in stream_plan:
+        # TODO: account for fluent objects
+        for fact in child.get_domain():
+            parent = node_from_atom[fact].result
+            if parent is not None:
+                partial_orders.add((parent, child))
     #stream_plan = topological_sort(stream_plan, partial_orders)
 
-    sampled_objects = set()
-    #sampled_objects = {obj for result, step in last_from_stream.items()
-    #         if (step == 0) and isinstance(result, StreamResult) for obj in result.output_objects}
+    # TODO: don't this computation seriously if shared in the first step
+    bound_objects = set()
+    #bound_objects = {obj for result, step in last_from_stream.items()
+    #                 if (step == 0) and isinstance(result, StreamResult) for obj in result.output_objects}
+    print(bound_objects)
     for result in stream_plan:
-        assigned = tuple(isinstance(obj, Object) or (obj in sampled_objects) for obj in result.input_objects)
-        print(sampled_objects)
-        print(result, assigned, result.is_deferrable(bound_objects=sampled_objects))
-        if (last_from_stream[result] == 0) or not result.is_deferrable(bound_objects=sampled_objects):
-            # TODO: update its ancestors as well
-            #sampled_objects
-            if isinstance(result, StreamResult):
-                sampled_objects.update(result.output_objects)
+        print(bound_objects)
+        print(result, (last_from_stream[result] == 0) or result.is_deferrable(bound_objects=bound_objects))
+        if (last_from_stream[result] == 0) or not result.is_deferrable(bound_objects=bound_objects):
+            for ancestor in get_ancestors(result, partial_orders) | {result}:
+                last_from_stream[ancestor] = 0
+                if isinstance(ancestor, StreamResult):
+                    bound_objects.update(ancestor.output_objects)
 
     #local_plan = [] # TODO: not sure what this was for
     #for fact, step in sorted(last_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
@@ -220,6 +222,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         if future:
             future_step = latest_step if defer else earliest_step
             results_from_step[future_step].append(result)
+    print(eager_plan)
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
     eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)

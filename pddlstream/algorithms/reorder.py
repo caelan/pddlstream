@@ -48,31 +48,6 @@ def get_future_p_successes(stream_plan):
             descendants_map[s1] *= descendants_map[s2]
     return descendants_map
 
-# def get_all_descendants(stream_plan):
-#     orders = get_partial_orders(stream_plan)
-#     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
-#     descendants_map = {}
-#     for s1 in reversed(stream_plan):
-#         descendants_map[s1] = set(outgoing_edges[s1])
-#         for s2 in outgoing_edges[s1]:
-#             descendants_map[s1].update(descendants_map[s2])
-#     return descendants_map
-
-# def get_ancestors(stream_result, stream_plan):
-#     orders = get_partial_orders(stream_plan)
-#     incoming_edges, _ = neighbors_from_orders(orders)
-#     ancestors = {stream_result}
-#     queue = deque([stream_result])
-#     while queue:
-#         v1 = queue.popleft()
-#         for v2 in incoming_edges[v1]:
-#             if v2 not in ancestors:
-#                 ancestors.add(v2)
-#                 queue.append(v1)
-#     return ancestors
-
-##################################################
-
 def get_stream_stats(result):
     #return result.instance.get_p_success(), result.instance.get_overhead()
     return result.instance.external.get_p_success(), result.instance.external.get_overhead()
@@ -86,6 +61,8 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
         p_success, overhead = stats_fn(result)
         expected_cost = overhead + p_success * expected_cost
     return expected_cost
+
+##################################################
 
 # TODO: include context here as a weak constraint
 # TODO: actions as a weak constraint

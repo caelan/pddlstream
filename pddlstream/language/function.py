@@ -26,6 +26,7 @@ class FunctionResult(Result):
         self.instance = instance
         self.value = value
         self._certified = None
+        # TODO: could add empty output_objects tuple
     @property
     def certified(self):
         if self._certified is None:

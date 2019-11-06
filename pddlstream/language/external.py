@@ -18,8 +18,8 @@ def defer_unbound(result, bound_objects=set(), *args, **kwargs):
     # TODO: could also choose to only pass relevant objects
     # The set bound_objects may contain shared objects in which case replanning is required
     #assert len(result.input_objects) == len(bound)
-    return all(isinstance(obj, Object) or (obj in bound_objects)
-               for obj in result.input_objects)
+    # TODO: check whether shared vs unique
+    return not all(isinstance(obj, Object) or (obj in bound_objects) for obj in result.input_objects)
 
 ##################################################
 
