@@ -7,7 +7,7 @@ from pddlstream.language.constants import AND, get_prefix, get_args, is_paramete
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
-    parse_lisp_list
+    parse_lisp_list, select_inputs
 from pddlstream.language.generator import get_next, from_fn, universe_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
@@ -70,9 +70,7 @@ class PartialInputs(object):
             if not self.test(*input_values):
                 return
             # TODO: recover input_objects from input_values
-            input_objects = stream_instance.input_objects
-            mapping = get_mapping(stream.inputs, input_objects)
-            selected_objects = tuple(mapping[inp] for inp in inputs)
+            selected_objects = select_inputs(stream_instance, inputs)
             #for _ in irange(self.num):
             for _ in irange(stream_instance.num_optimistic):
                 yield [tuple(SharedOptValue(stream.name, inputs, selected_objects, out)

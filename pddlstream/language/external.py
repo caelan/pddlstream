@@ -13,21 +13,29 @@ never_defer = lambda *args, **kwargs: False
 defer_unique = lambda result, *args, **kwargs: result.is_refined()
 defer_shared = lambda *args, **kwargs: True
 
-def defer_any_unbound(result, bound_objects=set(), *args, **kwargs):
-    # The set bound_objects may contain shared objects in which case replanning is required
-    return not all(isinstance(obj, Object) or (obj in bound_objects) for obj in result.input_objects)
+def select_inputs(instance, inputs):
+    external = instance.external
+    assert set(inputs) <= set(external.inputs)
+    mapping = get_mapping(external.inputs, instance.input_objects)
+    return tuple(mapping[inp] for inp in inputs)
 
-def get_defer_all_unbound(inputs=''): # TODO: shortcut for all inputs
-    input_parameters = tuple(inputs.split())
+def get_defer_any_unbound(unique=False):
+    def defer_any_unbound(result, bound_objects=set(), *args, **kwargs):
+        # The set bound_objects may contain shared objects in which case replanning is required
+        if unique and not defer_unique(result):
+            return False
+        return not all(isinstance(obj, Object) or (obj in bound_objects) for obj in result.input_objects)
+    return defer_any_unbound
+
+def get_defer_all_unbound(inputs='', unique=False): # TODO: shortcut for all inputs
+    inputs = tuple(inputs.split())
     # Empty implies defer_shared
 
     def defer_all_unbound(result, bound_objects=set(), *args, **kwargs):
-        assert set(input_parameters) <= set(result.external.inputs)
-        indices = [result.external.inputs.index(inp) for inp in input_parameters]
-        #objects = result.input_objects
-        objects = [result.input_objects[i] for i in indices]
-        # TODO: check whether shared vs unique
-        return not any(isinstance(obj, Object) or (obj in bound_objects) for obj in objects)
+        if unique and not defer_unique(result):
+            return False
+        return not any(isinstance(obj, Object) or (obj in bound_objects)
+                       for obj in select_inputs(result.instance, inputs))
     return defer_all_unbound
 
 ##################################################

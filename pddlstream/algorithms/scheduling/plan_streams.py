@@ -149,8 +149,21 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     curr_evaluations = evaluations_from_stream_plan(evaluations, stream_plan, max_effort=None)
     extraction_facts = set(last_from_fact) - set(map(fact_from_evaluation, curr_evaluations))
-    extract_stream_plan(node_from_atom, extraction_facts, stream_plan, last_from_fact, last_from_stream)
+    extract_stream_plan(node_from_atom, extraction_facts, stream_plan)
+
+    # Recomputing due to postprocess_stream_plan
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, last_from_fact)
+    node_from_atom = get_achieving_streams(evaluations, stream_plan, max_effort=None)
+    fact_sequence = [set(result.get_domain()) for result in stream_plan] + [extraction_facts]
+    for facts in reversed(fact_sequence): # Bellman ford
+        for fact in facts: # could flatten instead
+            result = node_from_atom[fact].result
+            if result is None:
+                continue
+            step = last_from_fact[fact] if result.is_deferrable() else 0
+            last_from_stream[result] = min(step, last_from_stream.get(result, INF))
+            for domain_fact in result.instance.get_domain():
+                last_from_fact[domain_fact] = min(last_from_stream[result], last_from_fact.get(domain_fact, INF))
     stream_plan.extend(function_plan)
 
     # Useful to recover the correct DAG
@@ -163,19 +176,14 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
                 partial_orders.add((parent, child))
     #stream_plan = topological_sort(stream_plan, partial_orders)
 
-    # TODO: don't this computation seriously if shared in the first step
     bound_objects = set()
-    #bound_objects = {obj for result, step in last_from_stream.items()
-    #                 if (step == 0) and isinstance(result, StreamResult) for obj in result.output_objects}
-    print(bound_objects)
     for result in stream_plan:
-        print(bound_objects)
-        print(result, (last_from_stream[result] == 0) or result.is_deferrable(bound_objects=bound_objects))
         if (last_from_stream[result] == 0) or not result.is_deferrable(bound_objects=bound_objects):
             for ancestor in get_ancestors(result, partial_orders) | {result}:
+                # TODO: this might change descendants of ancestor. Perform in a while loop.
                 last_from_stream[ancestor] = 0
                 if isinstance(ancestor, StreamResult):
-                    bound_objects.update(ancestor.output_objects)
+                    bound_objects.update(out for out in ancestor.output_objects if out.is_unique())
 
     #local_plan = [] # TODO: not sure what this was for
     #for fact, step in sorted(last_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
@@ -222,7 +230,6 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         if future:
             future_step = latest_step if defer else earliest_step
             results_from_step[future_step].append(result)
-    print(eager_plan)
 
     # TODO: some sort of obj side-effect bug that requires obj_from_pddl to be applied last (likely due to fluent streams)
     eager_plan = convert_fluent_streams(eager_plan, real_states, action_plan, steps_from_fact, node_from_atom)
