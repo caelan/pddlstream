@@ -109,3 +109,11 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
 
     global_certificate = Certificate(all_facts={}, preimage_facts=None)
     return global_plan, global_cost, global_certificate
+
+##################################################
+
+def solve_deferred(initial_problem, stream_info={}, unit_costs=False, unit_efforts=False, verbose=True,
+                   retain_facts=True, **kwargs):
+    # TODO: serialize solving deferred problems
+    # TODO: can impose plan skeleton constraints as well
+    raise NotImplementedError()

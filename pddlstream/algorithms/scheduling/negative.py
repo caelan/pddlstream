@@ -16,7 +16,8 @@ def convert_negative_predicate(negative, literal, step_from_atom, negative_plan)
         assert (instance.value == value)
     else:
         result = PredicateResult(instance, value, optimistic=True)
-        negative_plan[result] = min(step_from_atom[literal] | {negative_plan.get(result, INF)})
+        step = min(step_from_atom[literal]) if result.is_deferrable() else 0
+        negative_plan[result] = min(step, negative_plan.get(result, INF))
 
 def get_negative_result(negative, input_objects, fluent_facts=frozenset()):
     instance = negative.get_instance(input_objects, fluent_facts=fluent_facts)
@@ -40,7 +41,8 @@ def convert_negative_stream(negative, literal, step_from_atom, real_states, nega
     for fluent_facts in fluent_facts_list:
         result = get_negative_result(negative, input_objects, fluent_facts)
         #if not result.instance.successful: # Doesn't work with reachieve=True
-        negative_plan[result] = min(step_from_atom[literal] | {negative_plan.get(result, INF)})
+        step = min(step_from_atom[literal]) if result.is_deferrable() else 0
+        negative_plan[result] = min(step, negative_plan.get(result, INF))
 
 def convert_negative(negative_preimage, negative_from_name, step_from_atom, real_states):
     negative_plan = {}

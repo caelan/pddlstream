@@ -12,7 +12,7 @@ from examples.discrete_tamp.primitives import GRASP, collision_test, distance_fn
 from examples.discrete_tamp.viewer import DiscreteTAMPViewer, COLORS
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-# from pddlstream.algorithms.execution import solve_execution
+# from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.stream import StreamInfo
@@ -134,7 +134,7 @@ def main():
     }
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     if args.algorithm == 'focused':
-        #solution = solve_execution(pddlstream_problem, unit_costs=unit_costs, stream_info=stream_info)
+        #solution = solve_serialized(pddlstream_problem, planner='max-astar', unit_costs=args.unit, stream_info=stream_info)
         solution = solve_focused(pddlstream_problem, unit_costs=args.unit, stream_info=stream_info, debug=False)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, unit_costs=args.unit, complexity_step=INF) #max_complexity=0)

@@ -33,7 +33,8 @@ from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.temporal import SimplifiedDomain, solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import Verbose, INF
+from pddlstream.language.object import Object
+from pddlstream.utils import Verbose, INF, topological_sort
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
                                          'supporting_facts', 'axiom_plan'])
@@ -152,11 +153,32 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     stream_plan = postprocess_stream_plan(evaluations, domain, stream_plan, last_from_fact)
     stream_plan.extend(function_plan)
 
+    # Useful to recover the correct DAG
+    #partial_orders = set()
+    #for result in stream_plan:
+    #    for fact in result.get_domain():
+    #        parent = node_from_atom[fact].result
+    #        if parent is not None:
+    #            partial_orders.add((parent, result))
+    #stream_plan = topological_sort(stream_plan, partial_orders)
+
+    sampled_objects = set()
+    #sampled_objects = {obj for result, step in last_from_stream.items()
+    #         if (step == 0) and isinstance(result, StreamResult) for obj in result.output_objects}
+    for result in stream_plan:
+        assigned = tuple(isinstance(obj, Object) or (obj in sampled_objects) for obj in result.input_objects)
+        print(sampled_objects)
+        print(result, assigned, result.is_deferrable(bound_objects=sampled_objects))
+        if (last_from_stream[result] == 0) or not result.is_deferrable(bound_objects=sampled_objects):
+            # TODO: update its ancestors as well
+            #sampled_objects
+            if isinstance(result, StreamResult):
+                sampled_objects.update(result.output_objects)
+
     #local_plan = [] # TODO: not sure what this was for
     #for fact, step in sorted(last_from_fact.items(), key=lambda pair: pair[1]): # Earliest to latest
     #    print(step, fact)
     #    extract_stream_plan(node_from_atom, [fact], local_plan, last_from_fact, last_from_stream)
-    #print(local_plan)
 
     # Each stream has an earliest evaluation time
     # When computing the latest, use 0 if something isn't deferred

@@ -14,11 +14,11 @@ from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_op
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.serialized import solve_serialized
+#from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import never_defer, defer_unique, defer_shared
+from pddlstream.language.external import never_defer, defer_unique, defer_shared, defer_unbound
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
@@ -213,13 +213,13 @@ def main():
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
 
-    defer_fn = defer_unique # defer_unique | defer_shared
+    defer_fn = defer_shared # never_defer | defer_unique | defer_shared
     tamp_problem, args = initialize(parser)
     stream_info = {
         's-region': StreamInfo(defer_fn=never_defer),
-        's-ik': StreamInfo(defer_fn=defer_fn),
+        's-ik': StreamInfo(defer_fn=defer_unbound), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=defer_fn),
-        't-cfree': StreamInfo(defer_fn=defer_fn, eager=False, negate=True),
+        't-cfree': StreamInfo(defer_fn=defer_unbound, eager=False, negate=True), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(defer_fn=defer_fn, opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),

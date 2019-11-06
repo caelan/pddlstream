@@ -10,8 +10,18 @@ from pddlstream.utils import elapsed_time, get_mapping, flatten
 DEBUG = 'debug'
 
 never_defer = lambda *args, **kwargs: False
-defer_unique = lambda result, **kwargs: result.is_refined()
+defer_unique = lambda result, *args, **kwargs: result.is_refined()
 defer_shared = lambda *args, **kwargs: True
+
+def defer_unbound(result, bound_objects=set(), *args, **kwargs):
+    # TODO: defer if any bound (as opposed to all)
+    # TODO: could also choose to only pass relevant objects
+    # The set bound_objects may contain shared objects in which case replanning is required
+    #assert len(result.input_objects) == len(bound)
+    return all(isinstance(obj, Object) or (obj in bound_objects)
+               for obj in result.input_objects)
+
+##################################################
 
 class ExternalInfo(PerformanceInfo):
     def __init__(self, eager=False, p_success=None, overhead=None, effort=None, defer_fn=never_defer):
@@ -50,8 +60,8 @@ class Result(object):
     def is_refined(self):
         return self.opt_index == 0 # TODO: base on output objects instead?
 
-    def is_deferrable(self):
-        return self.info.defer_fn(self)
+    def is_deferrable(self, *args, **kwargs):
+        return self.info.defer_fn(self, *args, **kwargs)
 
     def get_domain(self):
         return self.instance.get_domain()
