@@ -111,4 +111,4 @@ Additional PDDLStream + Drake examples can be found at: https://github.com/Robot
 
 ## Citation
 
-Caelan R. Garrett, Tomas Lozano-Perez, Leslie P. Kaelbling. PDDLStream: Integrating Symbolic Planners and Blackbox Samplers, 2018.
+Caelan R. Garrett, Tomás Lozano-Pérez, Leslie P. Kaelbling. PDDLStream: Integrating Symbolic Planners and Blackbox Samplers via Optimistic Adaptive Planning, International Conference on Automated Planning and Scheduling (ICAPS), 2020.
