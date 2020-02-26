@@ -105,9 +105,9 @@ Additional PDDLStream + Drake examples can be found at: https://github.com/Robot
 
 ## Publications
 
-* [PDDLStream: Integrating Symbolic Planners and Blackbox Samplers](https://arxiv.org/abs/1802.08705
+* [PDDLStream: Integrating Symbolic Planners and Blackbox Samplers via Optimistic Adaptive Planning](https://arxiv.org/abs/1802.08705
 )
-* [STRIPStream: Planning In Infinite Domains](https://arxiv.org/abs/1701.00287)
+<!--* [STRIPStream: Planning In Infinite Domains](https://arxiv.org/abs/1701.00287)--
 
 ## Citation
 
