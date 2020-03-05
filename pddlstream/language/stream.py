@@ -246,14 +246,11 @@ class StreamInstance(Instance):
             if not isinstance(output, WildOutput):
                 output = WildOutput(values=output)
             self.history.append(output)
-        output = self.history[self.num_calls]
-        self.num_calls += 1
-        return output
+        return self.history[self.num_calls]
 
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
-        start_calls = self.num_calls
         start_history = len(self.history)
         new_values, new_facts = self._next_outputs()
         self._check_output_values(new_values)
@@ -262,12 +259,12 @@ class StreamInstance(Instance):
             if (not new_values and VERBOSE_FAILURES) or \
                     (new_values and self.info.verbose):
                 print('iter={}, outs={}) {}:{}->{}'.format(
-                    start_calls, len(new_values), self.external.name,
+                    self.num_calls, len(new_values), self.external.name,
                     str_from_object(self.get_input_values()), str_from_object(new_values)))
             if VERBOSE_WILD and new_facts:
                 # TODO: format all_new_facts
                 print('iter={}, facts={}) {}:{}->{}'.format(
-                    start_calls, self.external.name, str_from_object(self.get_input_values()),
+                    self.num_calls, self.external.name, str_from_object(self.get_input_values()),
                     new_facts, len(new_facts)))
 
         objects = [tuple(map(Object.from_value, output_values)) for output_values in new_values]
@@ -279,6 +276,7 @@ class StreamInstance(Instance):
             self.update_statistics(start_time, new_results)
         new_facts = list(map(obj_from_value_expression, new_facts))
         self.successful |= any(r.is_successful() for r in new_results)
+        self.num_calls += 1 # Must be after get_result
         #if self.external.is_test() and self.successful:
         #    # Set of possible test stream outputs is exhausted (excluding wild)
         #   self.enumerated = True

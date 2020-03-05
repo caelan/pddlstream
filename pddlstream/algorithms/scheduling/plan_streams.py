@@ -299,6 +299,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         # TODO: reachieve=False when using optimizers or should add applied facts
         instantiate_optimizer_axioms(instantiated, domain, all_results)
     action_from_name = rename_instantiated_actions(instantiated, rename=rename)
+    #for action in action_from_name.values():
+    #    action.dump()
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
@@ -323,7 +325,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     # TODO: only consider axioms that have stream conditions?
     #reachieve = reachieve and not using_optimizers(all_results)
     #for i, result in enumerate(all_results):
-    #    print(i, result)
+    #    print(i, result, result.get_effort())
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, deferred_from_name = add_stream_actions(domain, deferred_results)

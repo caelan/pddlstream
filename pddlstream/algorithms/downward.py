@@ -98,6 +98,7 @@ SEARCH_OPTIONS = {
     'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
                          'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
+    # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
     'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
@@ -384,7 +385,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
                 os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
 
     if debug:
-        print(output[:-1])
+        print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', time() - start_time)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
