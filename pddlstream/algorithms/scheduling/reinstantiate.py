@@ -19,6 +19,7 @@ def reinstantiate_action(state, instance, negative_from_name={}):
         action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
     except pddl.conditions.Impossible:
         return None
+    precondition = list(set(precondition))
     effects = []
     effect_from_literal = {literal: (cond, effect, effect_mapping)
                            for cond, literal, effect, effect_mapping in instance.effect_mappings}

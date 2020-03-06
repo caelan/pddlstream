@@ -423,6 +423,9 @@ def convert_condition(condition):
     elif class_name == 'ExistentialCondition':
         return pddl.ExistentialCondition(convert_parameters(condition.parameters),
                                          list(map(convert_condition, condition.parts)))
+    elif class_name == 'UniversalCondition':
+        return pddl.UniversalCondition(convert_parameters(condition.parameters),
+                                       list(map(convert_condition, condition.parts)))
     raise NotImplementedError(class_name)
 
 def convert_effects(effects):
@@ -455,6 +458,7 @@ def convert_parameters(parameters):
 SIMPLE_TEMPLATE = '{}-{}'
 
 def simple_from_durative_action(durative_actions, fluents):
+    from pddlstream.algorithms.algorithm import get_predicates
     import pddl
     simple_actions = {}
     for action in durative_actions:
@@ -464,9 +468,10 @@ def simple_from_durative_action(durative_actions, fluents):
         over_effects = []
         effects = list(map(convert_effects, [start_effects, over_effects, end_effects]))
 
-        static_condition = pddl.Conjunction(list({literal for condition in conditions
-                                                  for literal in get_conjunctive_parts(condition.simplified())
-                                                  if not isinstance(literal, pddl.Truth) and literal.predicate not in fluents}))
+        static_condition = pddl.Conjunction(list({
+            part for condition in conditions for part in get_conjunctive_parts(condition.simplified())
+            if not isinstance(part, pddl.Truth) and not (get_predicates(part) & fluents)}))
+        # TODO: deal with case where there are fluents
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
             actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
