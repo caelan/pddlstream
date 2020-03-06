@@ -162,15 +162,26 @@ def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
     #return tuple(map(value_from_object, objects))
 
+def temporal_from_sequential(action):
+    # TODO: clean this up
+    assert isinstance(action, DurativeAction)
+    name, args, start, duration = action
+    if name[-2] != '-':
+        return action
+    new_name, index = name[:-2], int(name[-1])
+    if index != 0: # Only keeps the start action
+        return None
+    return DurativeAction(new_name, args, start, duration)
+
 def transform_action_args(action, fn):
     if isinstance(action, Action):
         name, args = action
         return Action(name, tuple(map(fn, args)))
     elif isinstance(action, DurativeAction):
+        action = temporal_from_sequential(action)
+        if action is None:
+            return None
         name, args, start, duration = action
-        #name, index = name[:-2], int(name[-1])
-        #if index != 0: # TODO: what was this for?
-        #    return None
         return DurativeAction(name, tuple(map(fn, args)), start, duration)
     elif isinstance(action, StreamAction):
         name, inputs, outputs = action
@@ -186,7 +197,7 @@ def transform_action_args(action, fn):
 def transform_plan_args(plan, fn):
     if not is_plan(plan):
         return plan
-    return [transform_action_args(action, fn) for action in plan]
+    return list(filter(lambda a: a is not None, [transform_action_args(action, fn) for action in plan]))
 
 # TODO: would be better just to rename everything at the start. Still need to handle constants
 def obj_from_pddl_plan(pddl_plan):

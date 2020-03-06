@@ -302,7 +302,9 @@ def parse_temporal_solution(solution):
     makespan = 0.0
     plan = []
     # TODO: this regex doesn't work for @
-    regex = r'(\d+.\d+):\s+\(\s*(\w+(?:\s\w+)*)\s*\)\s+\[(\d+.\d+)\]'
+    regex = r'(\d+.\d+):\s+' \
+            r'\(\s*(\w+(?: \S+)*)\s*\)\s+' \
+            r'\[(\d+.\d+)\]'
     for start, action, duration in re.findall(regex, solution):
         entries = action.lower().split(' ')
         action = DurativeAction(entries[0], tuple(entries[1:]), float(start), float(duration))
@@ -340,8 +342,8 @@ def retime_plan(plan, duration=1):
 
 ##################################################
 
-#TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
-#                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
+TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
+                                               'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
 
 SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                                    'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
@@ -464,7 +466,7 @@ def simple_from_durative_action(durative_actions, fluents):
 
         static_condition = pddl.Conjunction(list({literal for condition in conditions
                                                   for literal in get_conjunctive_parts(condition.simplified())
-                                                  if literal.predicate not in fluents}))
+                                                  if not isinstance(literal, pddl.Truth) and literal.predicate not in fluents}))
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
             actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
@@ -530,6 +532,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     proc = subprocess.call(command, shell=True, cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
     error = proc != 0
     print('Error:', error)
+    # TODO: returns an error when no plan was found
     # TODO: close any opened resources
 
     temp_path = os.path.join(os.getcwd(), TEMP_DIR)
