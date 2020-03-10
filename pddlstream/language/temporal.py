@@ -34,12 +34,13 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
 # /home/caelan/Programs/VAL
 
-TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+ENV_VAR = 'TFD_PATH'
+#TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/temporal-FD'
-MAX_TIME = 20
+
+MAX_TIME = 60
 PLAN_FILE = 'plan'
-TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/') # tfd & temporal-FD
 #TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
 
 # TODO: the search produces unsound plans when it prints the full state-space
@@ -81,7 +82,7 @@ def format_option(pair):
 
 # Contains universal conditions: 1
 # Disabling rescheduling because of universal conditions in original task!
-# Doesn't look like temporal FastDownward uses non-boolean variables
+# TODO: convert finite quantifiers
 
 # /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
 
@@ -349,18 +350,23 @@ SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'type
                                                    'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
                                                    'durative_actions', 'pddl'])
 
+def get_tfd_path():
+    if ENV_VAR not in os.environ:
+        raise RuntimeError('Environment variable {} is not defined!'.format(ENV_VAR))
+    return os.path.join(os.environ[ENV_VAR], 'downward/')
 
 def parse_temporal_domain(domain_pddl):
+    translate_path = os.path.join(get_tfd_path(), 'translate/') # tfd & temporal-FD
     prefixes = ['pddl', 'normalize']
     deleted = delete_imports(prefixes)
-    sys.path.insert(0, TFD_TRANSLATE)
+    sys.path.insert(0, translate_path)
     import pddl
     import normalize
     temporal_domain = TemporalDomain(*pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines())))
     name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = temporal_domain
     fluents = normalize.get_fluent_predicates(temporal_domain)
 
-    sys.path.remove(TFD_TRANSLATE)
+    sys.path.remove(translate_path)
     delete_imports(prefixes)
     sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
@@ -510,7 +516,7 @@ def sequential_from_temporal_plan(plan):
 
 def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     if PLANNER == 'tfd':
-        root, template = TFD_PATH, TFD_COMMAND
+        root, template = get_tfd_path(), TFD_COMMAND
     elif PLANNER == 'cerberus':
         root, template = CERB_PATH, CERB_COMMAND
     elif PLANNER == 'tflap':
