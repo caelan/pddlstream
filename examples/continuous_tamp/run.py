@@ -19,7 +19,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.language.external import never_defer, defer_unique, defer_shared, get_defer_all_unbound, get_defer_any_unbound
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -53,6 +53,10 @@ def create_problem(tamp_problem):
         if isinstance(r, str):
             init += [('Region', r), ('Placeable', b, r)]
             goal_literals += [('In', b, r)]
+        elif isinstance(r, list):
+            for region in r:
+                init += [('Region', region), ('Placeable', b, region)]
+            goal_literals.append(Or(*[('In', b, region) for region in r]))
         else:
             init += [('Pose', b, r)]
             goal_literals += [('AtPose', b, r)]
@@ -240,8 +244,8 @@ def main():
                                   #skeletons=[skeleton, []],
                                   exact=True,
                                   max_cost=max_cost)
-    #replan_actions = set()
-    replan_actions = {'move', 'pick', 'place'}
+    replan_actions = set()
+    #replan_actions = {'move', 'pick', 'place'}
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
