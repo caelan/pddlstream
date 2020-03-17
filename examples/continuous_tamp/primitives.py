@@ -258,6 +258,25 @@ def blocked(n_blocks=3, n_robots=1, deterministic=True):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
+def dual(n_blocks=2, n_goals=2, n_robots=1):
+    regions = {
+        GROUND_NAME: (-10, 10),
+        'red': (-10, -8.5),
+        'green': (5, 10),
+    }
+    # TODO: geometric reachability
+
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
+
+    poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
+    blocks = make_blocks(len(poses))
+
+    initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
+    goal_regions = {block: ['red', 'green'] for block in blocks[:n_goals]}
+
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 
 #def blocked2(n_blocks=0, **kwargs):
 #    lower, upper = REGIONS[GROUND_NAME]
@@ -275,6 +294,7 @@ PROBLEMS = [
     mirror,
     tight,
     blocked,
+    dual,
     #blocked2,
 ]
 

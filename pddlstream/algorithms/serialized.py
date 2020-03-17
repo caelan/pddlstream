@@ -116,4 +116,5 @@ def solve_deferred(initial_problem, stream_info={}, unit_costs=False, unit_effor
                    retain_facts=True, **kwargs):
     # TODO: serialize solving deferred problems
     # TODO: can impose plan skeleton constraints as well
+    # TODO: investigate case where the first plan skeleton isn't feasible (e.g. due to blockage)
     raise NotImplementedError()
