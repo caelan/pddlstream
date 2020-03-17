@@ -53,7 +53,7 @@ def reenable_disabled(evaluations, domain, disabled):
 
 def process_instance(store, domain, instance, disable=True):
     if instance.enumerated:
-        return []
+        return [], []
     evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
@@ -66,7 +66,7 @@ def process_instance(store, domain, instance, disable=True):
     if disable:
         remove_blocked(store.evaluations, domain, instance, new_results)
     add_facts(store.evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
-    return new_results
+    return new_results, new_facts
 
 ##################################################
 
@@ -83,6 +83,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
     free_objects = get_free_objects(stream_plan)
     bindings = {}
     bound_plan = []
+    num_wild = 0
     for idx, opt_result in enumerate(stream_plan):
         if (store.best_cost <= cost) or (max_failures < (idx - len(bound_plan))):
             # TODO: this terminates early when bind=False
@@ -95,7 +96,8 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
         if bound_instance.enumerated or not is_instance_ready(store.evaluations, bound_instance):
             continue
         # TODO: could remove disabled and just use complexity_limit
-        new_results = process_instance(store, domain, bound_instance)
+        new_results, new_facts = process_instance(store, domain, bound_instance)
+        num_wild += len(new_facts)
         if not bound_instance.enumerated:
             disabled.add(bound_instance)
         for new_result in new_results:
@@ -104,7 +106,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
                 bindings = update_bindings(bindings, bound_result, bound_plan[-1])
                 cost = update_cost(cost, opt_result, bound_plan[-1])
                 break
-    if bind and (len(stream_plan) == len(bound_plan)):
+    if (num_wild == 0) and (len(stream_plan) == len(bound_plan)):
         store.add_plan(bind_action_plan(action_plan, bindings), cost)
     # TODO: report back whether to try w/o optimistic values in the event that wild
 

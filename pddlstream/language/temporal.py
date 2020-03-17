@@ -51,10 +51,10 @@ TFD_OPTIONS = {
     't': MAX_TIME,     # success timeout
     'T': MAX_TIME,     # failure timeout
     'g': False,   # greedy search
-    'l': False,    # disable lazy evaluation
+    'l': True,    # disable lazy evaluation (slow when using the makespan heuristic)
     'v': True,    # disable verbose
-    'y+Y': False, # CEA heuristic
-    'x+X': True,  # makespan heuristic
+    'y+Y': True, # CEA heuristic
+    'x+X': False,  # makespan heuristic
     'G': 'm',     # g-value evaluation
     'Q': 'p',     # queue (r, p, h)
     'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
@@ -328,10 +328,29 @@ def get_end(action):
     return action.start + action.duration
 
 
-def compute_duration(plan):
+def compute_start(plan):
     if not plan:
-        return 0
+        return 0.
+    return min(action.start for action in plan)
+
+
+def compute_end(plan):
+    if not plan:
+        return 0.
     return max(map(get_end, plan))
+
+
+def compute_duration(plan):
+    return compute_end(plan) - compute_start(plan)
+
+
+def apply_start(plan, new_start):
+    if not plan:
+        return plan
+    old_start = compute_start(plan)
+    delta_start = new_start - old_start
+    return [DurativeAction(name, args, start + delta_start, duration)
+            for name, args, start, duration in plan]
 
 
 def retime_plan(plan, duration=1):
@@ -480,6 +499,7 @@ def simple_from_durative_action(durative_actions, fluents):
         # TODO: deal with case where there are fluents
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
+            # TODO: extract the durations by pretending they are action costs
             actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
                                        pddl.Conjunction([static_condition, condition]).simplified(), effect, None))
             #actions[-1].dump()

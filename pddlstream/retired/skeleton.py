@@ -273,7 +273,8 @@ class SkeletonQueue(Sized):
         # assert(instance.opt_index == 0)
         if not is_instance_ready(self.evaluations, instance):
             raise RuntimeError(instance)
-        is_new = bool(process_instance(self.store, self.domain, instance, disable=self.disable))
+        new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable)
+        is_new = bool(new_results)
         for i, binding in enumerate(list(self.bindings_from_instance[instance])):
             #print(i, binding)
             # Maybe this list grows but not all the things are accounted for

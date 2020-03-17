@@ -180,7 +180,8 @@ class SkeletonQueue(Sized):
         #if not is_instance_ready(self.evaluations, instance):
         #    raise RuntimeError(instance)
         if binding.up_to_date():
-            is_new = bool(process_instance(self.store, self.domain, instance, disable=self.disable))
+            new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable)
+            is_new = bool(new_results)
         for call_idx in range(binding.calls, instance.num_calls):
             for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
                 if new_result.is_successful():
