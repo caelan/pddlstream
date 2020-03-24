@@ -39,7 +39,7 @@ ENV_VAR = 'TFD_PATH'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/temporal-FD'
 
-MAX_TIME = 60
+MAX_TIME = '{max_planner_time}'
 PLAN_FILE = 'plan'
 #TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
 
@@ -55,7 +55,7 @@ TFD_OPTIONS = {
     'v': True,    # disable verbose
     'y+Y': True, # CEA heuristic
     'x+X': False,  # makespan heuristic
-    'G': 'm',     # g-value evaluation
+    'G': 'm',     # g-value evaluation (m, c, t, w)
     'Q': 'p',     # queue (r, p, h)
     'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     #'O': 1,       # num ordered preferred ops, TFD doesn't support
@@ -66,6 +66,18 @@ TFD_OPTIONS = {
     'f': False,  # epsilon externally
     #'b': True,   # reset after solution, TFD doesn't support
 }
+
+def create_planner(anytime=False, greedy=False, lazy=False, h_cea=False, h_makespan=False, reschedule=False):
+    planner = dict(TFD_OPTIONS)
+    planner.update({
+        'a': anytime,       # anytime search
+        'g': greedy,        # greedy search
+        'l': not lazy,      # disable lazy evaluation (slow when using the makespan heuristic)
+        'y+Y': h_cea,       # CEA heuristic
+        'x+X': h_makespan,  # makespan heuristic
+        'r': reschedule,    # reschedule
+    })
+    return planner
 
 # https://github.com/caelan/TemporalFastDownward/blob/020da65a39d3f44c821cc2062d1006ccb0fcd7e5/downward/search/best_first_search.cc#L376
 
@@ -86,14 +98,12 @@ def format_option(pair):
 
 # /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
 
-TFD_ARGS = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, TFD_OPTIONS.items()))))
-
 # Parameters just used in search (and split by +)
 #TFD_COMMAND = 'plan.py n {} {} {}' # Default in plannerParameters.h
 #TFD_COMMAND = 'plan.py y+Y+a+e+r+O+1+C+1+b {} {} {}' # Default in ./plan
 #TFD_COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
 #TFD_COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
-TFD_COMMAND = 'plan.py %s {} {} {}' % TFD_ARGS
+TFD_COMMAND = 'plan.py %s {} {} {}'
 
 # TODO: TFD sometimes returns incorrect plans
 # ./VAL/validate pddlstream/temp/domain.pddl pddlstream/temp/problem.pddl pddlstream/temp/plan
@@ -406,11 +416,13 @@ def parse_temporal_domain(domain_pddl):
                           {p.name: p for p in predicates}, functions, simple_actions, axioms,
                           simple_from_durative, domain_pddl)
 
+DURATIVE_ACTIONS = ':durative-actions'
+
 def parse_domain(domain_pddl):
     try:
         return parse_sequential_domain(domain_pddl)
     except AssertionError as e:
-        if str(e) == ':durative-actions':
+        if str(e) == DURATIVE_ACTIONS:
             return parse_temporal_domain(domain_pddl)
         raise e
 
@@ -534,9 +546,12 @@ def sequential_from_temporal_plan(plan):
 
 ##################################################
 
-def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
+def solve_tfd(domain_pddl, problem_pddl, planner=TFD_OPTIONS, max_planner_time=60, debug=False, **kwargs):
     if PLANNER == 'tfd':
-        root, template = get_tfd_path(), TFD_COMMAND
+        root = get_tfd_path()
+        # TODO: make a function for this
+        args = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, planner.items()))))
+        template = TFD_COMMAND % args.format(max_planner_time=max_planner_time)
     elif PLANNER == 'cerberus':
         root, template = CERB_PATH, CERB_COMMAND
     elif PLANNER == 'tflap':
