@@ -277,7 +277,10 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
     action_instances = []
     for action in pddl_plan:
         instances = instance_from_action_args[action.name, action.args]
-        assert len(instances) == 1 # TODO: support 2 <= case
+        if len(instances) != 1:
+            for action in instances:
+                action.dump()
+        #assert len(instances) == 1 # TODO: support 2 <= case
         action_instances.append(instances[0])
     temporal_plan = obj_from_pddl_plan(pddl_plan) # pddl_plan is sequential
     return instantiated, action_instances, temporal_plan, makespan

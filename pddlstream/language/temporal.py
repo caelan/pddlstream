@@ -370,6 +370,14 @@ def retime_plan(plan, duration=1):
     return [DurativeAction(name, args, i * duration, duration)
             for i, (name, args) in enumerate(plan)]
 
+
+def reverse_plan(plan):
+    if plan is None:
+        return None
+    makespan = compute_duration(plan)
+    return [DurativeAction(action.name, action.args, makespan - get_end(action), action.duration)
+            for action in plan]
+
 ##################################################
 
 TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
