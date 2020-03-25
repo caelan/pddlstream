@@ -214,6 +214,9 @@ def param_from_object(obj):
 def params_from_objects(objects):
     return tuple(map(param_from_object, objects))
 
+def objects_from_values(values):
+    return tuple(map(Object.from_value, values))
+
 ##################################################
 
 #def expression_holds(expression, evaluations):

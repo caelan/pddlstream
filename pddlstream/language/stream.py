@@ -5,7 +5,7 @@ from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
-    get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact
+    get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, objects_from_values
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list, select_inputs
 from pddlstream.language.generator import get_next, from_fn, universe_test
@@ -267,7 +267,7 @@ class StreamInstance(Instance):
                     self.num_calls, self.external.name, str_from_object(self.get_input_values()),
                     new_facts, len(new_facts)))
 
-        objects = [tuple(map(Object.from_value, output_values)) for output_values in new_values]
+        objects = [objects_from_values(output_values) for output_values in new_values]
         new_objects = list(filter(lambda o: o not in self.previous_outputs, objects))
         self.previous_outputs.update(new_objects) # Only counting new outputs as successes
         new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)

@@ -258,7 +258,7 @@ def blocked(n_blocks=3, n_robots=1, deterministic=True):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
 
-def dual(n_blocks=2, n_goals=2, n_robots=1):
+def dual(n_blocks=2, n_goals=2, n_robots=1, goal_regions=['red', 'green']):
     regions = {
         GROUND_NAME: (-10, 10),
         'red': (-10, -8.5),
@@ -274,7 +274,7 @@ def dual(n_blocks=2, n_goals=2, n_robots=1):
     blocks = make_blocks(len(poses))
 
     initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
-    goal_regions = {block: ['red', 'green'] for block in blocks[:n_goals]}
+    goal_regions = {block: goal_regions for block in blocks[:n_goals]}
 
     return TAMPProblem(initial, regions, GOAL_CONF, goal_regions)
 

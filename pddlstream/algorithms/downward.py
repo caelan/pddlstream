@@ -17,10 +17,9 @@ filepath = os.path.abspath(__file__)
 if ' ' in filepath:
     raise RuntimeError('The path to pddlstream cannot include spaces')
 
+USE_CERBERUS = False
 #CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
-FD_PATH = get_file_path(__file__, '../../FastDownward/')
-USE_CERBERUS = False
 
 USE_FORBID = False
 FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
@@ -35,6 +34,7 @@ def find_build(fd_path):
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
 
+FD_PATH = get_file_path(__file__, '../../FastDownward/')
 TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
 FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')
 

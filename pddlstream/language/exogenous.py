@@ -5,7 +5,7 @@ from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
 from pddlstream.algorithms.downward import make_predicate, add_predicate, make_action, make_axiom, get_fluents
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import evaluation_from_fact, \
-    is_atom, fact_from_evaluation, substitute_expression
+    is_atom, fact_from_evaluation, substitute_expression, objects_from_values
 from pddlstream.language.generator import from_fn
 from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
@@ -50,14 +50,14 @@ def get_fluent_domain(result):
 
 def create_static_stream(stream, evaluations, fluent_predicates, future_fn):
     def static_fn(*input_values):
-        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
+        instance = stream.get_instance(objects_from_values(input_values))
         if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
             return None
         return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
 
     #opt_evaluations = None
     def static_opt_gen_fn(*input_values):
-        instance = stream.get_instance(tuple(map(Object.from_value, input_values)))
+        instance = stream.get_instance(objects_from_values(input_values))
         if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
             return
         for output_values in stream.opt_gen_fn(*input_values):
