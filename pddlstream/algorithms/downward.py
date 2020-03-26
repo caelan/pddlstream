@@ -18,13 +18,13 @@ USE_CERBERUS = False
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 # Does not support derived predicates
 
-USE_FORBID = False
+USE_FORBID = True
 FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
 # --planner topk,topq,topkq,diverse
 FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}'
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 assert not USE_CERBERUS or not USE_FORBID
-# Does not support derived predicates
+# Does not support derived predicates, disjunctive conditions
 
 ##################################################
 
@@ -369,7 +369,10 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
     problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
     if USE_FORBID:
-        command = FORBID_COMMAND.format(num=2, domain=domain_path, problem=problem_path)
+        #for filename in os.listdir(FORBID_PATH): # Automatically "Deleting existing plans"
+        #    if filename.startswith(SEARCH_OUTPUT):
+        #        os.remove(os.path.join(temp_path, filename))
+        command = FORBID_COMMAND.format(num=7, domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)
 
@@ -425,17 +428,13 @@ def parse_solution(solution):
     return plan, cost
 
 def parse_solutions(temp_path, plan_files):
-    # TODO: return multiple solutions for focused
-    best_plan, best_cost = None, INF
-    for plan_file in plan_files:
-        solution = read(os.path.join(temp_path, plan_file))
-        plan, cost = parse_solution(solution)
-        if cost < best_cost:
-            best_plan, best_cost = plan, cost
-    return best_plan, best_cost
+    solutions = [parse_solution(read(os.path.join(temp_path, plan_file)))
+                 for plan_file in plan_files]
+    return sorted(solutions, key=lambda pair: pair[1])
 
-def write_pddl(domain_pddl=None, problem_pddl=None, temp_dir=TEMP_DIR):
-    clear_dir(temp_dir)
+def write_pddl(domain_pddl=None, problem_pddl=None, clean=False, temp_dir=TEMP_DIR):
+    if clean:
+        clear_dir(temp_dir)
     domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
     if domain_pddl is not None:
         write(domain_path, domain_pddl)

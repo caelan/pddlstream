@@ -4,6 +4,7 @@ import copy
 
 from collections import defaultdict, namedtuple
 
+from pddlstream.algorithms.scheduling.diverse import select_diverse_subset
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
     pddl_from_instance, USE_FORBID
@@ -33,8 +34,7 @@ from pddlstream.language.optimizer import UNSATISFIABLE
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.temporal import SimplifiedDomain, solve_tfd
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.language.object import Object
-from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
+from pddlstream.utils import Verbose, INF, get_ancestors
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
                                          'supporting_facts', 'axiom_plan'])
@@ -63,6 +63,7 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
 
 def rename_instantiated_actions(instantiated, rename):
     # TODO: rename SAS instead?
+    # TODO: keep part of the old name
     actions = instantiated.actions[:]
     renamed_actions = []
     action_from_name = {}
@@ -294,7 +295,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     with Verbose(verbose=False):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
-        return instantiated, None, temporal_plan, INF
+        return instantiated, []
 
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight)
@@ -311,15 +312,16 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
-    if renamed_plan is None:
-        return instantiated, None, temporal_plan, INF
-    if rename:
-        action_instances = [action_from_name[name] for name, _ in renamed_plan]
-    else:
-        action_instances = [action_from_name['({} {})'.format(name, ' '.join(args))] for name, args in renamed_plan]
-    cost = get_plan_cost(action_instances, cost_from_action)
-    return instantiated, action_instances, temporal_plan, cost
+    solutions = []
+    for renamed_plan, _ in solve_from_task(sas_task, debug=debug, **kwargs):
+        if rename:
+            action_instances = [action_from_name[name] for name, _ in renamed_plan]
+        else:
+            action_instances = [action_from_name['({} {})'.format(name, ' '.join(args))]
+                                for name, args in renamed_plan]
+        cost = get_plan_cost(action_instances, cost_from_action)
+        solutions.append((action_instances, temporal_plan, cost))
+    return instantiated, solutions
 
 ##################################################
 
@@ -348,25 +350,36 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     temporal = isinstance(stream_domain, SimplifiedDomain)
     optimistic_fn = solve_optimistic_temporal if temporal else solve_optimistic_sequential
-    instantiated, action_instances, temporal_plan, cost = optimistic_fn(
+    instantiated, solutions = optimistic_fn(
         domain, stream_domain, applied_results, all_results, opt_evaluations,
         node_from_atom, goal_expression, effort_weight, **kwargs)
-    if action_instances is None:
-        return FAILED, FAILED, cost
 
-    axiom_plans = recover_axioms_plans(instantiated, action_instances)
-    # TODO: extract out the minimum set of conditional effects that are actually required
-    #simplify_conditional_effects(instantiated.task, action_instances)
-    stream_plan, action_instances = recover_simultaneous(
-        applied_results, negative, deferred_from_name, action_instances)
+    combined_plans = []
+    for action_instances, temporal_plan, cost in solutions:
+        axiom_plans = recover_axioms_plans(instantiated, action_instances)
+        # TODO: extract out the minimum set of conditional effects that are actually required
+        #simplify_conditional_effects(instantiated.task, action_instances)
+        stream_plan, action_instances = recover_simultaneous(
+            applied_results, negative, deferred_from_name, action_instances)
 
-    action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
-    replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
-    stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
-        node_from_atom, action_instances, axiom_plans, negative, replan_step)
-    if temporal_plan is not None:
-        # TODO: handle deferred streams
-        assert all(isinstance(action, Action) for action in opt_plan.action_plan)
-        opt_plan.action_plan[:] = temporal_plan
-    return stream_plan, opt_plan, cost
+        action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
+        replan_step = min([step+1 for step, action in enumerate(action_plan)
+                           if action.name in replan_actions] or [len(action_plan)]) # step after action application
+        stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
+            node_from_atom, action_instances, axiom_plans, negative, replan_step)
+        if temporal_plan is not None:
+            # TODO: handle deferred streams
+            assert all(isinstance(action, Action) for action in opt_plan.action_plan)
+            opt_plan.action_plan[:] = temporal_plan
+        combined_plans.append((stream_plan, opt_plan, cost)) # TODO: contains certificate
+        # print()
+        # print(len(stream_plan), stream_plan)
+        # print(len(opt_plan.action_plan), cost, opt_plan.action_plan)
+
+    if not combined_plans:
+        return FAILED, FAILED, INF
+
+    select_diverse_subset(combined_plans)
+    quit()
+
+    return combined_plans

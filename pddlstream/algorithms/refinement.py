@@ -184,6 +184,16 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn, complexity_limit,
                                      new_depth, next_constraints, **effort_args)
 
+##################################################
+
+def single_plan_streams(all_evaluations, externals, optimistic_solve_fn, complexity_limit, **effort_args):
+    # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
+    complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
+    results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit, **effort_args)
+    solutions = optimistic_solve_fn(complexity_evals, results, constraints=None)
+    assert all(is_plan(action_plan) for stream_plan, action_plan, cost in solutions)
+    return solutions
+
 def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, complexity_limit, **effort_args):
     # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
@@ -202,3 +212,5 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
             status = INFEASIBLE if exhausted else FAILED
             return status, status, cost
     # TODO: should streams along the sampled path automatically have no optimistic value
+
+#iterative_plan_streams = single_plan_streams

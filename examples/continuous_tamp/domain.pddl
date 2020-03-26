@@ -25,6 +25,10 @@
     (HandEmpty ?r)
     (CanMove ?r)
 
+    (Planning)
+    (GoalRegion ?b ?s)
+    (Satisfied ?b)
+
     ; Derived predicates
     (In ?b ?s)
     (UnsafePose ?b ?p)
@@ -37,41 +41,54 @@
 
   (:action move
     :parameters (?r ?q1 ?t ?q2)
-    :precondition (and (Robot ?r) (Motion ?q1 ?t ?q2)
+    :precondition (and (Robot ?r) (Motion ?q1 ?t ?q2) (Planning)
                        (AtConf ?r ?q1) (CanMove ?r) ; (not (UnsafeTraj ?t)))
                   )
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r))
-                 (increase (total-cost) (Dist ?q1 ?q2))))
+                 ;(increase (total-cost) (Dist ?q1 ?q2)))
+            ))
 
   (:action pick
     :parameters (?r ?b ?p ?g ?q)
-    :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
+    :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g) (Planning)
                        (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r))
     :effect (and (AtGrasp ?r ?b ?g) (CanMove ?r)
+                 (forall (?s) (when (Contain ?b ?p ?s) (not (In ?b ?s))))
                  (not (AtPose ?b ?p)) (not (HandEmpty ?r))
-                 (increase (total-cost) 10)))
+                 ;(increase (total-cost) 10))
+             ))
 
   (:action place
     :parameters (?r ?b ?p ?g ?q)
-    :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
+    :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g) (Planning)
                        (AtConf ?r ?q) (AtGrasp ?r ?b ?g)
-                       (not (UnsafePose ?b ?p))
-                       (forall (?b2 ?p2) ; TODO: makes incremental slow
-                         (imply (and (Pose ?b2 ?p2) (AtPose ?b2 ?p2))
-                                (CFree ?b ?p ?b2 ?p2)))
+                       ;(not (UnsafePose ?b ?p))
+                       ;(forall (?b2 ?p2) ; TODO: makes incremental slow
+                       ;  (imply (and (Pose ?b2 ?p2) (AtPose ?b2 ?p2))
+                       ;         (CFree ?b ?p ?b2 ?p2)))
                   )
     :effect (and (AtPose ?b ?p) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?b ?g))
-                 (increase (total-cost) 10))
-  )
+                 (forall (?s) (when (Contain ?b ?p ?s) (In ?b ?s)))
+                 ;(increase (total-cost) 10)
+            ))
 
-  (:derived (In ?b ?s)
-    (exists (?p) (and (Contain ?b ?p ?s)
-                      (AtPose ?b ?p))))
-  (:derived (Holding ?r ?b)
-    (exists (?g) (and (Robot ?r) (Grasp ?b ?g)
-                      (AtGrasp ?r ?b ?g))))
+  (:action solve
+    ;:precondition (forall (?b) (imply (Block ?b) (exists (?s) (In ?b ?s)))) ; Forbid probably doesn't support forall conditions
+    :parameters (?b ?s)
+    :precondition (and (GoalRegion ?b ?s)
+                       (In ?b ?s))
+    :effect (and (Satisfied ?b)
+                 (not (Planning))))
+
+
+  ;(:derived (In ?b ?s)
+  ;  (exists (?p) (and (Contain ?b ?p ?s)
+  ;                    (AtPose ?b ?p))))
+  ;(:derived (Holding ?r ?b)
+  ;  (exists (?g) (and (Robot ?r) (Grasp ?b ?g)
+  ;                    (AtGrasp ?r ?b ?g))))
   ;(:derived (UnsafePose ?b1 ?p1)
   ;  (exists (?b2 ?p2) (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)
   ;                         (AtPose ?b2 ?p2)
