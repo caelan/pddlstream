@@ -431,12 +431,15 @@ def is_hashable(value):
 
 
 def hash_or_id(value):
-    #return id(value)
-    try:
-        hash(value)
+    if is_hashable(value):
+        return hash(value)
+    return id(value)
+
+
+def value_or_id(value):
+    if is_hashable(value):
         return value
-    except TypeError:
-        return id(value)
+    return id(value)
 
 
 def is_64bits():

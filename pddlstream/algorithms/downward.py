@@ -13,18 +13,24 @@ from pddlstream.language.conversion import is_atom, is_negated_atom, objects_fro
 from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove, safe_zip
 from pddlstream.language.write_pddl import get_problem_pddl
 
-filepath = os.path.abspath(__file__)
-if ' ' in filepath:
-    raise RuntimeError('The path to pddlstream cannot include spaces')
-
 USE_CERBERUS = False
 #CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
+# Does not support derived predicates
 
 USE_FORBID = False
 FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
-FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}' # topk,topq,topkq,diverse
+# --planner topk,topq,topkq,diverse
+FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}'
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
+assert not USE_CERBERUS or not USE_FORBID
+# Does not support derived predicates
+
+##################################################
+
+filepath = os.path.abspath(__file__)
+if ' ' in filepath:
+    raise RuntimeError('The path to pddlstream cannot include spaces')
 
 def find_build(fd_path):
     for release in ['release64', 'release32']:  # TODO: list the directory
@@ -62,6 +68,8 @@ SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'
 INFINITY = 'infinity'
 GOAL_NAME = '@goal' # @goal-reachable
+
+##################################################
 
 # TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
 # TODO: modify parsing_functions to support multiple costs
@@ -264,10 +272,13 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
     problem_pddl = None
-    #problem_pddl = get_problem_pddl(init_evaluations, goal_expression, domain.pddl, temporal=False)
+    if USE_FORBID:
+        problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
     write_pddl(domain.pddl, problem_pddl)
-    return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
-                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs, pddl=problem_pddl)
+    return Problem(task_name=domain.name, task_domain_name=domain.name,
+                   objects=sorted(typed_objects, key=lambda o: o.name),
+                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal,
+                   use_metric=not unit_costs, pddl=problem_pddl)
 
 IDENTICAL = "identical" # lowercase is critical (!= instead?)
 

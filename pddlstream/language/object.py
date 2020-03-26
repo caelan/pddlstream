@@ -83,6 +83,12 @@ class DebugValue(object): # TODO: could just do an object
         self.input_values = input_values
         self.output_parameter = output_parameter
         self.index = next(self._output_counts[output_parameter])
+    # def __iter__(self):
+    #     return self.stream, self.input_values, self.output_parameter
+    # def __hash__(self):
+    #     return hash(tuple(self)) # self.__class__
+    # def __eq__(self, other):
+    #     return (self.__class__ == other.__class__) and (tuple(self) == tuple(other))
     def __repr__(self):
         # Can also just return first letter of the prefix
         return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), self.index)
