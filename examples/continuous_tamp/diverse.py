@@ -2,41 +2,25 @@
 
 from __future__ import print_function
 
+import argparse
+from collections import namedtuple
 from itertools import permutations, combinations
 
-import argparse
-import cProfile
-import os
-import pstats
-import random
 import numpy as np
-import time
 
-from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
-from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, \
-    GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state, dual, GROUND_NAME
-from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import never_defer, defer_unique, defer_shared, get_defer_all_unbound, get_defer_any_unbound
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
-from pddlstream.language.conversion import objects_from_values
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.object import DebugValue
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
-from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.language.temporal import get_end, compute_duration, retime_plan
-from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
-    sorted_str_from_list, implies, inclusive_range, flatten
-from pddlstream.language.statistics import load_data
-
-from pddlstream.algorithms.serialized import SEPARATOR
-
+from examples.continuous_tamp.primitives import draw_state, SUCTION_HEIGHT, GROUND_NAME
 from examples.continuous_tamp.run import initialize, create_problem, dump_pddlstream
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
+from pddlstream.algorithms.constraints import PlanConstraints, WILD
+from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.serialized import SEPARATOR
+from pddlstream.language.constants import PDDLProblem, print_solution
+from pddlstream.language.object import DebugValue
+from pddlstream.language.statistics import load_data
+from pddlstream.language.stream import StreamInfo, DEBUG
+from pddlstream.utils import read, get_file_path, value_or_id, INF
+
 
 def create_skeleton(robot, blocks, home=False):
     # TODO: constrain the placement region
@@ -52,9 +36,21 @@ def create_skeleton(robot, blocks, home=False):
         skeleton.append(('move', [robot, WILD, WILD, WILD]))
     return skeleton
 
+##################################################
+
+Stats = namedtuple('Stats', ['p_success', 'overhead'])
+
+STATS_PER_STREAM = {
+    's-grasp':  Stats(p_success=1.0, overhead=0.1),
+    's-region': Stats(p_success=0.5, overhead=0.1),
+    't-cfree':  Stats(p_success=0.1, overhead=0.1),
+    's-ik':     Stats(p_success=0.9, overhead=0.1),
+    's-motion': Stats(p_success=0.99, overhead=0.1),
+}
 
 def dump_statistics(name='continuous-tamp'):
     data = load_data(name)
+    stats_from_stream = {}
     for name, statistics in data.items():
         attempts = statistics['calls']
         if not attempts:
@@ -63,6 +59,35 @@ def dump_statistics(name='continuous-tamp'):
         overhead = float(statistics['overhead']) / attempts
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             name, attempts, p_success, overhead))
+        stats_from_stream[name] = Stats(p_success, overhead)
+    print(stats_from_stream)
+    return stats_from_stream
+
+StreamValue = namedtuple('StreamValue', ['stream', 'inputs', 'output'])
+
+def get_stream_value(value):
+    # TODO: dynamic programming version
+    if not isinstance(value, DebugValue):
+        return value_or_id(value)
+    return StreamValue(value.stream, tuple(map(get_stream_value, value.input_values)), value.output_parameter)
+
+def p_conjunction(stream_plans, stats_from_stream):
+    return np.product([stats_from_stream[stream].p_success
+                       for stream, _ in set.union(*stream_plans)])
+
+def p_disjunction(stream_plans, stats_from_stream):
+    # Inclusion exclusion
+    # TODO: dynamic programming method for this?
+    # TODO: incorporate overhead
+    p = 0.
+    for i in range(len(stream_plans)):
+        r = i + 1
+        for subset_plans in combinations(stream_plans, r=r):
+            sign = -1 if r % 2 == 0 else +1
+            p += sign*p_conjunction(subset_plans, stats_from_stream)
+    return p
+
+##################################################
 
 def main():
     parser = argparse.ArgumentParser()
@@ -86,7 +111,7 @@ def main():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
-    stream_map = DEBUG
+    stream_map = DEBUG # TODO: reuse same streams
 
     stream_info = {
         't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
@@ -98,7 +123,8 @@ def main():
             print(SEPARATOR)
             print('Block order:', order)
             print('Goal region:', region)
-            tamp_problem = dual(n_blocks=args.number, goal_regions=[region])
+            #tamp_problem = dual(n_blocks=args.number, goal_regions=[region])
+            tamp_problem.goal_regions.update({block: region for block in order})
 
             init, goal = create_problem(tamp_problem)
             problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -117,23 +143,34 @@ def main():
             print_solution(solution)
             plan, cost, evaluations = solution
             assert plan is not None
-            params = {param for name, params in plan for param in params if isinstance(param, DebugValue)}
-            print(params)
 
+            # TODO: params not sufficient if no output stream or output not in plan
             streams = set()
-            for param in params:
-                input_ids = tuple(map(id, param.input_values))
-                key = (param.stream, input_ids)
-                streams.add(key)
+            for name, params in plan:
+                for param in params:
+                    value = get_stream_value(param)
+                    if isinstance(value, StreamValue):
+                        # TODO: propagate recursively
+                        streams.add((value.stream, value.inputs))
             streams_from_problem[order, region] = streams
-            print(streams)
+            #print(streams)
             #user_input()
 
-    # TODO: kin should be the same for both
     print(SEPARATOR)
-    for problem1, problem2 in combinations(streams_from_problem, r=2): # Make r a parameter
-        print(problem1, problem2, streams_from_problem[problem1] & streams_from_problem[problem2])
+    dump_statistics()
 
+    print(SEPARATOR)
+    best_problems, best_p = None, -INF
+    for problems in combinations(streams_from_problem, r=2): # Make r a parameter
+        stream_plans = [streams_from_problem[problem] for problem in problems]
+        intersection = set.intersection(*stream_plans)
+        p = p_disjunction(stream_plans, STATS_PER_STREAM)
+        assert 0 <= p <= 1
+        print('Problems: {} | Intersection: {} | p={:.3f}'.format(problems, len(intersection), p)) #, intersection)
+        if p > best_p:
+            best_problems, best_p = problems, p
+
+    print('\nBest: {} (p={:.3f})'.format(best_problems, best_p))
 
 
 if __name__ == '__main__':
