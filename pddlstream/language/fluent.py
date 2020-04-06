@@ -9,11 +9,13 @@ from pddlstream.utils import find_unique, get_mapping
 import os
 
 def has_attachments(domain):
-    return any(action.attachments for action in domain.actions)
+    return any(getattr(action, 'attachments', {}) for action in domain.actions)
 
 def compile_fluent_attachments(domain, externals):
     import pddl
     state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent(), externals)) # is_special
+    if not state_streams:
+        return externals
     predicate_map = get_predicate_map(state_streams)
     if predicate_map and not os.path.exists(PYPLANNERS_PATH):
         raise NotImplementedError('Algorithm does not support fluent streams: {}'.format(

@@ -13,7 +13,6 @@ from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.utils import INF, Verbose
 
-USE_PYPLANNERS = False
 UPDATE_STATISTICS = False
 
 def process_instance(instantiator, evaluations, instance, verbose=False): #, **complexity_args):
