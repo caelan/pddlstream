@@ -21,6 +21,12 @@ CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path
 USE_FORBID = True
 FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
 # --planner topk,topq,topkq,diverse
+# topk: many plans that could be equivalent
+# topq: equivalence classes on plans (to prevent all possible reorderings) all plans up to that cost
+# topkq: generate reorders options
+# diverse: ignores solution quality
+# IJCAI submission: additional planner for topq and then diverse subset K* (multiple explicit paths)
+
 FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}'
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 assert not USE_CERBERUS or not USE_FORBID

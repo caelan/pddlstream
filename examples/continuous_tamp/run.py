@@ -99,10 +99,10 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
     constant_map = {}
     stream_map = {
         's-grasp': from_fn(lambda b: (GRASP,)),
-        's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
-        's-ik': from_fn(inverse_kin_fn),
+        'poses': from_gen_fn(get_pose_gen(tamp_problem.regions)),
+        'ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
-        's-motion': from_fn(plan_motion),
+        'motion': from_fn(plan_motion),
         't-region': from_test(get_region_test(tamp_problem.regions)),
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
         'dist': distance_fn,
@@ -230,10 +230,10 @@ def main():
     defer_fn = defer_shared # never_defer | defer_unique | defer_shared
     tamp_problem, args = initialize(parser)
     stream_info = {
-        's-region': StreamInfo(opt_fn, p_success=0.5, defer_fn=defer_fn),
+        'poses': StreamInfo(opt_fn, p_success=0.5, defer_fn=defer_fn),
         's-grasp': StreamInfo(opt_fn, p_success=1.0, defer_fn=defer_fn),
-        's-ik': StreamInfo(opt_fn, p_success=0.9, defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
-        's-motion': StreamInfo(opt_fn, p_success=0.99, defer_fn=get_defer_any_unbound()),
+        'ik': StreamInfo(opt_fn, p_success=0.9, defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
+        'motion': StreamInfo(opt_fn, p_success=0.99, defer_fn=get_defer_any_unbound()),
         't-cfree': StreamInfo(opt_fn, defer_fn=get_defer_any_unbound(), eager=False, negate=True), # defer_fn |  defer_unbound
         't-region': StreamInfo(opt_fn, eager=False, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST, defer_fn=get_defer_any_unbound()),

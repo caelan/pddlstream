@@ -1,5 +1,5 @@
 (define (stream continuous-tamp)
-  (:stream s-region
+  (:stream poses
     :inputs (?b ?r)
     ;:domain (and (Block ?b) (Region ?r))
     :domain (Placeable ?b ?r)
@@ -10,12 +10,12 @@
   ;  :domain (Block ?b)
   ;  :outputs (?g)
   ;  :certified (Grasp ?b ?g))
-  (:stream s-ik
+  (:stream ik
     :inputs (?b ?p ?g)
     :domain (and (Pose ?b ?p) (Grasp ?b ?g))
     :outputs (?q)
     :certified (and (Conf ?q) (Kin ?b ?q ?p ?g)))
-  (:stream s-motion
+  (:stream motion
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
