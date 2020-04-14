@@ -10,7 +10,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import get_top_grasps
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, set_pose, Point, disconnect, HideOutput, \
     wait_for_user, load_pybullet, WSG_50_URDF, get_model_path, draw_pose, \
     link_from_name, get_max_limit, get_movable_joints, set_joint_position, unit_pose, create_box, RED, set_point, \
-    stable_z, set_camera_pose, LockRenderer, add_line, multiply, invert, get_relative_pose, GREEN, BLUE, TAN
+    stable_z, set_camera_pose, LockRenderer, add_line, multiply, invert, get_relative_pose, GREEN, BLUE, TAN, create_cylinder
 
 # https://www.generationrobots.com/en/403318-fe-gripper-for-panda-robotic-arm.html
 # /usr/local/lib/python2.7/site-packages/pybullet_data/gripper/
@@ -57,6 +57,7 @@ def main():
             robot_path = get_model_path(WSG_50_URDF)  # WSG_50_URDF | PANDA_HAND_URDF
             robot = load_pybullet(robot_path, fixed_base=True)
             #dump_body(robot)
+            #robot = create_cylinder(radius=0.5*BLOCK_SIDE, height=4*BLOCK_SIDE) # vacuum gripper
 
         block1 = create_box(w=BLOCK_SIDE, l=BLOCK_SIDE, h=BLOCK_SIDE, color=RED)
         block_z = stable_z(block1, table)
@@ -74,17 +75,17 @@ def main():
                  Point(x=+TABLE_WIDTH/2, z=block_z - BLOCK_SIDE/2 + EPSILON), color=RED)
         set_camera_pose(camera_point=Point(y=-1, z=block_z+1), target_point=Point(z=block_z))
 
+    #wait_for_user()
     block_pose = get_pose(block1)
     open_gripper(robot)
     tool_link = link_from_name(robot, 'tool_link')
     base_from_tool = get_relative_pose(robot, tool_link)
     #draw_pose(unit_pose(), parent=robot, parent_link=tool_link)
-    grasps = get_top_grasps(block1, tool_pose=unit_pose(), grasp_length=0.03, under=False)[1:2]
-    for grasp in grasps:
-        gripper_pose = multiply(block_pose, invert(grasp))
-        set_pose(robot, multiply(gripper_pose, invert(base_from_tool)))
-        wait_for_user()
 
+    y_grasp, x_grasp = get_top_grasps(block1, tool_pose=unit_pose(), grasp_length=0.03, under=False)
+    grasp = y_grasp # fingers won't collide
+    gripper_pose = multiply(block_pose, invert(grasp))
+    set_pose(robot, multiply(gripper_pose, invert(base_from_tool)))
     wait_for_user('Finish?')
     disconnect()
 
