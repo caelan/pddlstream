@@ -16,6 +16,7 @@
     (Placeable ?b ?s)
     (PoseCollision ?b1 ?p1 ?b2 ?p2)
     (TrajCollision ?t ?b2 ?p2)
+    (Stove ?s)
 
     ; Fluent predicates
     (AtPose ?b ?p)
@@ -24,6 +25,7 @@
     (Holding ?r ?b)
     (HandEmpty ?r)
     (CanMove ?r)
+    (Cooked ?b)
 
     ; Derived predicates
     (In ?b ?s)
@@ -65,6 +67,13 @@
                  (not (AtGrasp ?r ?b ?g))
                  (increase (total-cost) 10))
   )
+
+  (:action cook
+    :parameters (?b ?s)
+    :precondition (and (Placeable ?b ?s) (Stove ?s)
+                       (In ?b ?s))
+    :effect (and (Cooked ?b)
+                 (increase (total-cost) 10)))
 
   (:derived (In ?b ?s)
     (exists (?p) (and (Contain ?b ?p ?s)

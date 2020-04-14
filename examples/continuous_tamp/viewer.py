@@ -15,11 +15,19 @@ STEM_HEIGHT = 2.5
 PIXEL_BUFFER = 10
 ENV_HEIGHT = 1.
 
+COLOR_FROM_NAME = {
+    'stove': 'grey',
+    'table': 'brown',
+}
+
 def get_width(interval):
     return interval[1] - interval[0]
 
+##################################################
+
 class ContinuousTMPViewer(object):
-    def __init__(self, suction_height, regions, tl_x=0, tl_y=0, width=400, height=200, title='Grid', background='tan'):
+    def __init__(self, suction_height, regions, tl_x=0, tl_y=0, width=400, height=200,
+                 title='Grid', background='tan'):
         self.tk = Tk()
         # tk.geometry('%dx%d+%d+%d'%(width, height, 100, 0))
         self.tk.withdraw()
@@ -36,7 +44,9 @@ class ContinuousTMPViewer(object):
         # self.center()
         self.move_frame(tl_x, tl_y)
 
-        max_width = max(map(get_width, regions.values())) # Really should take width of max minus min
+        min_x = min(x1 for x1, _ in regions.values())
+        max_x = max(x2 for _, x2 in regions.values())
+        max_width = max_x - min_x
         self.dist_to_pixel = (self.width - 2 * PIXEL_BUFFER) / max_width  # Maintains aspect ratio
         self.dist_width = self.width / self.dist_to_pixel
         self.dist_height = self.height / self.dist_to_pixel
@@ -82,12 +92,12 @@ class ContinuousTMPViewer(object):
     #                                                 self.scale_y(self.robot_dist - SUCTION_HEIGHT / 2),
     #                                                 fill=color, outline='black', width=2)
 
-    def draw_region(self, region, name='', color='red'):
+    def draw_region(self, region, name=''):
         x1, x2 = map(self.scale_x, region)
         y1, y2 = self.ground_height, self.height
+        color = COLOR_FROM_NAME.get(name, name)
         self.static.extend([
-            self.canvas.create_rectangle(x1, y1, x2, y2,
-                                         fill=color, outline='black', width=2),
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='black', width=2),
             self.canvas.create_text((x1 + x2) / 2, (y1 + y2) / 2, text=name),
         ])
 
@@ -95,8 +105,7 @@ class ContinuousTMPViewer(object):
         # TODO: automatically draw in order
         self.static = []
         for name, region in sorted(self.regions.items(), key=lambda pair: get_width(pair[1]), reverse=True):
-            self.draw_region(region, name=name, color=name)
-
+            self.draw_region(region, name=name)
 
     def draw_robot(self, x, y, name='', color='yellow'):  # TODO - could also visualize as top grasps instead of side grasps
         #y = self.robot_dist
@@ -130,6 +139,7 @@ class ContinuousTMPViewer(object):
         try:
             import pyscreenshot as ImageGrab
         except ImportError:
+            print('Unable to load pyscreenshot')
             return None
         x, y = self.top.winfo_x(), 2*self.top.winfo_y()
         width, height = self.top.winfo_width(), self.top.winfo_height() # winfo_width, winfo_reqheight
