@@ -13,7 +13,7 @@ import time
 from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, \
-    update_state, ENVIRONMENT_NAMES, STOVE_NAME
+    update_state, ENVIRONMENT_NAMES, STOVE_NAMES
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
@@ -41,14 +41,15 @@ def create_problem(tamp_problem):
     assert(not initial.holding)
 
     init = [
-       ('Stove', STOVE_NAME),
        #('Region', GROUND_NAME),
        Equal((TOTAL_COST,), 0)] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
+           [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
            [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
-            for r in tamp_problem.regions if r in ENVIRONMENT_NAMES]
+            for r in tamp_problem.regions if r in ENVIRONMENT_NAMES or
+            (b in tamp_problem.goal_cooked and (r in STOVE_NAMES))]
           #[('Grasp', b, GRASP) for b in initial.block_poses]
 
     goal_literals = [] + \

@@ -16,9 +16,14 @@ PIXEL_BUFFER = 10
 ENV_HEIGHT = 1.
 
 COLOR_FROM_NAME = {
-    'stove': 'grey',
-    'table': 'brown',
+    'stove': 'red',
+    'table': 'brown', # brown | tan
+    'shelf': 'grey',
 }
+
+BACKGROUND_COLOR = 'light blue' # tan | light blue
+
+# http://www.science.smith.edu/dftwiki/index.php/File:TkInterColorCharts.png
 
 def get_width(interval):
     return interval[1] - interval[0]
@@ -27,7 +32,7 @@ def get_width(interval):
 
 class ContinuousTMPViewer(object):
     def __init__(self, suction_height, regions, tl_x=0, tl_y=0, width=400, height=200,
-                 title='Grid', background='tan'):
+                 title='Grid', background=BACKGROUND_COLOR):
         self.tk = Tk()
         # tk.geometry('%dx%d+%d+%d'%(width, height, 100, 0))
         self.tk.withdraw()
@@ -141,6 +146,7 @@ class ContinuousTMPViewer(object):
         except ImportError:
             print('Unable to load pyscreenshot')
             return None
+        # TODO: screenshot is in the wrong place
         x, y = self.top.winfo_x(), 2*self.top.winfo_y()
         width, height = self.top.winfo_width(), self.top.winfo_height() # winfo_width, winfo_reqheight
         path = filename + '.png'
