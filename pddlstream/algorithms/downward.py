@@ -19,15 +19,28 @@ CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path
 # Does not support derived predicates
 
 USE_FORBID = True
-FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
+FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
+FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} ' \
+                  '--domain {domain} --problem {problem}'
 # --planner topk,topq,topkq,diverse
 # topk: many plans that could be equivalent
 # topq: equivalence classes on plans (to prevent all possible reorderings) all plans up to that cost
 # topkq: generate reorders options
 # diverse: ignores solution quality
 # IJCAI submission: additional planner for topq and then diverse subset K* (multiple explicit paths)
+# ForbidIterative planners for top-k, top-quality, and diverse planning problems
+# https://zenodo.org/record/3246774
 
-FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}'
+FORBID_PATH = '/Users/caelan/Programs/external/IBM/FD-topK-opensourcing'
+FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound 10. ' \
+                  '--domain {domain} --problem {problem}' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
+# [--overall-time-limit OVERALL_TIME_LIMIT]
+# [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
+# --reordering generates multiple plans from a single one
+# --quality_bound is a multiplicative factor of the first (best) plan cost
+# --symmetries substitutes different variable values when generating plans
+# Because using optimal search, plans are generated successively with increasing cost
+
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 assert not USE_CERBERUS or not USE_FORBID
 # Does not support derived predicates, disjunctive conditions
@@ -378,7 +391,8 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         #for filename in os.listdir(FORBID_PATH): # Automatically "Deleting existing plans"
         #    if filename.startswith(SEARCH_OUTPUT):
         #        os.remove(os.path.join(temp_path, filename))
-        command = FORBID_COMMAND.format(num=7, domain=domain_path, problem=problem_path)
+        command = FORBID_COMMAND.format(max_time=2, num_plans=10, #max_plans=20,
+                                        domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)
 
