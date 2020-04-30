@@ -18,14 +18,13 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import never_defer, defer_unique, defer_shared, get_defer_all_unbound, get_defer_any_unbound
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
+from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or, dump_pddlstream
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.language.temporal import get_end, compute_duration, retime_plan
-from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
-    sorted_str_from_list, implies, inclusive_range
+from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, implies, inclusive_range
 
 DISTANCE_PER_TIME = 4.0
 
@@ -211,10 +210,6 @@ def initialize(parser):
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
     return tamp_problem, args
-
-def dump_pddlstream(pddlstream_problem):
-    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
-    print('Goal:', str_from_object(pddlstream_problem.goal))
 
 ##################################################
 

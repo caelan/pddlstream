@@ -9,13 +9,13 @@ from itertools import permutations, combinations
 import numpy as np
 
 from examples.continuous_tamp.primitives import draw_state, SUCTION_HEIGHT, GROUND_NAME
-from examples.continuous_tamp.run import initialize, create_problem, dump_pddlstream
+from examples.continuous_tamp.run import initialize, create_problem
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.serialized import SEPARATOR
-from pddlstream.language.constants import PDDLProblem, print_solution
+from pddlstream.language.constants import PDDLProblem, print_solution, dump_pddlstream
 from pddlstream.language.object import DebugValue
 from pddlstream.language.statistics import load_data
 from pddlstream.language.stream import StreamInfo, DEBUG

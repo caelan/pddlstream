@@ -46,7 +46,11 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
             pddl_plan, cost = solve_pyplanners(instantiated)
         else:
             sas_task = sas_from_pddl(task, debug=debug)
-            pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
+            solutions = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
+            if solutions:
+                pddl_plan, cost = solutions[0]
+            else:
+                pddl_plan, cost = None, INF
     plan = obj_from_pddl_plan(pddl_plan)
     return plan, cost
 

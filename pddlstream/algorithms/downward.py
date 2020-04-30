@@ -10,7 +10,8 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove, safe_zip
+from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_unique, int_ceil, \
+    safe_remove, safe_zip, ensure_dir, safe_rm_dir
 from pddlstream.language.write_pddl import get_problem_pddl
 
 USE_CERBERUS = False
@@ -454,7 +455,8 @@ def parse_solutions(temp_path, plan_files):
 
 def write_pddl(domain_pddl=None, problem_pddl=None, clean=False, temp_dir=TEMP_DIR):
     if clean:
-        clear_dir(temp_dir)
+        safe_rm_dir(temp_dir)
+    ensure_dir(temp_dir)
     domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
     if domain_pddl is not None:
         write(domain_path, domain_pddl)

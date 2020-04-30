@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from collections import namedtuple
 
-from pddlstream.utils import INF, str_from_object
+from pddlstream.utils import INF, str_from_object, sorted_str_from_list
 
 EQ = '=' # xnor
 AND = 'and'
@@ -217,3 +217,8 @@ def get_costs(objectives):
 
 def get_constraints(objectives):
     return [o for o in objectives if not is_cost(o)]
+
+
+def dump_pddlstream(pddlstream_problem):
+    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
+    print('Goal:', str_from_object(pddlstream_problem.goal))

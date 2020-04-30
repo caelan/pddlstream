@@ -168,7 +168,7 @@ def add_subgoals(sas_task, subgoal_plan):
     return subgoal_var
 
 
-def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[], **kwargs):
+def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=None, **kwargs):
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
