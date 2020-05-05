@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
+import argparse
 
 from itertools import combinations
 
@@ -14,6 +15,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.downward import USE_FORBID
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_test, universe_test
+from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, get_file_path, INF
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream
 
@@ -51,6 +53,7 @@ class Location(object):
 ##################################################
 
 def draw_network(roads):
+    # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
     # https://matplotlib.org/tutorials/introductory/pyplot.html
     locations = {location for road in roads for location in road}
     for location in locations:
@@ -61,9 +64,10 @@ def draw_network(roads):
         plt.plot([x1, x2], [y1, y2], c=BLACK)
     plt.xlabel('x')
     plt.ylabel('y')
+    plt.tight_layout()
     plt.show()
 
-def get_problem(draw=False):
+def get_problem(visualize=False):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -100,7 +104,7 @@ def get_problem(draw=False):
                 (location2, location1),
             })
 
-    if draw:
+    if visualize:
         draw_network(roads)
         # Draw trucks / packages
 
@@ -127,17 +131,26 @@ def get_problem(draw=False):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream():
-    problem = get_problem()
+def solve_pddlstream(**kwargs):
+    # TODO: make a simulator that randomizes these probabilites
+    # TODO: include local correlation
+    problem = get_problem(**kwargs)
     dump_pddlstream(problem)
-    solution = solve_incremental(problem, unit_costs=True, debug=True)
-    #solution = solve_focused(problem, unit_costs=True)
+    stream_info = {
+        'test-open': StreamInfo(p_success=0.5), # TODO: p_success=lambda x: 0.5
+    }
+
+    #solution = solve_incremental(problem, unit_costs=True, debug=True)
+    solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True)
     print_solution(solution)
 
 ##################################################
 
 def main():
-    solve_pddlstream()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--visualize', action='store_true')
+    args = parser.parse_args()
+    solve_pddlstream(visualize=args.visualize)
 
 if __name__ == '__main__':
     main()

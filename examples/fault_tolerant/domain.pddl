@@ -21,8 +21,8 @@
     (:action move
     	:parameters (?truck ?location1 ?location2)
     	:precondition
-    		(and ;(Open ?location1 ?location2) ; (Active ?truck)
-    		     (Truck ?truck) (Road ?location1 ?location2)
+    		(and (Truck ?truck) (Road ?location1 ?location2) ; (Active ?truck)
+    		     (Open ?location1 ?location2)
     			 (AtLocation ?truck ?location1))
     	:effect
     		(and (AtLocation ?truck ?location2)
