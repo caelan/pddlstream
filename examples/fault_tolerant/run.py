@@ -8,12 +8,13 @@ import numpy as np
 import matplotlib as mpl
 import argparse
 
-from itertools import combinations
+from itertools import combinations, count
 
 from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.downward import USE_FORBID
 from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.scheduling.diverse import p_disjunction
 from pddlstream.language.generator import from_test, universe_test
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, get_file_path, INF
@@ -30,10 +31,12 @@ def read_pddl(filename):
 
 class Location(object):
     # Alternatively a set of properties
+    counter = count()
     def __init__(self, value, retailer=False, warehouse=False):
         self.value = np.array(value)
         self.retailer = retailer
         self.warehouse = warehouse
+        self.num = next(Location.counter)
     def draw(self):
         marker = 'o'
         size = DEFAULT_SIZE
@@ -48,7 +51,8 @@ class Location(object):
             color = 'g'
         plt.scatter(*self.value, s=size, c=color, marker=marker, alpha=1)
     def __str__(self):
-        return str(self.value)
+        return 'l{}'.format(self.num)
+        #return str(self.value)
 
 ##################################################
 
@@ -64,7 +68,7 @@ def draw_network(roads):
         plt.plot([x1, x2], [y1, y2], c=BLACK)
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.tight_layout()
+    plt.tight_layout(pad=0)
     plt.show()
 
 def get_problem(visualize=False):
@@ -141,7 +145,8 @@ def solve_pddlstream(**kwargs):
     }
 
     #solution = solve_incremental(problem, unit_costs=True, debug=True)
-    solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True)
+    solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True,
+                             initial_complexity=1, max_iterations=1, max_skeletons=1)
     print_solution(solution)
 
 ##################################################
