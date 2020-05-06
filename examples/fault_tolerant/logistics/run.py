@@ -10,12 +10,16 @@ import argparse
 
 from itertools import combinations, count
 
-from pddlstream.algorithms.focused import solve_focused
+import pddlstream.algorithms.scheduling.diverse
+pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 2
 
-from pddlstream.algorithms.downward import USE_FORBID
+import pddlstream.algorithms.downward
+pddlstream.algorithms.downward.USE_FORBID = True
+
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.scheduling.diverse import p_disjunction
-from pddlstream.language.generator import from_test, universe_test
+from pddlstream.language.generator import from_test, universe_test, empty_test
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, get_file_path, INF
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream
@@ -57,7 +61,6 @@ class Location(object):
 ##################################################
 
 def draw_network(roads):
-    # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
     # https://matplotlib.org/tutorials/introductory/pyplot.html
     locations = {location for road in roads for location in road}
     for location in locations:
@@ -76,7 +79,7 @@ def get_problem(visualize=False):
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
-        'test-open': from_test(universe_test),
+        'test-open': from_test(empty_test), # universe_test | empty_test
     }
 
     # Trucks return to depots?

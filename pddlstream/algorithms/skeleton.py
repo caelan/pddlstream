@@ -264,11 +264,13 @@ class SkeletonQueue(Sized):
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: detect infeasibility when an intermediate stream fails
+        if self.store.is_terminated():
+            return False
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
-        elif stream_plan is INFEASIBLE and not self.process_until_new(complexity_limit):
+        elif (stream_plan is INFEASIBLE) and not self.process_until_new(complexity_limit):
             # Move this after process_complexity
             return False
         #if not is_plan(stream_plan):

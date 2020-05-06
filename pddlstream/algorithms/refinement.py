@@ -7,7 +7,7 @@ from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.scheduling.plan_streams import plan_streams
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.algorithms.constraints import add_plan_constraints, PlanConstraints, WILD
-from pddlstream.language.constants import FAILED, INFEASIBLE, is_plan
+from pddlstream.language.constants import INFEASIBLE, is_plan
 from pddlstream.language.conversion import evaluation_from_fact, substitute_expression
 from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
@@ -152,9 +152,9 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
         return None, None, INF, depth
-    stream_plan, action_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-    if not is_plan(action_plan):
-        return stream_plan, action_plan, cost, depth
+    candidates = optimistic_solve_fn(evaluations, results, constraints)
+    if not candidates: # is_plan(action_plan):
+        return candidates, depth
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
     #print(depth, get_length(stream_plan))
@@ -168,19 +168,21 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #            print(result, effort)
     #print()
 
-    if is_refined(stream_plan):
-        return stream_plan, action_plan, cost, depth
+    if all(is_refined(stream_plan) for stream_plan, _, _ in candidates):
+        return candidates, depth
     new_depth = depth + 1
-    new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
+    for stream_plan, _, _ in candidates:
+        new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not (CONSTRAIN_STREAMS or CONSTRAIN_PLANS):
-        return FAILED, FAILED, INF, new_depth
+        return [], new_depth
     #if CONSTRAIN_STREAMS:
     #    next_results = compute_stream_results(evaluations, new_results, externals, complexity_limit, **effort_args)
     #else:
     next_results, _ = optimistic_process_streams(evaluations, externals, complexity_limit, **effort_args)
     next_constraints = None
-    if CONSTRAIN_PLANS:
-        next_constraints = compute_skeleton_constraints(action_plan, bindings)
+    assert not CONSTRAIN_PLANS
+    #if CONSTRAIN_PLANS: # TODO: support custom constraints
+    #    next_constraints = compute_skeleton_constraints(action_plan, bindings)
     return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn, complexity_limit,
                                      new_depth, next_constraints, **effort_args)
 
@@ -199,18 +201,19 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
     num_iterations = 0
     while True:
+        # TODO: return None if infeasible
         num_iterations += 1
         results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit, **effort_args)
-        stream_plan, action_plan, cost, final_depth = hierarchical_plan_streams(
+        candidates, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(results), final_depth, is_plan(action_plan)))
-        if is_plan(action_plan):
-            return stream_plan, action_plan, cost
+        #print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
+        #    num_iterations, len(results), final_depth, is_plan(action_plan)))
+        if candidates:
+            return candidates
         if final_depth == 0:
-            status = INFEASIBLE if exhausted else FAILED
-            return status, status, cost
+            status = INFEASIBLE if exhausted else candidates
+            return status, INF
     # TODO: should streams along the sampled path automatically have no optimistic value
 
 #iterative_plan_streams = single_plan_streams

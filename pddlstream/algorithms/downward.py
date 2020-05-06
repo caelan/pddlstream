@@ -19,10 +19,10 @@ USE_CERBERUS = False
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 # Does not support derived predicates
 
-USE_FORBID = True
-FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
-FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} ' \
-                  '--domain {domain} --problem {problem}'
+USE_FORBID = False
+#FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
+#FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} ' \
+#                  '--domain {domain} --problem {problem}'
 # --planner topk,topq,topkq,diverse
 # topk: many plans that could be equivalent
 # topq: equivalence classes on plans (to prevent all possible reorderings) all plans up to that cost

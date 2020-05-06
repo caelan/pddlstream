@@ -4,7 +4,7 @@ import copy
 
 from collections import defaultdict, namedtuple
 
-from pddlstream.algorithms.scheduling.diverse import select_diverse_subset
+from pddlstream.algorithms.scheduling.diverse import exact_diverse_subset
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
     pddl_from_instance, USE_FORBID
@@ -23,7 +23,7 @@ from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
 from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
-from pddlstream.language.constants import Not, get_prefix, EQ, FAILED, OptPlan, Action
+from pddlstream.language.constants import Not, get_prefix, EQ, OptPlan, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
     fact_from_evaluation, transform_plan_args, transform_action_args, obj_from_pddl
 from pddlstream.language.external import Result
@@ -375,11 +375,4 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         # print()
         # print(len(stream_plan), stream_plan)
         # print(len(opt_plan.action_plan), cost, opt_plan.action_plan)
-
-    if not combined_plans:
-        return FAILED, FAILED, INF
-
-    select_diverse_subset(combined_plans)
-    quit()
-
-    return combined_plans
+    return exact_diverse_subset(combined_plans)
