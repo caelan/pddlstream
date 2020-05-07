@@ -5,7 +5,8 @@ from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
 from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
-    get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, objects_from_values
+    get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
+    objects_from_values, substitute_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list, select_inputs
 from pddlstream.language.generator import get_next, from_fn, universe_test
@@ -166,8 +167,7 @@ class StreamResult(Result):
         #if not any(o in bindings for o in self.instance.get_objects()):
         #    return self
         input_objects = apply_mapping(self.input_objects, bindings)
-        fluent_facts = [Fact(get_prefix(f), apply_mapping(get_args(f), bindings))
-                        for f in self.instance.fluent_facts]
+        fluent_facts = [substitute_fact(f, bindings) for f in self.instance.fluent_facts]
         new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
         new_instance.opt_index = self.instance.opt_index
         return self.__class__(new_instance, self.output_objects, self.opt_index,

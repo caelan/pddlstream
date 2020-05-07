@@ -61,7 +61,6 @@ def compile_fluent_streams(domain, externals):
         action.precondition = replace_literals(fn, action.precondition, action).simplified()
         for effect in action.effects:
             effect.condition = replace_literals(fn, effect.condition, action).simplified()
-        action.dump()
     for axiom in domain.axioms:
         axiom.condition = replace_literals(fn, axiom.condition, action).simplified()
     return state_streams

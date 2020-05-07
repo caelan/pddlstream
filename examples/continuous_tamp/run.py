@@ -50,7 +50,6 @@ def create_problem(tamp_problem):
            [('Placeable', b, r) for b in initial.block_poses.keys()
             for r in tamp_problem.regions if r in ENVIRONMENT_NAMES or
             (b in tamp_problem.goal_cooked and (r in STOVE_NAMES))]
-          #[('Grasp', b, GRASP) for b in initial.block_poses]
 
     goal_literals = [] + \
                     [('Cooked', b) for b in tamp_problem.goal_cooked] # Placeable for the stove

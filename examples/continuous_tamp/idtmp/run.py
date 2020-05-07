@@ -5,7 +5,7 @@ from __future__ import print_function
 import argparse
 
 from examples.continuous_tamp.primitives import get_pose_gen, distance_fn, inverse_kin, \
-    get_region_test, plan_motion, MOVE_COST, test_reachable
+    get_region_test, plan_motion, MOVE_COST, test_reachable, GRASP
 from examples.continuous_tamp.run import display_plan, initialize, create_problem, dump_pddlstream
 from examples.continuous_tamp.unfactored.run import step_plan
 from pddlstream.algorithms.focused import solve_focused
@@ -25,7 +25,7 @@ def pddlstream_from_tamp(tamp_problem):
     # TODO: algorithm that prediscretized once
     constant_map = {}
     stream_map = {
-        #'s-motion': from_fn(plan_motion),
+        's-motion': from_fn(plan_motion),
         't-reachable': from_test(test_reachable),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         't-region': from_test(get_region_test(tamp_problem.regions)),
@@ -33,6 +33,7 @@ def pddlstream_from_tamp(tamp_problem):
         'dist': distance_fn,
     }
     init, goal = create_problem(tamp_problem)
+    init.extend(('Grasp', b, GRASP) for b in tamp_problem.initial.block_poses)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
