@@ -15,7 +15,7 @@ import pddlstream.algorithms.scheduling.diverse
 pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
 
 import pddlstream.algorithms.downward
-pddlstream.algorithms.downward.USE_FORBID = True
+pddlstream.algorithms.downward.USE_FORBID = False
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
@@ -27,6 +27,15 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 
 P_SUCCESS = 1
+
+# TODO: parse problem.pddl directly
+
+OBJECTS = """
+data-0-3 data-0-5 data-1-2 data-1-4 data-2-1 - data
+script1 script2 script3 script4 script5 script6 script7 script8 script9 script10 - script
+server1 server2 server3 - server
+number0 number1 number2 number3 number4 number5 number6 number7 number8 number9 number10 number11 number12 number13 number14 number15 number16 - numbers
+"""
 
 INIT = """
 (SCRIPT-IO script1 data-0-3 data-0-5 data-1-4)
@@ -59,8 +68,12 @@ INIT = """
 """
 # Removed functions for now
 
-def formula_from_str(s):
-    return s.strip().replace(' ', ', ')
+def object_facts_from_str(s):
+    objs, ty = s.strip().rsplit(' - ', 1)
+    return [(ty, obj) for obj in objs.split(' ')]
+
+def fact_from_str(s):
+    return tuple(s.strip('( )').split(' '))
 
 def get_problem():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -76,12 +89,16 @@ def get_problem():
     stream_map = {name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                   for name, fn in bernoulli_fns.items()}
 
-    init = [formula_from_str(s) for s in INIT.split('\n') if s]
+    init = [fact_from_str(s) for s in INIT.split('\n') if s]
+    for line in OBJECTS.split('\n'):
+        if line:
+            init.extend(object_facts_from_str(line))
+
     goal_literals = [
         'saved data-2-1 server2',
     ]
 
-    goal = And(*map(formula_from_str, goal_literals))
+    goal = And(*map(fact_from_str, goal_literals))
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
@@ -100,8 +117,9 @@ def solve_pddlstream(num=1, **kwargs):
         print('\n'+'-'*5+'\n')
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=False,
-                                 initial_complexity=1, max_iterations=1, max_skeletons=1)
+        solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True,
+                                 #initial_complexity=1, max_iterations=1, max_skeletons=1
+                                 )
         plan, cost, certificate = solution
         print_solution(solution)
         successes += is_plan(plan)
@@ -125,4 +143,3 @@ if __name__ == '__main__':
 # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
 # https://networkx.github.io/
 # https://pypi.org/project/graphviz/
-# TODO: parse problem.pddl

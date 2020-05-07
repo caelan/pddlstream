@@ -115,18 +115,20 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand
+        candidates = INFEASIBLE
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            candidates = iterative_plan_streams(evaluations, positive_externals,
+            candidates, cost = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
-        else:
-            candidates = INFEASIBLE
-        if (candidates is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
-            break
+
+        if candidates is INFEASIBLE:
+            candidates = []
+            if (not eager_instantiator) and (not skeleton_queue) and (not disabled):
+                break
 
         for i, (stream_plan, opt_plan, cost) in enumerate(candidates):
             #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
