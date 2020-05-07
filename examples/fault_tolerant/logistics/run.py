@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
 import argparse
+import random
 
 from itertools import combinations, count
 
@@ -19,19 +20,33 @@ pddlstream.algorithms.downward.USE_FORBID = True
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.scheduling.diverse import p_disjunction
-from pddlstream.language.generator import from_test, universe_test, empty_test
+from pddlstream.language.generator import from_test, universe_test, empty_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, get_file_path, INF
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream
+from pddlstream.utils import read, get_file_path, INF, hash_or_id
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan
 
 MAX_DISTANCE = 15 # 15 | INF
+P_SUCCESS = 0.75
 
 DEFAULT_SIZE = mpl.rcParams['lines.markersize'] ** 2
 BLACK = 'k'
 
-def read_pddl(filename):
-    directory = os.path.dirname(os.path.abspath(__file__))
-    return read(os.path.join(directory, filename))
+def test_from_bernoulli_fn(bernoulli_fn):
+    return lambda *args, **kwargs: random.random() < bernoulli_fn(*args, **kwargs)
+
+class Cache(object):
+    def __init__(self, fn):
+        self.fn = fn
+        self.cache = {}
+    def __call__(self, *args): #, **kwargs):
+        key = tuple(map(hash_or_id, args)) # Add the type
+        if key not in self.cache:
+            self.cache[key] = self.fn(*args)
+        return self.cache[key]
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.fn)
+
+##################################################
 
 class Location(object):
     # Alternatively a set of properties
@@ -54,7 +69,7 @@ class Location(object):
             size *= 2
             color = 'g'
         plt.scatter(*self.value, s=size, c=color, marker=marker, alpha=1)
-    def __str__(self):
+    def __repr__(self):
         return 'l{}'.format(self.num)
         #return str(self.value)
 
@@ -78,9 +93,15 @@ def get_problem(visualize=False):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    stream_map = {
-        'test-open': from_test(empty_test), # universe_test | empty_test
+
+    # TODO: compare statistical success and the actual success
+    bernoulli_fns = {
+        'test-open': fn_from_constant(P_SUCCESS),
     }
+
+    # universe_test | empty_test
+    stream_map = {name: from_test(test_from_bernoulli_fn(fn))
+                  for name, fn in bernoulli_fns.items()}
 
     # Trucks return to depots?
     trucks = [
@@ -138,19 +159,27 @@ def get_problem(visualize=False):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(**kwargs):
-    # TODO: make a simulator that randomizes these probabilites
+def solve_pddlstream(num=50, **kwargs):
+    # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
-    problem = get_problem(**kwargs)
-    dump_pddlstream(problem)
     stream_info = {
-        'test-open': StreamInfo(p_success=0.5), # TODO: p_success=lambda x: 0.5
+        'test-open': StreamInfo(p_success=P_SUCCESS), # TODO: p_success=lambda x: 0.5
     }
 
-    #solution = solve_incremental(problem, unit_costs=True, debug=True)
-    solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True,
-                             initial_complexity=1, max_iterations=1, max_skeletons=1)
-    print_solution(solution)
+    problem = get_problem(**kwargs)
+    dump_pddlstream(problem)
+
+    successes = 0.
+    for _ in range(num):
+        print('\n'+'-'*5+'\n')
+        #problem = get_problem(**kwargs)
+        #solution = solve_incremental(problem, unit_costs=True, debug=True)
+        solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=False,
+                                 initial_complexity=1, max_iterations=1, max_skeletons=1)
+        plan, cost, certificate = solution
+        print_solution(solution)
+        successes += is_plan(plan)
+    print('Fraction {:.3f}'.format(successes / num))
 
 ##################################################
 
