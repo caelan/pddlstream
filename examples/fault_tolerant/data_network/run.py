@@ -2,14 +2,7 @@
 
 from __future__ import print_function
 
-import os
-import matplotlib.pyplot as plt
-import numpy as np
-import matplotlib as mpl
 import argparse
-import random
-
-from itertools import combinations, count
 
 import pddlstream.algorithms.scheduling.diverse
 pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
@@ -18,13 +11,13 @@ import pddlstream.algorithms.downward
 pddlstream.algorithms.downward.USE_FORBID = False
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.scheduling.diverse import p_disjunction
-from pddlstream.language.generator import from_test, universe_test, empty_test, fn_from_constant
+from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, get_file_path, INF, hash_or_id
+from pddlstream.utils import read, get_file_path
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan
+from pddlstream.algorithms.search import solve_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
+from examples.blocksworld.run import read_pddl
 
 P_SUCCESS = 1
 
@@ -127,6 +120,14 @@ def solve_pddlstream(num=1, **kwargs):
 
 ##################################################
 
+def solve_pddl():
+    domain_pddl = read_pddl('domain.pddl')
+    problem_pddl = read_pddl('problem.pddl')
+
+    plan, cost = solve_from_pddl(domain_pddl, problem_pddl)
+    print('Plan:', plan)
+    print('Cost:', cost)
+
 def main():
     parser = argparse.ArgumentParser()
     #parser.add_argument('-v', '--visualize', action='store_true')
@@ -134,7 +135,8 @@ def main():
     solve_pddlstream()
 
 if __name__ == '__main__':
-    main()
+    #main()
+    solve_pddl()
 
 
 # https://github.com/AI-Planning/classical-domains/tree/master/classical/data-network-opt18
