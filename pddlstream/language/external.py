@@ -1,7 +1,7 @@
 from collections import Counter
 
 from pddlstream.algorithms.common import compute_complexity
-from pddlstream.language.constants import get_args, is_parameter
+from pddlstream.language.constants import get_args, is_parameter, get_prefix
 from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
@@ -37,6 +37,9 @@ def get_defer_all_unbound(inputs='', unique=False): # TODO: shortcut for all inp
         return not any(isinstance(obj, Object) or (obj in bound_objects)
                        for obj in select_inputs(result.instance, inputs))
     return defer_all_unbound
+
+def get_domain_predicates(streams):
+    return {get_prefix(a) for s in streams for a in s.domain}
 
 ##################################################
 

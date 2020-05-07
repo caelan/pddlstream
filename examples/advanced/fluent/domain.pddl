@@ -5,21 +5,21 @@
     (OnTable ?b)
     (Holding ?b)
     (Pickable ?b ?t)
-    (Cleanable ?b ?t)
+    (Cleanable ?b)
     (Clean ?b)
     (Cooked ?b)
+    (Executed ?t)
   )
   (:action pick
     :parameters (?b ?t)
-    :precondition (and (OnTable ?b) (Pickable ?b ?t))
-    :effect (and (Holding ?b) (not (OnTable ?b))))
-
+    :precondition (and (Pickable ?b ?t) (OnTable ?b))
+    :effect (and (Holding ?b) (not (OnTable ?b)))) ; (Executed ?t)
   (:action clean
-    :parameters (?b ?t)
-    :precondition (Cleanable ?b ?t)
+    :parameters (?b)
+    :precondition (and (Cleanable ?b) (Holding ?b))
     :effect (Clean ?b))
   (:action cook
     :parameters (?b)
-    :precondition (and (Block ?b) (Clean ?b))
+    :precondition (and (Block ?b) (Clean ?b) (Holding ?b))
     :effect (and (Cooked ?b) (not (Clean ?b))))
 )

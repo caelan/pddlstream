@@ -6,8 +6,8 @@ from pddlstream.algorithms.downward import make_predicate, add_predicate, make_a
 from pddlstream.language.constants import Head, Evaluation, get_prefix, get_args
 from pddlstream.language.conversion import evaluation_from_fact, \
     is_atom, fact_from_evaluation, substitute_expression, objects_from_values
+from pddlstream.language.external import get_domain_predicates
 from pddlstream.language.generator import from_fn
-from pddlstream.language.object import Object
 from pddlstream.language.stream import Stream
 
 EXOGENOUS_AXIOMS = True
@@ -140,22 +140,20 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
 ##################################################
 
 def get_exogenous_predicates(domain, streams):
-    fluent_predicates = get_fluents(domain)
-    domain_predicates = {get_prefix(a) for s in streams for a in s.domain}
-    return list(domain_predicates & fluent_predicates)
+    return list(get_fluents(domain) & get_domain_predicates(streams))
 
-def replace_literals(replace_fn, expression):
+def replace_literals(replace_fn, expression, *args):
     import pddl.conditions
     if isinstance(expression, pddl.conditions.ConstantCondition):
         return expression # TODO: replace constants?
     if isinstance(expression, pddl.conditions.JunctorCondition):
-        new_parts = [replace_literals(replace_fn, p) for p in expression.parts]
+        new_parts = [replace_literals(replace_fn, p, *args) for p in expression.parts]
         return expression.__class__(new_parts)
     if isinstance(expression, pddl.conditions.QuantifiedCondition):
-        new_parts = [replace_literals(replace_fn, p) for p in expression.parts]
+        new_parts = [replace_literals(replace_fn, p, *args) for p in expression.parts]
         return expression.__class__(expression.parameters, new_parts)
     if isinstance(expression, pddl.conditions.Literal):
-        return replace_fn(expression)
+        return replace_fn(expression, *args)
     raise ValueError(expression)
 
 def replace_predicates(predicate_map, expression):

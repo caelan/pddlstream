@@ -6,12 +6,10 @@
     :outputs (?t)
     :certified (Pickable ?b ?t)
   )
-
   (:stream test-cleanable
     :inputs (?b)
     :domain (Block ?b)
-    :fluents (Cooked)
-    :outputs (?t)
-    :certified (Cleanable ?b ?t)
+    :fluents (OnTable)
+    :certified (Cleanable ?b)
   )
 )
