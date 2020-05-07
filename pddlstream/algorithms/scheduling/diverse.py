@@ -40,7 +40,7 @@ def random_subset(combined_plans, k=None):
         return combined_plans
     return random.sample(combined_plans, k=k)
 
-def exact_diverse_subset(combined_plans, k=None):
+def exact_diverse_subset(combined_plans, k=None, verbose=False):
     # TODO: dynamic programming method across multisets
     # TODO: ILP over selections
     # TODO: submodular
@@ -56,11 +56,12 @@ def exact_diverse_subset(combined_plans, k=None):
         intersection = set.intersection(*stream_plans)
         p = p_disjunction(stream_plans)
         assert 0 <= p <= 1
-        print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
-            elapsed_time(start_time), i, len(intersection), p))  # , intersection)
-        for stream_plan, opt_plan, cost in subset_plans:
-            print(len(stream_plan), stream_plan)
-            print(len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+        if verbose:
+            print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
+                elapsed_time(start_time), i, len(intersection), p))  # , intersection)
+            for stream_plan, opt_plan, cost in subset_plans:
+                print(len(stream_plan), stream_plan)
+                print(len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
         if p > best_p:
             best_plans, best_p = subset_plans, p
 

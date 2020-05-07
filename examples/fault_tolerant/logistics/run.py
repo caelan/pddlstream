@@ -34,7 +34,7 @@ BLACK = 'k'
 def test_from_bernoulli_fn(bernoulli_fn):
     return lambda *args, **kwargs: random.random() < bernoulli_fn(*args, **kwargs)
 
-class Cache(object):
+class CachedFn(object):
     def __init__(self, fn):
         self.fn = fn
         self.cache = {}
@@ -100,7 +100,7 @@ def get_problem(visualize=False):
     }
 
     # universe_test | empty_test
-    stream_map = {name: from_test(test_from_bernoulli_fn(fn))
+    stream_map = {name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                   for name, fn in bernoulli_fns.items()}
 
     # Trucks return to depots?
@@ -159,7 +159,7 @@ def get_problem(visualize=False):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(num=50, **kwargs):
+def solve_pddlstream(num=1, **kwargs):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     stream_info = {
