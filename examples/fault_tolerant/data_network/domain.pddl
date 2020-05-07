@@ -17,32 +17,38 @@
 ;;         - sending data, which depends on the data size and (bandwidth of a) connection, and
 ;;         - processing data, which depends on the script and (clock rate and numbers of processors of a) server.
 (define (domain data-network)
-(:requirements :adl :typing :negative-preconditions :equality :action-costs)
-(:types
-    data script server numbers
-)
+(:requirements :adl :negative-preconditions :equality :action-costs)
 (:predicates
-    (SCRIPT-IO ?s - script ?in1 - data ?in2 - data ?out - data)
-    (CONNECTED ?from - server ?to - server)
-    (DATA-SIZE ?d - data ?n - numbers)
-    (CAPACITY ?s - server ?n - numbers)
-    (SUM ?n1 - numbers ?n2 - numbers ?sum - numbers)
-    (LESS-EQUAL ?n1 - numbers ?n2 - numbers)
-    (saved ?d - data ?s - server)
-    (cached ?d - data ?s - server)
-    (usage ?s - server ?n - numbers)
+    (data ?d)
+    (server ?s)
+    (script ?sc)
+    (numbers ?num)
+    (SCRIPT-IO ?s ?in1 ?in2 ?out)
+    (CONNECTED ?from ?to)
+    (DATA-SIZE ?d ?n)
+    (CAPACITY ?s ?n)
+    (SUM ?n1 ?n2 ?sum)
+    (LESS-EQUAL ?n1 ?n2)
+    (saved ?d ?s)
+    (cached ?d ?s)
+    (usage ?s ?n)
 )
 (:functions
-    (total-cost) - number
-    (process-cost ?sc - script ?s - server) - number
-    (send-cost ?from ?to - server ?size - numbers) - number
-    (io-cost ?s - server ?size - numbers) - number
+    (total-cost)
+    (process-cost ?sc ?s)
+    (send-cost ?from ?to ?size)
+    (io-cost ?s ?size)
 )
 ;; Release data from RAM.
 (:action release
-    :parameters (?d - data ?s - server ?size ?before ?after - numbers)
+    :parameters (?d ?s ?size ?before ?after)
     :precondition
     (and
+        (data ?d)
+        (server ?s)
+        (numbers ?size)
+        (numbers ?before)
+        (numbers ?after)
         (DATA-SIZE ?d ?size)
         (SUM ?after ?size ?before)
         (cached ?d ?s)
@@ -59,9 +65,12 @@
 
 ;; Save data from RAM to disk.
 (:action save
-    :parameters (?d - data ?size - numbers ?s - server)
+    :parameters (?d ?size ?s)
     :precondition
     (and
+        (data ?d)
+        (numbers ?size)
+        (server ?s)
         (DATA-SIZE ?d ?size)
         (cached ?d ?s)
     )
@@ -74,9 +83,15 @@
 
 ;; Load data from disk into RAM.
 (:action load
-    :parameters (?d - data ?s - server ?size ?limit ?before ?after - numbers)
+    :parameters (?d ?s ?size ?limit ?before ?after)
     :precondition
     (and
+        (data ?d)
+        (server ?s)
+        (numbers ?size)
+        (numbers ?limit)
+        (numbers ?before)
+        (numbers ?after)
         (DATA-SIZE ?d ?size)
         (CAPACITY ?s ?limit)
         (SUM ?before ?size ?after)
@@ -96,9 +111,16 @@
 
 ;; Send data from RAM of one server to RAM of another server.
 (:action send
-    :parameters (?d - data ?from ?to - server ?size ?limit ?before ?after - numbers)
+    :parameters (?d ?from ?to ?size ?limit ?before ?after)
     :precondition
     (and
+        (data ?d)
+        (server ?from)
+        (server ?to)
+        (numbers ?size)
+        (numbers ?limit)
+        (numbers ?before)
+        (numbers ?after)
         (CONNECTED ?from ?to)
         (DATA-SIZE ?d ?size)
         (CAPACITY ?to ?limit)
@@ -119,9 +141,18 @@
 
 ;; Executes a script that processes two data items from RAM and produces another data item in RAM.
 (:action process
-    :parameters (?in1 ?in2 ?out - data ?sc - script ?s - server ?size ?limit ?before ?after - numbers)
+    :parameters (?in1 ?in2 ?out ?sc ?s ?size ?limit ?before ?after)
     :precondition
     (and
+        (data ?in1)
+        (data ?in2)
+        (data ?out)
+        (script ?sc)
+        (server ?s)
+        (numbers ?size)
+        (numbers ?limit)
+        (numbers ?before)
+        (numbers ?after)
         (SCRIPT-IO ?sc ?in1 ?in2 ?out)
         (DATA-SIZE ?out ?size)
         (CAPACITY ?s ?limit)

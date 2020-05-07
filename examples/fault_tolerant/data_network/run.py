@@ -68,6 +68,11 @@ def object_facts_from_str(s):
 def fact_from_str(s):
     return tuple(s.strip('( )').split(' '))
 
+def int_from_str(s):
+    return int(s.replace('number', ''))
+
+# TODO: I need the streams in order to do this
+
 def get_problem():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
@@ -79,8 +84,12 @@ def get_problem():
     }
 
     # universe_test | empty_test
-    stream_map = {name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
-                  for name, fn in bernoulli_fns.items()}
+    stream_map = {
+        'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
+        'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
+    }
+    stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
+                       for name, fn in bernoulli_fns.items()})
 
     init = [fact_from_str(s) for s in INIT.split('\n') if s]
     for line in OBJECTS.split('\n'):
@@ -99,6 +108,8 @@ def solve_pddlstream(num=1, **kwargs):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     stream_info = {
+        'test-less_equal': StreamInfo(eager=True, p_success=0),
+        'test-sum': StreamInfo(eager=True, p_success=0),
         'test-open': StreamInfo(p_success=P_SUCCESS), # TODO: p_success=lambda x: 0.5
     }
 
@@ -135,8 +146,8 @@ def main():
     solve_pddlstream()
 
 if __name__ == '__main__':
-    #main()
-    solve_pddl()
+    main()
+    #solve_pddl()
 
 
 # https://github.com/AI-Planning/classical-domains/tree/master/classical/data-network-opt18
@@ -145,3 +156,6 @@ if __name__ == '__main__':
 # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
 # https://networkx.github.io/
 # https://pypi.org/project/graphviz/
+
+# ./FastDownward/fast-downward.py --show-aliases
+# ./FastDownward/fast-downward.py --build release64 --alias lama examples/fault_tolerant/data_network/domain.pddl examples/fault_tolerant/data_network/problem.pddl
