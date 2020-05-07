@@ -2,12 +2,12 @@ from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore, UNKNOWN_EVALUATION
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
-from pddlstream.algorithms.instantiate_task import sas_from_pddl, solve_pyplanners, instantiate_task
+from pddlstream.algorithms.instantiate_task import sas_from_pddl, instantiate_task
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.search import abstrips_solve_from_task
 from pddlstream.language.constants import is_plan
 from pddlstream.language.conversion import obj_from_pddl_plan
-from pddlstream.language.fluent import compile_fluent_attachments, has_attachments
+from pddlstream.language.attachments import has_attachments, compile_fluents_as_attachments, solve_pyplanners
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
@@ -97,7 +97,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
-    static_externals = compile_fluent_attachments(domain, externals)
+    static_externals = compile_fluents_as_attachments(domain, externals)
     num_iterations = num_calls = 0
     complexity_limit = start_complexity
     instantiator = Instantiator(static_externals, evaluations)

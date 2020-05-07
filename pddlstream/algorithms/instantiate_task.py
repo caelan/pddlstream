@@ -6,11 +6,10 @@ from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
     TRANSLATE_OUTPUT, parse_sequential_domain, parse_problem, task_from_domain_problem, GOAL_NAME, literal_holds, \
-    get_effects, get_conjunctive_parts, get_conditional_effects, fact_from_fd, pddl_from_instance, fd_from_fact
+    get_conjunctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
-from pddlstream.language.conversion import transform_action_args, obj_from_pddl
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, clear_dir, Verbose, safe_remove, ensure_dir, INF, invert_dict
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir
 
 import pddl
 import instantiate
@@ -276,72 +275,3 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     sas_task = sas_from_pddl(task)
     write_sas_task(sas_task, temp_dir)
     return task
-
-##################################################
-
-# TODO: move elsewhere
-PYPLANNERS_PATH = '/Users/caelan/Programs/pyplanners'
-
-def get_attachment_test(action_instance):
-    from pddlstream.algorithms.scheduling.apply_fluents import get_fluent_instance
-    from pddlstream.language.fluent import remap_certified
-    # TODO: ensure no OptimisticObjects
-    def test(state):
-        for literal, stream in action_instance.action.attachments.items():
-            param_from_inp = remap_certified(literal, stream)
-            input_objects = tuple(obj_from_pddl(
-                action_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
-            stream_instance = get_fluent_instance(stream, input_objects, state)
-            failure = not stream_instance.all_results()
-            if literal.negated != failure:
-                return False
-        return True
-    return test
-
-def solve_pyplanners(instantiated):
-    # TODO: could operate on SAS instead
-    # https://github.com/caelan/pyplanners
-    # https://github.mit.edu/caelan/stripstream/blob/c8c6cd1d6bd5e2e8e31cd5603e28a8e0d7bb2cdc/stripstream/algorithms/search/pyplanners.py
-    import sys
-    if PYPLANNERS_PATH not in sys.path:
-        sys.path.append(PYPLANNERS_PATH)
-    from strips.states import State, PartialState
-    from strips.operators import Action, Axiom
-    from strips.utils import default_derived_plan
-    import pddl
-
-    if instantiated is None:
-        return None, INF
-    py_actions = []
-    for action in instantiated.actions:
-        py_action = Action({'fd_action': action})
-        py_action.conditions = set(action.precondition)
-        py_action.effects = set()
-        for condition, effect in action.del_effects:
-            assert not condition
-            py_action.effects.add(effect.negate())
-        for condition, effect in action.add_effects:
-            assert not condition
-            py_action.effects.add(effect)
-        py_action.cost = action.cost
-        py_action.test = get_attachment_test(action)
-        py_actions.append(py_action)
-    py_axioms = []
-    for axiom in instantiated.axioms:
-        py_axiom = Axiom({'fd_axiom_id': id(axiom)}) # Not hashable for some reason
-        py_axiom.conditions = set(axiom.condition)
-        py_axiom.effects = {axiom.effect}
-        py_axioms.append(py_axiom)
-    goal = PartialState(instantiated.goal_list)
-
-    fluents = {f.positive() for f in goal.conditions}
-    for py_operator in py_actions + py_axioms:
-        fluents.update(f.positive() for f in py_operator.conditions)
-
-    initial = State(atom for atom in instantiated.task.init
-                    if isinstance(atom, pddl.Atom) and (atom in fluents))
-    plan, state_space = default_derived_plan(initial, goal, py_actions, py_axioms)
-    if plan is None:
-        return None, INF
-    actions = [pddl_from_instance(action.fd_action) for action in plan]
-    return actions, plan.cost

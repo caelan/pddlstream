@@ -22,6 +22,7 @@ def pddlstream_from_tamp(tamp_problem):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
 
+    # TODO: algorithm that prediscretized once
     constant_map = {}
     stream_map = {
         #'s-motion': from_fn(plan_motion),
@@ -54,7 +55,8 @@ def main():
     #planner = 'ff-wastar1'
     with Profiler():
         if args.attachments:
-            solution = solve_incremental(pddlstream_problem, planner='ff-wastar1', max_time=args.max_time, verbose=True)
+            solution = solve_incremental(pddlstream_problem, planner='ff-wastar1',
+                                         max_time=args.max_time, verbose=True)
         else:
             solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                      planner=planner, max_planner_time=10, debug=False,
