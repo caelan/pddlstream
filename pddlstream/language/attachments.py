@@ -1,16 +1,18 @@
 import os
 
-from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, pddl_from_instance, fd_from_fact
+from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
+    pddl_from_instance
+from pddlstream.language.object import Object
 from pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.language.fluent import get_predicate_map, remap_certified
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF
+from pddlstream.utils import INF, invert_dict, get_mapping
 
 # Intuition: static facts about whether this state satisfies a condition
 # The state can be seen as a hidden parameter with a precondition that you are at it
 
 PYPLANNERS_VAR = 'PYPLANNERS_PATH'
-PLACEHOLDER = '~'
+PLACEHOLDER = Object.from_value('~')
 
 
 def get_pyplanners_path():
@@ -33,31 +35,30 @@ def compile_fluents_as_attachments(domain, externals):
         # Could convert the free parameter to a constant
         raise NotImplementedError('Algorithm does not support fluent streams: {}'.format(
             [stream.name for stream in state_streams]))
-    for stream in state_streams:
-        if not stream.is_test():
-            raise NotImplementedError('Fluent streams with outputs are not supported: {}'.format(stream.name))
 
+    domain.constants.append(make_object(PLACEHOLDER.pddl))
     for action in domain.actions:
         for effect in action.effects:
             # TODO: conditional effects
             if any(literal.predicate in predicate_map for literal in get_literals(effect.condition)):
                 raise ValueError('Attachments cannot be in action effects: {}'.format(effect))
         action.attachments = {}
-        preconditions = []
+        preconditions = set()
         for literal in get_conjunctive_parts(action.precondition):
-            if not isinstance(literal, pddl.Literal):
-                raise NotImplementedError('Only literals are supported: {}'.format(literal))
+            #if not isinstance(literal, pddl.Literal):
+            #    raise NotImplementedError('Only literals are supported: {}'.format(literal))
             if literal.predicate in predicate_map:
                 # Drops the original precondition
                 stream = predicate_map[literal.predicate]
                 mapping = remap_certified(literal, stream)
-                print(stream.outputs)
                 assert mapping is not None
                 action.attachments[literal] = stream
-                preconditions.extend(fd_from_fact(substitute_fact(fact, mapping))
+                preconditions.update(pddl.Atom(EQ, (mapping[out], PLACEHOLDER.pddl))
+                                     for out in stream.outputs)
+                preconditions.update(fd_from_fact(substitute_fact(fact, mapping))
                                      for fact in stream.domain)
             else:
-                preconditions.append(literal)
+                preconditions.add(literal)
         action.precondition = pddl.Conjunction(preconditions).simplified()
         #fn = lambda l: pddl.Truth() if l.predicate in predicate_map else l
         #action.precondition = replace_literals(fn, action.precondition).simplified()
@@ -77,11 +78,22 @@ def get_attachment_test(action_instance):
             param_from_inp = remap_certified(literal, stream)
             input_objects = tuple(obj_from_pddl(
                 action_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
-            stream_instance = get_fluent_instance(stream, input_objects, state)
-            results = stream_instance.all_results() # Output automatically cached
+            stream_instance = get_fluent_instance(stream, input_objects, state)  # Output automatically cached
+            results = stream_instance.all_results() # TODO: quite after the first one
             failure = not results
             if literal.negated != failure:
                 return False
+            #args = action_instance.name.strip('()').split(' ')
+            #idx_from_param = {p.name: i for i, p in enumerate(action_instance.action.parameters)}
+            param_from_out = remap_certified(literal, stream)
+            result = results[0] # Arbitrary
+            out_from_obj = invert_dict(result.get_mapping())
+            for obj in result.output_objects:
+                param = param_from_out[out_from_obj[obj]]
+                action_instance.var_mapping[param] = obj.pddl
+                # idx = idx_from_param[param]
+                # args[1+idx] = obj.pddl
+            #action_instance.name = '({})'.format(' '.join(args))
         return True
     return test
 

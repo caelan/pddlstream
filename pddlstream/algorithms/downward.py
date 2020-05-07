@@ -267,7 +267,7 @@ def parse_goal(goal_exp, domain):
 
 def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     objects = objects_from_evaluations(evaluations)
-    typed_objects = list({pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects} - set(domain.constants))
+    typed_objects = list({make_object(pddl_from_object(obj)) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
