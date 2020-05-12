@@ -120,7 +120,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            candidates, cost = iterative_plan_streams(evaluations, positive_externals,
+            candidates = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)

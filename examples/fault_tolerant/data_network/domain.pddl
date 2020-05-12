@@ -77,7 +77,8 @@
     :effect
     (and
         (saved ?d ?s)
-        (increase (total-cost) (io-cost ?s ?size))
+        ;(increase (total-cost) (io-cost ?s ?size))
+        (increase (total-cost) 1)
     )
 )
 
@@ -105,7 +106,8 @@
         (cached ?d ?s)
         (not (usage ?s ?before))
         (usage ?s ?after)
-        (increase (total-cost) (io-cost ?s ?size))
+        ;(increase (total-cost) (io-cost ?s ?size))
+        (increase (total-cost) 1)
     )
 )
 
@@ -135,7 +137,8 @@
         (cached ?d ?to)
         (not (usage ?to ?before))
         (usage ?to ?after)
-        (increase (total-cost) (send-cost ?from ?to ?size))
+        ;(increase (total-cost) (send-cost ?from ?to ?size))
+        (increase (total-cost) 1)
     )
 )
 
@@ -168,7 +171,8 @@
         (cached ?out ?s)
         (not (usage ?s ?before))
         (usage ?s ?after)
-        (increase (total-cost) (process-cost ?sc ?s))
+        ;(increase (total-cost) (process-cost ?sc ?s))
+        (increase (total-cost) 1)
     )
 )
 

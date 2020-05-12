@@ -151,7 +151,7 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn, complexity_limit,
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
-        return None, None, INF, depth
+        return [], depth
     candidates = optimistic_solve_fn(evaluations, results, constraints)
     if not candidates: # is_plan(action_plan):
         return candidates, depth
@@ -213,7 +213,7 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
             return candidates
         if final_depth == 0:
             status = INFEASIBLE if exhausted else candidates
-            return status, INF
+            return status
     # TODO: should streams along the sampled path automatically have no optimistic value
 
 #iterative_plan_streams = single_plan_streams

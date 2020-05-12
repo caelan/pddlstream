@@ -4,11 +4,12 @@ from __future__ import print_function
 
 import argparse
 
-import pddlstream.algorithms.scheduling.diverse
-pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
-
 import pddlstream.algorithms.downward
-pddlstream.algorithms.downward.USE_FORBID = False
+pddlstream.algorithms.downward.USE_FORBID = True
+# TODO: this isn't working for some reason
+
+import pddlstream.algorithms.scheduling.diverse
+pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 2
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test
@@ -73,7 +74,7 @@ def int_from_str(s):
 
 # TODO: I need the streams in order to do this
 
-def get_problem():
+def get_problem(*kwargs):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -109,8 +110,8 @@ def solve_pddlstream(num=1, **kwargs):
     # TODO: include local correlation
     stream_info = {
         'test-less_equal': StreamInfo(eager=True, p_success=0),
-        'test-sum': StreamInfo(eager=True, p_success=0),
-        'test-open': StreamInfo(p_success=P_SUCCESS), # TODO: p_success=lambda x: 0.5
+        'test-sum': StreamInfo(eager=True, p_success=0), # TODO: p_success=lambda x: 0.5
+        #'test-open': StreamInfo(p_success=P_SUCCESS),
     }
 
     problem = get_problem(**kwargs)
@@ -121,7 +122,8 @@ def solve_pddlstream(num=1, **kwargs):
         print('\n'+'-'*5+'\n')
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=True,
+        solution = solve_focused(problem, stream_info=stream_info, # planner='forbid'
+                                 unit_costs=True, unit_efforts=False, debug=True,
                                  #initial_complexity=1, max_iterations=1, max_skeletons=1
                                  )
         plan, cost, certificate = solution

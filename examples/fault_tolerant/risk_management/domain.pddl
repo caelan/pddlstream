@@ -48,7 +48,8 @@
      :effect (and
                   (at ?to) (not (at ?from))
                   (__traversed)
-                  (increase (total-cost) (connected-cost ?from ?to))
+                  ;(increase (total-cost) (connected-cost ?from ?to))
+                  (increase (total-cost) 1)
              )
     )
 
@@ -80,7 +81,8 @@
                   (__started)
                   (__can_explain)
                   (at ?x)
-                  (increase (total-cost) (starting-cost ?x))
+                  ;(increase (total-cost) (starting-cost ?x))
+                  (increase (total-cost) 1)
              )
     )
 
@@ -114,7 +116,8 @@
                   (__started_discard)
                   (not (__can_explain))
                   (considered ?x)
-                  (increase (total-cost) (discard-cost))
+                  ;(increase (total-cost) (discard-cost))
+                  (increase (total-cost) 1)
              )
     )
 )
