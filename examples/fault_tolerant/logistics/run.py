@@ -174,7 +174,8 @@ def solve_pddlstream(num=1, **kwargs):
         print('\n'+'-'*5+'\n')
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        solution = solve_focused(problem, stream_info=stream_info, unit_costs=True, unit_efforts=False, debug=False,
+        solution = solve_focused(problem, stream_info=stream_info,
+                                 unit_costs=True, unit_efforts=False, debug=False,
                                  initial_complexity=1, max_iterations=1, max_skeletons=1)
         plan, cost, certificate = solution
         print_solution(solution)
