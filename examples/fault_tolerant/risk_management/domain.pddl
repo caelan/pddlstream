@@ -4,6 +4,7 @@
     (:predicates
         ; The connectivity between nodes in the graph
         (CONNECTED ?x ?y)
+        (LINKED ?x ?y)
         ; Nodes that can serve as traversal source
         (SOURCE ?x)
         ; Nodes that can serve as traversal target
@@ -40,7 +41,8 @@
     (:action traverse
      :parameters (?from ?to)
      :precondition (and
-                        (CONNECTED ?from ?to)
+                        ;(CONNECTED ?from ?to)
+                        (LINKED ?from ?to)
                         (__can_explain)
                         (not (__started_discard))
                         (at ?from)

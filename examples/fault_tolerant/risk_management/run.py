@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import argparse
+import os
 
 import pddlstream.algorithms.scheduling.diverse
 pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
@@ -15,62 +16,58 @@ from collections import defaultdict
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path
+from pddlstream.utils import read, get_file_path, safe_rm_dir
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
-    is_plan, get_prefix, get_args
+    is_plan, get_prefix, get_args, Not
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
+from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
+    task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
-P_SUCCESS = 1
+P_SUCCESS = 0.9
 
-INIT = """
-(CONNECTED A B)
-(CONNECTED A C)
-(CONNECTED B D)
-(CONNECTED C D)
-(CONNECTED C E)
-(CONNECTED D F)
-(CONNECTED D G)
-(CONNECTED E G)
-(CONNECTED F H)
-(CONNECTED G H)
-(CONNECTED G I)
-(SOURCE A)
-(SOURCE D)
-(TARGET H)
-(TARGET I)
-(POI E)
-(POI F)
+RISK_DIR = 'risk-pddl/risk/'
 
-(considered dummy)
-(DISCARD_AFTER E dummy)
-(DISCARD_AFTER F E)
-"""
-
-GOAL = """
-(__goal-achieved)
-(considered E)
-(considered F)
-"""
+def fact_from_fd(literal):
+    assert is_literal(literal)
+    atom = (literal.predicate,) + literal.args
+    if literal.negated:
+        return Not(atom)
+    return atom
 
 def get_problem(*kwargs):
+    safe_rm_dir(TEMP_DIR)
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    domain = parse_sequential_domain(domain_pddl)
     constant_map = {}
+
+    problem_pddl = read(get_file_path(__file__, 'problem.pddl'))
+    problem = parse_problem(domain, problem_pddl)
+    #task = task_from_domain_problem(domain, problem) # Uses Object
+    #print(problem.objects)
+
+    risk_path = get_file_path(__file__, RISK_DIR)
+    problem_paths = [os.path.join(risk_path, f) for f in os.listdir(risk_path)
+                     if f.startswith('prob') and f.endswith('.pddl')]
+
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     #stream_pddl = None
 
     # TODO: introduce object more generally
-    init = [fact_from_str(s) for s in INIT.split('\n') if s]
-    objects = {n for f in init for n in get_args(f)}
-    atoms_from_predicate = defaultdict(set)
-    for fact in init:
-        atoms_from_predicate[get_prefix(fact)].add(get_args(fact))
+    # init = [fact_from_str(s) for s in INIT.split('\n') if s]
+    # objects = {n for f in init for n in get_args(f)}
+    # atoms_from_predicate = defaultdict(set)
+    # for fact in init:
+    #     atoms_from_predicate[get_prefix(fact)].add(get_args(fact))
+    #
+    # init = [f for f in init if get_prefix(f) not in ['CONNECTED']]
+    # init.extend(('OBJECT', n) for n in objects)
+    #
+    # goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
+    # goal = And(*goal_literals)
 
-    init = [f for f in init if get_prefix(f) not in ['CONNECTED']]
-    init.extend(('OBJECT', n) for n in objects)
-
-    goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
-    goal = And(*goal_literals)
+    init = list(map(fact_from_fd, filter(is_literal, problem.init)))
+    goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
 
     # TODO: compare statistical success and the actual success
     bernoulli_fns = {
@@ -79,9 +76,9 @@ def get_problem(*kwargs):
 
     # universe_test | empty_test
     stream_map = {
-        #'test-connected': from_test(lambda x, y: True),
-        # TODO: make probabilities depend on the alphabetical distance
-        'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
+        'test-connected': from_test(lambda x, y: True),
+        # TODO: make probabilities depend on the alphabetical/numeric distance
+        #'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
