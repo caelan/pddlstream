@@ -4,3 +4,6 @@
 [submodule "FastDownward"]
 	path = FastDownward
 	url = https://github.com/caelan/FastDownward.git
+[submodule "examples/fault_tolerant/risk_management/risk-pddl"]
+	path = examples/fault_tolerant/risk_management/risk-pddl
+	url = https://github.com/IBM/risk-pddl.git

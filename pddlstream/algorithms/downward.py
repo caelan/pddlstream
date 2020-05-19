@@ -11,7 +11,7 @@ from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix,
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_unique, int_ceil, \
-    safe_remove, safe_zip, ensure_dir, safe_rm_dir
+    safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies
 from pddlstream.language.write_pddl import get_problem_pddl
 
 USE_CERBERUS = False
@@ -411,8 +411,11 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_path, filename))
 
+    #try:
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
+    # except subprocess.TimeoutExpired as e:
+    #     pass
 
     if USE_FORBID:
         for filename in os.listdir(FORBID_PATH):
@@ -420,6 +423,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
                 os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
 
     if debug:
+        # if implies(USE_FORBID, 'TimeoutExpired' not in output):
         print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', time() - start_time)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))

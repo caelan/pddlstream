@@ -41,8 +41,8 @@ def get_defer_all_unbound(inputs='', unique=False): # TODO: shortcut for all inp
 ##################################################
 
 class ExternalInfo(PerformanceInfo):
-    def __init__(self, eager=False, p_success=None, overhead=None, effort=None, defer_fn=never_defer):
-        super(ExternalInfo, self).__init__(p_success, overhead, effort)
+    def __init__(self, eager=False, defer_fn=never_defer, **kwargs):
+        super(ExternalInfo, self).__init__(**kwargs)
         # TODO: enable eager=True for inexpensive test streams by default
         # TODO: make any info just a dict
         self.eager = eager

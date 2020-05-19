@@ -6,6 +6,7 @@ from collections import Counter
 
 from pddlstream.language.constants import is_plan
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
+from pddlstream.language.generator import fn_from_constant
 
 LOAD_STATISTICS = True
 SAVE_STATISTICS = True
@@ -157,12 +158,14 @@ def hash_object(evaluations, obj):
 ##################################################
 
 class PerformanceInfo(object):
-    def __init__(self, p_success, overhead, effort):
-        if p_success is not None:
+    def __init__(self, p_success=None, overhead=None, effort=None):
+        if not callable(p_success) and (p_success is not None):
             assert 0 <= p_success <= 1
-        if overhead is not None:
+            p_success = fn_from_constant(p_success)
+        if not callable(overhead) and overhead is not None:
             # TODO: overhead should never be zero (always some tiny overhead)
             assert 0 <= overhead
+            overhead = fn_from_constant(overhead)
         #if effort is not None:
         #    assert 0 <= effort
         self.p_success = p_success
@@ -217,16 +220,16 @@ class Performance(object):
                           self.total_calls + reg_calls,
                           undefined=reg_overhead)
 
-    def get_p_success(self):
+    def get_p_success(self, *args, **kwargs):
         # TODO: could precompute and store
         if self.info.p_success is None:
             return self._estimate_p_success()
-        return self.info.p_success
+        return self.info.p_success(*args, **kwargs)
 
-    def get_overhead(self):
+    def get_overhead(self, *args, **kwargs):
         if self.info.overhead is None:
             return self._estimate_overhead()
-        return self.info.overhead
+        return self.info.overhead(*args, **kwargs)
 
     def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
         if self.info.effort is None:

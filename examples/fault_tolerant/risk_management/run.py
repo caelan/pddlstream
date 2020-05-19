@@ -14,7 +14,7 @@ pddlstream.algorithms.downward.USE_FORBID = True
 from collections import defaultdict
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_test
+from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path, safe_rm_dir
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
@@ -24,7 +24,7 @@ from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
-P_SUCCESS = 0.9
+P_SUCCESS = 0.5
 
 RISK_DIR = 'risk-pddl/risk/'
 
@@ -34,6 +34,8 @@ def fact_from_fd(literal):
     if literal.negated:
         return Not(atom)
     return atom
+
+##################################################
 
 def get_problem(*kwargs):
     safe_rm_dir(TEMP_DIR)
@@ -69,16 +71,15 @@ def get_problem(*kwargs):
     init = list(map(fact_from_fd, filter(is_literal, problem.init)))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
 
-    # TODO: compare statistical success and the actual success
-    bernoulli_fns = {
-        #'test-open': fn_from_constant(P_SUCCESS),
-    }
-
     # universe_test | empty_test
     stream_map = {
-        'test-connected': from_test(lambda x, y: True),
+        #'test-connected': from_test(lambda x, y: True),
         # TODO: make probabilities depend on the alphabetical/numeric distance
         #'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
+    }
+
+    bernoulli_fns = {
+        'test-connected': fn_from_constant(P_SUCCESS),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
@@ -87,7 +88,7 @@ def get_problem(*kwargs):
 
 def solve_pddlstream(num=1, **kwargs):
     stream_info = {
-        'test-connected': StreamInfo(p_success=P_SUCCESS),
+        'test-connected': StreamInfo(p_success=fn_from_constant(P_SUCCESS)),
     }
 
     problem = get_problem(**kwargs)
@@ -98,6 +99,7 @@ def solve_pddlstream(num=1, **kwargs):
         print('\n'+'-'*5+'\n')
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
+        # TODO: return the actual success rate of the portfolio (maybe in the cost)?
         solution = solve_focused(problem, stream_info=stream_info,
                                  unit_costs=True, unit_efforts=False, debug=False,
                                  initial_complexity=1, max_iterations=1, max_skeletons=1
