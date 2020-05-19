@@ -10,11 +10,14 @@ pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
 import pddlstream.algorithms.downward
 pddlstream.algorithms.downward.USE_FORBID = True
 
+from collections import defaultdict
+
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
+    is_plan, get_prefix, get_args
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
 
@@ -53,8 +56,21 @@ GOAL = """
 def get_problem(*kwargs):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
-    #stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    stream_pddl = None
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    #stream_pddl = None
+
+    # TODO: introduce object more generally
+    init = [fact_from_str(s) for s in INIT.split('\n') if s]
+    objects = {n for f in init for n in get_args(f)}
+    atoms_from_predicate = defaultdict(set)
+    for fact in init:
+        atoms_from_predicate[get_prefix(fact)].add(get_args(fact))
+
+    init = [f for f in init if get_prefix(f) not in ['CONNECTED']]
+    init.extend(('OBJECT', n) for n in objects)
+
+    goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
+    goal = And(*goal_literals)
 
     # TODO: compare statistical success and the actual success
     bernoulli_fns = {
@@ -63,24 +79,18 @@ def get_problem(*kwargs):
 
     # universe_test | empty_test
     stream_map = {
-        #'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
-        #'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
+        #'test-connected': from_test(lambda x, y: True),
+        # TODO: make probabilities depend on the alphabetical distance
+        'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
-
-    init = [fact_from_str(s) for s in INIT.split('\n') if s]
-    goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
-
-    goal = And(*goal_literals)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 def solve_pddlstream(num=1, **kwargs):
     stream_info = {
-        'test-less_equal': StreamInfo(eager=True, p_success=0),
-        'test-sum': StreamInfo(eager=True, p_success=0), # TODO: p_success=lambda x: 0.5
-        #'test-open': StreamInfo(p_success=P_SUCCESS),
+        'test-connected': StreamInfo(p_success=P_SUCCESS),
     }
 
     problem = get_problem(**kwargs)
@@ -92,8 +102,8 @@ def solve_pddlstream(num=1, **kwargs):
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solution = solve_focused(problem, stream_info=stream_info,
-                                 unit_costs=True, unit_efforts=False, debug=True,
-                                 #initial_complexity=1, max_iterations=1, max_skeletons=1
+                                 unit_costs=True, unit_efforts=False, debug=False,
+                                 initial_complexity=1, max_iterations=1, max_skeletons=1
                                  )
         plan, cost, certificate = solution
         print_solution(solution)

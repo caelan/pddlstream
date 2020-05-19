@@ -4,7 +4,7 @@
     (:predicates
         ; The connectivity between nodes in the graph
         (CONNECTED ?x ?y)
-        ; Nodes that can serve as traversal souce
+        ; Nodes that can serve as traversal source
         (SOURCE ?x)
         ; Nodes that can serve as traversal target
         (TARGET ?x)
