@@ -16,7 +16,7 @@ from collections import defaultdict
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, safe_rm_dir
+from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
     is_plan, get_prefix, get_args, Not
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
@@ -43,14 +43,19 @@ def get_problem(*kwargs):
     domain = parse_sequential_domain(domain_pddl)
     constant_map = {}
 
-    problem_pddl = read(get_file_path(__file__, 'problem.pddl'))
+    risk_path = get_file_path(__file__, RISK_DIR)
+    problem_paths = [os.path.join(risk_path, f) for f in os.listdir(risk_path)
+                     if f.startswith('prob') and f.endswith('.pddl')]
+
+    problem_path = problem_paths[0]
+    #problem_path = get_file_path(__file__, 'problem.pddl')
+
+    problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
     #print(problem.objects)
 
-    risk_path = get_file_path(__file__, RISK_DIR)
-    problem_paths = [os.path.join(risk_path, f) for f in os.listdir(risk_path)
-                     if f.startswith('prob') and f.endswith('.pddl')]
+
 
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     #stream_pddl = None
@@ -78,21 +83,26 @@ def get_problem(*kwargs):
         #'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
     }
 
-    bernoulli_fns = {
-        'test-connected': fn_from_constant(P_SUCCESS),
-    }
+    def connected_bernoulli_fn(*args, **kwargs):
+        if not args:
+            return P_SUCCESS
+        print(args, kwargs)
+        return P_SUCCESS
+
+    bernoulli_fns = {name: CachedFn(fn) for name, fn in {
+        'test-connected': connected_bernoulli_fn,
+    }.items()}
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
 
-    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    pddl_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+
+    return pddl_problem, bernoulli_fns
 
 def solve_pddlstream(num=1, **kwargs):
-    stream_info = {
-        'test-connected': StreamInfo(p_success=fn_from_constant(P_SUCCESS)),
-    }
-
-    problem = get_problem(**kwargs)
+    problem, bernoulli_fns = get_problem(**kwargs)
     dump_pddlstream(problem)
+    stream_info = {name: StreamInfo(p_success=fn) for name, fn in bernoulli_fns.items()}
 
     successes = 0.
     for _ in range(num):
@@ -102,7 +112,8 @@ def solve_pddlstream(num=1, **kwargs):
         # TODO: return the actual success rate of the portfolio (maybe in the cost)?
         solution = solve_focused(problem, stream_info=stream_info,
                                  unit_costs=True, unit_efforts=False, debug=False,
-                                 initial_complexity=1, max_iterations=1, max_skeletons=1
+                                 initial_complexity=1, max_iterations=1, max_skeletons=1,
+                                 max_planner_time=10,
                                  )
         plan, cost, certificate = solution
         print_solution(solution)
@@ -115,7 +126,8 @@ def main():
     parser = argparse.ArgumentParser()
     #parser.add_argument('-v', '--visualize', action='store_true')
     args = parser.parse_args()
-    solve_pddlstream()
+    with Profiler():
+        solve_pddlstream()
 
 if __name__ == '__main__':
     main()
