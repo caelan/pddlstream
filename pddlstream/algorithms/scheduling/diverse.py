@@ -9,10 +9,10 @@ import random
 from pddlstream.utils import INF, elapsed_time
 from pddlstream.language.constants import str_from_plan
 
-DEFAULT_K = 2
+DEFAULT_K = 3
 
 def p_conjunction(stream_plans):
-    return np.product([result.external.get_p_success()
+    return np.product([result.external.get_p_success(*result.get_input_values())
                        for result in set.union(*stream_plans)])
 
 
@@ -33,9 +33,9 @@ def p_disjunction(stream_plans, n=INF):
 
 ##################################################
 
-def random_subset(combined_plans, k=None):
-    if k is None:
-        k = DEFAULT_K
+def random_subset(combined_plans, k=DEFAULT_K):
+    #if k is None:
+    #    k = DEFAULT_K
     if len(combined_plans) <= k:
         return combined_plans
     return random.sample(combined_plans, k=k)

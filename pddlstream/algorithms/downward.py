@@ -392,7 +392,8 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         #for filename in os.listdir(FORBID_PATH): # Automatically "Deleting existing plans"
         #    if filename.startswith(SEARCH_OUTPUT):
         #        os.remove(os.path.join(temp_path, filename))
-        command = FORBID_COMMAND.format(max_time=2, num_plans=10, #max_plans=20,
+        assert max_planner_time < INF
+        command = FORBID_COMMAND.format(max_time=max_planner_time, num_plans=10, #max_plans=20,
                                         domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)

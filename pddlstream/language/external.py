@@ -74,6 +74,9 @@ class Result(object):
     def input_objects(self):
         return self.instance.input_objects
 
+    def get_input_values(self):
+        return self.instance.get_input_values()
+
     def is_refined(self):
         return self.opt_index == 0 # TODO: base on output objects instead?
 
