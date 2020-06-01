@@ -66,8 +66,8 @@ def exact_diverse_subset(combined_plans, k=None, verbose=False):
             best_plans, best_p = subset_plans, p
 
     # TODO: sort plans (or use my reordering technique)
-    print('\nTime: {:.2f} | Best (p={:.3f})'.format(
-        elapsed_time(start_time), best_p))
+    print('\nCandidates: {} | k={} | Best (p={:.3f}) | Time: {:.2f}'.format(
+        len(combined_plans), k, best_p, elapsed_time(start_time)))
     for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
         print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
         print(i, len(stream_plan), stream_plan)

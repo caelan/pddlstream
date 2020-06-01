@@ -456,6 +456,7 @@ def parse_solution(solution):
 def parse_solutions(temp_path, plan_files):
     solutions = [parse_solution(read(os.path.join(temp_path, plan_file)))
                  for plan_file in plan_files]
+    print('Found {} plans'.format(len(solutions))) # Best cost
     return sorted(solutions, key=lambda pair: pair[1])
 
 def write_pddl(domain_pddl=None, problem_pddl=None, clean=False, temp_dir=TEMP_DIR):

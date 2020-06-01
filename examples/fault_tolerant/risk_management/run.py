@@ -46,16 +46,16 @@ def get_problem(*kwargs):
     risk_path = get_file_path(__file__, RISK_DIR)
     problem_paths = [os.path.join(risk_path, f) for f in os.listdir(risk_path)
                      if f.startswith('prob') and f.endswith('.pddl')]
+    print(problem_paths)
 
-    problem_path = problem_paths[0]
+    index = 5
+    problem_path = problem_paths[index]
     #problem_path = get_file_path(__file__, 'problem.pddl')
 
     problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
     #print(problem.objects)
-
-
 
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     #stream_pddl = None
@@ -83,10 +83,10 @@ def get_problem(*kwargs):
         #'test-connected': from_test(lambda *args: args in atoms_from_predicate['CONNECTED']),
     }
 
+    # TODO: visualize using networks
     def connected_bernoulli_fn(*args, **kwargs):
         if not args:
             return P_SUCCESS
-        print(args, kwargs)
         return P_SUCCESS
 
     bernoulli_fns = {name: CachedFn(fn) for name, fn in {
