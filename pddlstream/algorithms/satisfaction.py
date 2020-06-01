@@ -4,7 +4,7 @@ import time
 from collections import Counter
 
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
-from pddlstream.algorithms.common import SolutionStore
+from pddlstream.algorithms.common import SolutionStore, revert_solution
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms, extract_disabled_clusters
 from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
 from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
@@ -13,8 +13,7 @@ from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 # from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment
-from pddlstream.language.conversion import revert_solution, \
-    evaluation_from_fact, replace_expression, get_prefix, get_args
+from pddlstream.language.conversion import evaluation_from_fact, replace_expression, get_prefix, get_args
 from pddlstream.language.function import Function
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
