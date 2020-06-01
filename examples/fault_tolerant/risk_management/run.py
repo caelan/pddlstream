@@ -5,9 +5,7 @@ from __future__ import print_function
 import argparse
 import os
 import time
-
-import pddlstream.algorithms.scheduling.diverse
-pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
+import random
 
 import pddlstream.algorithms.downward
 pddlstream.algorithms.downward.USE_FORBID = True
@@ -50,8 +48,16 @@ def get_problem(*kwargs):
     problem_paths = [os.path.join(risk_path, f) for f in sorted(os.listdir(risk_path))
                      if f.startswith('prob') and f.endswith('.pddl')]
 
-    #index = 5
-    index = None
+    # Size increases every 20 problems
+    # for problem_path in problem_paths:
+    #     problem_pddl = read(problem_path)
+    #     problem = parse_problem(domain, problem_pddl)
+    #     print(os.path.basename(problem_path), len(problem.objects))
+
+    #index = random.randint(0, 19)
+    index = 0
+    #index = None
+    print('Problem index:', index)
     if index is None:
         problem_path = get_file_path(__file__, 'problem.pddl')
     else:
@@ -104,6 +110,32 @@ def get_problem(*kwargs):
 
     return pddl_problem, bernoulli_fns
 
+def simulate_successes(stochastic_fns, solutions, n_simulations):
+    successes = 0
+    plans = [plan for plan, _, _ in solutions]
+    if not plans:
+        return successes
+    for _ in range(n_simulations):
+        streams = set()
+        for plan in plans:
+            streams.update(stream for stream in plan if isinstance(stream, StreamAction))
+
+        # TODO: compare with exact computation from p_disjunction
+        outcomes = {}
+        for stream in streams:
+            name, inputs, outputs = stream
+            assert not outputs
+            outcomes[stream] = stochastic_fns[name](*inputs)
+            # total = sum(stochastic_fns[name](*inputs) for _ in range(n_simulations))
+            # print(float(total) / n_simulations)
+
+        for plan in plans:
+            stream_plan = [stream for stream in plan if isinstance(stream, StreamAction)]
+            if all(outcomes[stream] for stream in stream_plan):
+                successes += 1
+                break
+    return successes
+
 def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     total_time = time.time()
     problem, bernoulli_fns = get_problem(**kwargs)
@@ -113,6 +145,8 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
 
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
+
+    config = {'candidates': 10, 'selector': 'greedy', 'k': 2}
 
     successes = 0.
     attempts = 0.
@@ -127,33 +161,13 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
                                   unit_costs=True, unit_efforts=False, debug=False,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   max_planner_time=10, replan_actions=['enter'],
-                                  diverse={'candidates': 10, 'selector': 'greedy', 'k': 2})
+                                  diverse=config)
         cum_time += elapsed_time(trial_time)
         for solution in solutions:
             print_solution(solution)
         #successes += is_plan(plan)
-
-        plans = [plan for plan, _, _ in solutions]
-        for _ in range(n_simulations):
-            attempts += 1
-            streams = set()
-            for plan in plans:
-                streams.update(stream for stream in plan if isinstance(stream, StreamAction))
-
-            # TODO: compare with exact computation from p_disjunction
-            outcomes = {}
-            for stream in streams:
-                name, inputs, outputs = stream
-                assert not outputs
-                outcomes[stream] = stochastic_fns[name](*inputs)
-                #total = sum(stochastic_fns[name](*inputs) for _ in range(n_simulations))
-                #print(float(total) / n_simulations)
-
-            for plan in plans:
-                stream_plan = [stream for stream in plan if isinstance(stream, StreamAction)]
-                if all(outcomes[stream] for stream in stream_plan):
-                    successes += 1
-                    break
+        attempts += n_simulations
+        successes += simulate_successes(stochastic_fns, solutions, n_simulations)
 
     print('Fraction {:.3f} | Mean Time: {:.3f} | Total Time: {:.3f}'.format(
         successes / attempts, cum_time / n_trials, elapsed_time(total_time)))
