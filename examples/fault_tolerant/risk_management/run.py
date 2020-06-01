@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import time
 
 import pddlstream.algorithms.scheduling.diverse
 pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 1
@@ -13,12 +14,14 @@ pddlstream.algorithms.downward.USE_FORBID = True
 
 from collections import defaultdict
 
+#from pddlstream.algorithms.scheduling.diverse import p_disjunction
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler
+from pddlstream.language.external import defer_unique
+from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
-    is_plan, get_prefix, get_args, Not
+    is_plan, get_prefix, get_args, Not, StreamAction
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
@@ -44,13 +47,15 @@ def get_problem(*kwargs):
     constant_map = {}
 
     risk_path = get_file_path(__file__, RISK_DIR)
-    problem_paths = [os.path.join(risk_path, f) for f in os.listdir(risk_path)
+    problem_paths = [os.path.join(risk_path, f) for f in sorted(os.listdir(risk_path))
                      if f.startswith('prob') and f.endswith('.pddl')]
-    print(problem_paths)
 
-    index = 5
-    problem_path = problem_paths[index]
-    #problem_path = get_file_path(__file__, 'problem.pddl')
+    #index = 5
+    index = None
+    if index is None:
+        problem_path = get_file_path(__file__, 'problem.pddl')
+    else:
+        problem_path = problem_paths[index]
 
     problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
@@ -99,26 +104,59 @@ def get_problem(*kwargs):
 
     return pddl_problem, bernoulli_fns
 
-def solve_pddlstream(num=1, **kwargs):
+def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
+    total_time = time.time()
     problem, bernoulli_fns = get_problem(**kwargs)
     dump_pddlstream(problem)
-    stream_info = {name: StreamInfo(p_success=fn) for name, fn in bernoulli_fns.items()}
+    stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
+                   for name, fn in bernoulli_fns.items()}
+
+    stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                      for name, cached in bernoulli_fns.items()}
 
     successes = 0.
-    for _ in range(num):
+    attempts = 0.
+    cum_time = 0.
+    for _ in range(n_trials):
         print('\n'+'-'*5+'\n')
+        trial_time = time.time()
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         # TODO: return the actual success rate of the portfolio (maybe in the cost)?
         solution = solve_focused(problem, stream_info=stream_info,
                                  unit_costs=True, unit_efforts=False, debug=False,
                                  initial_complexity=1, max_iterations=1, max_skeletons=1,
-                                 max_planner_time=10,
-                                 )
+                                 max_planner_time=10, replan_actions=['enter'],
+                                 diverse={'candidates': 10, 'selector': 'greedy', 'k': 2})
+        cum_time += elapsed_time(trial_time)
         plan, cost, certificate = solution
         print_solution(solution)
-        successes += is_plan(plan)
-    print('Fraction {:.3f}'.format(successes / num))
+        #successes += is_plan(plan)
+
+        plans = [plan]
+        for _ in range(n_simulations):
+            attempts += 1
+            streams = set()
+            for plan in plans:
+                streams.update(stream for stream in plan if isinstance(stream, StreamAction))
+
+            # TODO: compare with exact computation from p_disjunction
+            outcomes = {}
+            for stream in streams:
+                name, inputs, outputs = stream
+                assert not outputs
+                outcomes[stream] = stochastic_fns[name](*inputs)
+                #total = sum(stochastic_fns[name](*inputs) for _ in range(n_simulations))
+                #print(float(total) / n_simulations)
+
+            for plan in plans:
+                stream_plan = [stream for stream in plan if isinstance(stream, StreamAction)]
+                if all(outcomes[stream] for stream in stream_plan):
+                    successes += 1
+                    break
+
+    print('Fraction {:.3f} | Mean Time: {:.3f} | Total Time: {:.3f}'.format(
+        successes / attempts, cum_time / n_trials, elapsed_time(total_time)))
 
 ##################################################
 

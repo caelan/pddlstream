@@ -6,10 +6,8 @@ import numpy as np
 import time
 import random
 
-from pddlstream.utils import INF, elapsed_time
-from pddlstream.language.constants import str_from_plan
-
-DEFAULT_K = 3
+from pddlstream.utils import INF, elapsed_time, find_unique
+from pddlstream.language.constants import str_from_plan, StreamAction
 
 def p_conjunction(stream_plans):
     return np.product([result.external.get_p_success(*result.get_input_values())
@@ -33,26 +31,41 @@ def p_disjunction(stream_plans, n=INF):
 
 ##################################################
 
-def random_subset(combined_plans, k=DEFAULT_K):
+# Comparisons
+# 1) Random
+# 2) Diverse order
+# 3) Greedy + Approx
+# 4) Optimal + Exact
+# 5) Increased K
+
+def random_subset(externals, combined_plans, diverse):
     #if k is None:
     #    k = DEFAULT_K
+    k = diverse['k']
     if len(combined_plans) <= k:
         return combined_plans
     return random.sample(combined_plans, k=k)
 
-def exact_diverse_subset(combined_plans, k=None, verbose=False):
+def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     # TODO: dynamic programming method across multisets
     # TODO: ILP over selections
-    # TODO: submodular
+    # TODO: lazy greedy submodular maximimization
     start_time = time.time()
-    if k is None:
-        k = DEFAULT_K
+    k = diverse['k']
     if len(combined_plans) <= k:
         return combined_plans
+    # TODO: pass results instead of externals
     best_plans, best_p = None, -INF
     for i, subset_plans in enumerate(combinations(combined_plans, r=k)):
         # Weight by effort
-        stream_plans = [set(stream_plan) for stream_plan, _, _, in subset_plans]
+        #stream_plans = [set(stream_plan) for stream_plan, _, _, in subset_plans]
+        stream_plans = []
+        for _, opt_plan, _, in subset_plans:
+            stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
+            stream_plan = {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
+                           for name, inputs, _ in stream_actions}
+            stream_plans.append(stream_plan)
+
         intersection = set.intersection(*stream_plans)
         p = p_disjunction(stream_plans)
         assert 0 <= p <= 1

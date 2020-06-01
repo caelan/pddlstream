@@ -1,6 +1,6 @@
 from collections import Counter
 
-from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
+from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_lisp, parse_goal, make_cost, set_cost_scale, \
     fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain

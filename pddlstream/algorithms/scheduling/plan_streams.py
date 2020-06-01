@@ -326,12 +326,13 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 ##################################################
 
 def plan_streams(evaluations, goal_expression, domain, all_results, negative, effort_weight, max_effort,
-                 simultaneous=False, reachieve=True, replan_actions=set(), **kwargs):
+                 simultaneous=False, reachieve=True, replan_actions=set(), diverse={}, **kwargs):
     # TODO: alternatively could translate with stream actions on real opt_state and just discard them
     # TODO: only consider axioms that have stream conditions?
     #reachieve = reachieve and not using_optimizers(all_results)
     #for i, result in enumerate(all_results):
     #    print(i, result, result.get_effort())
+    print(kwargs)
     applied_results, deferred_results = partition_results(
         evaluations, all_results, apply_now=lambda r: not (simultaneous or r.external.info.simultaneous))
     stream_domain, deferred_from_name = add_stream_actions(domain, deferred_results)
@@ -375,4 +376,6 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         # print()
         # print(len(stream_plan), stream_plan)
         # print(len(opt_plan.action_plan), cost, opt_plan.action_plan)
-    return exact_diverse_subset(combined_plans)
+
+    externals = {result.external for result in all_results}
+    return exact_diverse_subset(externals, combined_plans, diverse)
