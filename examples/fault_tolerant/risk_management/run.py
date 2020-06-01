@@ -123,17 +123,17 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         # TODO: return the actual success rate of the portfolio (maybe in the cost)?
-        solution = solve_focused(problem, stream_info=stream_info,
-                                 unit_costs=True, unit_efforts=False, debug=False,
-                                 initial_complexity=1, max_iterations=1, max_skeletons=1,
-                                 max_planner_time=10, replan_actions=['enter'],
-                                 diverse={'candidates': 10, 'selector': 'greedy', 'k': 2})
+        solutions = solve_focused(problem, stream_info=stream_info,
+                                  unit_costs=True, unit_efforts=False, debug=False,
+                                  initial_complexity=1, max_iterations=1, max_skeletons=None,
+                                  max_planner_time=10, replan_actions=['enter'],
+                                  diverse={'candidates': 10, 'selector': 'greedy', 'k': 2})
         cum_time += elapsed_time(trial_time)
-        plan, cost, certificate = solution
-        print_solution(solution)
+        for solution in solutions:
+            print_solution(solution)
         #successes += is_plan(plan)
 
-        plans = [plan]
+        plans = [plan for plan, _, _ in solutions]
         for _ in range(n_simulations):
             attempts += 1
             streams = set()

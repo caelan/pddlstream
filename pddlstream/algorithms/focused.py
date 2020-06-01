@@ -171,6 +171,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
                 if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
                     break # TODO: break out of both loops
             else:
+                # TODO: break out here
                 process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                     bind=bind, max_failures=max_failures)
         sample_time += elapsed_time(start_time)

@@ -19,7 +19,7 @@ INTERNAL_EVALUATION = False
 UNKNOWN_EVALUATION = 'unknown'
 
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
-Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
+Plan = namedtuple('Solution', ['plan', 'cost', 'time'])
 
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
@@ -44,7 +44,7 @@ class SolutionStore(object):
     def add_plan(self, plan, cost):
         # TODO: double-check that plan is a solution
         if is_plan(plan): # and (cost < self.best_cost)
-            self.solutions.append(Solution(plan, cost, elapsed_time(self.start_time)))
+            self.solutions.append(Plan(plan, cost, elapsed_time(self.start_time)))
     def has_solution(self):
         return is_plan(self.best_plan)
     def is_solved(self):
@@ -58,7 +58,8 @@ class SolutionStore(object):
     #def __repr__(self):
     #    raise NotImplementedError()
     def extract_solution(self):
-        return revert_solution(self.best_plan, self.best_cost, self.evaluations)
+        return [revert_solution(plan, cost, self.evaluations)
+                for plan, cost, _ in sorted(self.solutions, key=lambda p: p.cost)]
 
 def revert_solution(plan, cost, evaluations):
     all_facts = list(map(value_from_evaluation, evaluations))
