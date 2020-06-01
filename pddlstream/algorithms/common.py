@@ -1,8 +1,9 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan
-from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
+from pddlstream.language.constants import is_plan, OptPlan, Certificate, Solution
+from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, value_from_evaluation, \
+    transform_plan_args, param_from_object, value_from_obj_expression
 from pddlstream.utils import INF, elapsed_time, check_memory
 
 # Complexity is a way to characterize the number of external evaluations required for a solution
@@ -58,6 +59,17 @@ class SolutionStore(object):
     #    raise NotImplementedError()
     def extract_solution(self):
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
+
+def revert_solution(plan, cost, evaluations):
+    all_facts = list(map(value_from_evaluation, evaluations))
+    if isinstance(plan, OptPlan):
+        action_plan = transform_plan_args(plan.action_plan, param_from_object)
+        preimage_facts = list(map(value_from_obj_expression, plan.preimage_facts))
+    else:
+        action_plan = transform_plan_args(plan, param_from_object)
+        preimage_facts = None
+    certificate = Certificate(all_facts, preimage_facts)
+    return Solution(action_plan, cost, certificate)
 
 ##################################################
 

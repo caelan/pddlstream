@@ -77,7 +77,6 @@ def reset_globals():
     Object.reset()
     OptimisticObject.reset()
     RULES[:] = []
-    SOLUTIONS[:] = []
 
 def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, unit_efforts=False):
     # TODO: just return the problem if already written programmatically
