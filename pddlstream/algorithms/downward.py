@@ -42,6 +42,11 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 # --symmetries substitutes different variable values when generating plans
 # Because using optimal search, plans are generated successively with increasing cost
 
+# https://hub.docker.com/r/ctpelok77/ibmresearchaiplanningsolver
+# https://zenodo.org/record/3404122#.XtZg8J5KjAI
+# Diversity metrics: stability, state, uniqueness
+# Linear combinations of these
+
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 assert not USE_CERBERUS or not USE_FORBID
 # Does not support derived predicates, disjunctive conditions

@@ -25,7 +25,7 @@ from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
-P_SUCCESS = 0.9
+P_SUCCESS = 0.75
 
 RISK_DIR = 'risk-pddl/risk/'
 
@@ -152,14 +152,17 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
                       for name, cached in bernoulli_fns.items()}
 
     configs = [
-        {'candidates': 10, 'selector': 'greedy', 'k': 4, 'd': INF},
+        {'candidates': 10, 'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},
     ]
-    #configs = [{'candidates': 10, 'selector': 'greedy', 'k': k} for k in range(5, 10)]
-    configs = list(map(hashabledict, configs))
 
-    successes = 0.
-    attempts = 0.
-    runtime = 0.
+    selectors = ['random', 'greedy', 'exact']
+    ks = list(range(1, 1+10))
+    configs = [{'selector': selector, 'k': k, 'max_time': 30}
+               for selector in selectors for k in ks]
+
+    configs = list(map(hashabledict, configs))
+    successes = defaultdict(float)
+    runtimes = defaultdict(float)
     for _ in range(n_trials):
         print('\n'+'-'*100+'\n')
         for config in configs:
@@ -173,15 +176,44 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
                                       initial_complexity=1, max_iterations=1, max_skeletons=None,
                                       max_planner_time=10, replan_actions=['enter'],
                                       diverse=config)
-            runtime += elapsed_time(trial_time)
+            runtimes[config] += elapsed_time(trial_time)
             for solution in solutions:
                 print_solution(solution)
             #successes += is_plan(plan)
-            attempts += n_simulations
-            successes += simulate_successes(stochastic_fns, solutions, n_simulations)
+            successes[config] += simulate_successes(stochastic_fns, solutions, n_simulations)
 
-    print('Fraction {:.3f} | Mean Time: {:.3f} | Total Time: {:.3f}'.format(
-        successes / attempts, runtime / n_trials, elapsed_time(total_time)))
+    attempts = n_trials*n_simulations
+    print('Configs: {} | Attempts: {} | Total Time: {:.3f}'.format(
+        len(configs), attempts, elapsed_time(total_time)))
+    for i, config in enumerate(configs):
+        print('{}) {} | Probability {:.3f} | Mean Time: {:.3f}'.format(
+            i, config, successes[config] / attempts, runtimes[config] / n_trials))
+
+    import matplotlib.pyplot as plt
+    plt.figure()
+    configs_from_name = defaultdict(list)
+    for config in configs:
+        configs_from_name[config['selector']].append(config)
+    for name in configs_from_name:
+        ks = [config['k'] for config in configs_from_name[name]]
+        probabilities = [successes[config] / attempts for config in configs_from_name[name]]
+        #plt.fill_between(train_sizes, test_scores_mean - width, test_scores_mean + width, alpha=0.1)
+        plt.plot(ks, probabilities, 'o-', label=name)
+
+    plt.title('Selector Probability of Success')
+    #plt.ylim(0, 1)
+    plt.xlabel('K')
+    plt.ylabel('Probability of Success')
+    plt.grid()
+    plt.legend(loc='best')
+    plt.tight_layout()
+
+    # if figure_dir is not None:
+    #     mkdir(figure_dir)
+    #     figure_path = os.path.join(figure_dir, '{}.png'.format(y_label)) # pdf
+    #     plt.savefig(figure_path, transparent=False, bbox_inches='tight') # dpi=1000,
+    #     print('Saved', figure_path)
+    plt.show()
 
 ##################################################
 

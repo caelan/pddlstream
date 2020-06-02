@@ -4,7 +4,7 @@ import copy
 
 from collections import defaultdict, namedtuple
 
-from pddlstream.algorithms.scheduling.diverse import exact_diverse_subset
+from pddlstream.algorithms.scheduling.diverse import diverse_subset
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
     pddl_from_instance, USE_FORBID
@@ -378,4 +378,4 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         # print(len(opt_plan.action_plan), cost, opt_plan.action_plan)
 
     externals = {result.external for result in all_results}
-    return exact_diverse_subset(externals, combined_plans, diverse)
+    return diverse_subset(externals, combined_plans, diverse)
