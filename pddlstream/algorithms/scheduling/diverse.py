@@ -14,12 +14,16 @@ def p_conjunction(stream_plans):
                        for result in set.union(*stream_plans)])
 
 
-def p_disjunction(stream_plans, n=INF):
+def p_disjunction(stream_plans, diverse):
     # Inclusion exclusion
     # TODO: incorporate overhead
-    n = min(len(stream_plans), n)
+    # TODO: approximately compute by sampling outcomes
+    # TODO: separate into connected components
+    d = diverse.get('d', INF)
+    d = min(len(stream_plans), d)
+    assert (d % 2 == 1) or (d == len(stream_plans))
     p = 0.
-    for i in range(n):
+    for i in range(d):
         r = i + 1
         for subset_plans in combinations(stream_plans, r=r):
             sign = -1 if r % 2 == 0 else +1
@@ -38,6 +42,8 @@ def p_disjunction(stream_plans, n=INF):
 # 4) Optimal + Exact
 # 5) Increased K
 
+# TODO: toggle behavior based on k
+
 def random_subset(externals, combined_plans, diverse):
     #if k is None:
     #    k = DEFAULT_K
@@ -46,30 +52,39 @@ def random_subset(externals, combined_plans, diverse):
         return combined_plans
     return random.sample(combined_plans, k=k)
 
-def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
+def extract_stream_plan(externals, combined_plan):
+    stream_plan, opt_plan, _ = combined_plan
+    if stream_plan:
+        return opt_plan.stream_plan
+    stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
+    return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
+            for name, inputs, _ in stream_actions}
+
+def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verbose=False):
+    # TODO: warm start using exact_diverse_subset for small k
+    pass
+
+def exact_diverse_subset(externals, combined_plans, diverse, max_time=INF, verbose=False):
     # TODO: dynamic programming method across multisets
     # TODO: ILP over selections
     # TODO: lazy greedy submodular maximimization
     start_time = time.time()
     k = diverse['k']
+    assert 1 <= k
     if len(combined_plans) <= k:
         return combined_plans
     # TODO: pass results instead of externals
+    num_considered = 0
     best_plans, best_p = None, -INF
     for i, subset_plans in enumerate(combinations(combined_plans, r=k)):
+        num_considered += 1
         # Weight by effort
         #stream_plans = [set(stream_plan) for stream_plan, _, _, in subset_plans]
-        stream_plans = []
-        for _, opt_plan, _, in subset_plans:
-            stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
-            stream_plan = {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
-                           for name, inputs, _ in stream_actions}
-            stream_plans.append(stream_plan)
-
-        intersection = set.intersection(*stream_plans)
-        p = p_disjunction(stream_plans)
-        assert 0 <= p <= 1
+        stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
+        p = p_disjunction(stream_plans, diverse)
+        #assert 0 <= p <= 1 # May not hold if not exact
         if verbose:
+            intersection = set.intersection(*stream_plans)
             print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
                 elapsed_time(start_time), i, len(intersection), p))  # , intersection)
             for stream_plan, opt_plan, cost in subset_plans:
@@ -77,10 +92,12 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
                 print(len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
         if p > best_p:
             best_plans, best_p = subset_plans, p
+        if max_time < elapsed_time(start_time):
+            break
 
     # TODO: sort plans (or use my reordering technique)
-    print('\nCandidates: {} | k={} | Best (p={:.3f}) | Time: {:.2f}'.format(
-        len(combined_plans), k, best_p, elapsed_time(start_time)))
+    print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
+        len(combined_plans), k, num_considered, best_p, elapsed_time(start_time)))
     for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
         print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
         print(i, len(stream_plan), stream_plan)

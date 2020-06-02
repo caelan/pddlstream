@@ -12,7 +12,7 @@ pddlstream.algorithms.downward.USE_FORBID = True
 
 from collections import defaultdict
 
-#from pddlstream.algorithms.scheduling.diverse import p_disjunction
+from pddlstream.algorithms.scheduling.diverse import p_disjunction
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
@@ -25,9 +25,14 @@ from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
-P_SUCCESS = 0.5
+P_SUCCESS = 0.9
 
 RISK_DIR = 'risk-pddl/risk/'
+
+class hashabledict(dict):
+    # assumes immutable once hashed
+    def __hash__(self):
+        return hash(frozenset(self.items()))
 
 def fact_from_fd(literal):
     assert is_literal(literal)
@@ -139,38 +144,44 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
 def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     total_time = time.time()
     problem, bernoulli_fns = get_problem(**kwargs)
-    dump_pddlstream(problem)
+    #dump_pddlstream(problem)
     stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
                    for name, fn in bernoulli_fns.items()}
 
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
 
-    config = {'candidates': 10, 'selector': 'greedy', 'k': 2}
+    configs = [
+        {'candidates': 10, 'selector': 'greedy', 'k': 4, 'd': INF},
+    ]
+    #configs = [{'candidates': 10, 'selector': 'greedy', 'k': k} for k in range(5, 10)]
+    configs = list(map(hashabledict, configs))
 
     successes = 0.
     attempts = 0.
-    cum_time = 0.
+    runtime = 0.
     for _ in range(n_trials):
-        print('\n'+'-'*5+'\n')
-        trial_time = time.time()
-        #problem = get_problem(**kwargs)
-        #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        # TODO: return the actual success rate of the portfolio (maybe in the cost)?
-        solutions = solve_focused(problem, stream_info=stream_info,
-                                  unit_costs=True, unit_efforts=False, debug=False,
-                                  initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                  max_planner_time=10, replan_actions=['enter'],
-                                  diverse=config)
-        cum_time += elapsed_time(trial_time)
-        for solution in solutions:
-            print_solution(solution)
-        #successes += is_plan(plan)
-        attempts += n_simulations
-        successes += simulate_successes(stochastic_fns, solutions, n_simulations)
+        print('\n'+'-'*100+'\n')
+        for config in configs:
+            print(config)
+            trial_time = time.time()
+            #problem = get_problem(**kwargs)
+            #solution = solve_incremental(problem, unit_costs=True, debug=True)
+            # TODO: return the actual success rate of the portfolio (maybe in the cost)?
+            solutions = solve_focused(problem, stream_info=stream_info,
+                                      unit_costs=True, unit_efforts=False, debug=False,
+                                      initial_complexity=1, max_iterations=1, max_skeletons=None,
+                                      max_planner_time=10, replan_actions=['enter'],
+                                      diverse=config)
+            runtime += elapsed_time(trial_time)
+            for solution in solutions:
+                print_solution(solution)
+            #successes += is_plan(plan)
+            attempts += n_simulations
+            successes += simulate_successes(stochastic_fns, solutions, n_simulations)
 
     print('Fraction {:.3f} | Mean Time: {:.3f} | Total Time: {:.3f}'.format(
-        successes / attempts, cum_time / n_trials, elapsed_time(total_time)))
+        successes / attempts, runtime / n_trials, elapsed_time(total_time)))
 
 ##################################################
 
