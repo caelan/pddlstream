@@ -155,10 +155,11 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
         {'candidates': 10, 'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},
     ]
 
-    selectors = ['random', 'greedy', 'exact']
+    selectors = ['greedy'] #, 'exact'] # random | greedy | exact
+    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
     ks = list(range(1, 1+10))
-    configs = [{'selector': selector, 'k': k, 'max_time': 30}
-               for selector in selectors for k in ks]
+    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
+               for selector in selectors for metric in metrics for k in ks]
 
     configs = list(map(hashabledict, configs))
     successes = defaultdict(float)
@@ -189,17 +190,20 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
         print('{}) {} | Probability {:.3f} | Mean Time: {:.3f}'.format(
             i, config, successes[config] / attempts, runtimes[config] / n_trials))
 
-    import matplotlib.pyplot as plt
-    plt.figure()
     configs_from_name = defaultdict(list)
     for config in configs:
-        configs_from_name[config['selector']].append(config)
+        name = config['selector']
+        if 'metric' in config:
+            name += ' ' + config['metric']
+        configs_from_name[name].append(config)
+
+    import matplotlib.pyplot as plt
+    plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
         probabilities = [successes[config] / attempts for config in configs_from_name[name]]
         #plt.fill_between(train_sizes, test_scores_mean - width, test_scores_mean + width, alpha=0.1)
         plt.plot(ks, probabilities, 'o-', label=name)
-
     plt.title('Selector Probability of Success')
     #plt.ylim(0, 1)
     plt.xlabel('K')
@@ -207,12 +211,24 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     plt.grid()
     plt.legend(loc='best')
     plt.tight_layout()
-
     # if figure_dir is not None:
     #     mkdir(figure_dir)
     #     figure_path = os.path.join(figure_dir, '{}.png'.format(y_label)) # pdf
     #     plt.savefig(figure_path, transparent=False, bbox_inches='tight') # dpi=1000,
     #     print('Saved', figure_path)
+    plt.show()
+
+    plt.figure()
+    for name in configs_from_name:
+        ks = [config['k'] for config in configs_from_name[name]]
+        probabilities = [runtimes[config]/n_trials for config in configs_from_name[name]]
+        plt.plot(ks, probabilities, 'o-', label=name)
+    plt.title('Selector Runtime')
+    plt.xlabel('K')
+    plt.ylabel('Runtime (seconds)')
+    plt.grid()
+    plt.legend(loc='best')
+    plt.tight_layout()
     plt.show()
 
 ##################################################

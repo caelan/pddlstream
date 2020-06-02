@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from itertools import combinations
+from itertools import combinations, combinations_with_replacement
 
 import numpy as np
 import time
@@ -33,6 +33,51 @@ def p_disjunction(stream_plans, diverse):
 
 #def str_from_plan(action_plan):
 #    return '[{}]'.format(', '.join('{}{}'.format(*action) for action in action_plan))
+
+# Linear combinations of these
+# Minimize similarity
+# dDISTANTkSET: requires the distance between every pair of plans in the solution to be of bounded diversity
+# average over the pairwise dissimilarity of the set
+def stability(stream_plans, diverse, r=2, op=np.average): # min | np.average
+    # the ratio of the number of actions that appear on both plans
+    # to the total number of actions on these plans, ignoring repetitions
+    assert stream_plans
+    if len(stream_plans) == 1:
+        return 1.
+    values = []
+    for combo in combinations(stream_plans, r=r):
+        # TODO: weighted intersection
+        sim = float(len(set.intersection(*combo))) / len(set.union(*combo))
+        values.append(1. - sim)
+    return op(values)
+
+def state(stream_plans, diverse):
+    # measures similarity between two plans based on representing the plans as as sequence of states
+    # maybe adapt using the certified conditions?
+    raise NotImplementedError()
+
+def uniqueness(stream_plans, diverse, op=np.average):
+    # measures whether two plans are permutations of each other, or one plan is a subset of the other plan
+    assert stream_plans
+    if len(stream_plans) == 1:
+        return 1.
+    values = []
+    for stream_plan1, stream_plan2 in combinations(stream_plans, r=2):
+        sim = (stream_plan1 <= stream_plan2) or (stream_plan2 <= stream_plan1)
+        values.append(1 - sim)
+    return op(values)
+
+def score(stream_plans, diverse, **kwargs):
+    metric = diverse.get('metric', 'p_success')
+    if metric == 'stability':
+        return stability(stream_plans, diverse, **kwargs)
+    if metric == 'state':
+        return state(stream_plans, diverse, **kwargs)
+    if metric == 'uniqueness':
+        return uniqueness(stream_plans, diverse, **kwargs)
+    if metric == 'p_success':
+        return p_disjunction(stream_plans, diverse, **kwargs)
+    raise ValueError(metric)
 
 ##################################################
 
@@ -74,7 +119,7 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verb
         best_index, best_p = None, -INF
         for index in set(range(len(combined_plans))) - best_indices:
             stream_plans = [extract_stream_plan(externals, combined_plans[i]) for i in best_indices | {index}]
-            p = p_disjunction(stream_plans, diverse)
+            p = score(stream_plans, diverse)
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
@@ -110,7 +155,7 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
         # Weight by effort
         #stream_plans = [set(stream_plan) for stream_plan, _, _, in subset_plans]
         stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
-        p = p_disjunction(stream_plans, diverse)
+        p = score(stream_plans, diverse)
         #assert 0 <= p <= 1 # May not hold if not exact
         if verbose:
             intersection = set.intersection(*stream_plans)
