@@ -43,30 +43,25 @@ def fact_from_fd(literal):
 
 ##################################################
 
-def get_problem(*kwargs):
-    safe_rm_dir(TEMP_DIR)
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    domain = parse_sequential_domain(domain_pddl)
-    constant_map = {}
-
+def get_benchmarks(sizes=[0]):
     risk_path = get_file_path(__file__, RISK_DIR)
     problem_paths = [os.path.join(risk_path, f) for f in sorted(os.listdir(risk_path))
                      if f.startswith('prob') and f.endswith('.pddl')]
-
     # Size increases every 20 problems
     # for problem_path in problem_paths:
     #     problem_pddl = read(problem_path)
     #     problem = parse_problem(domain, problem_pddl)
     #     print(os.path.basename(problem_path), len(problem.objects))
+    size_paths = []
+    for size in sizes:
+        size_paths.extend(problem_paths[20*size:20*(size+1)])
+    return size_paths
 
-    #index = random.randint(0, 19)
-    index = 0
-    #index = None
-    print('Problem index:', index)
-    if index is None:
-        problem_path = get_file_path(__file__, 'problem.pddl')
-    else:
-        problem_path = problem_paths[index]
+def get_problem(problem_path, *kwargs):
+    safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    domain = parse_sequential_domain(domain_pddl)
+    constant_map = {}
 
     problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
@@ -143,7 +138,19 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
 
 def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     total_time = time.time()
-    problem, bernoulli_fns = get_problem(**kwargs)
+
+    problem_paths = get_benchmarks(sizes=range(0, 1))
+    #index = random.randint(0, 19)
+    index = 0
+    #index = None
+    print('Problem index:', index)
+    if index is None:
+        problem_path = get_file_path(__file__, 'problem.pddl')
+    else:
+        problem_path = problem_paths[index]
+    print(problem_path)
+
+    problem, bernoulli_fns = get_problem(problem_path, **kwargs)
     #dump_pddlstream(problem)
     stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
                    for name, fn in bernoulli_fns.items()}
@@ -152,15 +159,17 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
                       for name, cached in bernoulli_fns.items()}
 
     configs = [
-        {'candidates': 10, 'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},
+        {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF}, # 'candidates': 10,
     ]
 
     selectors = ['greedy'] #, 'exact'] # random | greedy | exact
     metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
     ks = list(range(1, 1+10))
-    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
-               for selector in selectors for metric in metrics for k in ks]
+    #configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
+    #           for selector in selectors for metric in metrics for k in ks]
+    # TODO: more random runs
 
+    # TODO: compare relative odds
     configs = list(map(hashabledict, configs))
     successes = defaultdict(float)
     runtimes = defaultdict(float)
