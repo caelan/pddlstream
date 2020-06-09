@@ -6,6 +6,7 @@ import argparse
 import os
 import time
 import random
+import numpy as np
 
 import pddlstream.algorithms.downward
 pddlstream.algorithms.downward.USE_FORBID = True
@@ -25,7 +26,7 @@ from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
-P_SUCCESS = 0.75
+P_SUCCESSES = [0.75]
 
 RISK_DIR = 'risk-pddl/risk/'
 
@@ -96,9 +97,10 @@ def get_problem(problem_path, *kwargs):
 
     # TODO: visualize using networks
     def connected_bernoulli_fn(*args, **kwargs):
+        #assert args
         if not args:
-            return P_SUCCESS
-        return P_SUCCESS
+            return 1. # For pruning low probability = 0
+        return random.choice(P_SUCCESSES)
 
     bernoulli_fns = {name: CachedFn(fn) for name, fn in {
         'test-connected': connected_bernoulli_fn,
@@ -140,64 +142,66 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     total_time = time.time()
 
     problem_paths = get_benchmarks(sizes=range(0, 1))
-    #index = random.randint(0, 19)
-    index = 0
-    #index = None
-    print('Problem index:', index)
-    if index is None:
-        problem_path = get_file_path(__file__, 'problem.pddl')
+    #indices = random.randint(0, 19)
+    indices = range(0, 1)
+    #indices = None
+    print('Problem indices:', indices)
+    if indices is None:
+        problem_paths = [get_file_path(__file__, 'problem.pddl')]
     else:
-        problem_path = problem_paths[index]
-    print(problem_path)
-
-    problem, bernoulli_fns = get_problem(problem_path, **kwargs)
-    #dump_pddlstream(problem)
-    stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
-                   for name, fn in bernoulli_fns.items()}
-
-    stochastic_fns = {name: test_from_bernoulli_fn(cached)
-                      for name, cached in bernoulli_fns.items()}
-
-    configs = [
-        {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF}, # 'candidates': 10,
-    ]
+        problem_paths = [problem_paths[index] for index in indices]
 
     selectors = ['greedy'] #, 'exact'] # random | greedy | exact
-    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
-    ks = list(range(1, 1+10))
-    #configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
-    #           for selector in selectors for metric in metrics for k in ks]
+    metrics = ['p_success'] #, 'stability', 'uniqueness'] # p_success | stability | uniqueness
+    ks = list(range(2, 1+5)) # Start with larger k >= 2
+    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
+               for selector in selectors for metric in metrics for k in ks]
+    #configs = [
+    #    {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},  # 'candidates': 10,
+    #]
     # TODO: more random runs
-
-    # TODO: compare relative odds
     configs = list(map(hashabledict, configs))
-    successes = defaultdict(float)
-    runtimes = defaultdict(float)
-    for _ in range(n_trials):
-        print('\n'+'-'*100+'\n')
-        for config in configs:
-            print(config)
-            trial_time = time.time()
-            #problem = get_problem(**kwargs)
-            #solution = solve_incremental(problem, unit_costs=True, debug=True)
-            # TODO: return the actual success rate of the portfolio (maybe in the cost)?
-            solutions = solve_focused(problem, stream_info=stream_info,
-                                      unit_costs=True, unit_efforts=False, debug=False,
-                                      initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                      max_planner_time=10, replan_actions=['enter'],
-                                      diverse=config)
-            runtimes[config] += elapsed_time(trial_time)
-            for solution in solutions:
-                print_solution(solution)
-            #successes += is_plan(plan)
-            successes[config] += simulate_successes(stochastic_fns, solutions, n_simulations)
 
-    attempts = n_trials*n_simulations
-    print('Configs: {} | Attempts: {} | Total Time: {:.3f}'.format(
-        len(configs), attempts, elapsed_time(total_time)))
+    successes = defaultdict(list)
+    runtimes = defaultdict(list)
+    for problem_path in problem_paths:
+        print(problem_path)
+        problem, bernoulli_fns = get_problem(problem_path, **kwargs)
+        #dump_pddlstream(problem)
+        stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
+                       for name, fn in bernoulli_fns.items()}
+        stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                          for name, cached in bernoulli_fns.items()}
+        # TODO: log problem_path
+        # TODO: compare relative odds
+        for _ in range(n_trials):
+            print('\n'+'-'*100+'\n')
+            for config in configs:
+                print(config)
+                trial_time = time.time()
+                #problem = get_problem(**kwargs)
+                #solution = solve_incremental(problem, unit_costs=True, debug=True)
+                # TODO: return the actual success rate of the portfolio (maybe in the cost)?
+                solutions = solve_focused(problem, stream_info=stream_info,
+                                          unit_costs=True, unit_efforts=False, debug=False,
+                                          initial_complexity=1, max_iterations=1, max_skeletons=None,
+                                          max_planner_time=30, replan_actions=['enter'],
+                                          diverse=config)
+                runtimes[config].append(elapsed_time(trial_time))
+                for solution in solutions:
+                    print_solution(solution)
+                #successes += is_plan(plan)
+                n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+                successes[config].append(float(n_successes) / n_simulations)
+
+    n_iterations = len(problem_paths)*n_trials
+    print('Configs: {} | Iterations: {} | Total Time: {:.3f}'.format(
+        len(configs), n_iterations, elapsed_time(total_time)))
     for i, config in enumerate(configs):
-        print('{}) {} | Probability {:.3f} | Mean Time: {:.3f}'.format(
-            i, config, successes[config] / attempts, runtimes[config] / n_trials))
+        print('{}) {} | Num: {} | Mean Probability: {:.3f} | Mean Time: {:.3f}'.format(
+            i, config, len(successes[config]), np.mean(successes[config]), np.mean(runtimes[config])))
+        print('Probabilities:', successes[config])
+        print('Runtimes:', runtimes[config])
 
     configs_from_name = defaultdict(list)
     for config in configs:
@@ -205,14 +209,24 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
         if 'metric' in config:
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
+    # TODO: store other metrics
+    # TODO: pickle the results
 
+    scale = 1.
     import matplotlib.pyplot as plt
     plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
-        probabilities = [successes[config] / attempts for config in configs_from_name[name]]
-        #plt.fill_between(train_sizes, test_scores_mean - width, test_scores_mean + width, alpha=0.1)
-        plt.plot(ks, probabilities, 'o-', label=name)
+        means = np.array([np.mean(successes[config]) for config in configs_from_name[name]])
+        stds = np.array([np.std(successes[config]) for config in configs_from_name[name]])
+        widths = scale * stds  # standard deviation
+        # TODO: standard error (confidence interval)
+        # from learn_tools.active_learner import tail_confidence
+        # alpha = 0.95
+        # scale = tail_confidence(alpha)
+        # width = scale * test_scores_std / np.sqrt(train_sizes)
+        plt.fill_between(ks, means - widths, means + widths, alpha=0.5)
+        plt.plot(ks, means, 'o-', label=name)
     plt.title('Selector Probability of Success')
     #plt.ylim(0, 1)
     plt.xlabel('K')
@@ -230,10 +244,13 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
     plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
-        probabilities = [runtimes[config]/n_trials for config in configs_from_name[name]]
-        plt.plot(ks, probabilities, 'o-', label=name)
+        means = [np.mean(runtimes[config]) for config in configs_from_name[name]]
+        stds = np.array([np.std(successes[config]) for config in configs_from_name[name]])
+        widths = scale * stds  # standard deviation
+        plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
+        plt.plot(ks, means, 'o-', label=name)
     plt.title('Selector Runtime')
-    plt.xlabel('K')
+    plt.xlabel('K') # TODO: ensure integer spacing
     plt.ylabel('Runtime (seconds)')
     plt.grid()
     plt.legend(loc='best')
