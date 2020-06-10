@@ -33,7 +33,7 @@ USE_FORBID = False
 # https://zenodo.org/record/3246774
 
 FORBID_PATH = '/Users/caelan/Programs/external/IBM/FD-topK-opensourcing'
-FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound 10. ' \
+FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost}. ' \
                   '--domain {domain} --problem {problem}' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
 # [--overall-time-limit OVERALL_TIME_LIMIT]
 # [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
@@ -398,7 +398,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         #    if filename.startswith(SEARCH_OUTPUT):
         #        os.remove(os.path.join(temp_path, filename))
         assert max_planner_time < INF
-        command = FORBID_COMMAND.format(max_time=max_planner_time, num_plans=10, #max_plans=20,
+        command = FORBID_COMMAND.format(max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
                                         domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)

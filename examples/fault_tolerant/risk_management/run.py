@@ -15,6 +15,7 @@ from collections import defaultdict
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction
 from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.language.external import defer_unique
@@ -27,6 +28,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
     task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
 
 P_SUCCESSES = [0.75]
+#P_SUCCESSES = np.linspace(n=4, endpoint=False)
 
 RISK_DIR = 'risk-pddl/risk/'
 
@@ -138,13 +140,19 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
+def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost=10, candidate_time=10, **kwargs):
     total_time = time.time()
+    n_problems = 1 # 1 | INF
+    min_k, max_k = 2, 2 # Start with min_k >= 2
+    constraints = PlanConstraints(max_cost=max_cost)
 
     problem_paths = get_benchmarks(sizes=range(0, 1))
+    n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
-    indices = range(0, 1)
+    indices = range(n_problems)
+    indices = [-1]
     #indices = None
+
     print('Problem indices:', indices)
     if indices is None:
         problem_paths = [get_file_path(__file__, 'problem.pddl')]
@@ -153,7 +161,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
 
     selectors = ['greedy'] #, 'exact'] # random | greedy | exact
     metrics = ['p_success'] #, 'stability', 'uniqueness'] # p_success | stability | uniqueness
-    ks = list(range(2, 1+5)) # Start with larger k >= 2
+    ks = list(range(min_k, 1+max_k))
     configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
                for selector in selectors for metric in metrics for k in ks]
     #configs = [
@@ -168,6 +176,9 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
         print(problem_path)
         problem, bernoulli_fns = get_problem(problem_path, **kwargs)
         #dump_pddlstream(problem)
+        print('# Init:', len(problem.init))
+        print('Goal:', problem.goal)
+        #continue
         stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
                        for name, fn in bernoulli_fns.items()}
         stochastic_fns = {name: test_from_bernoulli_fn(cached)
@@ -182,10 +193,11 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, **kwargs):
                 #problem = get_problem(**kwargs)
                 #solution = solve_incremental(problem, unit_costs=True, debug=True)
                 # TODO: return the actual success rate of the portfolio (maybe in the cost)?
-                solutions = solve_focused(problem, stream_info=stream_info,
-                                          unit_costs=True, unit_efforts=False, debug=False,
+                solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
+                                          unit_costs=True, unit_efforts=False, effort_weight=None,
+                                          debug=True, clean=False,
                                           initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                          max_planner_time=30, replan_actions=['enter'],
+                                          max_planner_time=candidate_time, replan_actions=['enter'],
                                           diverse=config)
                 runtimes[config].append(elapsed_time(trial_time))
                 for solution in solutions:
