@@ -11,6 +11,8 @@
         (TARGET ?x)
         ; Nodes that we are interested in traversing (points of interest)
         (POI ?x)
+        ; Whether the POI can be discarded
+        (POI_CAN_BE_DISCARDED ?x)
         ; The order in which not traversed POIs can be discarded
         (DISCARD_AFTER ?x ?y)
 
@@ -33,6 +35,7 @@
     (:functions
         (connected-cost ?x ?y) - number
         (starting-cost ?x) - number
+        (target-cost ?x) - number
         (discard-cost) - number
         (total-cost) - number
     )
@@ -50,8 +53,7 @@
      :effect (and
                   (at ?to) (not (at ?from))
                   (__traversed)
-                  ;(increase (total-cost) (connected-cost ?from ?to))
-                  (increase (total-cost) 1)
+                  (increase (total-cost) (connected-cost ?from ?to))
              )
     )
 
@@ -68,6 +70,7 @@
                   (__goal-achieved)
                   (not (at ?x))
                   (increase (total-cost) 0)
+                  ;(increase (total-cost) (target-cost ?x))
              )
     )
 
@@ -83,8 +86,7 @@
                   (__started)
                   (__can_explain)
                   (at ?x)
-                  ;(increase (total-cost) (starting-cost ?x))
-                  (increase (total-cost) 1)
+                  (increase (total-cost) (starting-cost ?x))
              )
     )
 
@@ -110,6 +112,7 @@
      :precondition (and
                         (DISCARD_AFTER ?x ?y)
                         (POI ?x)
+                        ;(POI_CAN_BE_DISCARDED ?x)
                         (considered ?y)
                         (__goal-achieved)
                         (not (considered ?x))
@@ -118,8 +121,8 @@
                   (__started_discard)
                   (not (__can_explain))
                   (considered ?x)
-                  ;(increase (total-cost) (discard-cost))
-                  (increase (total-cost) 1)
+                  (increase (total-cost) (discard-cost))
+                  ;(increase (total-cost) (discard-cost ?x))
              )
     )
 )

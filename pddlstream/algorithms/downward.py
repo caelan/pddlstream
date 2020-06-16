@@ -33,7 +33,7 @@ USE_FORBID = False
 # https://zenodo.org/record/3246774
 
 FORBID_PATH = '/Users/caelan/Programs/external/IBM/FD-topK-opensourcing'
-FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost}. ' \
+FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} ' \
                   '--domain {domain} --problem {problem}' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
 # [--overall-time-limit OVERALL_TIME_LIMIT]
 # [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
@@ -255,15 +255,15 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(isinstance(fd, pddl.Literal))
+    assert(is_literal(fd))
     atom = (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
     return Not(atom) if fd.negated else atom
 
 def evaluation_from_fd(fd):
-    if isinstance(fd, pddl.Literal):
+    if is_literal(fd):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
-    if isinstance(fd, pddl.f_expression.Assign):
+    if is_assignment(fd):
         raise NotImplementedError(fd)
         #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
         #return Evaluation(head, float(fd.expression.value) / get_cost_scale())  # Need to be careful due to rounding
@@ -353,6 +353,9 @@ def get_fluents(domain):
 def is_literal(condition):
     return isinstance(condition, pddl.Literal)
 
+def is_assignment(condition):
+    return isinstance(condition, pddl.f_expression.Assign)
+
 def get_literals(condition):
     if is_literal(condition):
         return [condition]
@@ -394,9 +397,9 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
     problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
     if USE_FORBID:
-        #for filename in os.listdir(FORBID_PATH): # Automatically "Deleting existing plans"
-        #    if filename.startswith(SEARCH_OUTPUT):
-        #        os.remove(os.path.join(temp_path, filename))
+        for filename in os.listdir(FORBID_PATH): # Deletes existing forbid plans and output.sas
+           if filename.startswith(SEARCH_OUTPUT) or filename.startswith('reformulated_output.sas'):
+               os.remove(os.path.join(FORBID_PATH, filename))
         assert max_planner_time < INF
         command = FORBID_COMMAND.format(max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
                                         domain=domain_path, problem=problem_path)
@@ -413,7 +416,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #except subprocess.CalledProcessError as e:
     #    print(e)
 
-    for filename in os.listdir(temp_path):
+    for filename in os.listdir(temp_path): # Deletes existing temp plans
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_path, filename))
 
@@ -424,7 +427,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #     pass
 
     if USE_FORBID:
-        for filename in os.listdir(FORBID_PATH):
+        for filename in os.listdir(FORBID_PATH): # Copies plans from forbid to temp
             if filename.startswith(SEARCH_OUTPUT):
                 os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
 

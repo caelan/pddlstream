@@ -21,11 +21,11 @@ from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.language.external import defer_unique
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
-    is_plan, get_prefix, get_args, Not, StreamAction
+    is_plan, get_prefix, get_args, Not, StreamAction, Equal
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, is_literal, get_conjunctive_parts, TEMP_DIR
+    task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR #, evaluation_from_fd, fact_from_fd
 
 P_SUCCESSES = [0.75]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
@@ -38,11 +38,15 @@ class hashabledict(dict):
         return hash(frozenset(self.items()))
 
 def fact_from_fd(literal):
-    assert is_literal(literal)
-    atom = (literal.predicate,) + literal.args
-    if literal.negated:
-        return Not(atom)
-    return atom
+    if is_literal(literal):
+        atom = (literal.predicate,) + literal.args
+        if literal.negated:
+            return Not(atom)
+        return atom
+    if is_assignment(literal):
+        func = (literal.fluent.symbol,) + literal.fluent.args
+        return Equal(func, literal.expression.value)
+    raise NotImplementedError(literal)
 
 ##################################################
 
@@ -87,7 +91,7 @@ def get_problem(problem_path, *kwargs):
     # goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
     # goal = And(*goal_literals)
 
-    init = list(map(fact_from_fd, filter(is_literal, problem.init)))
+    init = list(map(fact_from_fd, problem.init))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
 
     # universe_test | empty_test
@@ -140,17 +144,17 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost=10, candidate_time=10, **kwargs):
+def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, candidate_time=10, **kwargs):
     total_time = time.time()
     n_problems = 1 # 1 | INF
     min_k, max_k = 2, 2 # Start with min_k >= 2
-    constraints = PlanConstraints(max_cost=max_cost)
+    constraints = PlanConstraints(max_cost=max_cost_multiplier)
 
     problem_paths = get_benchmarks(sizes=range(0, 1))
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
-    indices = [-1]
+    indices = [-1] # 0 | -1
     #indices = None
 
     print('Problem indices:', indices)
@@ -195,7 +199,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost=10, candidate_tim
                 # TODO: return the actual success rate of the portfolio (maybe in the cost)?
                 solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
                                           unit_costs=True, unit_efforts=False, effort_weight=None,
-                                          debug=True, clean=False,
+                                          debug=False, clean=True,
                                           initial_complexity=1, max_iterations=1, max_skeletons=None,
                                           max_planner_time=candidate_time, replan_actions=['enter'],
                                           diverse=config)
