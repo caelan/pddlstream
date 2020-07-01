@@ -25,9 +25,11 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR #, evaluation_from_fd, fact_from_fd
+    task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 
-P_SUCCESSES = [0.75]
+from matplotlib.ticker import MaxNLocator
+
+P_SUCCESSES = [0.9]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
 
 RISK_DIR = 'risk-pddl/risk/'
@@ -144,16 +146,19 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, candidate_time=10, **kwargs):
+def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
+                     candidate_time=10, diverse_time=30, **kwargs):
+    set_cost_scale(1)
     total_time = time.time()
     n_problems = 1 # 1 | INF
-    min_k, max_k = 2, 2 # Start with min_k >= 2
+    min_k, max_k = 2, 3 # Start with min_k >= 2
+    max_k = min_k
     constraints = PlanConstraints(max_cost=max_cost_multiplier)
 
     problem_paths = get_benchmarks(sizes=range(0, 1))
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
-    indices = range(n_problems)
+    #indices = range(n_problems)
     indices = [-1] # 0 | -1
     #indices = None
 
@@ -163,10 +168,14 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, can
     else:
         problem_paths = [problem_paths[index] for index in indices]
 
-    selectors = ['greedy'] #, 'exact'] # random | greedy | exact
-    metrics = ['p_success'] #, 'stability', 'uniqueness'] # p_success | stability | uniqueness
+    selectors = ['greedy'] # random | greedy | exact
+    metrics = ['p_success'] # p_success | stability | uniqueness
+
+    #selectors = ['random', 'greedy', 'exact'] # random | greedy | exact
+    #metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
+
     ks = list(range(min_k, 1+max_k))
-    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': 30}
+    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
                for selector in selectors for metric in metrics for k in ks]
     #configs = [
     #    {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},  # 'candidates': 10,
@@ -183,6 +192,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, can
         print('# Init:', len(problem.init))
         print('Goal:', problem.goal)
         #continue
+        # TODO: persistent thread for ForbidIterative
         stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
                        for name, fn in bernoulli_fns.items()}
         stochastic_fns = {name: test_from_bernoulli_fn(cached)
@@ -246,6 +256,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, can
     plt.title('Selector Probability of Success')
     #plt.ylim(0, 1)
     plt.xlabel('K')
+    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.ylabel('Probability of Success')
     plt.grid()
     plt.legend(loc='best')
@@ -266,7 +277,8 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=5, can
         plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
         plt.plot(ks, means, 'o-', label=name)
     plt.title('Selector Runtime')
-    plt.xlabel('K') # TODO: ensure integer spacing
+    plt.xlabel('K')
+    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.ylabel('Runtime (seconds)')
     plt.grid()
     plt.legend(loc='best')

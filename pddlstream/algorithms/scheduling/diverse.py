@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from itertools import combinations, combinations_with_replacement
+from itertools import combinations, combinations_with_replacement, permutations
 
 import numpy as np
 import time
@@ -13,6 +13,29 @@ def p_conjunction(stream_plans):
     return np.product([result.external.get_p_success(*result.get_input_values())
                        for result in set.union(*stream_plans)])
 
+def prune_dominated(externals, combined_plans):
+    # TODO: could hash instead
+    dominated = set()
+    indices = list(range(len(combined_plans)))
+    for idx1, idx2 in permutations(indices, r=2):
+        if (idx1 in dominated) or (idx2 in dominated):
+            continue
+        _, _, cost1 = combined_plans[idx1]
+        stream_plans1 = extract_stream_plan(externals, combined_plans[idx1])
+        _, _, cost2 = combined_plans[idx2]
+        stream_plans2 = extract_stream_plan(externals, combined_plans[idx2])
+        if (stream_plans1 < stream_plans2) or (stream_plans1 == stream_plans2 and cost1 <= cost2):
+            dominated.add(idx2)
+        #print(len(stream_plans1), len(stream_plans2), len(stream_plans1 & stream_plans2), cost1, cost2)
+    print('{}/{} pruned'.format(len(dominated), len(indices)))
+    return [combined_plans[idx] for idx in indices if idx not in dominated]
+
+##################################################
+
+# https://hub.docker.com/r/ctpelok77/ibmresearchaiplanningsolver
+# https://zenodo.org/record/3404122#.XtZg8J5KjAI
+# Diversity metrics: stability, state, uniqueness
+# Linear combinations of these
 
 def p_disjunction(stream_plans, diverse):
     # Inclusion exclusion
@@ -107,7 +130,6 @@ def extract_stream_plan(externals, combined_plan):
             for name, inputs, _ in stream_actions}
 
 def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verbose=False):
-    # TODO: warm start using exact_diverse_subset for small k
     # TODO: lazy greedy submodular maximimization
     start_time = time.time()
     k = diverse['k']
@@ -115,10 +137,12 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verb
     if len(combined_plans) <= k:
         return combined_plans
     best_indices = set()
-    for i in range(k):
+    # TODO: warm start using exact_diverse_subset for small k
+    for i in range(len(best_indices), k):
         best_index, best_p = None, -INF
         for index in set(range(len(combined_plans))) - best_indices:
             stream_plans = [extract_stream_plan(externals, combined_plans[i]) for i in best_indices | {index}]
+            # TODO: could prune dominated candidates given the selected set
             p = score(stream_plans, diverse)
             if p > best_p:
                 best_index, best_p = index, p
@@ -147,7 +171,6 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     if len(combined_plans) <= k:
         return combined_plans
     max_time = diverse.get('max_time', INF)
-    # TODO: version that randomly samples until timeout
     num_considered = 0
     best_plans, best_p = None, -INF
     for i, subset_plans in enumerate(combinations(randomize(combined_plans), r=k)):
@@ -179,6 +202,8 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     return best_plans
 
 def diverse_subset(externals, combined_plans, diverse, **kwargs):
+    # TODO: report back other statistics (possibly in kwargs)
+    combined_plans = prune_dominated(externals, combined_plans)
     selector = diverse['selector']
     if selector == 'random':
         return random_subset(externals, combined_plans, diverse, **kwargs)

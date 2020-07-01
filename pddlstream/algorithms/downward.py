@@ -11,13 +11,15 @@ from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix,
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_unique, int_ceil, \
-    safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies
+    safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies, get_python_version, elapsed_time
 from pddlstream.language.write_pddl import get_problem_pddl
 
 USE_CERBERUS = False
 #CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 # Does not support derived predicates
+
+##################################################
 
 USE_FORBID = False
 #FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
@@ -42,14 +44,17 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 # --symmetries substitutes different variable values when generating plans
 # Because using optimal search, plans are generated successively with increasing cost
 
-# https://hub.docker.com/r/ctpelok77/ibmresearchaiplanningsolver
-# https://zenodo.org/record/3404122#.XtZg8J5KjAI
-# Diversity metrics: stability, state, uniqueness
-# Linear combinations of these
-
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
 assert not USE_CERBERUS or not USE_FORBID
 # Does not support derived predicates, disjunctive conditions
+# Assumes python2
+
+##################################################
+
+KSTAR_PATH = '/Users/caelan/Programs/external/IBM/kstar'
+KSATAR_TEMPLATE = './fast-downward.py --build release64 --domain {domain} --problem {problem} ' \
+                  '--search "kstar(blind(),k={num_plans})"'
+# blind, hmax, lmcut
 
 ##################################################
 
@@ -421,10 +426,17 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
             safe_remove(os.path.join(temp_path, filename))
 
     #try:
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
-    output, error = proc.communicate()
+    #proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
+    #output, error = proc.communicate()
     # except subprocess.TimeoutExpired as e:
     #     pass
+
+    assert get_python_version() == 3
+    search_time = time()
+    output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, timeout=max_planner_time+5)
+    print(output)
+    print(elapsed_time(search_time))
+    # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
 
     if USE_FORBID:
         for filename in os.listdir(FORBID_PATH): # Copies plans from forbid to temp
@@ -434,7 +446,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     if debug:
         # if implies(USE_FORBID, 'TimeoutExpired' not in output):
         print(output.decode(encoding='UTF-8')[:-1])
-        print('Search runtime:', time() - start_time)
+        print('Search runtime:', elapsed_time(start_time))
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)
