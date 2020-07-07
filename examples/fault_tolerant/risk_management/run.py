@@ -37,6 +37,8 @@ P_SUCCESSES = [0.9]
 RISK_DIR = 'risk-pddl/risk/'
 
 class hashabledict(dict):
+    def __setitem__(self, key, value):
+        raise RuntimeError()
     # assumes immutable once hashed
     def __hash__(self):
         return hash(frozenset(self.items()))
@@ -151,7 +153,10 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
     return successes
 
 def run_trial(inputs, candidate_time=10, n_simulations=10000):
+    # TODO: randomize the seed
     problem, stream_info, stochastic_fns, constraints, config = inputs
+    print('# Init:', len(problem.init))
+    print('Goal:', problem.goal)
     print(config)
     trial_time = time.time()
     # problem = get_problem(**kwargs)
@@ -169,7 +174,8 @@ def run_trial(inputs, candidate_time=10, n_simulations=10000):
         print_solution(solution)
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
     p_success = float(n_successes) / n_simulations
-    return runtime, len(solutions), p_success
+    outputs = (runtime, len(solutions), p_success)
+    return inputs, outputs
 
 def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
                      diverse_time=60, **kwargs):
@@ -213,27 +219,12 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     # TODO: more random runs
     configs = list(map(hashabledict, configs))
 
-    # serial = is_darwin()
-    # if serial:
-    #     generator = map(plan_extrusion, inputs)
-    # else:
-    #     available_cores = cpu_count()
-    #     num_cores = max(1, min(1 if serial else available_cores - 4, len(jobs)))
-    #     num_cores = 2
-    #     pool = Pool(processes=num_cores)  # , initializer=mute)
-    #     #generator = pool.imap_unordered(plan_extrusion, jobs, chunksize=1)
-
-    max_solutions = defaultdict(int)
-    num_solutions = defaultdict(list)
-    successes = defaultdict(list)
-    runtimes = defaultdict(list)
+    jobs = []
     for _ in range(n_trials):
         for problem_path in problem_paths:
             print(problem_path)
             problem, bernoulli_fns = get_problem(problem_path, **kwargs)
             #dump_pddlstream(problem)
-            print('# Init:', len(problem.init))
-            print('Goal:', problem.goal)
             stream_info = {name: StreamInfo(p_success=cached, defer_fn=defer_unique)
                            for name, cached in bernoulli_fns.items()}
             stochastic_fns = {name: test_from_bernoulli_fn(cached)
@@ -243,11 +234,27 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
             print('\n'+'-'*100+'\n')
             for config in configs:
                 inputs = (problem, stream_info, stochastic_fns, constraints, config)
-                runtime, num, p_success = run_trial(inputs)
-                runtimes[config].append(runtime)
-                max_solutions[problem_path] = max(max_solutions[problem_path], num)
-                num_solutions[config].append(p_success)
-                successes[config].append(p_success)
+                jobs.append(inputs)
+
+    serial = True # is_darwin()
+    if serial:
+        generator = map(run_trial, jobs)
+    else:
+        available_cores = cpu_count()
+        #num_cores = max(1, min(1 if serial else available_cores - 4, len(jobs)))
+        num_cores = 2
+        pool = Pool(processes=num_cores)  # , initializer=mute)
+        generator = pool.imap_unordered(run_trial, jobs, chunksize=1)
+
+    max_solutions = defaultdict(int)
+    num_solutions = defaultdict(list)
+    successes = defaultdict(list)
+    runtimes = defaultdict(list)
+    for (problem, _, _, _, config), (runtime, num, p_success) in generator:
+        runtimes[config].append(runtime)
+        #max_solutions[problem_path] = max(max_solutions[problem_path], num)
+        num_solutions[config].append(p_success)
+        successes[config].append(p_success)
 
     n_iterations = len(problem_paths)*n_trials
     print('Configs: {} | Iterations: {} | Total Time: {:.3f}'.format(
