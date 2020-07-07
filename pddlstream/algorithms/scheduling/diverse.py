@@ -9,6 +9,8 @@ import random
 from pddlstream.utils import INF, elapsed_time, find_unique, randomize
 from pddlstream.language.constants import str_from_plan, StreamAction
 
+DIVERSE_PLANNERS = ['forbid', 'kstar']
+
 def p_conjunction(stream_plans):
     return np.product([result.external.get_p_success(*result.get_input_values())
                        for result in set.union(*stream_plans)])
@@ -211,6 +213,8 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
 
 def diverse_subset(externals, combined_plans, diverse, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
+    if not diverse:
+        return combined_plans[:1]
     combined_plans = prune_dominated(externals, combined_plans)
     selector = diverse['selector']
     if selector == 'random':

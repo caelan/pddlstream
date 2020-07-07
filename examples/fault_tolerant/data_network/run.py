@@ -4,23 +4,19 @@ from __future__ import print_function
 
 import argparse
 
-import pddlstream.algorithms.downward
-pddlstream.algorithms.downward.USE_FORBID = True
-# TODO: this isn't working for some reason
-
-import pddlstream.algorithms.scheduling.diverse
-pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 2
-
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test
-from pddlstream.language.stream import StreamInfo
+from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact
 from pddlstream.algorithms.search import solve_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.blocksworld.run import read_pddl
 
-P_SUCCESS = 1
+from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
+    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale
+
+P_SUCCESS = 1.
 
 # TODO: parse problem.pddl directly
 
@@ -74,7 +70,7 @@ def int_from_str(s):
 
 # TODO: I need the streams in order to do this
 
-def get_problem(*kwargs):
+def get_problem():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     constant_map = {}
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
@@ -105,31 +101,68 @@ def get_problem(*kwargs):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(num=1, **kwargs):
+##################################################
+
+def get_stuff():
+    from examples.fault_tolerant.risk_management.run import fact_from_fd
+
+    #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    domain = parse_sequential_domain(domain_pddl)
+    #print(domain)
+
+    assert not domain.constants
+    constant_map = {}
+
+    problem_pddl = read(get_file_path(__file__, 'problem.pddl'))
+    problem = parse_problem(domain, problem_pddl)
+    #task = task_from_domain_problem(domain, problem) # Uses Object
+
+    #stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    stream_pddl = None
+    stream_map = DEBUG
+
+    init = [Fact(obj.type_name, [obj.name]) for obj in problem.objects] + \
+           list(map(fact_from_fd, problem.init))
+    goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
+    # TODO: throw error is not a conjunction
+
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+
+##################################################
+
+def solve_pddlstream(n_trials=1):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
+
+    planner = 'forbid' # forbid | kstar
+    diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
+
     stream_info = {
         'test-less_equal': StreamInfo(eager=True, p_success=0),
         'test-sum': StreamInfo(eager=True, p_success=0), # TODO: p_success=lambda x: 0.5
         #'test-open': StreamInfo(p_success=P_SUCCESS),
     }
-
-    problem = get_problem(**kwargs)
+    #problem = get_problem()
+    problem = get_stuff()
     dump_pddlstream(problem)
 
     successes = 0.
-    for _ in range(num):
+    for _ in range(n_trials):
         print('\n'+'-'*5+'\n')
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        solution = solve_focused(problem, stream_info=stream_info, # planner='forbid'
-                                 unit_costs=True, unit_efforts=False, debug=True,
-                                 #initial_complexity=1, max_iterations=1, max_skeletons=1
-                                 )
-        plan, cost, certificate = solution
-        print_solution(solution)
-        successes += is_plan(plan)
-    print('Fraction {:.3f}'.format(successes / num))
+        solutions = solve_focused(problem, stream_info=stream_info, # planner='forbid'
+                                  unit_costs=True, unit_efforts=False, debug=True,
+                                  planner=planner, max_planner_time=10, diverse=diverse,
+                                  #initial_complexity=1, max_iterations=1, max_skeletons=1
+                                  )
+        for solution in solutions:
+            print_solution(solution)
+            #plan, cost, certificate = solution
+            #successes += is_plan(plan)
+        successes += bool(solutions)
+    print('Fraction {:.3f}'.format(successes / n_trials))
 
 ##################################################
 

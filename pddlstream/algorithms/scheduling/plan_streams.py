@@ -4,10 +4,10 @@ import copy
 
 from collections import defaultdict, namedtuple
 
-from pddlstream.algorithms.scheduling.diverse import diverse_subset
+from pddlstream.algorithms.scheduling.diverse import diverse_subset, DIVERSE_PLANNERS
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
-    conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
-    pddl_from_instance
+    conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, \
+    plan_preimage, fact_from_fd, pddl_from_instance, DEFAULT_PLANNER
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -288,7 +288,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, planner, debug=False, **kwargs):
+                                effort_weight, planner=DEFAULT_PLANNER, debug=False, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
@@ -296,7 +296,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return instantiated, []
-    rename = (planner not in ['forbid', 'kstar'])
+    rename = (planner not in DIVERSE_PLANNERS)
 
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight)
