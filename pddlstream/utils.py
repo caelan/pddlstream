@@ -79,6 +79,12 @@ def clear_dir(d):
     ensure_dir(d)
 
 
+def safe_listdir(d):
+    if not os.path.exists(d):
+        return []
+    return os.listdir(d)
+
+
 def get_file_path(file, rel_path):
     directory = os.path.dirname(os.path.abspath(file))
     return os.path.join(directory, rel_path)

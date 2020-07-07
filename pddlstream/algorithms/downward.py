@@ -11,17 +11,20 @@ from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix,
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
 from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_unique, int_ceil, \
-    safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies, get_python_version, elapsed_time
+    safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies, get_python_version, elapsed_time, safe_listdir
 from pddlstream.language.write_pddl import get_problem_pddl
 
-USE_CERBERUS = False
+PLANNER = 'kstar' # None | cerberus | forbid | kstar
+USE_CERBERUS = (PLANNER == 'cerberus')
+
+##################################################
+
 #CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
 CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
 # Does not support derived predicates
 
 ##################################################
 
-USE_FORBID = False
 #FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
 #FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} ' \
 #                  '--domain {domain} --problem {problem}'
@@ -34,6 +37,8 @@ USE_FORBID = False
 # ForbidIterative planners for top-k, top-quality, and diverse planning problems
 # https://zenodo.org/record/3246774
 
+##################################################
+
 FORBID_PATH = '/Users/caelan/Programs/external/IBM/FD-topK-opensourcing'
 FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} ' \
                   '--domain {domain} --problem {problem}' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
@@ -45,7 +50,6 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 # Because using optimal search, plans are generated successively with increasing cost
 
 FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
-assert not USE_CERBERUS or not USE_FORBID
 # Does not support derived predicates, disjunctive conditions
 # Assumes python2
 
@@ -387,11 +391,15 @@ def get_disjunctive_parts(condition):
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
 
-def clean_forbid():
-    if USE_FORBID:
-        for filename in os.listdir(FORBID_PATH):  # Deletes existing forbid plans and output.sas
+def clean_planner():
+    if PLANNER == 'forbid':
+        for filename in safe_listdir(FORBID_PATH):  # Deletes existing forbid plans and output.sas
             if filename.startswith(SEARCH_OUTPUT) or filename.startswith('reformulated_output.sas'):
                 safe_remove(os.path.join(FORBID_PATH, filename))
+    if PLANNER == 'kstar':
+        kstar_plans_path = os.path.join(os.getcwd(), 'found_plans')
+        safe_remove(os.path.join(os.getcwd(), TRANSLATE_OUTPUT))
+        safe_rm_dir(kstar_plans_path)
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
@@ -399,22 +407,29 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     max_cost = convert_cost(scale_cost(max_cost))
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
-    if planner == 'cerberus':
-        planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
-    else:
-        planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
-    command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
 
     temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
     problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
-    if USE_FORBID:
-        clean_forbid()
+
+    clean_planner()
+    for filename in safe_listdir(temp_path): # Deletes existing temp plans
+        if filename.startswith(SEARCH_OUTPUT):
+            safe_remove(os.path.join(temp_path, filename))
+
+    if PLANNER == 'forbid':
         assert max_planner_time < INF
         command = FORBID_COMMAND.format(max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
                                         domain=domain_path, problem=problem_path)
-        #command = KSATAR_COMMAND.format(domain=domain_path, problem=problem_path, num_plans=10,
-        #                                max_time=max_planner_time, max_cost=max_cost)
+    elif PLANNER == 'kstar':
+        command = KSATAR_COMMAND.format(domain=domain_path, problem=problem_path, num_plans=10,
+                                        max_time=max_planner_time, max_cost=max_cost)
+    elif planner == 'cerberus':
+        planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
+        command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+    else:
+        planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
+        command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     if debug:
         print('Search command:', command)
 
@@ -427,10 +442,6 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
     #except subprocess.CalledProcessError as e:
     #    print(e)
-
-    for filename in os.listdir(temp_path): # Deletes existing temp plans
-        if filename.startswith(SEARCH_OUTPUT):
-            safe_remove(os.path.join(temp_path, filename))
 
     #try:
     #proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
@@ -457,18 +468,24 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         except subprocess.CalledProcessError:
             pass
 
-    if USE_FORBID:
-        for filename in os.listdir(FORBID_PATH): # Copies plans from forbid to temp
+    if PLANNER == 'forbid':
+        for filename in safe_listdir(FORBID_PATH): # Copies plans from forbid to temp
             if filename.startswith(SEARCH_OUTPUT):
                 os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
-        clean_forbid()
+    elif PLANNER == 'kstar':
+        kstar_plans_path = os.path.join(os.getcwd(), 'found_plans')
+        for filename in safe_listdir(kstar_plans_path):
+            if filename.startswith(SEARCH_OUTPUT):
+                os.rename(os.path.join(kstar_plans_path, filename), os.path.join(temp_path, filename))
+    clean_planner()
 
     if debug:
         # if implies(USE_FORBID, 'TimeoutExpired' not in output):
         if output is not None:
             print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', elapsed_time(start_time))
-    plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
+
+    plan_files = sorted(f for f in safe_listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)
 
