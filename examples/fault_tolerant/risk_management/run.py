@@ -56,7 +56,9 @@ def get_benchmarks(sizes=[0]):
     risk_path = get_file_path(__file__, RISK_DIR)
     problem_paths = [os.path.join(risk_path, f) for f in sorted(os.listdir(risk_path))
                      if f.startswith('prob') and f.endswith('.pddl')]
+    # 100 problem instances
     # Size increases every 20 problems
+    # print(len(problem_paths))
     # for problem_path in problem_paths:
     #     problem_pddl = read(problem_path)
     #     problem = parse_problem(domain, problem_pddl)
@@ -147,21 +149,21 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
     return successes
 
 def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
-                     candidate_time=10, diverse_time=30, **kwargs):
+                     candidate_time=60, diverse_time=60, **kwargs):
     set_cost_scale(1)
     total_time = time.time()
-    n_problems = 1 # 1 | INF
-    min_k, max_k = 2, 3 # Start with min_k >= 2
+    n_problems = INF # 1 | INF
+    min_k, max_k = 2, 5 # Start with min_k >= 2
     max_k = min_k
     constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
 
-    problem_paths = get_benchmarks(sizes=range(0, 1))
+    problem_paths = get_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
-    #indices = range(n_problems)
-    indices = [-1] # 0 | -1
-    #indices = None
+    indices = range(n_problems)
+    #indices = [-1] # 0 | -1
+    #indices = None # problem.pddl
 
     print('Problem indices:', indices)
     if indices is None:
@@ -172,8 +174,8 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     selectors = ['greedy'] # random | greedy | exact
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    #selectors = ['random', 'greedy', 'exact'] # random | greedy | exact
-    #metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
+    selectors = ['random', 'greedy'] #, 'exact']
+    metrics = ['p_success', 'stability', 'uniqueness']
 
     ks = list(range(min_k, 1+max_k))
     configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
@@ -211,7 +213,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
                 # TODO: return the actual success rate of the portfolio (maybe in the cost)?
                 solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
                                           unit_costs=True, unit_efforts=False, effort_weight=None,
-                                          debug=False, clean=True,
+                                          debug=True, clean=True,
                                           initial_complexity=1, max_iterations=1, max_skeletons=None,
                                           max_planner_time=candidate_time, replan_actions=['enter'],
                                           diverse=config)
@@ -234,7 +236,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     configs_from_name = defaultdict(list)
     for config in configs:
         name = config['selector']
-        if 'metric' in config:
+        if (name != 'random') and ('metric' in config):
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
     # TODO: store other metrics

@@ -14,7 +14,7 @@ from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_uniq
     safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies, get_python_version, elapsed_time, safe_listdir
 from pddlstream.language.write_pddl import get_problem_pddl
 
-PLANNER = 'kstar' # None | cerberus | forbid | kstar
+PLANNER = 'forbid' # None | cerberus | forbid | kstar
 USE_CERBERUS = (PLANNER == 'cerberus')
 
 ##################################################
@@ -422,7 +422,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         command = FORBID_COMMAND.format(max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
                                         domain=domain_path, problem=problem_path)
     elif PLANNER == 'kstar':
-        command = KSATAR_COMMAND.format(domain=domain_path, problem=problem_path, num_plans=10,
+        command = KSATAR_COMMAND.format(domain=domain_path, problem=problem_path, num_plans=10, # TODO: num_plans
                                         max_time=max_planner_time, max_cost=max_cost)
     elif planner == 'cerberus':
         planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
@@ -430,6 +430,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
         command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+
+    # https://stackoverflow.com/questions/1689505/python-ulimit-and-nice-for-subprocess-call-subprocess-popen
+    # https://serverfault.com/questions/540904/ulimit-n-not-persisting-tried-everything
+    # https://stackoverflow.com/questions/57536172/cannot-call-ubuntu-ulimit-from-python-subprocess-without-using-shell-option
+    # https://docs.python.org/3/library/resource.html
+    command = 'ulimit -t {}; {}'.format(max_planner_time, command)
     if debug:
         print('Search command:', command)
 
@@ -449,17 +455,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     # except subprocess.TimeoutExpired as e:
     #     pass
 
-    # TODO: ulimit
-    # https://serverfault.com/questions/540904/ulimit-n-not-persisting-tried-everything
-    # https://stackoverflow.com/questions/57536172/cannot-call-ubuntu-ulimit-from-python-subprocess-without-using-shell-option
-    # https://docs.python.org/3/library/resource.html
     # TODO: import psutil
     # https://github.com/caelan/SS-Replan/blob/6b57adeaa7094926199301fbf2ca1a70ea8e7927/run_experiment.py#L160
 
-    BUFFER = 5
-    from examples.pybullet.utils.pybullet_tools.utils import timeout
-    # search_time = time()
+    BUFFER = 5 # 0 | 5
     output = None
+    from examples.pybullet.utils.pybullet_tools.utils import timeout
     with timeout(max_planner_time + BUFFER): # TODO: throws CalledProcessError if value is larger
         assert get_python_version() == 3
         try:
