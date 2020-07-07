@@ -52,8 +52,9 @@ assert not USE_CERBERUS or not USE_FORBID
 ##################################################
 
 KSTAR_PATH = '/Users/caelan/Programs/external/IBM/kstar'
-KSATAR_TEMPLATE = './fast-downward.py --build release64 --domain {domain} --problem {problem} ' \
-                  '--search "kstar(blind(),k={num_plans})"'
+KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
+                  '--search "kstar(lmcut(),k={num_plans},cost_type=NORMAL,max_time={max_time},bound={max_cost})"'
+KSATAR_COMMAND = os.path.join(KSTAR_PATH, KSATAR_TEMPLATE)
 # blind, hmax, lmcut
 
 ##################################################
@@ -386,6 +387,12 @@ def get_disjunctive_parts(condition):
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
 
+def clean_forbid():
+    if USE_FORBID:
+        for filename in os.listdir(FORBID_PATH):  # Deletes existing forbid plans and output.sas
+            if filename.startswith(SEARCH_OUTPUT) or filename.startswith('reformulated_output.sas'):
+                safe_remove(os.path.join(FORBID_PATH, filename))
+
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
     max_time = convert_cost(max_planner_time)
@@ -402,12 +409,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
     problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
     if USE_FORBID:
-        for filename in os.listdir(FORBID_PATH): # Deletes existing forbid plans and output.sas
-           if filename.startswith(SEARCH_OUTPUT) or filename.startswith('reformulated_output.sas'):
-               os.remove(os.path.join(FORBID_PATH, filename))
+        clean_forbid()
         assert max_planner_time < INF
         command = FORBID_COMMAND.format(max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
                                         domain=domain_path, problem=problem_path)
+        #command = KSATAR_COMMAND.format(domain=domain_path, problem=problem_path, num_plans=10,
+        #                                max_time=max_planner_time, max_cost=max_cost)
     if debug:
         print('Search command:', command)
 
@@ -431,21 +438,35 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     # except subprocess.TimeoutExpired as e:
     #     pass
 
-    assert get_python_version() == 3
-    search_time = time()
-    output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, timeout=max_planner_time+5)
-    print(output)
-    print(elapsed_time(search_time))
-    # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
+    # TODO: ulimit
+    # https://serverfault.com/questions/540904/ulimit-n-not-persisting-tried-everything
+    # https://stackoverflow.com/questions/57536172/cannot-call-ubuntu-ulimit-from-python-subprocess-without-using-shell-option
+    # https://docs.python.org/3/library/resource.html
+    # TODO: import psutil
+    # https://github.com/caelan/SS-Replan/blob/6b57adeaa7094926199301fbf2ca1a70ea8e7927/run_experiment.py#L160
+
+    BUFFER = 5
+    from examples.pybullet.utils.pybullet_tools.utils import timeout
+    # search_time = time()
+    output = None
+    with timeout(max_planner_time + BUFFER): # TODO: throws CalledProcessError if value is larger
+        assert get_python_version() == 3
+        try:
+            # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
+            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT) #, timeout=max_planner_time)
+        except subprocess.CalledProcessError:
+            pass
 
     if USE_FORBID:
         for filename in os.listdir(FORBID_PATH): # Copies plans from forbid to temp
             if filename.startswith(SEARCH_OUTPUT):
                 os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
+        clean_forbid()
 
     if debug:
         # if implies(USE_FORBID, 'TimeoutExpired' not in output):
-        print(output.decode(encoding='UTF-8')[:-1])
+        if output is not None:
+            print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', elapsed_time(start_time))
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
@@ -481,7 +502,7 @@ def parse_solutions(temp_path, plan_files):
 
 def write_pddl(domain_pddl=None, problem_pddl=None, clean=False, temp_dir=TEMP_DIR):
     if clean:
-        safe_rm_dir(temp_dir)
+        safe_rm_dir(temp_dir) # TODO: why is this here?
     ensure_dir(temp_dir)
     domain_path = os.path.join(temp_dir, DOMAIN_INPUT)
     if domain_pddl is not None:

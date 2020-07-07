@@ -153,7 +153,8 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     n_problems = 1 # 1 | INF
     min_k, max_k = 2, 3 # Start with min_k >= 2
     max_k = min_k
-    constraints = PlanConstraints(max_cost=max_cost_multiplier)
+    constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
+    constraints = PlanConstraints(max_cost=INF) # kstar
 
     problem_paths = get_benchmarks(sizes=range(0, 1))
     n_problems = min(len(problem_paths), n_problems)
@@ -183,6 +184,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     # TODO: more random runs
     configs = list(map(hashabledict, configs))
 
+    num_solutions = defaultdict(list)
     successes = defaultdict(list)
     runtimes = defaultdict(list)
     for problem_path in problem_paths:
@@ -214,9 +216,9 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
                                           max_planner_time=candidate_time, replan_actions=['enter'],
                                           diverse=config)
                 runtimes[config].append(elapsed_time(trial_time))
+                num_solutions[config].append(len(solutions))
                 for solution in solutions:
                     print_solution(solution)
-                #successes += is_plan(plan)
                 n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
                 successes[config].append(float(n_successes) / n_simulations)
 
