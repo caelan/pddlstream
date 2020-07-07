@@ -121,6 +121,12 @@ def random_subset(externals, combined_plans, diverse, **kwargs):
         return combined_plans
     return random.sample(combined_plans, k=k)
 
+def first_k(externals, combined_plans, diverse, **kwargs):
+    k = diverse['k']
+    return combined_plans[:k]
+
+##################################################
+
 def extract_stream_plan(externals, combined_plan):
     stream_plan, opt_plan, _ = combined_plan
     if stream_plan:
@@ -201,12 +207,16 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     print('\n'+'-'*50+'\n')
     return best_plans
 
+##################################################
+
 def diverse_subset(externals, combined_plans, diverse, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
     combined_plans = prune_dominated(externals, combined_plans)
     selector = diverse['selector']
     if selector == 'random':
         return random_subset(externals, combined_plans, diverse, **kwargs)
+    if selector == 'first':
+        return first_k(externals, combined_plans, diverse, **kwargs)
     if selector == 'greedy':
         return greedy_diverse_subset(externals, combined_plans, diverse, **kwargs)
     if selector == 'exact':

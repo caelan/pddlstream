@@ -63,7 +63,7 @@ def get_benchmarks(sizes=[0]):
     #     problem_pddl = read(problem_path)
     #     problem = parse_problem(domain, problem_pddl)
     #     print(os.path.basename(problem_path), len(problem.objects))
-    size_paths = []
+    size_paths = [] # TODO: set
     for size in sizes:
         size_paths.extend(problem_paths[20*size:20*(size+1)])
     return size_paths
@@ -150,19 +150,20 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
 
 def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
                      candidate_time=60, diverse_time=60, **kwargs):
-    set_cost_scale(1)
     total_time = time.time()
-    n_problems = INF # 1 | INF
+    set_cost_scale(1)
+    n_problems = 10 # 1 | INF
     min_k, max_k = 2, 5 # Start with min_k >= 2
     max_k = min_k
+
     constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
-    constraints = PlanConstraints(max_cost=INF) # kstar
+    #constraints = PlanConstraints(max_cost=INF) # kstar
 
     problem_paths = get_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
-    #indices = [-1] # 0 | -1
+    indices = [0] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -171,11 +172,13 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     else:
         problem_paths = [problem_paths[index] for index in indices]
 
-    selectors = ['greedy'] # random | greedy | exact
+    # blind search is effective on these problems
+    planner = 'kstar' # dijkstra | forbid | kstar
+    selectors = ['greedy'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    selectors = ['random', 'greedy'] #, 'exact']
-    metrics = ['p_success', 'stability', 'uniqueness']
+    # selectors = ['random', 'greedy'] #, 'exact']
+    # metrics = ['p_success', 'stability', 'uniqueness']
 
     ks = list(range(min_k, 1+max_k))
     configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
@@ -186,6 +189,7 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     # TODO: more random runs
     configs = list(map(hashabledict, configs))
 
+    max_solutions = defaultdict(int)
     num_solutions = defaultdict(list)
     successes = defaultdict(list)
     runtimes = defaultdict(list)
@@ -213,11 +217,12 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
                 # TODO: return the actual success rate of the portfolio (maybe in the cost)?
                 solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
                                           unit_costs=True, unit_efforts=False, effort_weight=None,
-                                          debug=True, clean=True,
+                                          debug=True, clean=False,
                                           initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                          max_planner_time=candidate_time, replan_actions=['enter'],
-                                          diverse=config)
+                                          planner=planner, max_planner_time=candidate_time,
+                                          replan_actions=['enter'], diverse=config)
                 runtimes[config].append(elapsed_time(trial_time))
+                max_solutions[problem_path] = max(max_solutions[problem_path], len(solutions))
                 num_solutions[config].append(len(solutions))
                 for solution in solutions:
                     print_solution(solution)
@@ -236,13 +241,17 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     configs_from_name = defaultdict(list)
     for config in configs:
         name = config['selector']
-        if (name != 'random') and ('metric' in config):
+        if (name not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
     # TODO: store other metrics
     # TODO: pickle the results
 
-    scale = 1.
+    plot_successes(configs_from_name, successes)
+    plot_runtimes(configs_from_name, runtimes)
+
+def plot_successes(configs_from_name, successes, scale=1.):
+
     import matplotlib.pyplot as plt
     plt.figure()
     for name in configs_from_name:
@@ -272,11 +281,13 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
     #     print('Saved', figure_path)
     plt.show()
 
+def plot_runtimes(configs_from_name, runtimes, scale=1.):
+    import matplotlib.pyplot as plt
     plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
-        means = [np.mean(runtimes[config]) for config in configs_from_name[name]]
-        stds = np.array([np.std(successes[config]) for config in configs_from_name[name]])
+        means = np.array([np.mean(runtimes[config]) for config in configs_from_name[name]])
+        stds = np.array([np.std(runtimes[config]) for config in configs_from_name[name]])
         widths = scale * stds  # standard deviation
         plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
         plt.plot(ks, means, 'o-', label=name)
