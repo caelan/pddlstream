@@ -7,7 +7,7 @@ from collections import defaultdict, namedtuple
 from pddlstream.algorithms.scheduling.diverse import diverse_subset
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, plan_preimage, fact_from_fd, \
-    pddl_from_instance, USE_FORBID
+    pddl_from_instance
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -288,7 +288,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, debug=False, rename=not USE_FORBID, **kwargs):
+                                effort_weight, planner, debug=False, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
@@ -296,6 +296,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return instantiated, []
+    rename = (planner not in ['forbid', 'kstar'])
 
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight)
@@ -313,7 +314,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
     solutions = []
-    for renamed_plan, _ in solve_from_task(sas_task, debug=debug, **kwargs):
+    for renamed_plan, _ in solve_from_task(sas_task, planner=planner, debug=debug, **kwargs):
         if rename:
             action_instances = [action_from_name[name] for name, _ in renamed_plan]
         else:
@@ -342,8 +343,8 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
     # TODO: could iteratively increase max_effort
-    node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
-                                           max_effort=max_effort)
+    # TODO: apply to all_results?
+    node_from_atom = get_achieving_streams(evaluations, applied_results, max_effort=max_effort)
     opt_evaluations = {evaluation_from_fact(f): n.result for f, n in node_from_atom.items()}
     if UNIVERSAL_TO_CONDITIONAL or using_optimizers(all_results):
         goal_expression = add_unsatisfiable_to_goal(stream_domain, goal_expression)

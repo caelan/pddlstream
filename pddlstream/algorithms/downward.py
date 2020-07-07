@@ -302,9 +302,7 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
-    problem_pddl = None
-    if USE_FORBID:
-        problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
+    problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
     write_pddl(domain.pddl, problem_pddl)
     return Problem(task_name=domain.name, task_domain_name=domain.name,
                    objects=sorted(typed_objects, key=lambda o: o.name),
@@ -431,6 +429,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     # https://serverfault.com/questions/540904/ulimit-n-not-persisting-tried-everything
     # https://stackoverflow.com/questions/57536172/cannot-call-ubuntu-ulimit-from-python-subprocess-without-using-shell-option
     # https://docs.python.org/3/library/resource.html
+    # TODO: max memory
     command = 'ulimit -t {}; {}'.format(max_planner_time, command)
     if debug:
         print('Search command:', command)
@@ -454,16 +453,16 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     # TODO: import psutil
     # https://github.com/caelan/SS-Replan/blob/6b57adeaa7094926199301fbf2ca1a70ea8e7927/run_experiment.py#L160
 
-    BUFFER = 5 # 0 | 5
     output = None
-    from examples.pybullet.utils.pybullet_tools.utils import timeout
-    with timeout(max_planner_time + BUFFER): # TODO: throws CalledProcessError if value is larger
-        assert get_python_version() == 3
-        try:
-            # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
-            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT) #, timeout=max_planner_time)
-        except subprocess.CalledProcessError:
-            pass
+    # BUFFER = 5 # 0 | 5
+    # from examples.pybullet.utils.pybullet_tools.utils import timeout
+    # with timeout(max_planner_time + BUFFER): # TODO: throws CalledProcessError if value is larger
+    assert get_python_version() == 3
+    try:
+        # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
+        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT) #, timeout=max_planner_time)
+    except subprocess.CalledProcessError:
+        pass
 
     if planner == 'forbid':
         for filename in safe_listdir(FORBID_PATH): # Copies plans from forbid to temp

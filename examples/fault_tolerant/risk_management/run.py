@@ -8,24 +8,26 @@ import time
 import random
 import numpy as np
 
-import pddlstream.algorithms.downward
-pddlstream.algorithms.downward.USE_FORBID = True
-
 from collections import defaultdict
+from itertools import product
+from multiprocessing import cpu_count, Pool
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
+#from pddlstream.algorithms.scheduling.plan_streams import *
+
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.language.external import defer_unique
-from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
     is_plan, get_prefix, get_args, Not, StreamAction, Equal
+from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, read_pickle, write_pickle
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.data_network.run import fact_from_str
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
+from examples.pybullet.utils.pybullet_tools.utils import is_darwin #, write_json, read_json
 
 from matplotlib.ticker import MaxNLocator
 
@@ -68,7 +70,7 @@ def get_benchmarks(sizes=[0]):
         size_paths.extend(problem_paths[20*size:20*(size+1)])
     return size_paths
 
-def get_problem(problem_path, *kwargs):
+def get_problem(problem_path, **kwargs):
     safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     domain = parse_sequential_domain(domain_pddl)
@@ -148,8 +150,29 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
-                     candidate_time=60, diverse_time=60, **kwargs):
+def run_trial(inputs, candidate_time=10, n_simulations=10000):
+    problem, stream_info, stochastic_fns, constraints, config = inputs
+    print(config)
+    trial_time = time.time()
+    # problem = get_problem(**kwargs)
+    # solution = solve_incremental(problem, unit_costs=True, debug=True)
+    # TODO: return the actual success rate of the portfolio (maybe in the cost)?
+    solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
+                              unit_costs=False, unit_efforts=False, effort_weight=None,
+                              debug=True, clean=False,
+                              initial_complexity=1, max_iterations=1, max_skeletons=None,
+                              planner=config['planner'], max_planner_time=candidate_time,
+                              replan_actions=['enter'], diverse=config)
+    runtime = elapsed_time(trial_time)
+
+    for solution in solutions:
+        print_solution(solution)
+    n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+    p_success = float(n_successes) / n_simulations
+    return runtime, len(solutions), p_success
+
+def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
+                     diverse_time=60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
     n_problems = 10 # 1 | INF
@@ -173,61 +196,58 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planner = 'kstar' # dijkstra | forbid | kstar
+    planners = ['forbid'] # dijkstra | forbid | kstar
     selectors = ['greedy'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
+    planners = ['forbid', 'kstar']
     # selectors = ['random', 'greedy'] #, 'exact']
     # metrics = ['p_success', 'stability', 'uniqueness']
 
     ks = list(range(min_k, 1+max_k))
-    configs = [{'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
-               for selector in selectors for metric in metrics for k in ks]
+    configs = [{'planner': planner, 'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
+               for planner, selector, metric, k in product(planners, selectors, metrics, ks)]
     #configs = [
     #    {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},  # 'candidates': 10,
     #]
     # TODO: more random runs
     configs = list(map(hashabledict, configs))
 
+    # serial = is_darwin()
+    # if serial:
+    #     generator = map(plan_extrusion, inputs)
+    # else:
+    #     available_cores = cpu_count()
+    #     num_cores = max(1, min(1 if serial else available_cores - 4, len(jobs)))
+    #     num_cores = 2
+    #     pool = Pool(processes=num_cores)  # , initializer=mute)
+    #     #generator = pool.imap_unordered(plan_extrusion, jobs, chunksize=1)
+
     max_solutions = defaultdict(int)
     num_solutions = defaultdict(list)
     successes = defaultdict(list)
     runtimes = defaultdict(list)
-    for problem_path in problem_paths:
-        print(problem_path)
-        problem, bernoulli_fns = get_problem(problem_path, **kwargs)
-        #dump_pddlstream(problem)
-        print('# Init:', len(problem.init))
-        print('Goal:', problem.goal)
-        #continue
-        # TODO: persistent thread for ForbidIterative
-        stream_info = {name: StreamInfo(p_success=fn, defer_fn=defer_unique)
-                       for name, fn in bernoulli_fns.items()}
-        stochastic_fns = {name: test_from_bernoulli_fn(cached)
-                          for name, cached in bernoulli_fns.items()}
-        # TODO: log problem_path
-        # TODO: compare relative odds
-        for _ in range(n_trials):
+    for _ in range(n_trials):
+        for problem_path in problem_paths:
+            print(problem_path)
+            problem, bernoulli_fns = get_problem(problem_path, **kwargs)
+            #dump_pddlstream(problem)
+            print('# Init:', len(problem.init))
+            print('Goal:', problem.goal)
+            stream_info = {name: StreamInfo(p_success=cached, defer_fn=defer_unique)
+                           for name, cached in bernoulli_fns.items()}
+            stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                              for name, cached in bernoulli_fns.items()}
+            # TODO: log problem_path
+            # TODO: compare relative odds
             print('\n'+'-'*100+'\n')
             for config in configs:
-                print(config)
-                trial_time = time.time()
-                #problem = get_problem(**kwargs)
-                #solution = solve_incremental(problem, unit_costs=True, debug=True)
-                # TODO: return the actual success rate of the portfolio (maybe in the cost)?
-                solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
-                                          unit_costs=True, unit_efforts=False, effort_weight=None,
-                                          debug=True, clean=False,
-                                          initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                          planner=planner, max_planner_time=candidate_time,
-                                          replan_actions=['enter'], diverse=config)
-                runtimes[config].append(elapsed_time(trial_time))
-                max_solutions[problem_path] = max(max_solutions[problem_path], len(solutions))
-                num_solutions[config].append(len(solutions))
-                for solution in solutions:
-                    print_solution(solution)
-                n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
-                successes[config].append(float(n_successes) / n_simulations)
+                inputs = (problem, stream_info, stochastic_fns, constraints, config)
+                runtime, num, p_success = run_trial(inputs)
+                runtimes[config].append(runtime)
+                max_solutions[problem_path] = max(max_solutions[problem_path], num)
+                num_solutions[config].append(p_success)
+                successes[config].append(p_success)
 
     n_iterations = len(problem_paths)*n_trials
     print('Configs: {} | Iterations: {} | Total Time: {:.3f}'.format(
@@ -240,13 +260,14 @@ def solve_pddlstream(n_trials=1, n_simulations=10000, max_cost_multiplier=10,
 
     configs_from_name = defaultdict(list)
     for config in configs:
-        name = config['selector']
+        name = config['planner'] + ' ' + config['selector']
         if (name not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
     # TODO: store other metrics
     # TODO: pickle the results
 
+    # TODO: combine these
     plot_successes(configs_from_name, successes)
     plot_runtimes(configs_from_name, runtimes)
 
