@@ -37,7 +37,8 @@ SERIAL = is_darwin()
 P_SUCCESSES = [0.9]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
 
-RISK_DIR = 'risk-pddl/risk/'
+SMALL_RISK_DIR = 'smallprobs/'
+LARGE_RISK_DIR = 'risk-pddl/risk/'
 PARALLEL_DIR = 'temp_parallel/'
 
 class hashabledict(dict):
@@ -61,16 +62,25 @@ def fact_from_fd(literal):
 ##################################################
 
 def get_benchmarks(sizes=[0]):
-    risk_path = get_file_path(__file__, RISK_DIR)
-    problem_paths = [os.path.join(risk_path, f) for f in sorted(os.listdir(risk_path))
-                     if f.startswith('prob') and f.endswith('.pddl')]
-    # 100 problem instances
-    # Size increases every 20 problems
+    small_risk_path = get_file_path(__file__, SMALL_RISK_DIR)
+    problem_paths = [os.path.join(small_risk_path, f) for f in sorted(os.listdir(small_risk_path))
+                     if f.endswith('.pddl')]
+    # 101 (20), 201 (20), 301 (20), 401 (20), 501 (20)
+
+    # large_risk_path = get_file_path(__file__, LARGE_RISK_DIR)
+    # problem_paths = [os.path.join(large_risk_path, f) for f in sorted(os.listdir(large_risk_path))
+    #                  if f.startswith('prob') and f.endswith('.pddl')]
+    # 1001 (20), 2501 (20), 5001 (20), 10001 (20), 20001 (20)
+    # TODO: cannot solve the first 2501 instance and even some of the later 1001 instances
+
     # print(len(problem_paths))
+    # domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    # domain = parse_sequential_domain(domain_pddl)
     # for problem_path in problem_paths:
     #     problem_pddl = read(problem_path)
     #     problem = parse_problem(domain, problem_pddl)
     #     print(os.path.basename(problem_path), len(problem.objects))
+
     size_paths = [] # TODO: set
     for size in sizes:
         size_paths.extend(problem_paths[20*size:20*(size+1)])
@@ -159,7 +169,7 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def run_trial(inputs, candidate_time=10, n_simulations=10000):
+def run_trial(inputs, candidate_time=5*60, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
     problem_path, constraints, config = inputs
@@ -211,12 +221,11 @@ def run_trial(inputs, candidate_time=10, n_simulations=10000):
 
     return inputs, outputs
 
-def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
-                     diverse_time=60, **kwargs):
+def solve_pddlstream(n_trials=1, max_cost_multiplier=10, diverse_time=5*60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
     n_problems = 1 # 1 | INF
-    min_k, max_k = 1, 5 # Start with min_k >= 2
+    min_k, max_k = 10, 5 # Start with min_k >= 2
     max_k = min_k
 
     constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
@@ -226,7 +235,7 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
-    #indices = [0] # 0 | -1
+    indices = [-1] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -236,8 +245,8 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['forbid'] # dijkstra | forbid | kstar
-    selectors = ['first'] # random | greedy | exact | first
+    planners = ['kstar'] # dijkstra | forbid | kstar
+    selectors = ['greedy'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
     #planners = ['forbid', 'kstar']

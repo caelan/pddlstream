@@ -416,7 +416,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
             domain=domain_path, problem=problem_path)
     elif planner == 'kstar':
         command = os.path.join(os.environ['KSTAR_PATH'], KSATAR_TEMPLATE).format(
-            domain=domain_path, problem=problem_path, num_plans=10, # TODO: num_plans
+            domain=domain_path, problem=problem_path, num_plans=100, # TODO: num_plans
             max_time=max_planner_time, max_cost=max_cost)
     # elif planner == 'cerberus':
     #     planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist

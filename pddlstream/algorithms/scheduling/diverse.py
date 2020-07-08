@@ -16,6 +16,7 @@ def p_conjunction(stream_plans):
 
 def prune_dominated(externals, combined_plans):
     # TODO: could hash instead
+    print('Attempting to prune using {} plans'.format(len(combined_plans)))
     dominated = set()
     indices = list(range(len(combined_plans)))
     for idx1, idx2 in permutations(indices, r=2):
@@ -136,7 +137,7 @@ def extract_stream_plan(externals, combined_plan):
     return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
             for name, inputs, _ in stream_actions}
 
-def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verbose=False):
+def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
     # TODO: lazy greedy submodular maximimization
     start_time = time.time()
     k = diverse['k']
@@ -154,8 +155,7 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF, verb
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
-        if verbose:
-            print('i) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
+        print('i) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
         #if max_time < elapsed_time(start_time): # Randomly select the rest
         #    break
 
