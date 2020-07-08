@@ -269,7 +269,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs
     if SERIAL:
         generator = map(run_trial, jobs)
     else:
-        num_cores = clip(cpu_count()/2, min_value=1, max_value=len(jobs))
+        num_cores = clip(int(cpu_count()/2), min_value=1, max_value=len(jobs))
         print('Using {}/{} cores'.format(num_cores, cpu_count()))
         pool = Pool(processes=num_cores)  # , initializer=mute)
         generator = pool.imap_unordered(run_trial, jobs, chunksize=1)
