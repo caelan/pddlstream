@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from itertools import combinations, combinations_with_replacement, permutations
+from itertools import combinations, permutations
 
 import numpy as np
 import time
@@ -9,7 +9,6 @@ import random
 from pddlstream.utils import INF, elapsed_time, find_unique, randomize
 from pddlstream.language.constants import str_from_plan, StreamAction
 
-DIVERSE_PLANNERS = ['forbid', 'kstar']
 
 def p_conjunction(stream_plans):
     return np.product([result.external.get_p_success(*result.get_input_values())

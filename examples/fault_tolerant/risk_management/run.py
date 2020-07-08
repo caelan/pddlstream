@@ -38,7 +38,7 @@ P_SUCCESSES = [0.9]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
 
 RISK_DIR = 'risk-pddl/risk/'
-TEMP_DIRECTORY = 'temp_parallel/'
+PARALLEL_DIR = 'temp_parallel/'
 
 class hashabledict(dict):
     def __setitem__(self, key, value):
@@ -167,7 +167,7 @@ def run_trial(inputs, candidate_time=10, n_simulations=10000):
 
     stdout = sys.stdout
     current_wd = os.getcwd()
-    trial_wd = os.path.join(current_wd, TEMP_DIRECTORY, '{}/'.format(pid))
+    trial_wd = os.path.join(current_wd, PARALLEL_DIR, '{}/'.format(pid))
     if not SERIAL:
         sys.stdout = open(os.devnull, 'w')
         safe_rm_dir(trial_wd)
@@ -190,7 +190,7 @@ def run_trial(inputs, candidate_time=10, n_simulations=10000):
     # TODO: return the actual success rate of the portfolio (maybe in the cost)?
     solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
                               unit_costs=False, unit_efforts=False, effort_weight=None,
-                              debug=True, clean=False,
+                              debug=True, clean=False, temp_dir=TEMP_DIR,
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
                               planner=config['planner'], max_planner_time=candidate_time,
                               replan_actions=['enter'], diverse=config)
@@ -215,8 +215,8 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
                      diverse_time=60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
-    n_problems = 10 # 1 | INF
-    min_k, max_k = 2, 5 # Start with min_k >= 2
+    n_problems = 1 # 1 | INF
+    min_k, max_k = 1, 5 # Start with min_k >= 2
     max_k = min_k
 
     constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
@@ -226,7 +226,7 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
-    indices = [0] # 0 | -1
+    #indices = [0] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -236,8 +236,8 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['kstar'] # dijkstra | forbid | kstar
-    selectors = ['greedy'] # random | greedy | exact | first
+    planners = ['forbid'] # dijkstra | forbid | kstar
+    selectors = ['first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
     #planners = ['forbid', 'kstar']
@@ -273,10 +273,10 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     for (problem_path, _, config), (runtime, num, p_success) in generator:
         config = hashabledict(config)
         runtimes[config].append(runtime)
-        #max_solutions[problem_path] = max(max_solutions[problem_path], num)
-        num_solutions[config].append(p_success)
+        num_solutions[config].append(num)
+        max_solutions[problem_path] = max(max_solutions[problem_path], num)
         successes[config].append(p_success)
-    safe_rm_dir(TEMP_DIRECTORY)
+    #safe_rm_dir(PARALLEL_DIR)
 
     configs = list(map(hashabledict, configs))
     n_iterations = len(problem_paths)*n_trials
@@ -285,6 +285,7 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     for i, config in enumerate(configs):
         print('{}) {} | Num: {} | Mean Probability: {:.3f} | Mean Time: {:.3f}'.format(
             i, config, len(successes[config]), np.mean(successes[config]), np.mean(runtimes[config])))
+        print('Num solutions:', num_solutions[config])
         print('Probabilities:', successes[config])
         print('Runtimes:', runtimes[config])
 
@@ -298,8 +299,8 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10,
     # TODO: pickle the results
 
     # TODO: combine these
-    plot_successes(configs_from_name, successes)
-    plot_runtimes(configs_from_name, runtimes)
+    #plot_successes(configs_from_name, successes)
+    #plot_runtimes(configs_from_name, runtimes)
 
 def plot_successes(configs_from_name, successes, scale=1.):
 
