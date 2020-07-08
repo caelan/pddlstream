@@ -119,8 +119,6 @@ def random_subset(externals, combined_plans, diverse, **kwargs):
     #if k is None:
     #    k = DEFAULT_K
     k = diverse['k']
-    if len(combined_plans) <= k:
-        return combined_plans
     return random.sample(combined_plans, k=k)
 
 def first_k(externals, combined_plans, diverse, **kwargs):
@@ -141,9 +139,6 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
     # TODO: lazy greedy submodular maximimization
     start_time = time.time()
     k = diverse['k']
-    assert 1 <= k
-    if len(combined_plans) <= k:
-        return combined_plans
     best_indices = set()
     # TODO: warm start using exact_diverse_subset for small k
     for i in range(len(best_indices), k):
@@ -155,7 +150,7 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
-        print('i) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
+        print('{}) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
         #if max_time < elapsed_time(start_time): # Randomly select the rest
         #    break
 
@@ -174,9 +169,6 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     # TODO: pass results instead of externals
     start_time = time.time()
     k = diverse['k']
-    assert 1 <= k
-    if len(combined_plans) <= k:
-        return combined_plans
     max_time = diverse.get('max_time', INF)
     num_considered = 0
     best_plans, best_p = None, -INF
@@ -215,6 +207,10 @@ def diverse_subset(externals, combined_plans, diverse, **kwargs):
     if not diverse:
         return combined_plans[:1]
     combined_plans = prune_dominated(externals, combined_plans)
+    k = diverse['k']
+    assert 1 <= k
+    if len(combined_plans) <= k:
+        return combined_plans
     selector = diverse['selector']
     if selector == 'random':
         return random_subset(externals, combined_plans, diverse, **kwargs)

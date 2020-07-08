@@ -8,6 +8,7 @@ import time
 import random
 import numpy as np
 import sys
+import datetime
 
 from collections import defaultdict
 from itertools import product
@@ -24,13 +25,12 @@ from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
     is_plan, get_prefix, get_args, Not, StreamAction, Equal, Fact
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, \
-    read_pickle, write_pickle, ensure_dir
+    read_pickle, write_pickle, ensure_dir, get_python_version
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
-from examples.pybullet.utils.pybullet_tools.utils import is_darwin #, write_json, read_json
-
-from matplotlib.ticker import MaxNLocator
+from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
+    read_json, write_json #, write_json, read_json
 
 SERIAL = is_darwin()
 #SERIAL = False
@@ -40,6 +40,7 @@ P_SUCCESSES = [0.9]
 SMALL_RISK_DIR = 'smallprobs/'
 LARGE_RISK_DIR = 'risk-pddl/risk/'
 PARALLEL_DIR = 'temp_parallel/'
+EXPERIMENTS_DIR = 'experiments/'
 
 class hashabledict(dict):
     def __setitem__(self, key, value):
@@ -169,10 +170,11 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def run_trial(inputs, candidate_time=5*60, n_simulations=10000):
+def run_trial(inputs, candidate_time=5*10, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
     problem_path, constraints, config = inputs
+    print(SEPARATOR)
     print('Process {}: {}, {}'.format(pid, problem_path, config))
 
     stdout = sys.stdout
@@ -221,21 +223,21 @@ def run_trial(inputs, candidate_time=5*60, n_simulations=10000):
 
     return inputs, outputs
 
-def solve_pddlstream(n_trials=1, max_cost_multiplier=10, diverse_time=5*60, **kwargs):
+def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
-    n_problems = 1 # 1 | INF
-    min_k, max_k = 10, 5 # Start with min_k >= 2
-    max_k = min_k
+    n_problems = INF # 1 | INF
+    min_k, max_k = INF, INF # Start with min_k >= 2
+    max_k = min_k # INF
 
-    constraints = PlanConstraints(max_cost=max_cost_multiplier) # top_quality
-    #constraints = PlanConstraints(max_cost=INF) # kstar
+    #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
+    constraints = PlanConstraints(max_cost=INF) # kstar
 
     problem_paths = get_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
-    indices = [-1] # 0 | -1
+    #indices = [0] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -245,15 +247,15 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10, diverse_time=5*60, **kw
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['kstar'] # dijkstra | forbid | kstar
-    selectors = ['greedy'] # random | greedy | exact | first
+    planners = ['forbid'] # dijkstra | forbid | kstar
+    selectors = ['first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    #planners = ['forbid', 'kstar']
+    # planners = ['forbid', 'kstar']
     # selectors = ['random', 'greedy'] #, 'exact']
     # metrics = ['p_success', 'stability', 'uniqueness']
 
-    ks = list(range(min_k, 1+max_k))
+    ks = [min_k] if min_k == max_k else list(range(min_k, 1+max_k))
     configs = [{'planner': planner, 'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
                for planner, selector, metric, k in product(planners, selectors, metrics, ks)]
     #configs = [
@@ -267,30 +269,51 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10, diverse_time=5*60, **kw
     if SERIAL:
         generator = map(run_trial, jobs)
     else:
-        available_cores = cpu_count()
-        #num_cores = max(1, min(1 if serial else available_cores - 4, len(jobs)))
-        num_cores = 2
+        num_cores = clip(cpu_count()/2, min_value=1, max_value=len(jobs))
+        print('Using {}/{} cores'.format(num_cores, cpu_count()))
         pool = Pool(processes=num_cores)  # , initializer=mute)
         generator = pool.imap_unordered(run_trial, jobs, chunksize=1)
 
+    ensure_dir(EXPERIMENTS_DIR)
+    date_name = datetime.datetime.now().strftime(DATE_FORMAT)
+    #file_name = os.path.join(EXPERIMENTS_DIR, '{}.pk3'.format(date_name))
+    file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
+
     # TODO: log problem_path
     # TODO: compare relative odds
+    results = []
+    for (problem_path, _, config), (runtime, num, p_success) in generator:
+        result = {'problem': problem_path, 'config': config,
+                  'runtime': runtime, 'num_plans': num, 'p_success': p_success}
+        results.append(result)
+        print('{}/{} | Plans: {} | Probability: {:.3f} | Runtime: {:.3f} | Total time: {:.3f}'.format(
+            len(results), len(jobs), num, p_success, runtime, elapsed_time(total_time)))
+        if not is_darwin():
+            #write_pickle(file_name, results)
+            write_json(file_name, results)
+        print('Wrote {}'.format(file_name))
+    print(SEPARATOR)
+    analyze_results(results)
+
+def analyze_results(results):
+    problems = set()
+    configs = set()
     max_solutions = defaultdict(int)
+    runtimes = defaultdict(list)
     num_solutions = defaultdict(list)
     successes = defaultdict(list)
-    runtimes = defaultdict(list)
-    for (problem_path, _, config), (runtime, num, p_success) in generator:
-        config = hashabledict(config)
-        runtimes[config].append(runtime)
-        num_solutions[config].append(num)
-        max_solutions[problem_path] = max(max_solutions[problem_path], num)
-        successes[config].append(p_success)
+    for result in results:
+        problems.add(result['problem'])
+        config = hashabledict(result['config'])
+        configs.add(config)
+        runtimes[config].append(result['runtime'])
+        num_solutions[config].append(result['num_plans'])
+        max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
+        successes[config].append(result['p_success'])
     #safe_rm_dir(PARALLEL_DIR)
 
-    configs = list(map(hashabledict, configs))
-    n_iterations = len(problem_paths)*n_trials
-    print('Configs: {} | Iterations: {} | Total Time: {:.3f}'.format(
-        len(configs), n_iterations, elapsed_time(total_time)))
+    print('Problems:', max_solutions)
+    print('Configs:', configs)
     for i, config in enumerate(configs):
         print('{}) {} | Num: {} | Mean Probability: {:.3f} | Mean Time: {:.3f}'.format(
             i, config, len(successes[config]), np.mean(successes[config]), np.mean(runtimes[config])))
@@ -312,8 +335,8 @@ def solve_pddlstream(n_trials=1, max_cost_multiplier=10, diverse_time=5*60, **kw
     #plot_runtimes(configs_from_name, runtimes)
 
 def plot_successes(configs_from_name, successes, scale=1.):
-
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
     plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
@@ -344,6 +367,7 @@ def plot_successes(configs_from_name, successes, scale=1.):
 
 def plot_runtimes(configs_from_name, runtimes, scale=1.):
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
     plt.figure()
     for name in configs_from_name:
         ks = [config['k'] for config in configs_from_name[name]]
@@ -364,6 +388,7 @@ def plot_runtimes(configs_from_name, runtimes, scale=1.):
 ##################################################
 
 def main():
+    assert get_python_version() == 3
     parser = argparse.ArgumentParser()
     #parser.add_argument('-v', '--visualize', action='store_true')
     args = parser.parse_args()

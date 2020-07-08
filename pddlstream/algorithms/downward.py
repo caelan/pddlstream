@@ -23,7 +23,7 @@ DIVERSE_PLANNERS = ['forbid', 'kstar']
 ##################################################
 
 #FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
-#FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} ' \
+#FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} --symmetries ' \
 #                  '--domain {domain} --problem {problem}'
 # --planner topk,topq,topkq,diverse
 # topk: many plans that could be equivalent
@@ -36,7 +36,7 @@ DIVERSE_PLANNERS = ['forbid', 'kstar']
 
 ##################################################
 
-FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} ' \
+FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} --symmetries ' \
                   '--domain {domain} --problem {problem} --use-local-folder --clean-local-folder' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
 # [--overall-time-limit OVERALL_TIME_LIMIT]
 # [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
