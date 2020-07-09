@@ -62,18 +62,22 @@ def fact_from_fd(literal):
 
 ##################################################
 
-def get_benchmarks(sizes=[0]):
+def get_small_benchmarks():
     small_risk_path = get_file_path(__file__, SMALL_RISK_DIR)
     problem_paths = [os.path.join(small_risk_path, f) for f in sorted(os.listdir(small_risk_path))
                      if f.endswith('.pddl')]
     # 101 (20), 201 (20), 301 (20), 401 (20), 501 (20)
+    return problem_paths
 
-    # large_risk_path = get_file_path(__file__, LARGE_RISK_DIR)
-    # problem_paths = [os.path.join(large_risk_path, f) for f in sorted(os.listdir(large_risk_path))
-    #                  if f.startswith('prob') and f.endswith('.pddl')]
+def get_large_benchmarks():
+    large_risk_path = get_file_path(__file__, LARGE_RISK_DIR)
+    problem_paths = [os.path.join(large_risk_path, f) for f in sorted(os.listdir(large_risk_path))
+                     if f.startswith('prob') and f.endswith('.pddl')]
     # 1001 (20), 2501 (20), 5001 (20), 10001 (20), 20001 (20)
     # TODO: cannot solve the first 2501 instance and even some of the later 1001 instances
+    return problem_paths
 
+def extract_benchmarks(problem_paths, sizes=[0]):
     # print(len(problem_paths))
     # domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     # domain = parse_sequential_domain(domain_pddl)
@@ -87,21 +91,21 @@ def get_benchmarks(sizes=[0]):
         size_paths.extend(problem_paths[20*size:20*(size+1)])
     return size_paths
 
-def parse_strings():
-    # TODO: introduce object more generally
-    from examples.fault_tolerant.data_network.run import fact_from_str
-    init = [fact_from_str(s) for s in INIT.split('\n') if s]
-    objects = {n for f in init for n in get_args(f)}
-    atoms_from_predicate = defaultdict(set)
-    for fact in init:
-        atoms_from_predicate[get_prefix(fact)].add(get_args(fact))
-
-    init = [f for f in init if get_prefix(f) not in ['CONNECTED']]
-    init.extend(('OBJECT', n) for n in objects)
-
-    goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
-    goal = And(*goal_literals)
-    return init, goal
+# def parse_strings():
+#     # TODO: introduce object more generally
+#     from examples.fault_tolerant.data_network.run import fact_from_str
+#     init = [fact_from_str(s) for s in INIT.split('\n') if s]
+#     objects = {n for f in init for n in get_args(f)}
+#     atoms_from_predicate = defaultdict(set)
+#     for fact in init:
+#         atoms_from_predicate[get_prefix(fact)].add(get_args(fact))
+#
+#     init = [f for f in init if get_prefix(f) not in ['CONNECTED']]
+#     init.extend(('OBJECT', n) for n in objects)
+#
+#     goal_literals = [fact_from_str(s) for s in GOAL.split('\n') if s]
+#     goal = And(*goal_literals)
+#     return init, goal
 
 def get_problem(problem_path):
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
@@ -170,7 +174,7 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def run_trial(inputs, candidate_time=5*10, n_simulations=10000):
+def run_trial(inputs, candidate_time=10*60, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
     problem_path, constraints, config = inputs
@@ -233,7 +237,8 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
 
-    problem_paths = get_benchmarks(sizes=range(0, 5)) # 0 | 1
+    problem_paths = get_small_benchmarks() + get_large_benchmarks()
+    #problem_paths = extract_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
     indices = range(n_problems)
@@ -269,7 +274,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs
     if SERIAL:
         generator = map(run_trial, jobs)
     else:
-        num_cores = clip(int(cpu_count()/2), min_value=1, max_value=len(jobs))
+        num_cores = clip(int(cpu_count()-4), min_value=1, max_value=len(jobs))
         print('Using {}/{} cores'.format(num_cores, cpu_count()))
         pool = Pool(processes=num_cores)  # , initializer=mute)
         generator = pool.imap_unordered(run_trial, jobs, chunksize=1)
