@@ -1,0 +1,2602 @@
+[
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0915,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob019.pddl",
+    "runtime": 602.6504981517792
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0743,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob015.pddl",
+    "runtime": 602.5334994792938
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1103,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob044.pddl",
+    "runtime": 603.9083995819092
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0925,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob024.pddl",
+    "runtime": 603.5646810531616
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0369,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob004.pddl",
+    "runtime": 603.1648581027985
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0996,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob030.pddl",
+    "runtime": 603.8682272434235
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.078,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob010.pddl",
+    "runtime": 604.3766946792603
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0974,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob043.pddl",
+    "runtime": 605.3388423919678
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 16,
+    "p_success": 0.5482,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob002.pddl",
+    "runtime": 604.516250371933
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0263,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob020.pddl",
+    "runtime": 624.927252292633
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 29,
+    "p_success": 0.9008,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob021.pddl",
+    "runtime": 623.418093919754
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 49,
+    "p_success": 0.4386,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob036.pddl",
+    "runtime": 615.9150152206421
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.057,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob035.pddl",
+    "runtime": 630.4298572540283
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 21,
+    "p_success": 0.3385,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob032.pddl",
+    "runtime": 622.5017936229706
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 32,
+    "p_success": 0.8973,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob011.pddl",
+    "runtime": 624.1605143547058
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 4,
+    "p_success": 0.0566,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob029.pddl",
+    "runtime": 634.6845352649689
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 27,
+    "p_success": 0.6498,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob016.pddl",
+    "runtime": 632.4138731956482
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 26,
+    "p_success": 0.3355,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob017.pddl",
+    "runtime": 627.5019927024841
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 18,
+    "p_success": 0.7161,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob006.pddl",
+    "runtime": 634.7893171310425
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0136,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob005.pddl",
+    "runtime": 642.1308019161224
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 8,
+    "p_success": 0.1837,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob014.pddl",
+    "runtime": 641.3606967926025
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 20,
+    "p_success": 0.3165,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob028.pddl",
+    "runtime": 636.8946650028229
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 43,
+    "p_success": 0.6,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob031.pddl",
+    "runtime": 638.0054297447205
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 9,
+    "p_success": 0.2456,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob034.pddl",
+    "runtime": 651.2711358070374
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 19,
+    "p_success": 0.4249,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob041.pddl",
+    "runtime": 654.0783679485321
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0389,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob025.pddl",
+    "runtime": 667.4495539665222
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 7,
+    "p_success": 0.3127,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob042.pddl",
+    "runtime": 669.871753692627
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 22,
+    "p_success": 0.5175,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob022.pddl",
+    "runtime": 667.7887811660767
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 11,
+    "p_success": 0.5002,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob013.pddl",
+    "runtime": 679.6284203529358
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 212,
+    "p_success": 0.7482,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob001.pddl",
+    "runtime": 634.4565622806549
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 7,
+    "p_success": 0.3381,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob007.pddl",
+    "runtime": 685.2504463195801
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 16,
+    "p_success": 0.3947,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob038.pddl",
+    "runtime": 685.5820565223694
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0431,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob040.pddl",
+    "runtime": 692.5701484680176
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 23,
+    "p_success": 0.9972,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob026.pddl",
+    "runtime": 725.8430404663086
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 11,
+    "p_success": 0.5717,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob012.pddl",
+    "runtime": 737.7550947666168
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 7,
+    "p_success": 0.2034,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob003.pddl",
+    "runtime": 739.290890455246
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 11,
+    "p_success": 0.2578,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob018.pddl",
+    "runtime": 755.2698485851288
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 4,
+    "p_success": 0.2017,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob033.pddl",
+    "runtime": 767.8505663871765
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 20,
+    "p_success": 0.3963,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob037.pddl",
+    "runtime": 790.797874212265
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.0945,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob027.pddl",
+    "runtime": 866.7855095863342
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 5,
+    "p_success": 0.2237,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob008.pddl",
+    "runtime": 945.5822222232819
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 5,
+    "p_success": 0.4332,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob023.pddl",
+    "runtime": 959.8069643974304
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.1009,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob039.pddl",
+    "runtime": 1005.9208726882935
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.2748,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob009.pddl",
+    "runtime": 1121.4181303977966
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.1004,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob049.pddl",
+    "runtime": 603.2112255096436
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0553,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob050.pddl",
+    "runtime": 606.219304561615
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 26,
+    "p_success": 0.4208,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob052.pddl",
+    "runtime": 610.2027621269226
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0605,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob054.pddl",
+    "runtime": 610.2385101318359
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 28,
+    "p_success": 0.8617,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob051.pddl",
+    "runtime": 633.6791367530823
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0705,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob063.pddl",
+    "runtime": 608.295437335968
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 37,
+    "p_success": 0.2847,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob046.pddl",
+    "runtime": 632.707930803299
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0327,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob060.pddl",
+    "runtime": 620.2415311336517
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0682,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob059.pddl",
+    "runtime": 625.6247210502625
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 35,
+    "p_success": 0.3714,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob047.pddl",
+    "runtime": 646.1022291183472
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 73,
+    "p_success": 0.7193,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob056.pddl",
+    "runtime": 624.2409121990204
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 25,
+    "p_success": 0.4735,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob057.pddl",
+    "runtime": 640.9836242198944
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 15,
+    "p_success": 0.8914,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob066.pddl",
+    "runtime": 632.031393289566
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob075.pddl",
+    "runtime": 601.1281855106354
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0162,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob045.pddl",
+    "runtime": 689.1360669136047
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 45,
+    "p_success": 0.2741,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob064.pddl",
+    "runtime": 632.4728548526764
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0178,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob069.pddl",
+    "runtime": 642.8581345081329
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1047,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob074.pddl",
+    "runtime": 620.8558430671692
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 98,
+    "p_success": 0.7659,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob061.pddl",
+    "runtime": 638.7042896747589
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 30,
+    "p_success": 0.8138,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob071.pddl",
+    "runtime": 627.3416712284088
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 10,
+    "p_success": 0.2757,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob048.pddl",
+    "runtime": 732.2521233558655
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 86,
+    "p_success": 0.7015,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob076.pddl",
+    "runtime": 639.4191086292267
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 6,
+    "p_success": 0.4697,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob078.pddl",
+    "runtime": 622.8722021579742
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0269,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob079.pddl",
+    "runtime": 617.8268496990204
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0278,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob055.pddl",
+    "runtime": 741.8481168746948
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1324,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob082.pddl",
+    "runtime": 604.2509412765503
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.3865,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob058.pddl",
+    "runtime": 744.8613173961639
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0248,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob065.pddl",
+    "runtime": 774.4149074554443
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0219,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob080.pddl",
+    "runtime": 681.3309154510498
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 8,
+    "p_success": 0.4464,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob067.pddl",
+    "runtime": 773.2851686477661
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 13,
+    "p_success": 0.8885,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob081.pddl",
+    "runtime": 678.3141350746155
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.2161,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob062.pddl",
+    "runtime": 825.3779006004333
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 6,
+    "p_success": 0.9261,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob072.pddl",
+    "runtime": 841.8846569061279
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.2911,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob068.pddl",
+    "runtime": 873.0248310565948
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0663,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob085.pddl",
+    "runtime": 622.9538223743439
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0368,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob084.pddl",
+    "runtime": 725.1535270214081
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.3421,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob073.pddl",
+    "runtime": 942.4776785373688
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 102,
+    "p_success": 0.7252,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob086.pddl",
+    "runtime": 644.8402194976807
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 34,
+    "p_success": 0.8873,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob087.pddl",
+    "runtime": 640.7574865818024
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.1571,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob077.pddl",
+    "runtime": 965.3474230766296
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.1255,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob053.pddl",
+    "runtime": 1081.2460629940033
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.1085,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob088.pddl",
+    "runtime": 623.6580357551575
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.1249,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob083.pddl",
+    "runtime": 988.6584470272064
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0076,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob070.pddl",
+    "runtime": 1124.3928408622742
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 15,
+    "p_success": 0.688,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob091.pddl",
+    "runtime": 619.3599832057953
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0303,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob089.pddl",
+    "runtime": 644.3299224376678
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob095.pddl",
+    "runtime": 602.3276991844177
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 32,
+    "p_success": 0.8847,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob092.pddl",
+    "runtime": 629.3888938426971
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 23,
+    "p_success": 0.7572,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob096.pddl",
+    "runtime": 614.4174733161926
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 9,
+    "p_success": 0.509,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob093.pddl",
+    "runtime": 635.5887935161591
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0564,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob094.pddl",
+    "runtime": 639.4731018543243
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0506,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob099.pddl",
+    "runtime": 620.7058627605438
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob004.pddl",
+    "runtime": 603.391687631607
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0177,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob090.pddl",
+    "runtime": 690.6817789077759
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob005.pddl",
+    "runtime": 603.2255439758301
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 26,
+    "p_success": 0.5689,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob001.pddl",
+    "runtime": 633.676896572113
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 9,
+    "p_success": 0.6169,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob098.pddl",
+    "runtime": 665.1668717861176
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1355,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob003.pddl",
+    "runtime": 640.9857409000397
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob009.pddl",
+    "runtime": 603.5429756641388
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob010.pddl",
+    "runtime": 603.7820839881897
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0349,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob100.pddl",
+    "runtime": 670.8327083587646
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0338,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob008.pddl",
+    "runtime": 647.6410458087921
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob014.pddl",
+    "runtime": 603.3217577934265
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob015.pddl",
+    "runtime": 603.3610363006592
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 5,
+    "p_success": 0.4156,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob006.pddl",
+    "runtime": 682.9095776081085
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 49,
+    "p_success": 0.9497,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob011.pddl",
+    "runtime": 653.7292196750641
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob019.pddl",
+    "runtime": 603.1444079875946
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob020.pddl",
+    "runtime": 603.5571048259735
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0449,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob018.pddl",
+    "runtime": 647.5919942855835
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 70,
+    "p_success": 0.9318,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob016.pddl",
+    "runtime": 669.1988406181335
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 10,
+    "p_success": 0.2294,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob007.pddl",
+    "runtime": 818.2608587741852
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob024.pddl",
+    "runtime": 607.6256155967712
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.3385,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob002.pddl",
+    "runtime": 940.4757299423218
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob025.pddl",
+    "runtime": 607.5409905910492
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0409,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob013.pddl",
+    "runtime": 879.3628642559052
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob028.pddl",
+    "runtime": 606.1946971416473
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1451,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob022.pddl",
+    "runtime": 738.2779469490051
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob029.pddl",
+    "runtime": 607.3921003341675
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.1282,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/smallprobs/smallprob097.pddl",
+    "runtime": 1053.8034279346466
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 3,
+    "p_success": 0.0935,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob017.pddl",
+    "runtime": 888.2944002151489
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob030.pddl",
+    "runtime": 607.527181148529
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0653,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob027.pddl",
+    "runtime": 711.5644497871399
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 14,
+    "p_success": 0.8851,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob026.pddl",
+    "runtime": 768.3985586166382
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.2153,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob012.pddl",
+    "runtime": 1069.494108915329
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.4263,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob021.pddl",
+    "runtime": 929.2704062461853
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.3152,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob031.pddl",
+    "runtime": 663.9201626777649
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob033.pddl",
+    "runtime": 607.9149105548859
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob034.pddl",
+    "runtime": 607.3262162208557
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob035.pddl",
+    "runtime": 607.9277882575989
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.3912,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob032.pddl",
+    "runtime": 676.0167684555054
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob039.pddl",
+    "runtime": 607.5398325920105
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob040.pddl",
+    "runtime": 608.4420216083527
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 11,
+    "p_success": 0.5725,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob036.pddl",
+    "runtime": 639.6411371231079
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob043.pddl",
+    "runtime": 616.1635296344757
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob044.pddl",
+    "runtime": 615.533962726593
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob045.pddl",
+    "runtime": 615.4710931777954
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob048.pddl",
+    "runtime": 616.4370622634888
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.0386,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob037.pddl",
+    "runtime": 686.3293426036835
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob049.pddl",
+    "runtime": 615.5299282073975
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob050.pddl",
+    "runtime": 615.7442674636841
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob052.pddl",
+    "runtime": 609.7989871501923
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 5,
+    "p_success": 0.2044,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob041.pddl",
+    "runtime": 696.4362087249756
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob053.pddl",
+    "runtime": 609.6964342594147
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob054.pddl",
+    "runtime": 614.2059237957001
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob055.pddl",
+    "runtime": 616.0623531341553
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.135,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob023.pddl",
+    "runtime": 1094.1105217933655
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob057.pddl",
+    "runtime": 616.0013184547424
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob058.pddl",
+    "runtime": 616.3519995212555
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob059.pddl",
+    "runtime": 616.8374807834625
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.4254,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob051.pddl",
+    "runtime": 807.4800214767456
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob060.pddl",
+    "runtime": 615.8391575813293
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob061.pddl",
+    "runtime": 634.8395721912384
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob062.pddl",
+    "runtime": 634.185866355896
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1339,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob042.pddl",
+    "runtime": 972.6046404838562
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob063.pddl",
+    "runtime": 630.758682012558
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.1268,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob038.pddl",
+    "runtime": 1007.9903037548065
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob065.pddl",
+    "runtime": 633.2012388706207
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob064.pddl",
+    "runtime": 634.5757195949554
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob066.pddl",
+    "runtime": 635.8539502620697
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob067.pddl",
+    "runtime": 632.3235692977905
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob068.pddl",
+    "runtime": 634.052586555481
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.2057,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob047.pddl",
+    "runtime": 1009.4828040599823
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob069.pddl",
+    "runtime": 633.8559622764587
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.9663,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob046.pddl",
+    "runtime": 1065.5922966003418
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob070.pddl",
+    "runtime": 635.7457814216614
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 1,
+    "p_success": 0.4264,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob056.pddl",
+    "runtime": 941.0774555206299
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob071.pddl",
+    "runtime": 632.9418079853058
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob072.pddl",
+    "runtime": 633.6435723304749
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob073.pddl",
+    "runtime": 632.7534809112549
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob074.pddl",
+    "runtime": 633.8288173675537
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob075.pddl",
+    "runtime": 631.6016993522644
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob076.pddl",
+    "runtime": 632.0998091697693
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob078.pddl",
+    "runtime": 632.7569007873535
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 2,
+    "p_success": 0.2635,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob077.pddl",
+    "runtime": 654.7916417121887
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob079.pddl",
+    "runtime": 633.0695641040802
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob080.pddl",
+    "runtime": 633.0280029773712
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob081.pddl",
+    "runtime": 678.523583650589
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob082.pddl",
+    "runtime": 681.4410653114319
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob084.pddl",
+    "runtime": 667.2953629493713
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob083.pddl",
+    "runtime": 671.5640208721161
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob086.pddl",
+    "runtime": 672.8639307022095
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob085.pddl",
+    "runtime": 673.9190838336945
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob087.pddl",
+    "runtime": 671.9721381664276
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob088.pddl",
+    "runtime": 674.4174847602844
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob089.pddl",
+    "runtime": 674.5545687675476
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob091.pddl",
+    "runtime": 667.121830701828
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob090.pddl",
+    "runtime": 667.5867528915405
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob092.pddl",
+    "runtime": 661.9887225627899
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob093.pddl",
+    "runtime": 666.1930630207062
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob094.pddl",
+    "runtime": 673.9068803787231
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob095.pddl",
+    "runtime": 673.8598532676697
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob096.pddl",
+    "runtime": 671.6075103282928
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob097.pddl",
+    "runtime": 665.9625256061554
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob098.pddl",
+    "runtime": 667.6813519001007
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob099.pddl",
+    "runtime": 661.6544218063354
+  },
+  {
+    "config": {
+      "k": Infinity,
+      "max_time": 300,
+      "metric": "p_success",
+      "planner": "forbid",
+      "selector": "first"
+    },
+    "num_plans": 0,
+    "p_success": 0.0,
+    "problem": "/home/caelan/Programs/pddlstream/examples/fault_tolerant/risk_management/risk-pddl/risk/prob100.pddl",
+    "runtime": 666.5916821956635
+  }
+]
