@@ -77,6 +77,24 @@ def get_large_benchmarks():
     # TODO: cannot solve the first 2501 instance and even some of the later 1001 instances
     return problem_paths
 
+def get_good_benchmarks(min_solutions=15):
+    file_name = '20-07-08_22-44-40.json'
+    results = read_json(os.path.join(EXPERIMENTS_DIR, file_name))
+    #analyze_results(results)
+    max_solutions = defaultdict(int)
+    for result in results:
+        max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
+    #for problem, num in sorted(max_solutions.items(), key=lambda pair: pair[1]):
+    #    print(problem, num)
+    good_problems = sorted(os.path.basename(problem) for problem, num in max_solutions.items() if num >= min_solutions)
+    #for problem in sorted(good_problems):
+    #    print(problem, max_solutions[problem])
+    small_risk_path = get_file_path(__file__, SMALL_RISK_DIR)
+    large_risk_path = get_file_path(__file__, LARGE_RISK_DIR)
+    good_paths = [os.path.join(small_risk_path if 'smallprob' in problem else large_risk_path, problem)
+                  for problem in good_problems]
+    return good_paths
+
 def extract_benchmarks(problem_paths, sizes=[0]):
     # print(len(problem_paths))
     # domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -227,17 +245,18 @@ def run_trial(inputs, candidate_time=10*60, n_simulations=10000):
 
     return inputs, outputs
 
-def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs):
+def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
     n_problems = INF # 1 | INF
-    min_k, max_k = INF, INF # Start with min_k >= 2
-    max_k = min_k # INF
+    min_k, max_k = 2, 10 # Start with min_k >= 2
+    #max_k = min_k # INF
 
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
 
-    problem_paths = get_small_benchmarks() + get_large_benchmarks()
+    #problem_paths = get_small_benchmarks() + get_large_benchmarks()
+    problem_paths = get_good_benchmarks()
     #problem_paths = extract_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
@@ -256,9 +275,9 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=5*60, **kwargs
     selectors = ['first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    # planners = ['forbid', 'kstar']
-    # selectors = ['random', 'greedy'] #, 'exact']
-    # metrics = ['p_success', 'stability', 'uniqueness']
+    planners = ['forbid'] #, 'kstar']
+    selectors = ['random', 'greedy', 'exact'] #,'first']
+    metrics = ['p_success', 'stability', 'uniqueness']
 
     ks = [min_k] if min_k == max_k else list(range(min_k, 1+max_k))
     configs = [{'planner': planner, 'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
