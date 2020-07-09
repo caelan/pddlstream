@@ -5,9 +5,10 @@ from __future__ import print_function
 import argparse
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_test
+from pddlstream.language.generator import from_test, universe_test
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path
+from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact
 from pddlstream.algorithms.search import solve_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
@@ -16,7 +17,7 @@ from examples.blocksworld.run import read_pddl
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale
 
-P_SUCCESS = 1.
+P_SUCCESS = 0.9
 
 # TODO: parse problem.pddl directly
 
@@ -58,6 +59,8 @@ INIT = """
 """
 # Removed functions for now
 
+##################################################
+
 def object_facts_from_str(s):
     objs, ty = s.strip().rsplit(' - ', 1)
     return [(ty, obj) for obj in objs.split(' ')]
@@ -68,7 +71,7 @@ def fact_from_str(s):
 def int_from_str(s):
     return int(s.replace('number', ''))
 
-# TODO: I need the streams in order to do this
+##################################################
 
 def get_problem():
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -84,6 +87,7 @@ def get_problem():
     stream_map = {
         'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
         'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
+        'test-online': from_test(universe_test),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
@@ -103,7 +107,7 @@ def get_problem():
 
 ##################################################
 
-def get_stuff():
+def get_parse():
     from examples.fault_tolerant.risk_management.run import fact_from_fd
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
@@ -118,12 +122,12 @@ def get_stuff():
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
 
-    #stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    stream_pddl = None
+    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    #stream_pddl = None
     stream_map = DEBUG
 
-    init = [Fact(obj.type_name, [obj.name]) for obj in problem.objects] + \
-           list(map(fact_from_fd, problem.init))
+    init = [Fact(obj.type_name, [obj.name]) for obj in problem.objects] \
+           + list(map(fact_from_fd, problem.init))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
     # TODO: throw error is not a conjunction
 
@@ -141,10 +145,10 @@ def solve_pddlstream(n_trials=1):
     stream_info = {
         'test-less_equal': StreamInfo(eager=True, p_success=0),
         'test-sum': StreamInfo(eager=True, p_success=0), # TODO: p_success=lambda x: 0.5
-        #'test-open': StreamInfo(p_success=P_SUCCESS),
+        'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
     #problem = get_problem()
-    problem = get_stuff()
+    problem = get_parse()
     dump_pddlstream(problem)
 
     successes = 0.
@@ -155,7 +159,8 @@ def solve_pddlstream(n_trials=1):
         solutions = solve_focused(problem, stream_info=stream_info, # planner='forbid'
                                   unit_costs=True, unit_efforts=False, debug=True,
                                   planner=planner, max_planner_time=10, diverse=diverse,
-                                  #initial_complexity=1, max_iterations=1, max_skeletons=1
+                                  initial_complexity=1, max_iterations=1, max_skeletons=None,
+                                  replan_actions=['load'],
                                   )
         for solution in solutions:
             print_solution(solution)
