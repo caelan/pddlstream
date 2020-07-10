@@ -42,7 +42,7 @@ def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, *
         if has_attachments(domain):
             with Verbose(debug):
                 instantiated = instantiate_task(task)
-            pddl_plan, cost = solve_pyplanners(instantiated)
+            pddl_plan, cost = solve_pyplanners(instantiated, **search_args)
         else:
             sas_task = sas_from_pddl(task, debug=debug)
             pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)

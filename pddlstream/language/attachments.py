@@ -1,7 +1,8 @@
 import os
+import sys
 
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
-    pddl_from_instance
+    pddl_from_instance, DEFAULT_MAX_TIME
 from pddlstream.language.object import Object
 from pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.language.fluent import get_predicate_map, remap_certified
@@ -98,25 +99,32 @@ def get_attachment_test(action_instance):
     return test
 
 
-def solve_pyplanners(instantiated):
+def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF):
+    if instantiated is None:
+        return None, INF
+
     # https://github.mit.edu/caelan/stripstream/blob/c8c6cd1d6bd5e2e8e31cd5603e28a8e0d7bb2cdc/stripstream/algorithms/search/pyplanners.py
-    import sys
     pyplanners_path = get_pyplanners_path()
     if pyplanners_path is None:
         raise RuntimeError('Must clone https://github.com/caelan/pyplanners '
                            'and set the environment variable {} to its path'.format(PYPLANNERS_VAR))
-
     if pyplanners_path not in sys.path:
         sys.path.append(pyplanners_path)
 
     # TODO: could operate on translated SAS instead
     from strips.states import State, PartialState
     from strips.operators import Action, Axiom
-    from strips.utils import default_derived_plan
+    from strips.utils import solve_strips, default_derived_plan
     import pddl
 
-    if instantiated is None:
-        return None, INF
+    default_planner = {
+        'search': 'eager',
+        'evaluator': 'greedy',
+        'heuristic': 'ff',
+        'successors': 'ff',
+    }
+    if isinstance(planner, dict):
+        default_planner.update(planner)
 
     py_actions = []
     for action in instantiated.actions:
@@ -148,7 +156,8 @@ def solve_pyplanners(instantiated):
     initial = State(atom for atom in instantiated.task.init
                     if isinstance(atom, pddl.Atom) and (atom in fluents))
 
-    plan, state_space = default_derived_plan(initial, goal, py_actions, py_axioms)
+    plan, state_space = solve_strips(initial, goal, py_actions, py_axioms,
+                                     max_time=max_planner_time, max_cost=max_cost, **default_planner)
     if plan is None:
         return None, INF
     actions = [pddl_from_instance(action.fd_action) for action in plan]
