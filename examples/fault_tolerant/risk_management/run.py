@@ -30,7 +30,7 @@ from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, Cached
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
-    read_json, write_json #, write_json, read_json
+    read_json, write_json
 
 SERIAL = is_darwin()
 #SERIAL = False
@@ -235,6 +235,7 @@ def run_trial(inputs, candidate_time=10*60, n_simulations=10000):
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
     p_success = float(n_successes) / n_simulations
     outputs = (runtime, len(solutions), p_success)
+    # TODO: store other metrics
 
     if not SERIAL:
         os.chdir(current_wd)
@@ -320,6 +321,13 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     analyze_results(results)
 
 def analyze_results(results):
+    #planners = ['forbid'] #, 'kstar']
+    selectors = ['random', 'greedy', 'exact']
+    metrics = ['p_success']#, 'stability', 'uniqueness']
+
+    selectors = ['random', 'greedy'] #, 'exact']
+    metrics = ['p_success', 'stability', 'uniqueness']
+
     problems = set()
     configs = set()
     max_solutions = defaultdict(int)
@@ -327,9 +335,11 @@ def analyze_results(results):
     num_solutions = defaultdict(list)
     successes = defaultdict(list)
     for result in results:
-        problems.add(result['problem'])
         config = hashabledict(result['config'])
+        if (config['selector'] not in selectors) or (config['metric'] not in metrics):
+            continue
         configs.add(config)
+        problems.add(result['problem'])
         runtimes[config].append(result['runtime'])
         num_solutions[config].append(result['num_plans'])
         max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
@@ -347,25 +357,26 @@ def analyze_results(results):
 
     configs_from_name = defaultdict(list)
     for config in configs:
-        name = config['planner'] + ' ' + config['selector']
-        if (name not in ['random', 'first']) and ('metric' in config):
+        #name = config['planner'] + ' ' + config['selector']
+        name = config['selector']
+        if (config['selector'] not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
-    # TODO: store other metrics
-    # TODO: pickle the results
 
     # TODO: combine these
-    #plot_successes(configs_from_name, successes)
-    #plot_runtimes(configs_from_name, runtimes)
+    plot_successes(configs_from_name, successes)
+    plot_runtimes(configs_from_name, runtimes)
 
-def plot_successes(configs_from_name, successes, scale=1.):
+def plot_successes(configs_from_name, successes, scale=0.):
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
     for name in configs_from_name:
-        ks = [config['k'] for config in configs_from_name[name]]
-        means = np.array([np.mean(successes[config]) for config in configs_from_name[name]])
-        stds = np.array([np.std(successes[config]) for config in configs_from_name[name]])
+        #config_from_k = defaultdict([])
+        configs = sorted(configs_from_name[name], key=lambda c: c['k'])
+        ks = [config['k'] for config in configs]
+        means = np.array([np.mean(successes[config]) for config in configs])
+        stds = np.array([np.std(successes[config]) for config in configs])
         widths = scale * stds  # standard deviation
         # TODO: standard error (confidence interval)
         # from learn_tools.active_learner import tail_confidence
@@ -389,14 +400,15 @@ def plot_successes(configs_from_name, successes, scale=1.):
     #     print('Saved', figure_path)
     plt.show()
 
-def plot_runtimes(configs_from_name, runtimes, scale=1.):
+def plot_runtimes(configs_from_name, runtimes, scale=0.):
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
     for name in configs_from_name:
-        ks = [config['k'] for config in configs_from_name[name]]
-        means = np.array([np.mean(runtimes[config]) for config in configs_from_name[name]])
-        stds = np.array([np.std(runtimes[config]) for config in configs_from_name[name]])
+        configs = sorted(configs_from_name[name], key=lambda c: c['k'])
+        ks = [config['k'] for config in configs]
+        means = np.array([np.mean(runtimes[config]) for config in configs])
+        stds = np.array([np.std(runtimes[config]) for config in configs])
         widths = scale * stds  # standard deviation
         plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
         plt.plot(ks, means, 'o-', label=name)
@@ -414,10 +426,14 @@ def plot_runtimes(configs_from_name, runtimes, scale=1.):
 def main():
     assert get_python_version() == 3
     parser = argparse.ArgumentParser()
-    #parser.add_argument('-v', '--visualize', action='store_true')
+    parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
-    with Profiler():
-        solve_pddlstream()
+    if args.experiment is None:
+        with Profiler():
+            solve_pddlstream()
+    else:
+        results = read_json(args.experiment)
+        analyze_results(results)
 
 if __name__ == '__main__':
     main()
