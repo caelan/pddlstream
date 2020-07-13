@@ -6,7 +6,7 @@ from collections import defaultdict, namedtuple
 
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, \
-    plan_preimage, fact_from_fd, USE_FORBID, pddl_from_instance
+    plan_preimage, fact_from_fd, USE_FORBID, pddl_from_instance, parse_action
 from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
@@ -270,8 +270,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
         return instantiated, None, pddl_plan, makespan
     instance_from_action_args = defaultdict(list)
     for instance in instantiated.actions:
-        tokens = instance.name.strip('()').split(' ')
-        name, args = tokens[0], tuple(tokens[1:])
+        name, args = parse_action(instance)
         instance_from_action_args[name, args].append(instance)
         #instance.action, instance.var_mapping
     action_instances = []
