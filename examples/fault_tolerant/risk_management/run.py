@@ -78,7 +78,7 @@ def get_large_benchmarks():
     # TODO: cannot solve the first 2501 instance and even some of the later 1001 instances
     return problem_paths
 
-def get_good_benchmarks(min_solutions=15):
+def get_benchmark_candidates():
     file_name = '20-07-08_22-44-40.json'
     results = read_json(os.path.join(EXPERIMENTS_DIR, file_name))
     #analyze_results(results)
@@ -87,6 +87,10 @@ def get_good_benchmarks(min_solutions=15):
         max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
     #for problem, num in sorted(max_solutions.items(), key=lambda pair: pair[1]):
     #    print(problem, num)
+    return dict(max_solutions)
+
+def get_good_benchmarks(min_solutions=15):
+    max_solutions = get_benchmark_candidates()
     good_problems = sorted(os.path.basename(problem) for problem, num in max_solutions.items() if num >= min_solutions)
     #for problem in sorted(good_problems):
     #    print(problem, max_solutions[problem])
@@ -321,6 +325,16 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     print(SEPARATOR)
     analyze_results(results)
 
+def get_named_configs(configs):
+    configs_from_name = defaultdict(list)
+    for config in configs:
+        #name = config['planner'] + ' ' + config['selector']
+        name = config['selector']
+        if (config['selector'] not in ['random', 'first']) and ('metric' in config):
+            name += ' ' + config['metric']
+        configs_from_name[name].append(config)
+    return configs_from_name
+
 def analyze_results(results):
     #planners = ['forbid'] #, 'kstar']
     selectors = ['random', 'greedy', 'exact']
@@ -355,15 +369,8 @@ def analyze_results(results):
         print('Probabilities:', successes[config])
         print('Runtimes:', runtimes[config])
 
-    configs_from_name = defaultdict(list)
-    for config in configs:
-        #name = config['planner'] + ' ' + config['selector']
-        name = config['selector']
-        if (config['selector'] not in ['random', 'first']) and ('metric' in config):
-            name += ' ' + config['metric']
-        configs_from_name[name].append(config)
-
     # TODO: combine these
+    configs_from_name = get_named_configs(configs)
     plot_successes(configs_from_name, successes)
     plot_runtimes(configs_from_name, runtimes)
 
@@ -426,6 +433,72 @@ def plot_runtimes(configs_from_name, runtimes, scale=0): #.25):
 
 ##################################################
 
+#ALPHA = None
+#EDGES = ['face', 'face', 'g', 'b']
+#COLORS = ['r', 'y', 'none', 'none']
+
+MARKERS = ['x', 'o', '+']
+EDGES = ['face', 'g', 'face', ] # C2
+#COLORS = ['C0', 'C1', 'none']
+#COLORS = ['c', 'y', 'none'] # m
+COLORS = ['r', 'none', 'b']
+
+# https://matplotlib.org/api/markers_api.html
+# https://matplotlib.org/2.0.2/api/colors_api.html
+
+def scatter_plot(results):
+    # TODO: analyze for a particular problem
+    import matplotlib.pyplot as plt
+    min_candidates, max_candidates = 15, 100
+    k = 6
+
+    #selectors = ['random', 'greedy', 'exact']
+    selectors = ['greedy'] #, 'exact']
+    metrics = ['p_success', 'stability', 'uniqueness']
+    #metrics = ['p_success']#, 'stability', 'uniqueness']
+
+    problem_candidates = get_benchmark_candidates()
+    print(problem_candidates)
+    good_problems = {problem for problem, num in problem_candidates.items()
+                     if min_candidates <= num <= max_candidates}
+    all_sizes = sorted({problem_candidates[problem] for problem in good_problems}) # Overlay multiple?
+    print('Sizes:', all_sizes)
+    plt.scatter(all_sizes, np.zeros(len(all_sizes)), marker='|', color='k') # black
+
+    results_from_config = defaultdict(list)
+    for result in results:
+        config = hashabledict(result['config'])
+        if (config['selector'] not in selectors) or (config['metric'] not in metrics):
+            continue
+        if (result['problem'] in good_problems) and (config['k'] == k):
+            results_from_config[config].append(result)
+
+    configs_from_name = get_named_configs(results_from_config)
+    for idx, name in enumerate(sorted(configs_from_name)):
+        for config in configs_from_name[name]:
+            sizes = []
+            runtimes = []
+            for result in results_from_config[config]:
+                #if result['success']:
+                sizes.append(problem_candidates[result['problem']])
+                runtimes.append(result['p_success'])
+            plt.scatter(sizes, runtimes, #marker=MARKERS[idx],
+                        #color=COLORS[idx], edgecolors=EDGES[idx],
+                        alpha=0.75, label=name)
+
+    plt.title('Selector Success')
+    #plt.xticks(range(1, max_size+1)) #, [get_index(problem) for problem in problems])
+    #plt.xlim([1, 1000]) #max(all_sizes)])
+    plt.xlabel('# candidates')
+    plt.ylabel('Probability of Success')
+    #plt.legend(loc='upper left')
+    plt.legend(loc='upper center')
+    #plt.savefig('test')
+    plt.show()
+    # logarithmic scale
+
+##################################################
+
 def main():
     assert get_python_version() == 3
     parser = argparse.ArgumentParser()
@@ -436,6 +509,7 @@ def main():
             solve_pddlstream()
     else:
         results = read_json(args.experiment)
+        #scatter_plot(results)
         analyze_results(results)
 
 if __name__ == '__main__':
