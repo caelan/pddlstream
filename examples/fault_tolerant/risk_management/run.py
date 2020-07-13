@@ -36,6 +36,7 @@ SERIAL = is_darwin()
 #SERIAL = False
 P_SUCCESSES = [0.9]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
+CANDIDATE_TIME = 10*60
 
 SMALL_RISK_DIR = 'smallprobs/'
 LARGE_RISK_DIR = 'risk-pddl/risk/'
@@ -192,7 +193,7 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def run_trial(inputs, candidate_time=10*60, n_simulations=10000):
+def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
     problem_path, constraints, config = inputs
@@ -323,10 +324,9 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
 def analyze_results(results):
     #planners = ['forbid'] #, 'kstar']
     selectors = ['random', 'greedy', 'exact']
-    metrics = ['p_success']#, 'stability', 'uniqueness']
-
-    selectors = ['random', 'greedy'] #, 'exact']
+    #selectors = ['random', 'greedy'] #, 'exact']
     metrics = ['p_success', 'stability', 'uniqueness']
+    #metrics = ['p_success']#, 'stability', 'uniqueness']
 
     problems = set()
     configs = set()
@@ -340,7 +340,7 @@ def analyze_results(results):
             continue
         configs.add(config)
         problems.add(result['problem'])
-        runtimes[config].append(result['runtime'])
+        runtimes[config].append(result['runtime'] - CANDIDATE_TIME)
         num_solutions[config].append(result['num_plans'])
         max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
         successes[config].append(result['p_success'])
@@ -367,16 +367,17 @@ def analyze_results(results):
     plot_successes(configs_from_name, successes)
     plot_runtimes(configs_from_name, runtimes)
 
-def plot_successes(configs_from_name, successes, scale=0.):
+def plot_successes(configs_from_name, successes, scale=0): # 0.25):
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
-    for name in configs_from_name:
-        #config_from_k = defaultdict([])
-        configs = sorted(configs_from_name[name], key=lambda c: c['k'])
-        ks = [config['k'] for config in configs]
-        means = np.array([np.mean(successes[config]) for config in configs])
-        stds = np.array([np.std(successes[config]) for config in configs])
+    for name in sorted(configs_from_name):
+        config_from_k = defaultdict(list)
+        for config in configs_from_name[name]:
+            config_from_k[config['k']].append(successes[config])
+        ks = sorted(config_from_k)
+        means = np.array([np.mean(config_from_k[k]) for k in ks])
+        stds = np.array([np.std(config_from_k[k]) for k in ks])
         widths = scale * stds  # standard deviation
         # TODO: standard error (confidence interval)
         # from learn_tools.active_learner import tail_confidence
@@ -400,15 +401,17 @@ def plot_successes(configs_from_name, successes, scale=0.):
     #     print('Saved', figure_path)
     plt.show()
 
-def plot_runtimes(configs_from_name, runtimes, scale=0.):
+def plot_runtimes(configs_from_name, runtimes, scale=0): #.25):
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
-    for name in configs_from_name:
-        configs = sorted(configs_from_name[name], key=lambda c: c['k'])
-        ks = [config['k'] for config in configs]
-        means = np.array([np.mean(runtimes[config]) for config in configs])
-        stds = np.array([np.std(runtimes[config]) for config in configs])
+    for name in sorted(configs_from_name):
+        config_from_k = defaultdict(list)
+        for config in configs_from_name[name]:
+            config_from_k[config['k']].append(runtimes[config])
+        ks = sorted(config_from_k)
+        means = np.array([np.mean(config_from_k[k]) for k in ks])
+        stds = np.array([np.std(config_from_k[k]) for k in ks])
         widths = scale * stds  # standard deviation
         plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
         plt.plot(ks, means, 'o-', label=name)
