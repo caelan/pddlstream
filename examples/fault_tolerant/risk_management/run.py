@@ -8,6 +8,7 @@ import time
 import random
 import numpy as np
 import sys
+import math
 import datetime
 
 from collections import defaultdict
@@ -325,6 +326,8 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     print(SEPARATOR)
     analyze_results(results)
 
+##################################################
+
 def get_named_configs(configs):
     configs_from_name = defaultdict(list)
     for config in configs:
@@ -335,12 +338,20 @@ def get_named_configs(configs):
         configs_from_name[name].append(config)
     return configs_from_name
 
-def analyze_results(results):
+def analyze_results(results, verbose=False):
     #planners = ['forbid'] #, 'kstar']
-    selectors = ['random', 'greedy', 'exact']
-    #selectors = ['random', 'greedy'] #, 'exact']
+    #selectors = ['random', 'greedy', 'exact']
+    selectors = ['random', 'greedy'] #, 'exact']
     metrics = ['p_success', 'stability', 'uniqueness']
     #metrics = ['p_success']#, 'stability', 'uniqueness']
+
+    # TODO: compare to best before or after filtering
+    best_successes = {}
+    for result in results:
+        best_successes[result['problem']] = max(result['p_success'],  best_successes.get(result['problem'], 0))
+
+    results = [result for result in results if (result['config']['selector'] in selectors)
+               and (result['config']['metric'] in metrics)]
 
     problems = set()
     configs = set()
@@ -350,31 +361,34 @@ def analyze_results(results):
     successes = defaultdict(list)
     for result in results:
         config = hashabledict(result['config'])
-        if (config['selector'] not in selectors) or (config['metric'] not in metrics):
-            continue
         configs.add(config)
         problems.add(result['problem'])
         runtimes[config].append(result['runtime'] - CANDIDATE_TIME)
         num_solutions[config].append(result['num_plans'])
         max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
-        successes[config].append(result['p_success'])
+        p_success = result['p_success']
+        #p_success = math.log(p_success)
+        p_success /= best_successes[result['problem']]
+        #p_success = 1/p_success
+        successes[config].append(p_success)
     #safe_rm_dir(PARALLEL_DIR)
 
-    print('Problems:', max_solutions)
-    print('Configs:', configs)
-    for i, config in enumerate(configs):
-        print('{}) {} | Num: {} | Mean Probability: {:.3f} | Mean Time: {:.3f}'.format(
-            i, config, len(successes[config]), np.mean(successes[config]), np.mean(runtimes[config])))
-        print('Num solutions:', num_solutions[config])
-        print('Probabilities:', successes[config])
-        print('Runtimes:', runtimes[config])
+    print('Problems ({}):'.format(len(max_solutions)), max_solutions)
+    print('Configs ({}):'.format(len(configs)), configs)
+    if verbose:
+        for i, config in enumerate(configs):
+            print('{}) {} | Num: {} | Mean Probability: {:.3f} | Mean Time: {:.3f}'.format(
+                i, config, len(successes[config]), np.mean(successes[config]), np.mean(runtimes[config])))
+            print('Num solutions:', num_solutions[config])
+            print('Probabilities:', successes[config])
+            print('Runtimes:', runtimes[config])
 
     # TODO: combine these
     configs_from_name = get_named_configs(configs)
     plot_successes(configs_from_name, successes)
     plot_runtimes(configs_from_name, runtimes)
 
-def plot_successes(configs_from_name, successes, scale=0): # 0.25):
+def plot_successes(configs_from_name, successes, scale=1.0): # 0.0 | 0.25 | 1.0
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
@@ -382,6 +396,7 @@ def plot_successes(configs_from_name, successes, scale=0): # 0.25):
         config_from_k = defaultdict(list)
         for config in configs_from_name[name]:
             config_from_k[config['k']].append(successes[config])
+            #config_from_k[config['k']].append(list(map(math.log, successes[config]))
         ks = sorted(config_from_k)
         means = np.array([np.mean(config_from_k[k]) for k in ks])
         stds = np.array([np.std(config_from_k[k]) for k in ks])
@@ -397,7 +412,8 @@ def plot_successes(configs_from_name, successes, scale=0): # 0.25):
     #plt.ylim(0, 1)
     plt.xlabel('K')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.ylabel('Probability of Success')
+    #plt.ylabel('Probability of Success')
+    plt.ylabel('Probability Performance Ratio')
     plt.grid()
     plt.legend(loc='best')
     plt.tight_layout()
