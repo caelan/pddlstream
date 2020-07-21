@@ -56,6 +56,30 @@ def pddl_from_expression(expression):
 
 ##################################################
 
+# Writing PDDL
+# https://github.mit.edu/search?l=Python&p=2&q=user%3Acaelan+user%3Acaelan+%22%3Arequirements%22&type=Code
+# https://github.mit.edu/caelan/ss/blob/4673395c011c2d2fa877234d10b3d1d5bf584548/ss/to_pddl.py
+# https://github.mit.edu/caelan/compact-planning/blob/6ae60a01f69eec93108773955e0463ea05f1e458/drp_pddl_2/dynamic_problem.py
+# https://github.mit.edu/caelan/stripstream/blob/c8c6cd1d6bd5e2e8e31cd5603e28a8e0d7bb2cdc/stripstream/algorithms/universe.py
+# https://github.mit.edu/caelan/ss/blob/4673395c011c2d2fa877234d10b3d1d5bf584548/ss/to_pddl.py
+
+# TODO: finish this
+# def pddl_domain(domain, constants, predicates, functions, actions, axioms):
+#     # Need types for tpshe
+#     # Need to declare constants here that are used in actions
+#     return '(define (domain {})\n' \
+#            '\t(:requirements :typing)\n' \
+#            '\t(:types {})\n' \
+#            '\t(:constants {})\n' \
+#            '\t(:predicates {})\n' \
+#            '\t(:functions {})\n' \
+#            '{})\n'.format(domain, DEFAULT_TYPE,
+#                           pddl_parameter(' '.join(sorted(constants))),
+#                           pddl_functions(predicates),
+#                           pddl_functions(functions),
+#                           '\n'.join(list(pddl_actions(actions)) +
+#                                     list(pddl_axioms(axioms))))
+
 def pddl_problem(problem, domain, evaluations, goal_expression, objective=None):
     objects = objects_from_evaluations(evaluations)
     s = '(define (problem {})\n' \

@@ -8,21 +8,22 @@ import time
 import datetime
 import sys
 
+from collections import defaultdict
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir
+from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object
 from pddlstream.language.external import defer_unique
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT
 from pddlstream.algorithms.search import solve_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
-from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
+from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
-
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale
+    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate
+#from pddlstream.language.write_pddl import get_problem_pddl
 
 P_SUCCESS = 0.9
 
@@ -69,7 +70,9 @@ INIT = """
 CLASSICAL_PATH = '/Users/caelan/Programs/domains/classical-domains/classical'
 # ls /Users/caelan/Programs/domains/classical-domains/classical/*-opt18
 
+DATA_NETWORK_PATH = os.path.join(CLASSICAL_PATH, 'data-network-opt18')
 TERMES_PATH = os.path.join(CLASSICAL_PATH, 'termes-opt18')
+
 #TERMES_PATH = '/Users/caelan/Documents/IBM/termes-opt18-strips-untyped'
 
 ##################################################
@@ -136,26 +139,56 @@ def get_problem():
 ##################################################
 
 def get_parse():
-    from examples.fault_tolerant.risk_management.run import fact_from_fd
+    import pddl
+    from pddl.pddl_types import _get_type_predicate_name
+    domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
+    problem_path = problem_paths[0]
+    #domain_path = get_file_path(__file__, 'domain.pddl')
+    #problem_path = get_file_path(__file__, 'problem.pddl')
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    domain_pddl = read(domain_path)
     domain = parse_sequential_domain(domain_pddl)
-    #print(domain)
+
+    for action in domain.actions:
+        new_parameters = []
+        new_preconditions = []
+        for parameter in action.parameters:
+            new_parameters.append(pddl.TypedObject(parameter.name, OBJECT))
+            new_preconditions.append(parameter.get_atom())
+        action.parameters = new_parameters # Not necessary
+        action.precondition = pddl.Conjunction([action.precondition] + new_preconditions).simplified()
+
+    # for ty in domain.types:
+    #     #pddl._get_type_predicate_name
+    #     name = _get_type_predicate_name(ty.name)
+    #     predicate = make_predicate(name, '?o')
+    #     domain.predicates.append(predicate)
+    #     domain.predicate_dict[name] = predicate
+
+    domain.types.clear()
+    domain.type_dict.clear()
+    object_type = pddl.Type(OBJECT, basetype_name=None)
+    object_type.supertype_names = []
+    domain.types.append(object_type)
+    domain.type_dict[object_type.name] = object_type
+
+    assert not domain.axioms
+    domain_pddl = domain
 
     assert not domain.constants
     constant_map = {}
 
-    problem_pddl = read(get_file_path(__file__, 'problem.pddl'))
+    problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
 
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-    #stream_pddl = None
+    stream_pddl = None
     stream_map = DEBUG
 
-    init = [Fact(obj.type_name, [obj.name]) for obj in problem.objects] \
-           + list(map(fact_from_fd, problem.init))
+    initial = problem.init + [obj.get_atom() for obj in problem.objects]
+    init = list(map(fact_from_fd, initial))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
     # TODO: throw error is not a conjunction
 
@@ -241,7 +274,7 @@ def solve_trial(inputs, planner='forbid', max_time=1*10):
     return inputs, outputs
 
 def solve_pddl():
-    # No restriction to be untyped
+    # No restriction to be untyped here
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=INF) # kstar
 
@@ -279,14 +312,26 @@ def solve_pddl():
 
 def main():
     parser = argparse.ArgumentParser()
-    #parser.add_argument('-v', '--visualize', action='store_true')
+    parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
-    #solve_pddlstream()
-    solve_pddl()
+    if args.experiment is None:
+        solve_pddlstream()
+        #solve_pddl()
+    else:
+        counter = defaultdict(int)
+        results = read_json(args.experiment)
+        for result in results:
+            if result['num_plans'] >= 10:
+                print(result['num_plans'], result['problem_path'])
+                counter[result['domain_path']] += 1
+        print(str_from_object(counter))
+        # for key in sorted(counter):
+        #     print(counter[key], key)
 
 if __name__ == '__main__':
     main()
 
+# TODO: extend PDDLStream to support typing directly
 
 # https://github.com/AI-Planning/classical-domains/tree/master/classical/data-network-opt18
 # TODO: load the initial state from a problem file

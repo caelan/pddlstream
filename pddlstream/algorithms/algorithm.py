@@ -93,7 +93,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
         #assert isinstance(domain, str) # raw PDDL is returned
         _ = {name: Object(value, name=name) for name, value in constant_map.items()}
         return evaluations, goal_exp, domain, streams
-    if len(domain.types) != 1:
+    if len(domain.types) != 1: # TODO: ensure OBJECT type
         raise NotImplementedError('Types are not currently supported')
     if unit_costs:
         set_unit_costs(domain)

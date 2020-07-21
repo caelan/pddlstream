@@ -10,7 +10,7 @@ import sys
 from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
-    parse_sequential_domain, get_conjunctive_parts, write_pddl
+    parse_sequential_domain, get_conjunctive_parts, write_pddl, Domain
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
@@ -427,6 +427,8 @@ def parse_temporal_domain(domain_pddl):
 DURATIVE_ACTIONS = ':durative-actions'
 
 def parse_domain(domain_pddl):
+    if isinstance(domain_pddl, Domain):
+        return domain_pddl
     try:
         return parse_sequential_domain(domain_pddl)
     except AssertionError as e:
