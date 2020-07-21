@@ -252,6 +252,16 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
 
     return inputs, outputs
 
+def create_generator(fn, jobs):
+    if SERIAL:
+        generator = map(fn, jobs)
+    else:
+        num_cores = clip(int(cpu_count()-4), min_value=1, max_value=len(jobs))
+        print('Using {}/{} cores'.format(num_cores, cpu_count()))
+        pool = Pool(processes=num_cores)  # , initializer=mute)
+        generator = pool.imap_unordered(fn, jobs, chunksize=1)
+    return generator
+
 def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwargs):
     total_time = time.time()
     set_cost_scale(1)
@@ -296,14 +306,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
 
     jobs = [(problem_path, constraints, config) for _ in range(n_trials)
             for problem_path in problem_paths for config in configs]
-
-    if SERIAL:
-        generator = map(run_trial, jobs)
-    else:
-        num_cores = clip(int(cpu_count()-4), min_value=1, max_value=len(jobs))
-        print('Using {}/{} cores'.format(num_cores, cpu_count()))
-        pool = Pool(processes=num_cores)  # , initializer=mute)
-        generator = pool.imap_unordered(run_trial, jobs, chunksize=1)
+    generator = create_generator(run_trial, jobs)
 
     ensure_dir(EXPERIMENTS_DIR)
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
