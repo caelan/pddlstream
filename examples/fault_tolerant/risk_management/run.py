@@ -322,7 +322,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         if not is_darwin():
             #write_pickle(file_name, results)
             write_json(file_name, results)
-        print('Wrote {}'.format(file_name))
+            print('Wrote {}'.format(file_name))
     print(SEPARATOR)
     analyze_results(results)
 
