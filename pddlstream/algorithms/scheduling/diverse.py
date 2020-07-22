@@ -209,15 +209,20 @@ def diverse_subset(externals, combined_plans, diverse, **kwargs):
     combined_plans = prune_dominated(externals, combined_plans)
     k = diverse['k']
     assert 1 <= k
-    if len(combined_plans) <= k:
-        return combined_plans
     selector = diverse['selector']
-    if selector == 'random':
-        return random_subset(externals, combined_plans, diverse, **kwargs)
-    if selector == 'first':
-        return first_k(externals, combined_plans, diverse, **kwargs)
-    if selector == 'greedy':
-        return greedy_diverse_subset(externals, combined_plans, diverse, **kwargs)
-    if selector == 'exact':
-        return exact_diverse_subset(externals, combined_plans, diverse, **kwargs)
-    raise ValueError(selector)
+    if len(combined_plans) <= k:
+        subset_plans = combined_plans
+    elif selector == 'random':
+        subset_plans = random_subset(externals, combined_plans, diverse, **kwargs)
+    elif selector == 'first':
+        subset_plans = first_k(externals, combined_plans, diverse, **kwargs)
+    elif selector == 'greedy':
+        subset_plans = greedy_diverse_subset(externals, combined_plans, diverse, **kwargs)
+    elif selector == 'exact':
+        subset_plans = exact_diverse_subset(externals, combined_plans, diverse, **kwargs)
+    else:
+        raise ValueError(selector)
+    stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
+    p = score(stream_plans, diverse)
+    print('k={} | n={} | p={:.3f}'.format(k, len(subset_plans), p))
+    return subset_plans

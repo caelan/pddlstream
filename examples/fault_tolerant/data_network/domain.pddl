@@ -24,6 +24,7 @@
 (:predicates
     (SCRIPT-IO ?s - script ?in1 - data ?in2 - data ?out - data)
     (CONNECTED ?from - server ?to - server)
+    (ONLINE ?from - server ?to - server)
     (DATA-SIZE ?d - data ?n - numbers)
     (CAPACITY ?s - server ?n - numbers)
     (SUM ?n1 - numbers ?n2 - numbers ?sum - numbers)
@@ -99,7 +100,8 @@
     :parameters (?d - data ?from ?to - server ?size ?limit ?before ?after - numbers)
     :precondition
     (and
-        (CONNECTED ?from ?to)
+        ;(CONNECTED ?from ?to)
+        (ONLINE ?from ?to)
         (DATA-SIZE ?d ?size)
         (CAPACITY ?to ?limit)
         (SUM ?before ?size ?after)

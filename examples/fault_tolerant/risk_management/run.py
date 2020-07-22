@@ -267,18 +267,18 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     set_cost_scale(1)
     n_problems = INF # 1 | INF
     min_k, max_k = 2, 10 # Start with min_k >= 2
-    #max_k = min_k # INF
+    max_k = min_k # INF
 
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
 
-    #problem_paths = get_small_benchmarks() + get_large_benchmarks()
-    problem_paths = get_good_benchmarks()
+    problem_paths = get_small_benchmarks() + get_large_benchmarks()
+    #problem_paths = get_good_benchmarks()
     #problem_paths = extract_benchmarks(sizes=range(0, 5)) # 0 | 1
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
-    indices = range(n_problems)
-    #indices = [0] # 0 | -1
+    #indices = range(n_problems)
+    indices = [0] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -288,13 +288,13 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['forbid'] # dijkstra | forbid | kstar
+    planners = ['symk'] # dijkstra | forbid | kstar | symk
     selectors = ['first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    planners = ['forbid'] #, 'kstar']
-    selectors = ['random', 'greedy', 'exact'] #,'first']
-    metrics = ['p_success', 'stability', 'uniqueness']
+    #planners = ['forbid'] #, 'kstar']
+    #selectors = ['random', 'greedy', 'exact'] #,'first']
+    #metrics = ['p_success', 'stability', 'uniqueness']
 
     ks = [min_k] if min_k == max_k else list(range(min_k, 1+max_k))
     configs = [{'planner': planner, 'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
@@ -327,7 +327,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
             write_json(file_name, results)
             print('Wrote {}'.format(file_name))
     print(SEPARATOR)
-    analyze_results(results)
+    analyze_results(results, visualize=not SERIAL)
 
 ##################################################
 
@@ -341,7 +341,7 @@ def get_named_configs(configs):
         configs_from_name[name].append(config)
     return configs_from_name
 
-def analyze_results(results, verbose=False):
+def analyze_results(results, visualize=True, verbose=False):
     #planners = ['forbid'] #, 'kstar']
     #selectors = ['random', 'greedy', 'exact']
     selectors = ['random', 'greedy'] #, 'exact']
@@ -387,9 +387,10 @@ def analyze_results(results, verbose=False):
             print('Runtimes:', runtimes[config])
 
     # TODO: combine these
-    configs_from_name = get_named_configs(configs)
-    plot_successes(configs_from_name, successes)
-    plot_runtimes(configs_from_name, runtimes)
+    if visualize:
+        configs_from_name = get_named_configs(configs)
+        plot_successes(configs_from_name, successes)
+        plot_runtimes(configs_from_name, runtimes)
 
 def plot_successes(configs_from_name, successes, scale=1.0): # 0.0 | 0.25 | 1.0
     import matplotlib.pyplot as plt
