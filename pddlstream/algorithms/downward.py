@@ -14,7 +14,7 @@ from pddlstream.utils import read, write, INF, get_file_path, MockSet, find_uniq
     safe_remove, safe_zip, ensure_dir, safe_rm_dir, implies, get_python_version, elapsed_time, safe_listdir
 from pddlstream.language.write_pddl import get_problem_pddl
 
-DIVERSE_PLANNERS = ['forbid', 'kstar']
+DIVERSE_PLANNERS = ['forbid', 'kstar', 'symk']
 
 #CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
 #CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
@@ -53,6 +53,14 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
                   '--search "kstar(blind(),q={max_cost},k={num_plans},max_time={max_time})"' # ,bound={max_cost}
 # blind, hmax, lmcut
+
+##################################################
+
+# https://github.com/speckdavid/symk
+SYMK_TEMPLATE = './fast-downward.py {domain} {problem} ' \
+                '--search "symq-bd(plan_selection=unordered(num_plans={num_plans}),quality={max_cost})"'
+# Quality 1<=q<=infinity is a multiplier that is multiplied to the cost of the cheapest solution.
+# For example, q=1 reports only the cheapest plans, where quality=infinity corresponds to the top-k planning.
 
 ##################################################
 
@@ -418,6 +426,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         command = os.path.join(os.environ['KSTAR_PATH'], KSATAR_TEMPLATE).format(
             domain=domain_path, problem=problem_path, num_plans=100, # TODO: num_plans
             max_time=max_planner_time, max_cost=max_cost)
+    elif planner == 'symk':
+        path = '/Users/caelan/Programs/external/IBM/symk'
+        #path = os.environ['SYMK_PATH']
+        command = os.path.join(path, SYMK_TEMPLATE).format(
+            domain=domain_path, problem=problem_path,
+            num_plans=100, max_cost=max_cost) # TODO: num_plans
     # elif planner == 'cerberus':
     #     planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
     #     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
@@ -470,7 +484,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         for filename in safe_listdir(forbid_plans_path): # Copies plans from forbid to temp
             if filename.startswith(SEARCH_OUTPUT):
                 os.rename(os.path.join(forbid_plans_path, filename), os.path.join(temp_dir, filename))
-    elif planner == 'kstar':
+    elif planner in ['kstar', 'symk']:
         for filename in safe_listdir(diverse_plans_path):
             if filename.startswith(SEARCH_OUTPUT):
                 os.rename(os.path.join(diverse_plans_path, filename), os.path.join(temp_dir, filename))
