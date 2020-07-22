@@ -59,6 +59,7 @@ KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
 # https://github.com/speckdavid/symk
 SYMK_TEMPLATE = './fast-downward.py {domain} {problem} ' \
                 '--search "symq-bd(plan_selection=unordered(num_plans={num_plans}),quality={max_cost})"'
+# plan_selection=top_k, plan_selection=unordered
 # Quality 1<=q<=infinity is a multiplier that is multiplied to the cost of the cheapest solution.
 # For example, q=1 reports only the cheapest plans, where quality=infinity corresponds to the top-k planning.
 
@@ -417,21 +418,22 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_dir, filename))
 
+    num_plans = 1000 # TODO: pass in through planner
     if planner == 'forbid':
         assert max_planner_time < INF
         command = os.path.join(os.environ['FORBID_PATH'], FORBID_TEMPLATE).format(
-            max_time=max_planner_time, max_cost=max_cost, #num_plans=10, max_plans=20,
+            max_time=max_planner_time, max_cost=max_cost, #num_plans=num_plans, max_plans=20,
             domain=domain_path, problem=problem_path)
     elif planner == 'kstar':
         command = os.path.join(os.environ['KSTAR_PATH'], KSATAR_TEMPLATE).format(
-            domain=domain_path, problem=problem_path, num_plans=100, # TODO: num_plans
+            domain=domain_path, problem=problem_path, num_plans=num_plans,
             max_time=max_planner_time, max_cost=max_cost)
     elif planner == 'symk':
         path = '/Users/caelan/Programs/external/IBM/symk'
         #path = os.environ['SYMK_PATH']
         command = os.path.join(path, SYMK_TEMPLATE).format(
             domain=domain_path, problem=problem_path,
-            num_plans=100, max_cost=max_cost) # TODO: num_plans
+            num_plans=num_plans, max_cost=max_cost)
     # elif planner == 'cerberus':
     #     planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
     #     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
@@ -496,7 +498,8 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
             print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', elapsed_time(start_time))
 
-    plan_files = sorted(f for f in safe_listdir(temp_dir) if f.startswith(SEARCH_OUTPUT))
+    plan_files = sorted((f for f in safe_listdir(temp_dir) if f.startswith(SEARCH_OUTPUT)),
+                        key=lambda f: int(f.split('.')[1]))
     print('Plans:', plan_files)
     return parse_solutions(temp_dir, plan_files)
 

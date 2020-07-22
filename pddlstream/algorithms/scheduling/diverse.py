@@ -7,7 +7,7 @@ import time
 import random
 
 from pddlstream.utils import INF, elapsed_time, find_unique, randomize
-from pddlstream.language.constants import str_from_plan, StreamAction
+from pddlstream.language.constants import str_from_plan, StreamAction, print_plan
 
 
 def p_conjunction(stream_plans):
@@ -206,6 +206,10 @@ def diverse_subset(externals, combined_plans, diverse, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
     if not diverse:
         return combined_plans[:1]
+    # for i, combined_plan in enumerate(combined_plans):
+    #     stream_plan, opt_plan, cost = combined_plan
+    #     print('\n{}) cost={:.0f}, length={}'.format(i, cost, len(opt_plan.action_plan)))
+    #     print_plan(opt_plan.action_plan)
     combined_plans = prune_dominated(externals, combined_plans)
     k = diverse['k']
     assert 1 <= k

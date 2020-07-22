@@ -8,15 +8,17 @@ import time
 import datetime
 import sys
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset
 from collections import defaultdict
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object
+from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object, \
+    write_pickle, read_pickle
 from pddlstream.language.external import defer_unique
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT, \
+    get_prefix, get_function
 from pddlstream.algorithms.search import solve_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, fact_from_fd
@@ -68,7 +70,7 @@ def int_from_str(s):
 def get_problem():
     # TODO: filter out problems that are reorderings
     import pddl
-    index = 0
+    index = 10 # 0 | 10
     domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
     problem_path = problem_paths[index]
     domain_path = get_file_path(__file__, 'domain.pddl')
@@ -137,23 +139,37 @@ def get_problem():
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
+def for_optimization(problem):
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    # TODO: compile functions into a lookup table
+    stream_predicates = ['less-equal', 'sum', ] # send-cost, io-cost
+    new_init = [init for fact in init if get_function(fact) not in stream_predicates]
+    raise NotImplementedError()
+
 ##################################################
 
 def solve_pddlstream(n_trials=1):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     set_cost_scale(1)
-    constraints = PlanConstraints(max_cost=INF) # kstar
+    constraints = PlanConstraints(max_cost=100) # kstar
 
-    planner = 'forbid' # forbid | kstar
+    # TODO: combine with the number of candidates
+    planner = 'symk' # forbid | kstar | symk
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
+    # TODO: sum sampling function
     stream_info = {
-        'test-less_equal': StreamInfo(eager=True, p_success=0),
-        'test-sum': StreamInfo(eager=True, p_success=0), # TODO: p_success=lambda x: 0.5
+        # Also used for subtraction TODO: make two of these
+        # Make a subtraction and addition one
+        # Make a stream that makes ?size samplers bounding by the capacity of the problem
+        'test-sum': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),  # TODO: p_success=lambda x: 0.5
+        # Better to use little space
+        'test-less_equal': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),
         'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
     problem = get_problem()
+    #for_optimization(problem)
     dump_pddlstream(problem)
 
     successes = 0.
@@ -163,7 +179,7 @@ def solve_pddlstream(n_trials=1):
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None, debug=True,
-                                  planner=planner, max_planner_time=1*10, diverse=diverse,
+                                  planner=planner, max_planner_time=6*60, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -252,6 +268,8 @@ def solve_pddl():
             write_json(file_name, results)
             print('Wrote {}'.format(file_name))
 
+# TODO: pickle the solutions to reuse later
+# NOTE: these diversity figures do not count the stream plan
 # {/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl: 12,
 #  /home/caelan/Programs/domains/classical-domains/classical/caldera-split-opt18/domain.pddl: 11,
 #  /home/caelan/Programs/domains/classical-domains/classical/data-network-opt18/domain.pddl: 10,
@@ -267,14 +285,14 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        solve_pddlstream()
-        #solve_pddl()
+        #solve_pddlstream()
+        solve_pddl()
     else:
         counter = defaultdict(int)
         results = read_json(args.experiment)
-        for result in results:
+        for result in sorted(results, key=lambda r: r['problem_path']):
             if result['num_plans'] >= 10:
-                print(result['num_plans'], result['problem_path'])
+                print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'], result['problem_path']))
                 counter[result['domain_path']] += 1
         print(str_from_object(counter))
         # for key in sorted(counter):
