@@ -179,7 +179,7 @@ def solve_pddlstream(n_trials=1):
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None, debug=True,
-                                  planner=planner, max_planner_time=6*60, diverse=diverse,
+                                  planner=planner, max_planner_time=10*60, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -194,7 +194,7 @@ def solve_pddlstream(n_trials=1):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='forbid', max_time=1*10):
+def solve_trial(inputs, planner='symk', max_time=1*60):
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -210,19 +210,24 @@ def solve_trial(inputs, planner='forbid', max_time=1*10):
         ensure_dir(trial_wd)
         os.chdir(trial_wd)
 
-    domain_pddl, problem_pddl = read(domain_path), read(problem_path)
-    start_time = time.time()
-    solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
-                                max_planner_time=max_time, max_cost=INF, debug=True)
     outputs = dict(inputs)
-    outputs.update({'planner': planner, 'max_time': max_time,
-                    'runtime': elapsed_time(start_time), 'num_plans': len(solutions)})
+    outputs['error'] = False
+    try:
+        domain_pddl, problem_pddl = read(domain_path), read(problem_path)
+        start_time = time.time()
+        solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
+                                    max_planner_time=max_time, max_cost=INF, debug=True)
+        outputs.update({'planner': planner, 'max_time': max_time,
+                        'runtime': elapsed_time(start_time), 'num_plans': len(solutions)})
+    except:
+        outputs['error'] = True
 
     evaluations = []
     for i, (plan, cost) in enumerate(solutions):
         print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
         solution = (plan, cost, evaluations)
         print_solution(solution)
+        #break
 
     if not SERIAL:
         os.chdir(current_wd)
@@ -253,6 +258,12 @@ def solve_pddl():
         for problem_path in problem_paths:
             print(domain_path, problem_path)
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
+
+    problem = {
+        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
+        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl'
+    }
+    problems = [problem]
     print(problems)
     generator = create_generator(solve_trial, problems)
 
@@ -278,6 +289,19 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
+def analyze_experiment(experiment_path):
+    counter = defaultdict(int)
+    results = read_json(experiment_path)
+    for result in sorted(results, key=lambda r: r['problem_path']):
+        if result['num_plans'] >= 10:
+            print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'],
+                                              result['problem_path']))  # result['domain_path']
+            counter[result['domain_path']] += 1
+    print(str_from_object(counter))
+    print('{} domains, {} problems'.format(len(counter), sum(counter.values())))
+    # for key in sorted(counter):
+    #     print(counter[key], key)
+
 ##################################################
 
 def main():
@@ -288,15 +312,7 @@ def main():
         #solve_pddlstream()
         solve_pddl()
     else:
-        counter = defaultdict(int)
-        results = read_json(args.experiment)
-        for result in sorted(results, key=lambda r: r['problem_path']):
-            if result['num_plans'] >= 10:
-                print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'], result['problem_path']))
-                counter[result['domain_path']] += 1
-        print(str_from_object(counter))
-        # for key in sorted(counter):
-        #     print(counter[key], key)
+        analyze_experiment(args.experiment)
 
 if __name__ == '__main__':
     main()
