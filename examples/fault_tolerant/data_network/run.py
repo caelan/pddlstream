@@ -30,7 +30,11 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 
 P_SUCCESS = 0.9
 
-CLASSICAL_PATH = '/home/caelan/Programs/domains/classical-domains/classical'
+# TODO: handle more generically
+if is_darwin():
+    CLASSICAL_PATH = '/Users/caelan/Programs/domains/classical-domains/classical'
+else:
+    CLASSICAL_PATH = '/home/caelan/Programs/domains/classical-domains/classical'
 # ls /Users/caelan/Programs/domains/classical-domains/classical/*-opt18
 
 DATA_NETWORK_PATH = os.path.join(CLASSICAL_PATH, 'data-network-opt18')
@@ -40,9 +44,14 @@ TERMES_PATH = os.path.join(CLASSICAL_PATH, 'termes-opt18')
 
 ##################################################
 
+def list_paths(directory):
+    if not os.path.exists(directory):
+        return []
+    return [os.path.join(directory, f) for f in sorted(os.listdir(directory))]
+
 def get_optimal_benchmarks():
     directory = CLASSICAL_PATH
-    return {os.path.join(directory, f) for f in sorted(os.listdir(directory))} #if f.endswith('-opt18')}
+    return sorted({p for p in list_paths(directory) if os.path.isdir(p)}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
     pddl_files = {os.path.join(directory, f) for f in sorted(os.listdir(directory)) if f.endswith('.pddl')}
@@ -194,7 +203,7 @@ def solve_pddlstream(n_trials=1):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='symk', max_time=1*60):
+def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -225,7 +234,7 @@ def solve_trial(inputs, planner='symk', max_time=1*60):
         print(e)
 
     evaluations = []
-    for i, (plan, cost) in enumerate(solutions):
+    for i, (plan, cost) in enumerate(solutions[:max_printed]):
         print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
         solution = (plan, cost, evaluations)
         print_solution(solution)
@@ -261,11 +270,11 @@ def solve_pddl():
             print(domain_path, problem_path)
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
-    problem = {
-        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
-        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl'
-    }
-    problems = [problem]
+    # problem = {
+    #     'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
+    #     'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl'
+    # }
+    # problems = [problem]
     print(problems)
     generator = create_generator(solve_trial, problems)
 
@@ -276,7 +285,7 @@ def solve_pddl():
     results = []
     for inputs, outputs in generator:
         results.append(outputs)
-        if not SERIAL:
+        if not SERIAL: # TODO: only if is above a threshold
             #write_pickle(file_name, results)
             write_json(file_name, results)
             print('Wrote {}'.format(file_name))
@@ -291,11 +300,12 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
-def analyze_experiment(experiment_path):
+def analyze_experiment(experiment_path, min_plans=10):
     counter = defaultdict(int)
     results = read_json(experiment_path)
     for result in sorted(results, key=lambda r: r['problem_path']):
-        if result['num_plans'] >= 10:
+        #error = result.get('error', False)
+        if result['num_plans'] >= min_plans:
             print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'],
                                               result['problem_path']))  # result['domain_path']
             counter[result['domain_path']] += 1
