@@ -1,0 +1,490 @@
+[
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p11.pddl",
+    "runtime": 13.95151162147522
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p01.pddl",
+    "runtime": 20.458651304244995
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 124,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p13.pddl",
+    "runtime": 60.42968797683716
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 39,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p03.pddl",
+    "runtime": 60.59252715110779
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 164,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p12.pddl",
+    "runtime": 60.67683529853821
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 26,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p14.pddl",
+    "runtime": 60.7925865650177
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 297,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p02.pddl",
+    "runtime": 61.1590678691864
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 40,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p04.pddl",
+    "runtime": 61.28073978424072
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 5,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p15.pddl",
+    "runtime": 61.94264197349548
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p17.pddl",
+    "runtime": 62.800429582595825
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p20.pddl",
+    "runtime": 62.906256437301636
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 2,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p16.pddl",
+    "runtime": 63.410600662231445
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 6,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p05.pddl",
+    "runtime": 63.6706166267395
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p18.pddl",
+    "runtime": 64.26021790504456
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p07.pddl",
+    "runtime": 64.38096880912781
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p10.pddl",
+    "runtime": 64.92535638809204
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p19.pddl",
+    "runtime": 64.95150709152222
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 2,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p06.pddl",
+    "runtime": 65.8185076713562
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p08.pddl",
+    "runtime": 65.84654188156128
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/nomystery-opt11-strips/p09.pddl",
+    "runtime": 67.9823112487793
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p01.pddl",
+    "runtime": 74.355544090271
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl",
+    "runtime": 10.526854515075684
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p02.pddl",
+    "runtime": 76.28267168998718
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p04.pddl",
+    "runtime": 78.24940919876099
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p03.pddl",
+    "runtime": 78.4712724685669
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p03.pddl",
+    "runtime": 16.773952960968018
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p05.pddl",
+    "runtime": 73.80463695526123
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p02.pddl",
+    "runtime": 26.185340881347656
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p06.pddl",
+    "runtime": 90.57536816596985
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 648,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p04.pddl",
+    "runtime": 60.530951499938965
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 288,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p05.pddl",
+    "runtime": 63.01728630065918
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 144,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p07.pddl",
+    "runtime": 61.89299440383911
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 552,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p06.pddl",
+    "runtime": 63.68107533454895
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 288,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p08.pddl",
+    "runtime": 61.334349155426025
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p10.pddl",
+    "runtime": 64.21750950813293
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p09.pddl",
+    "runtime": 71.84514594078064
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p07.pddl",
+    "runtime": 92.0988621711731
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p08.pddl",
+    "runtime": 95.52513408660889
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p11.pddl",
+    "runtime": 69.10691428184509
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p12.pddl",
+    "runtime": 67.8664927482605
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p09.pddl",
+    "runtime": 99.84072375297546
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p10.pddl",
+    "runtime": 103.18269205093384
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-10-0.pddl",
+    "runtime": 19.290250778198242
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p16.pddl",
+    "runtime": 113.72477912902832
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p17.pddl",
+    "runtime": 117.16206669807434
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p13.pddl",
+    "runtime": 71.82113122940063
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p18.pddl",
+    "runtime": 119.19891381263733
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p11.pddl",
+    "runtime": 124.97911763191223
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p19.pddl",
+    "runtime": 124.55521035194397
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p12.pddl",
+    "runtime": 129.46715378761292
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p20.pddl",
+    "runtime": 129.93167901039124
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-10-2.pddl",
+    "runtime": 41.616737842559814
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p13.pddl",
+    "runtime": 137.70151615142822
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p14.pddl",
+    "runtime": 77.4780387878418
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 1000,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-11-2.pddl",
+    "runtime": 44.28243374824524
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p14.pddl",
+    "runtime": 146.80689024925232
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p16.pddl",
+    "runtime": 77.6439905166626
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 840,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-10-1.pddl",
+    "runtime": 60.44472408294678
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/domain.pddl",
+    "max_time": 60,
+    "num_plans": 0,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/snake-sat18/p15.pddl",
+    "runtime": 154.43843936920166
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 644,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-11-0.pddl",
+    "runtime": 60.42845892906189
+  },
+  {
+    "domain_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl",
+    "max_time": 60,
+    "num_plans": 352,
+    "planner": "symk",
+    "problem_path": "/home/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-11-1.pddl",
+    "runtime": 60.37535858154297
+  }
+]

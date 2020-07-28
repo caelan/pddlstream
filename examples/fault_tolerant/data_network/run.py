@@ -30,7 +30,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 
 P_SUCCESS = 0.9
 
-CLASSICAL_PATH = '/Users/caelan/Programs/domains/classical-domains/classical'
+CLASSICAL_PATH = '/home/caelan/Programs/domains/classical-domains/classical'
 # ls /Users/caelan/Programs/domains/classical-domains/classical/*-opt18
 
 DATA_NETWORK_PATH = os.path.join(CLASSICAL_PATH, 'data-network-opt18')
@@ -42,7 +42,7 @@ TERMES_PATH = os.path.join(CLASSICAL_PATH, 'termes-opt18')
 
 def get_optimal_benchmarks():
     directory = CLASSICAL_PATH
-    return {os.path.join(directory, f) for f in sorted(os.listdir(directory)) if f.endswith('-opt18')}
+    return {os.path.join(directory, f) for f in sorted(os.listdir(directory))} #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
     pddl_files = {os.path.join(directory, f) for f in sorted(os.listdir(directory)) if f.endswith('.pddl')}
@@ -179,7 +179,7 @@ def solve_pddlstream(n_trials=1):
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None, debug=True,
-                                  planner=planner, max_planner_time=10*60, diverse=diverse,
+                                  planner=planner, max_planner_time=1*60, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -212,6 +212,7 @@ def solve_trial(inputs, planner='symk', max_time=1*60):
 
     outputs = dict(inputs)
     outputs['error'] = False
+    solutions = []
     try:
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
         start_time = time.time()
@@ -219,8 +220,9 @@ def solve_trial(inputs, planner='symk', max_time=1*60):
                                     max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({'planner': planner, 'max_time': max_time,
                         'runtime': elapsed_time(start_time), 'num_plans': len(solutions)})
-    except:
+    except Exception as e:
         outputs['error'] = True
+        print(e)
 
     evaluations = []
     for i, (plan, cost) in enumerate(solutions):
