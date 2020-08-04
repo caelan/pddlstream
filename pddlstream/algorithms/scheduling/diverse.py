@@ -16,6 +16,7 @@ def p_conjunction(stream_plans):
 
 def prune_dominated(externals, combined_plans):
     # TODO: could hash instead
+    # TODO: prune certain multi-set actions in the candidate generator
     print('Attempting to prune using {} plans'.format(len(combined_plans)))
     dominated = set()
     indices = list(range(len(combined_plans)))
@@ -44,7 +45,7 @@ def p_disjunction(stream_plans, diverse):
     # TODO: incorporate overhead
     # TODO: approximately compute by sampling outcomes
     # TODO: separate into connected components
-    # TODO: compute for low k and increment, prunning if upper bound is less than best lower bound
+    # TODO: compute for low k and increment, pruning if upper bound is less than best lower bound
     d = diverse.get('d', INF)
     d = min(len(stream_plans), d)
     assert (d % 2 == 1) or (d == len(stream_plans))
@@ -136,7 +137,7 @@ def extract_stream_plan(externals, combined_plan):
             for name, inputs, _ in stream_actions}
 
 def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
-    # TODO: lazy greedy submodular maximimization
+    # TODO: lazy greedy submodular maximization
     start_time = time.time()
     k = diverse['k']
     best_indices = set()

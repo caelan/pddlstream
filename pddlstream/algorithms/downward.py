@@ -51,8 +51,9 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 ##################################################
 
 KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
-                  '--search "kstar(blind(),q={max_cost},k={num_plans},max_time={max_time})"' # ,bound={max_cost}
+                  '--search "kstar(blind(),q={max_cost},k={num_plans},max_time={max_time},skip_reorderings=true)"' # ,bound={max_cost}
 # blind, hmax, lmcut
+# TODO: kstar segfaults on OS X occasionally
 
 ##################################################
 

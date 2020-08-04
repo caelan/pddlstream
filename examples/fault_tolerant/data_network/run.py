@@ -9,7 +9,7 @@ import datetime
 import sys
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test
 from pddlstream.algorithms.constraints import PlanConstraints
@@ -219,19 +219,28 @@ def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
         ensure_dir(trial_wd)
         os.chdir(trial_wd)
 
-    outputs = dict(inputs)
-    outputs['error'] = False
     solutions = []
+    outputs = dict(inputs)
+    outputs.update({
+        'planner': planner,
+        'max_time': max_time,
+        'error': True,
+        'num_plans': len(solutions),
+    })
+    start_time = time.time()
     try:
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
-        start_time = time.time()
         solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
                                     max_planner_time=max_time, max_cost=INF, debug=True)
-        outputs.update({'planner': planner, 'max_time': max_time,
-                        'runtime': elapsed_time(start_time), 'num_plans': len(solutions)})
+        outputs.update({
+            'error': False,
+            'num_plans': len(solutions),
+        })
     except Exception as e:
-        outputs['error'] = True
         print(e)
+    outputs.update({
+        'runtime': elapsed_time(start_time),
+    })
 
     evaluations = []
     for i, (plan, cost) in enumerate(solutions[:max_printed]):
@@ -300,19 +309,24 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
-def analyze_experiment(experiment_path, min_plans=10):
+def analyze_experiment(experiment_path, min_plans=10, verbose=False):
     counter = defaultdict(int)
     results = read_json(experiment_path)
+    planners = Counter(r.get('planner', None) for r in results)
+    print('Planners:', planners)
     for result in sorted(results, key=lambda r: r['problem_path']):
-        #error = result.get('error', False)
+        if result.get('error', False):
+            continue
         if result['num_plans'] >= min_plans:
-            print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'],
-                                              result['problem_path']))  # result['domain_path']
             counter[result['domain_path']] += 1
-    print(str_from_object(counter))
+            if verbose:
+                print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'],
+                                                  result['problem_path']))  # result['domain_path']
+    #print(str_from_object(counter))
+    print(SEPARATOR)
     print('{} domains, {} problems'.format(len(counter), sum(counter.values())))
-    # for key in sorted(counter):
-    #     print(counter[key], key)
+    for key in sorted(counter, key=counter.get):
+        print(counter[key], os.path.basename(os.path.dirname(key)))
 
 ##################################################
 
@@ -321,8 +335,8 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        #solve_pddlstream()
-        solve_pddl()
+        solve_pddlstream()
+        #solve_pddl()
     else:
         analyze_experiment(args.experiment)
 
