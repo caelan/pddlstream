@@ -7,7 +7,7 @@ import time
 import random
 
 from pddlstream.utils import INF, elapsed_time, find_unique, randomize
-from pddlstream.language.constants import str_from_plan, StreamAction, print_plan
+from pddlstream.language.constants import str_from_plan, StreamAction, print_plan, OptPlan
 
 
 def p_conjunction(stream_plans):
@@ -16,23 +16,38 @@ def p_conjunction(stream_plans):
 
 def prune_dominated_action_plans(combined_plans):
     # TODO: consider multi-sets
+    # TODO: more efficient trie-like data structure
     print('Attempting to prune using {} action plans'.format(len(combined_plans)))
     dominated = set()
     indices = list(range(len(combined_plans)))
-    for idx1, idx2 in permutations(indices, r=2):
+
+    start_time = time.time()
+    best_action_sets = {}
+    for idx in indices:
+        opt_plan, cost = combined_plans[idx][-2:]
+        action_set = frozenset(extract_action_plan(opt_plan))
+        if (action_set not in best_action_sets) or (cost < best_action_sets[action_set][0]):
+            best_action_sets[action_set] = (cost, idx)
+    best_indices = {idx for _, idx in best_action_sets.values()}
+    dominated.update(set(indices) - best_indices)
+    print('Pruned {}/{} reordered action plans in {:.3f} seconds'.format(
+        len(dominated), len(combined_plans), elapsed_time(start_time)))
+
+    start_time = time.time()
+    for idx1, idx2 in permutations(best_indices, r=2):
         if (idx1 in dominated) or (idx2 in dominated):
             continue
-        _, opt_plan1, cost1 = combined_plans[idx1]
-        action_plan1 = extract_action_plan(opt_plan1)
-        _, opt_plan2, cost2 = combined_plans[idx2]
-        action_plan2 = extract_action_plan(opt_plan2)
-        if (action_plan1 < action_plan2) or (action_plan1 == action_plan2 and cost1 <= cost2):
+        opt_plan1, cost1 = combined_plans[idx1][-2:]
+        action_set1 = extract_action_plan(opt_plan1)
+        opt_plan2, cost2 = combined_plans[idx2][-2:]
+        action_set2 = extract_action_plan(opt_plan2)
+        if (action_set1 < action_set2) or (action_set1 == action_set2 and cost1 <= cost2):
             dominated.add(idx2)
-    print('Pruned {}/{} action plans'.format(len(dominated), len(indices)))
+    print('Pruned {}/{} dominated action plans in {:.3f} seconds'.format(
+        len(dominated), len(combined_plans), elapsed_time(start_time)))
     return [combined_plans[idx] for idx in indices if idx not in dominated]
 
 def prune_dominated_stream_plans(externals, combined_plans):
-    # TODO: could hash instead
     # TODO: prune certain multi-set subsets in the candidate generator
     print('Attempting to prune using {} stream plans'.format(len(combined_plans)))
     dominated = set()
@@ -41,12 +56,12 @@ def prune_dominated_stream_plans(externals, combined_plans):
         if (idx1 in dominated) or (idx2 in dominated):
             continue
         _, _, cost1 = combined_plans[idx1]
-        stream_plans1 = extract_stream_plan(externals, combined_plans[idx1])
+        stream_set1 = extract_stream_plan(externals, combined_plans[idx1])
         _, _, cost2 = combined_plans[idx2]
-        stream_plans2 = extract_stream_plan(externals, combined_plans[idx2])
-        if (stream_plans1 < stream_plans2) or (stream_plans1 == stream_plans2 and cost1 <= cost2):
+        stream_set2 = extract_stream_plan(externals, combined_plans[idx2])
+        if (stream_set1 < stream_set2) or (stream_set1 == stream_set2 and cost1 <= cost2):
             dominated.add(idx2)
-        #print(len(stream_plans1), len(stream_plans2), len(stream_plans1 & stream_plans2), cost1, cost2)
+        #print(len(stream_set1), len(stream_plans2), len(stream_set1 & stream_plans2), cost1, cost2)
     print('Pruned {}/{} stream plans'.format(len(dominated), len(indices)))
     return [combined_plans[idx] for idx in indices if idx not in dominated]
 
@@ -146,7 +161,8 @@ def first_k(externals, combined_plans, diverse, **kwargs):
 ##################################################
 
 def extract_action_plan(opt_plan):
-    return {action for action in opt_plan.action_plan if not isinstance(action, StreamAction)}
+    action_plan = opt_plan.action_plan if isinstance(opt_plan, OptPlan) else opt_plan
+    return {action for action in action_plan if not isinstance(action, StreamAction)}
 
 def extract_stream_plan(externals, combined_plan):
     stream_plan, opt_plan, _ = combined_plan

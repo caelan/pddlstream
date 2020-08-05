@@ -8,7 +8,7 @@ import time
 import datetime
 import sys
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, prune_dominated_action_plans
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test
@@ -187,8 +187,9 @@ def solve_pddlstream(n_trials=1):
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
-                                  unit_costs=False, unit_efforts=False, effort_weight=None, debug=True,
-                                  planner=planner, max_planner_time=1*60, diverse=diverse,
+                                  unit_costs=False, unit_efforts=False, effort_weight=None,
+                                  debug=True, clean=False,
+                                  planner=planner, max_planner_time=1*10, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -219,26 +220,27 @@ def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
         ensure_dir(trial_wd)
         os.chdir(trial_wd)
 
-    solutions = []
+    all_solutions = []
     outputs = dict(inputs)
     outputs.update({
         'planner': planner,
         'max_time': max_time,
         'error': True,
-        'num_plans': len(solutions),
     })
     start_time = time.time()
     try:
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
-        solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
+        all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
                                     max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
             'error': False,
-            'num_plans': len(solutions),
         })
     except Exception as e:
         print(e)
+    solutions = prune_dominated_action_plans(all_solutions)
     outputs.update({
+        'all_plans': len(all_solutions),
+        'num_plans': len(solutions),
         'runtime': elapsed_time(start_time),
     })
 
@@ -276,15 +278,14 @@ def solve_pddl():
             continue
         #problem_paths = problem_paths[:1] # 0, -1
         for problem_path in problem_paths:
-            print(domain_path, problem_path)
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
-    # problem = {
+    # problems = [{
     #     'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
     #     'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl'
-    # }
-    # problems = [problem]
-    print(problems)
+    # }]
+    for i, problem in enumerate(problems):
+        print(i, problem)
     generator = create_generator(solve_trial, problems)
 
     ensure_dir(EXPERIMENTS_DIR)
@@ -335,8 +336,8 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        solve_pddlstream()
-        #solve_pddl()
+        #solve_pddlstream()
+        solve_pddl()
     else:
         analyze_experiment(args.experiment)
 
