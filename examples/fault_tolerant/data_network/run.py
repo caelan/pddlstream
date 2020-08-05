@@ -7,6 +7,7 @@ import os
 import time
 import datetime
 import sys
+import traceback
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, prune_dominated_action_plans
 from collections import defaultdict, Counter
@@ -19,7 +20,7 @@ from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir,
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT, \
     get_prefix, get_function
-from pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.algorithms.search import solve_from_pddl, diverse_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
@@ -204,7 +205,7 @@ def solve_pddlstream(n_trials=1):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
+def solve_trial(inputs, planner='ff-astar', max_time=1*60, max_printed=10):
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -230,13 +231,15 @@ def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
     start_time = time.time()
     try:
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
-        all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
-                                    max_planner_time=max_time, max_cost=INF, debug=True)
+        #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
+        #                                max_planner_time=max_time, max_cost=INF, debug=True)
+        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, max_time=10,
+                                          max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
             'error': False,
         })
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
     solutions = prune_dominated_action_plans(all_solutions)
     outputs.update({
         'all_plans': len(all_solutions),
@@ -244,6 +247,7 @@ def solve_trial(inputs, planner='symk', max_time=5*60, max_printed=10):
         'runtime': elapsed_time(start_time),
     })
 
+    print('Overall runtime:', elapsed_time(start_time))
     evaluations = []
     for i, (plan, cost) in enumerate(solutions[:max_printed]):
         print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
@@ -265,9 +269,6 @@ def solve_pddl():
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=INF) # kstar
 
-    #from examples.blocksworld.run import read_pddl
-    #domain_pddl, problem_pddl = read_pddl('domain.pddl'), read_pddl('problem.pddl') # Blocksworld
-
     directory_paths = get_optimal_benchmarks()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
     problems = []
@@ -280,10 +281,12 @@ def solve_pddl():
         for problem_path in problem_paths:
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
-    # problems = [{
-    #     'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
-    #     'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl'
-    # }]
+    problems = [{
+        #'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
+        #'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl',
+        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl',
+        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-5-0.pddl',
+    }]
     for i, problem in enumerate(problems):
         print(i, problem)
     generator = create_generator(solve_trial, problems)

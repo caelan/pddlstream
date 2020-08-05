@@ -122,7 +122,7 @@ SEARCH_OPTIONS = {
     'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
                  ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
     'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+                   ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
 
     # Suboptimal
     'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
@@ -440,14 +440,16 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
-        command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+        search_output = '{}.1'.format(SEARCH_OUTPUT)
+        command = search.format(temp_dir + search_output, planner_config, temp_dir + TRANSLATE_OUTPUT)
 
     # https://stackoverflow.com/questions/1689505/python-ulimit-and-nice-for-subprocess-call-subprocess-popen
     # https://serverfault.com/questions/540904/ulimit-n-not-persisting-tried-everything
     # https://stackoverflow.com/questions/57536172/cannot-call-ubuntu-ulimit-from-python-subprocess-without-using-shell-option
     # https://docs.python.org/3/library/resource.html
     # TODO: max memory
-    command = 'ulimit -t {}; {}'.format(max_planner_time, command)
+    limit = 'unlimited' if max_time == 'inf' else max_time
+    command = 'ulimit -t {}; {}'.format(limit, command)
     if debug:
         print('Search command:', command)
 

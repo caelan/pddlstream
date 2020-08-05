@@ -4,8 +4,9 @@ from copy import deepcopy
 from time import time
 
 from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
-from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl
-from pddlstream.utils import INF, Verbose, safe_rm_dir
+from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
+    parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl
+from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
 
 
 # TODO: manual_patterns
@@ -47,6 +48,53 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)
     return solution
+
+def diverse_from_pddl(domain_pddl, problem_pddl, max_time=INF, max_solutions=INF, max_planner_time=INF,
+                      temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
+    # Could also do this on task directly
+    # TODO: methods for diverse manipulation solutions (like Marc)
+    # TODO: modify action costs to encourage diversity
+    # TODO: apply to a subset of the actions
+    import sas_tasks
+    start_time = time()
+    solutions = []
+    var_from_action = {}
+    with Verbose(debug):
+        write_pddl(domain_pddl, problem_pddl, temp_dir)
+        domain = parse_sequential_domain(domain_pddl)
+        problem = parse_problem(domain, problem_pddl)
+        task = task_from_domain_problem(domain, problem)
+        sas_task = sas_from_pddl(task)
+
+        deadend_var = add_var(sas_task, layer=1)
+        for action in sas_task.operators:
+            action.prevail.append((deadend_var, 0))
+        sas_task.goal.pairs.append((deadend_var, 0))
+
+        while (elapsed_time(start_time) < max_time) and (len(solutions) < max_solutions):
+            write_sas_task(sas_task, temp_dir)
+            remaining_time = max_time - elapsed_time(start_time)
+            solution = run_search(temp_dir, debug=debug, max_planner_time=min(remaining_time, max_planner_time), **search_args)
+            if not solution:
+                break
+            solutions.extend(solution)
+
+            for plan, _ in solution:
+                sas_plan = parse_sas_plan(sas_task, plan)
+                for action in sas_plan:
+                    if action not in var_from_action:
+                        action_var = add_var(sas_task)
+                        action.pre_post.append((action_var, -1, 1, [])) # var, pre, post, cond
+                        var_from_action[action] = action_var
+
+                condition = [(var_from_action[action], 1) for action in sas_plan]
+                axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))
+                sas_task.axioms.append(axiom)
+
+        if clean:
+            safe_rm_dir(temp_dir)
+        print('Total runtime:', elapsed_time(start_time))
+    return solutions
 
 ##################################################
 
@@ -140,16 +188,23 @@ def prune_hierarchy_pre_eff(sas_task, layers):
     return pruned
 
 
+def add_var(sas_task, domain=2, layer=-1, init_value=0, prefix='value'):
+    # http://www.fast-downward.org/TranslatorOutputFormat
+    subgoal_var = len(sas_task.variables.ranges)
+    sas_task.variables.ranges.append(domain)
+    sas_task.variables.axiom_layers.append(layer)
+    sas_task.variables.value_names.append(
+        ['{}{}'.format(prefix, i) for i in range(domain)])
+    sas_task.init.values.append(init_value)
+    return subgoal_var
+
+
 def add_subgoals(sas_task, subgoal_plan):
     if not subgoal_plan:
         return None
-    subgoal_var = len(sas_task.variables.ranges)
+
     subgoal_range = len(subgoal_plan) + 1
-    sas_task.variables.ranges.append(subgoal_range)
-    sas_task.variables.axiom_layers.append(-1)
-    sas_task.variables.value_names.append(
-        ['subgoal{}'.format(i) for i in range(subgoal_range)])
-    sas_task.init.values.append(0)
+    subgoal_var = add_var(sas_task, domain=subgoal_range, init_value=0, prefix='subgoal')
     sas_task.goal.pairs.append((subgoal_var, subgoal_range - 1))
 
     # TODO: make this a subroutine that depends on the length
