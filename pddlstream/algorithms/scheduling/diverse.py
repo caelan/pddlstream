@@ -14,10 +14,27 @@ def p_conjunction(stream_plans):
     return np.product([result.external.get_p_success(*result.get_input_values())
                        for result in set.union(*stream_plans)])
 
-def prune_dominated(externals, combined_plans):
+def prune_dominated_action_plans(combined_plans):
+    # TODO: consider multi-sets
+    print('Attempting to prune using {} action plans'.format(len(combined_plans)))
+    dominated = set()
+    indices = list(range(len(combined_plans)))
+    for idx1, idx2 in permutations(indices, r=2):
+        if (idx1 in dominated) or (idx2 in dominated):
+            continue
+        _, opt_plan1, cost1 = combined_plans[idx1]
+        action_plan1 = extract_action_plan(opt_plan1)
+        _, opt_plan2, cost2 = combined_plans[idx2]
+        action_plan2 = extract_action_plan(opt_plan2)
+        if (action_plan1 < action_plan2) or (action_plan1 == action_plan2 and cost1 <= cost2):
+            dominated.add(idx2)
+    print('Pruned {}/{} action plans'.format(len(dominated), len(indices)))
+    return [combined_plans[idx] for idx in indices if idx not in dominated]
+
+def prune_dominated_stream_plans(externals, combined_plans):
     # TODO: could hash instead
-    # TODO: prune certain multi-set actions in the candidate generator
-    print('Attempting to prune using {} plans'.format(len(combined_plans)))
+    # TODO: prune certain multi-set subsets in the candidate generator
+    print('Attempting to prune using {} stream plans'.format(len(combined_plans)))
     dominated = set()
     indices = list(range(len(combined_plans)))
     for idx1, idx2 in permutations(indices, r=2):
@@ -30,7 +47,7 @@ def prune_dominated(externals, combined_plans):
         if (stream_plans1 < stream_plans2) or (stream_plans1 == stream_plans2 and cost1 <= cost2):
             dominated.add(idx2)
         #print(len(stream_plans1), len(stream_plans2), len(stream_plans1 & stream_plans2), cost1, cost2)
-    print('{}/{} pruned'.format(len(dominated), len(indices)))
+    print('Pruned {}/{} stream plans'.format(len(dominated), len(indices)))
     return [combined_plans[idx] for idx in indices if idx not in dominated]
 
 ##################################################
@@ -128,10 +145,13 @@ def first_k(externals, combined_plans, diverse, **kwargs):
 
 ##################################################
 
+def extract_action_plan(opt_plan):
+    return {action for action in opt_plan.action_plan if not isinstance(action, StreamAction)}
+
 def extract_stream_plan(externals, combined_plan):
     stream_plan, opt_plan, _ = combined_plan
     if stream_plan:
-        return opt_plan.stream_plan
+        return stream_plan
     stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
     return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
             for name, inputs, _ in stream_actions}
@@ -165,7 +185,7 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
     return best_plans
 
 def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
-    # TODO: dynamic programming method across multisets
+    # TODO: dynamic programming method across multi-sets
     # TODO: ILP over selections
     # TODO: pass results instead of externals
     start_time = time.time()
@@ -211,7 +231,8 @@ def diverse_subset(externals, combined_plans, diverse, **kwargs):
     #     stream_plan, opt_plan, cost = combined_plan
     #     print('\n{}) cost={:.0f}, length={}'.format(i, cost, len(opt_plan.action_plan)))
     #     print_plan(opt_plan.action_plan)
-    combined_plans = prune_dominated(externals, combined_plans)
+    combined_plans = prune_dominated_action_plans(combined_plans)
+    combined_plans = prune_dominated_stream_plans(externals, combined_plans)
     k = diverse['k']
     assert 1 <= k
     selector = diverse['selector']
