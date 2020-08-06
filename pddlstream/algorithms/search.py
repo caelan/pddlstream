@@ -3,7 +3,7 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
+from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
     parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
@@ -49,32 +49,26 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
         print('Total runtime:', time() - start_time)
     return solution
 
-def diverse_from_pddl(domain_pddl, problem_pddl, max_time=INF, max_solutions=INF, max_planner_time=INF,
+##################################################
+
+def diverse_from_task(sas_task, max_solutions=INF, max_planner_time=INF,
                       temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
-    # Could also do this on task directly
-    # TODO: methods for diverse manipulation solutions (like Marc)
     # TODO: modify action costs to encourage diversity
-    # TODO: apply to a subset of the actions
+    # TODO: make a free version of the action after it's applied
     import sas_tasks
     start_time = time()
     solutions = []
     var_from_action = {}
     with Verbose(debug):
-        write_pddl(domain_pddl, problem_pddl, temp_dir)
-        domain = parse_sequential_domain(domain_pddl)
-        problem = parse_problem(domain, problem_pddl)
-        task = task_from_domain_problem(domain, problem)
-        sas_task = sas_from_pddl(task)
-
         deadend_var = add_var(sas_task, layer=1)
         for action in sas_task.operators:
             action.prevail.append((deadend_var, 0))
         sas_task.goal.pairs.append((deadend_var, 0))
 
-        while (elapsed_time(start_time) < max_time) and (len(solutions) < max_solutions):
+        while (elapsed_time(start_time) < max_planner_time) and (len(solutions) < max_solutions):
             write_sas_task(sas_task, temp_dir)
-            remaining_time = max_time - elapsed_time(start_time)
-            solution = run_search(temp_dir, debug=debug, max_planner_time=min(remaining_time, max_planner_time), **search_args)
+            remaining_time = max_planner_time - elapsed_time(start_time)
+            solution = run_search(temp_dir, debug=debug, max_planner_time=remaining_time, **search_args)
             if not solution:
                 break
             solutions.extend(solution)
@@ -84,17 +78,29 @@ def diverse_from_pddl(domain_pddl, problem_pddl, max_time=INF, max_solutions=INF
                 for action in sas_plan:
                     if action not in var_from_action:
                         action_var = add_var(sas_task)
-                        action.pre_post.append((action_var, -1, 1, [])) # var, pre, post, cond
+                        action.pre_post.append((action_var, -1, 1, []))  # var, pre, post, cond
                         var_from_action[action] = action_var
 
                 condition = [(var_from_action[action], 1) for action in sas_plan]
                 axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))
                 sas_task.axioms.append(axiom)
-
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', elapsed_time(start_time))
     return solutions
+
+def diverse_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, debug=False, **kwargs):
+    # Could also do this on task directly
+    # TODO: methods for diverse manipulation solutions (like Marc)
+    # TODO: apply to a subset of the actions
+    # TODO: assert not in DIVERSE_PLANNERS
+    with Verbose(debug):
+        write_pddl(domain_pddl, problem_pddl, temp_dir)
+        domain = parse_sequential_domain(domain_pddl)
+        problem = parse_problem(domain, problem_pddl)
+        task = task_from_domain_problem(domain, problem)
+        sas_task = sas_from_pddl(task)
+        return diverse_from_task(sas_task, temp_dir=temp_dir, debug=debug, **kwargs)
 
 ##################################################
 
