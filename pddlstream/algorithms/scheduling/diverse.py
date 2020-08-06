@@ -60,6 +60,7 @@ def prune_dominated_stream_plans(externals, combined_plans):
         _, _, cost2 = combined_plans[idx2]
         stream_set2 = extract_stream_plan(externals, combined_plans[idx2])
         if (stream_set1 < stream_set2) or (stream_set1 == stream_set2 and cost1 <= cost2):
+            #print(idx1, stream_set1, idx2, stream_set2)
             dominated.add(idx2)
         #print(len(stream_set1), len(stream_plans2), len(stream_set1 & stream_plans2), cost1, cost2)
     print('Pruned {}/{} stream plans'.format(len(dominated), len(indices)))
@@ -247,6 +248,7 @@ def diverse_subset(externals, combined_plans, diverse, **kwargs):
     #     stream_plan, opt_plan, cost = combined_plan
     #     print('\n{}) cost={:.0f}, length={}'.format(i, cost, len(opt_plan.action_plan)))
     #     print_plan(opt_plan.action_plan)
+    #     print(extract_stream_plan(externals, combined_plan))
     combined_plans = prune_dominated_action_plans(combined_plans)
     combined_plans = prune_dominated_stream_plans(externals, combined_plans)
     k = diverse['k']

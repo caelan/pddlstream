@@ -158,7 +158,7 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1):
+def solve_pddlstream(n_trials=1, max_time=1*10):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     set_cost_scale(1)
@@ -181,6 +181,10 @@ def solve_pddlstream(n_trials=1):
     problem = get_problem()
     #for_optimization(problem)
     dump_pddlstream(problem)
+    #prohibit_actions = True
+    prohibit_actions = []
+    #prohibit_actions = ['send']
+    prohibit_predicates = ['ONLINE']
 
     successes = 0.
     for _ in range(n_trials):
@@ -190,7 +194,8 @@ def solve_pddlstream(n_trials=1):
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
                                   debug=True, clean=True,
-                                  planner=planner, max_planner_time=1*60, diverse=diverse,
+                                  prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
+                                  planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -233,9 +238,9 @@ def solve_trial(inputs, planner='ff-astar', max_time=1*10, max_printed=10):
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
-        prohibit = True
-        prohibit = ['send']
-        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, prohibit=prohibit,
+        prohibit_actions = True
+        prohibit_actions = ['send']
+        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, prohibit_actions=prohibit_actions,
                                           max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
             'error': False,
@@ -343,8 +348,8 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        #solve_pddlstream()
-        solve_pddl()
+        solve_pddlstream()
+        #solve_pddl()
     else:
         analyze_experiment(args.experiment)
 

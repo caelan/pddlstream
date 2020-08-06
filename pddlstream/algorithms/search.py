@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
-    parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl
+    parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl, get_conjunctive_parts
 from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
 
 
@@ -52,19 +52,29 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
 
 ##################################################
 
-def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit=True, max_planner_time=INF,
-                      hierarchy=False, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
+def get_preconditions(sas_action):
+    # TODO: use reinstantiate instead
+    conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
+    return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
+
+def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions=[], prohibit_predicates=[],
+                      max_planner_time=INF, hierarchy=False, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: modify sas_action costs to encourage diversity
     # TODO: make a free version of the sas_action after it's applied
+    assert prohibit_actions or prohibit_predicates
+    prohibit_predicates = list(map(str.lower, prohibit_predicates))
     import sas_tasks
     start_time = time()
     solutions = []
     var_from_action = {}
     action_frequency = defaultdict(int)
+    actions_from_precondition = defaultdict(set)
     with Verbose(debug):
         deadend_var = add_var(sas_task, layer=1)
         for sas_action in sas_task.operators:
             sas_action.prevail.append((deadend_var, 0))
+            for precondition in get_preconditions(sas_action):
+                actions_from_precondition[precondition].add(sas_action)
         sas_task.goal.pairs.append((deadend_var, 0))
 
         while (elapsed_time(start_time) < max_planner_time) and (len(solutions) < max_solutions):
@@ -83,14 +93,22 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit=True, m
                 sas_plan = parse_sas_plan(sas_task, plan)
                 condition = []
                 for action, sas_action in zip(plan, sas_plan):
-                    if (prohibit is not True) and (action.name not in prohibit):
-                        continue
-                    action_frequency[sas_action] += 1
-                    if sas_action not in var_from_action:
-                        action_var = add_var(sas_task)
-                        sas_action.pre_post.append((action_var, -1, 1, []))  # var, pre, post, cond
-                        var_from_action[sas_action] = action_var
-                    condition.append((var_from_action[sas_action], 1))
+                    for precondition in get_preconditions(sas_action):
+                        if precondition.predicate in prohibit_predicates:
+                            if precondition not in var_from_action:
+                                var = add_var(sas_task)
+                                var_from_action[precondition] = var
+                                for sas_action2 in actions_from_precondition[precondition]:
+                                    sas_action2.pre_post.append((var, -1, 1, []))  # var, pre, post, cond
+                            condition.append((var_from_action[precondition], 1))
+
+                    if (prohibit_actions is True) or (action.name in prohibit_actions):
+                        action_frequency[sas_action] += 1
+                        if sas_action not in var_from_action:
+                            var = add_var(sas_task)
+                            sas_action.pre_post.append((var, -1, 1, []))  # var, pre, post, cond
+                            var_from_action[sas_action] = var
+                        condition.append((var_from_action[sas_action], 1))
 
                 if condition:
                     axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))
