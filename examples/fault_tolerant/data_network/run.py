@@ -165,7 +165,7 @@ def solve_pddlstream(n_trials=1):
     constraints = PlanConstraints(max_cost=100) # kstar
 
     # TODO: combine with the number of candidates
-    planner = 'symk' # forbid | kstar | symk
+    planner = 'ff-astar' # forbid | kstar | symk | ff-astar
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
     # TODO: sum sampling function
@@ -189,8 +189,8 @@ def solve_pddlstream(n_trials=1):
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
-                                  debug=True, clean=False,
-                                  planner=planner, max_planner_time=1*10, diverse=diverse,
+                                  debug=True, clean=True,
+                                  planner=planner, max_planner_time=1*60, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
                                   )
@@ -205,7 +205,7 @@ def solve_pddlstream(n_trials=1):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='ff-astar', max_time=1*60, max_printed=10):
+def solve_trial(inputs, planner='ff-astar', max_time=1*10, max_printed=10):
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -233,7 +233,9 @@ def solve_trial(inputs, planner='ff-astar', max_time=1*60, max_printed=10):
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
-        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, max_time=10,
+        prohibit = True
+        prohibit = ['send']
+        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, prohibit=prohibit,
                                           max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
             'error': False,
@@ -282,10 +284,12 @@ def solve_pddl():
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
     problems = [{
+        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/data-network-opt18/domain.pddl',
+        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/data-network-opt18/p11.pddl',
         #'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
         #'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl',
-        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl',
-        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-5-0.pddl',
+        # 'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl',
+        # 'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-5-0.pddl',
     }]
     for i, problem in enumerate(problems):
         print(i, problem)
@@ -313,7 +317,7 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
-def analyze_experiment(experiment_path, min_plans=10, verbose=False):
+def analyze_experiment(experiment_path, min_plans=25, verbose=True):
     counter = defaultdict(int)
     results = read_json(experiment_path)
     planners = Counter(r.get('planner', None) for r in results)

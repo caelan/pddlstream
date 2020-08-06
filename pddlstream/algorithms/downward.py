@@ -476,7 +476,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     # BUFFER = 5 # 0 | 5
     # from examples.pybullet.utils.pybullet_tools.utils import timeout
     # with timeout(max_planner_time + BUFFER): # TODO: throws CalledProcessError if value is larger
-    assert get_python_version() == 3
+    #assert get_python_version() == 3
     try:
         # https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
         output = subprocess.check_output(command, cwd=None, shell=True, stderr=subprocess.STDOUT) #, timeout=max_planner_time)

@@ -21,7 +21,7 @@ from pddlstream.algorithms.scheduling.recover_streams import get_achieving_strea
 from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
-from pddlstream.algorithms.search import solve_from_task
+from pddlstream.algorithms.search import solve_from_task, diverse_from_task
 from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
 from pddlstream.language.constants import Not, get_prefix, EQ, OptPlan, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
@@ -69,8 +69,8 @@ def rename_instantiated_actions(instantiated, rename):
     action_from_name = {}
     for i, action in enumerate(actions):
         renamed_actions.append(copy.copy(action))
-        renamed_name = 'a{}'.format(i) if rename else action.name
-        renamed_actions[-1].name = '({})'.format(renamed_name)
+        renamed_name = '(a{})'.format(i) if rename else action.name
+        renamed_actions[-1].name = renamed_name
         action_from_name[renamed_name] = action # Change reachable_action_params?
     instantiated.actions[:] = renamed_actions
     return action_from_name
@@ -296,7 +296,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return instantiated, []
-    rename = (planner not in DIVERSE_PLANNERS)
+    #rename = (planner not in DIVERSE_PLANNERS)
+    rename = False
 
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight)
@@ -312,9 +313,9 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         sas_task.metric = True
 
     # TODO: apply renaming to hierarchy as well
-    # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
+    # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential | diverse_from_task
     solutions = []
-    for renamed_plan, _ in solve_from_task(sas_task, planner=planner, debug=debug, **kwargs):
+    for renamed_plan, _ in diverse_from_task(sas_task, planner=planner, debug=debug, **kwargs):
         if rename:
             action_instances = [action_from_name[name] for name, _ in renamed_plan]
         else:
