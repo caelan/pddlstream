@@ -6,7 +6,8 @@ from copy import deepcopy
 from time import time
 from collections import defaultdict
 
-from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS, scale_cost, MAX_FD_COST
+from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS, scale_cost, \
+    MAX_FD_COST, DEFAULT_PLANNER
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
     parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl, get_conjunctive_parts
 from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
@@ -61,10 +62,13 @@ def get_preconditions(sas_action):
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
     return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
 
-def diverse_from_task(sas_task, max_solutions=INF, weight=0, prohibit_actions=[], prohibit_predicates=[],
-                      max_planner_time=INF, hierarchy=False, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
-    # TODO: modify sas_action costs to encourage diversity
+def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=[], prohibit_predicates=[],
+                      planner=DEFAULT_PLANNER, max_planner_time=INF, hierarchy=False, temp_dir=TEMP_DIR,
+                      clean=False, debug=False, **search_args):
     # TODO: make a free version of the sas_action after it's applied
+    if planner in DIVERSE_PLANNERS:
+        return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time,
+                               temp_dir=temp_dir, clean=clean, debug=debug, hierarchy=False, **search_args)
     assert prohibit_actions or prohibit_predicates
     prohibit_predicates = list(map(str.lower, prohibit_predicates))
     import sas_tasks
@@ -85,7 +89,7 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=0, prohibit_actions=[]
         sas_task.goal.pairs.append((deadend_var, 0))
 
         while (elapsed_time(start_time) < max_planner_time) and (len(solutions) < max_solutions):
-            if weight is not None:
+            if not costs:
                 for sas_action in sas_task.operators:
                     #scale_cost(prob_from_precondition[action])
                     sas_action.cost = 1 # 0 | 1
@@ -96,7 +100,8 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=0, prohibit_actions=[]
 
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
-            solution = run_search(temp_dir, debug=debug, max_planner_time=remaining_time, **search_args)
+            solution = run_search(temp_dir, debug=debug, planner=planner,
+                                  max_planner_time=remaining_time, **search_args)
             if not solution:
                 break
             solutions.extend(solution)

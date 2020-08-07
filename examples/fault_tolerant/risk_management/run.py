@@ -220,6 +220,7 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                    for name, cached in bernoulli_fns.items()}
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
+    prohibit_predicates = ['LINKED']
 
     print('# Init:', len(problem.init))
     print('Goal:', problem.goal)
@@ -233,6 +234,7 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                               debug=True, clean=False, temp_dir=TEMP_DIR,
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
                               planner=config['planner'], max_planner_time=candidate_time,
+                              prohibit_predicates=prohibit_predicates,
                               replan_actions=['enter'], diverse=config)
 
     runtime = elapsed_time(trial_time)
@@ -266,7 +268,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     total_time = time.time()
     set_cost_scale(1)
     n_problems = INF # 1 | INF
-    min_k, max_k = 2, 10 # Start with min_k >= 2
+    min_k, max_k = 5, 10 # Start with min_k >= 2
     max_k = min_k # INF
 
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
@@ -288,8 +290,8 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['symk'] # dijkstra | forbid | kstar | symk
-    selectors = ['first'] # random | greedy | exact | first
+    planners = ['dijkstra'] # dijkstra | forbid | kstar | symk
+    selectors = ['greedy'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
     #planners = ['forbid'] #, 'kstar']

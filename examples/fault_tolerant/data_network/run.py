@@ -162,7 +162,8 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     set_cost_scale(1)
-    constraints = PlanConstraints(max_cost=100) # kstar
+    #constraints = PlanConstraints(max_cost=100) # kstar
+    constraints = PlanConstraints(max_cost=INF)
 
     # TODO: combine with the number of candidates
     planner = 'ff-astar' # forbid | kstar | symk | ff-astar
@@ -322,7 +323,7 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
-def analyze_experiment(experiment_path, min_plans=25, verbose=True):
+def analyze_experiment(experiment_path, min_plans=25, verbose=False):
     counter = defaultdict(int)
     results = read_json(experiment_path)
     planners = Counter(r.get('planner', None) for r in results)

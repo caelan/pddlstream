@@ -50,6 +50,7 @@ def prune_dominated_action_plans(combined_plans):
 def prune_dominated_stream_plans(externals, combined_plans):
     # TODO: prune certain multi-set subsets in the candidate generator
     print('Attempting to prune using {} stream plans'.format(len(combined_plans)))
+    start_time = time.time()
     dominated = set()
     indices = list(range(len(combined_plans)))
     for idx1, idx2 in permutations(indices, r=2):
@@ -63,7 +64,8 @@ def prune_dominated_stream_plans(externals, combined_plans):
             #print(idx1, stream_set1, idx2, stream_set2)
             dominated.add(idx2)
         #print(len(stream_set1), len(stream_plans2), len(stream_set1 & stream_plans2), cost1, cost2)
-    print('Pruned {}/{} stream plans'.format(len(dominated), len(indices)))
+    print('Pruned {}/{} stream plans in {:.3f} seconds'.format(
+        len(dominated), len(indices), elapsed_time(start_time)))
     return [combined_plans[idx] for idx in indices if idx not in dominated]
 
 ##################################################
@@ -240,33 +242,35 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
 
 ##################################################
 
-def diverse_subset(externals, combined_plans, diverse, **kwargs):
+def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
     if not diverse:
-        return combined_plans[:1]
+        return candidate_plans[:1]
     # for i, combined_plan in enumerate(combined_plans):
     #     stream_plan, opt_plan, cost = combined_plan
     #     print('\n{}) cost={:.0f}, length={}'.format(i, cost, len(opt_plan.action_plan)))
     #     print_plan(opt_plan.action_plan)
     #     print(extract_stream_plan(externals, combined_plan))
-    combined_plans = prune_dominated_action_plans(combined_plans)
-    combined_plans = prune_dominated_stream_plans(externals, combined_plans)
+    start_time = time.time()
+    pruned_plans = prune_dominated_action_plans(candidate_plans)
+    pruned_plans = prune_dominated_stream_plans(externals, pruned_plans)
     k = diverse['k']
     assert 1 <= k
     selector = diverse['selector']
-    if len(combined_plans) <= k:
-        subset_plans = combined_plans
+    if len(pruned_plans) <= k:
+        subset_plans = pruned_plans
     elif selector == 'random':
-        subset_plans = random_subset(externals, combined_plans, diverse, **kwargs)
+        subset_plans = random_subset(externals, pruned_plans, diverse, **kwargs)
     elif selector == 'first':
-        subset_plans = first_k(externals, combined_plans, diverse, **kwargs)
+        subset_plans = first_k(externals, pruned_plans, diverse, **kwargs)
     elif selector == 'greedy':
-        subset_plans = greedy_diverse_subset(externals, combined_plans, diverse, **kwargs)
+        subset_plans = greedy_diverse_subset(externals, pruned_plans, diverse, **kwargs)
     elif selector == 'exact':
-        subset_plans = exact_diverse_subset(externals, combined_plans, diverse, **kwargs)
+        subset_plans = exact_diverse_subset(externals, pruned_plans, diverse, **kwargs)
     else:
         raise ValueError(selector)
     stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
     p = score(stream_plans, diverse)
-    print('k={} | n={} | p={:.3f}'.format(k, len(subset_plans), p))
+    print('c={} | k={} | n={} | p={:.3f} | {:.3f} seconds'.format(
+        len(candidate_plans), k, len(subset_plans), p, elapsed_time(start_time)))
     return subset_plans
