@@ -240,7 +240,7 @@ def solve_trial(inputs, planner='ff-astar', max_time=1*10, max_printed=10):
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
         prohibit_actions = True
-        prohibit_actions = ['send']
+        #prohibit_actions = ['send']
         all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, prohibit_actions=prohibit_actions,
                                           max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
@@ -349,8 +349,8 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        solve_pddlstream()
-        #solve_pddl()
+        #solve_pddlstream()
+        solve_pddl()
     else:
         analyze_experiment(args.experiment)
 
