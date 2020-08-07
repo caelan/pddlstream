@@ -1,10 +1,12 @@
 from __future__ import print_function
 
+import math
+
 from copy import deepcopy
 from time import time
 from collections import defaultdict
 
-from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS
+from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS, scale_cost, MAX_FD_COST
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
     parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl, get_conjunctive_parts
 from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
@@ -52,12 +54,14 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
 
 ##################################################
 
+SCALE = 1e3
+
 def get_preconditions(sas_action):
     # TODO: use reinstantiate instead
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
     return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
 
-def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions=[], prohibit_predicates=[],
+def diverse_from_task(sas_task, max_solutions=INF, weight=0, prohibit_actions=[], prohibit_predicates=[],
                       max_planner_time=INF, hierarchy=False, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: modify sas_action costs to encourage diversity
     # TODO: make a free version of the sas_action after it's applied
@@ -67,7 +71,8 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions
     start_time = time()
     solutions = []
     var_from_action = {}
-    action_frequency = defaultdict(int)
+    prob = 0.9 # TODO: include the actual likelihood
+    prob_from_precondition = defaultdict(lambda: 1.) # TODO: effort
     actions_from_precondition = defaultdict(set)
     with Verbose(debug):
         deadend_var = add_var(sas_task, layer=1)
@@ -75,12 +80,19 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions
             sas_action.prevail.append((deadend_var, 0))
             for precondition in get_preconditions(sas_action):
                 actions_from_precondition[precondition].add(sas_action)
+                if precondition.predicate in prohibit_predicates:
+                    prob_from_precondition[precondition] *= prob
         sas_task.goal.pairs.append((deadend_var, 0))
 
         while (elapsed_time(start_time) < max_planner_time) and (len(solutions) < max_solutions):
             if weight is not None:
                 for sas_action in sas_task.operators:
-                    sas_action.cost = 1 + weight*action_frequency[sas_action]
+                    #scale_cost(prob_from_precondition[action])
+                    sas_action.cost = 1 # 0 | 1
+                    likelihood = 1.
+                    for precondition in get_preconditions(sas_action):
+                        likelihood *= prob_from_precondition[precondition]
+                    sas_action.cost += int(min(-SCALE*math.log(likelihood), MAX_FD_COST))
 
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
@@ -91,6 +103,7 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions
 
             for plan, _ in solution:
                 sas_plan = parse_sas_plan(sas_task, plan)
+                uncertain = set()
                 condition = []
                 for action, sas_action in zip(plan, sas_plan):
                     for precondition in get_preconditions(sas_action):
@@ -101,14 +114,22 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions
                                 for sas_action2 in actions_from_precondition[precondition]:
                                     sas_action2.pre_post.append((var, -1, 1, []))  # var, pre, post, cond
                             condition.append((var_from_action[precondition], 1))
+                            uncertain.add(precondition)
 
                     if (prohibit_actions is True) or (action.name in prohibit_actions):
-                        action_frequency[sas_action] += 1
                         if sas_action not in var_from_action:
                             var = add_var(sas_task)
                             sas_action.pre_post.append((var, -1, 1, []))  # var, pre, post, cond
                             var_from_action[sas_action] = var
                         condition.append((var_from_action[sas_action], 1))
+                        #uncertain.append(precondition)
+                        #success_prob *= prob
+
+                success_prob = 1.
+                for precondition in uncertain:
+                    success_prob *= prob
+                for precondition in uncertain:
+                    prob_from_precondition[precondition] *= (1 - success_prob / prob) # *prob
 
                 if condition:
                     axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))
@@ -119,7 +140,6 @@ def diverse_from_task(sas_task, max_solutions=INF, weight=None, prohibit_actions
     return solutions
 
 def diverse_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, debug=False, **kwargs):
-    # Could also do this on task directly
     # TODO: methods for diverse manipulation solutions (like Marc)
     # TODO: assert not in DIVERSE_PLANNERS
     with Verbose(debug):

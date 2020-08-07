@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import os
+import math
+import numpy as np
 
 from collections import Counter
 
@@ -29,6 +31,15 @@ def check_effort(effort, max_effort):
     if max_effort is None:
         return True
     return effort < max_effort # Exclusive
+
+def compute_plan_likelihood(stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return 0
+    if not stream_plan:
+        return 1
+    p = np.prod(result.get_p_success(**kwargs) for result in stream_plan)
+    #return p
+    return -math.log(p)
 
 def compute_plan_effort(stream_plan, **kwargs):
     # TODO: compute effort in the delete relaxation way
