@@ -166,7 +166,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
     constraints = PlanConstraints(max_cost=INF)
 
     # TODO: combine with the number of candidates
-    planner = 'ff-astar' # forbid | kstar | symk | ff-astar
+    planner = 'ff-wastar1' # forbid | kstar | symk | ff-astar | ff-wastar1
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
     # TODO: sum sampling function
@@ -184,8 +184,8 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
     dump_pddlstream(problem)
     #prohibit_actions = True
     prohibit_actions = []
-    #prohibit_actions = ['send']
-    prohibit_predicates = ['ONLINE']
+    #prohibit_actions = {'send': P_SUCCESS}
+    prohibit_predicates = {'ONLINE': P_SUCCESS}
 
     successes = 0.
     for _ in range(n_trials):
@@ -195,7 +195,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
                                   debug=True, clean=True,
-                                  prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
+                                  costs=False, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=['load'],
@@ -211,7 +211,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='ff-astar', max_time=1*10, max_printed=10):
+def solve_trial(inputs, planner='ff-wastar1', max_time=1*10, max_printed=10): # TODO: too greedy causes local min
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -323,7 +323,8 @@ def solve_pddl():
 #  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
 #  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
 
-def analyze_experiment(experiment_path, min_plans=25, verbose=False):
+def analyze_experiment(experiment_path, min_plans=25, verbose=False): # 10 | 25
+    # TODO: compare two of these
     counter = defaultdict(int)
     results = read_json(experiment_path)
     planners = Counter(r.get('planner', None) for r in results)
@@ -334,8 +335,9 @@ def analyze_experiment(experiment_path, min_plans=25, verbose=False):
         if result['num_plans'] >= min_plans:
             counter[result['domain_path']] += 1
             if verbose:
-                print('n={}, t={:.0f}, {}'.format(result['num_plans'], result['runtime'],
-                                                  result['problem_path']))  # result['domain_path']
+                print('c={}, n={}, t={:.0f}, {}'.format(
+                    result.get('all_plans', None), result['num_plans'],
+                    result['runtime'], result['problem_path']))  # result['domain_path']
     #print(str_from_object(counter))
     print(SEPARATOR)
     print('{} domains, {} problems'.format(len(counter), sum(counter.values())))

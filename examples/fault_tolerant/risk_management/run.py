@@ -34,7 +34,9 @@ from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, c
     read_json, write_json
 
 SERIAL = is_darwin()
+#SERIAL = True
 #SERIAL = False
+
 P_SUCCESSES = [0.9]
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
 CANDIDATE_TIME = 10*60

@@ -177,6 +177,7 @@ def extract_stream_plan(externals, combined_plan):
 
 def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
     # TODO: lazy greedy submodular maximization
+    # TODO: greedy Bayesian update metric (like the one I used during the search)
     start_time = time.time()
     k = diverse['k']
     best_indices = set()
