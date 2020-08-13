@@ -101,7 +101,11 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
                     likelihood = 1.
                     for precondition in get_all_preconditions(sas_action):
                         likelihood *= prob_from_precondition[precondition]
-                    sas_action.cost += int_ceil(min(-SCALE*math.log(likelihood), MAX_FD_COST))
+                    if likelihood == 0:
+                        sas_action.cost += INF
+                    else:
+                        sas_action.cost += int_ceil(-SCALE*math.log(likelihood))
+                    sas_action.cost = min(sas_action.cost, MAX_FD_COST)
 
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
