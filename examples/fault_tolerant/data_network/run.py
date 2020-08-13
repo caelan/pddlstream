@@ -181,7 +181,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
                       for name, cached in bernoulli_fns.items()}
 
     # TODO: combine with the number of candidates
-    planner = 'forbid' # forbid | kstar | symk | ff-astar | ff-wastar1
+    planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
     # TODO: sum sampling function
@@ -205,6 +205,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
         'ONLINE': P_SUCCESS,
         'open': P_SUCCESS, # TODO: make a function instead
     }
+    costs = False
 
     successes = 0.
     for _ in range(n_trials):
@@ -214,10 +215,10 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
                                   debug=True, clean=True,
-                                  costs=False, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
+                                  costs=costs, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                  replan_actions=True, #['load', 'move'],
+                                  replan_actions=True,
                                   )
         for solution in solutions:
             print_solution(solution)

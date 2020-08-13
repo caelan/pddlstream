@@ -69,6 +69,7 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
     if planner in DIVERSE_PLANNERS:
         return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time,
                                temp_dir=temp_dir, clean=clean, debug=debug, hierarchy=hierarchy, **search_args)
+    # TODO: non-probabilistic version of this for action costs
     assert prohibit_actions or prohibit_predicates
     assert not isinstance(prohibit_actions, dict)
     assert implies(not costs, prohibit_predicates)

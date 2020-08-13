@@ -239,7 +239,7 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
                               planner=config['planner'], max_planner_time=candidate_time,
                               costs=costs, prohibit_predicates=prohibit_predicates,
-                              replan_actions=['enter'], diverse=config)
+                              replan_actions=True, diverse=config)
 
     runtime = elapsed_time(trial_time)
     for solution in solutions:
