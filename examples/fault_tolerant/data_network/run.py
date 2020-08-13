@@ -48,14 +48,14 @@ TERMES_PATH = os.path.join(CLASSICAL_PATH, 'termes-opt18')
 def list_paths(directory):
     if not os.path.exists(directory):
         return []
-    return [os.path.join(directory, f) for f in sorted(os.listdir(directory))]
+    return [os.path.abspath(os.path.join(directory, f)) for f in sorted(os.listdir(directory))]
 
 def get_optimal_benchmarks():
     directory = CLASSICAL_PATH
     return sorted({p for p in list_paths(directory) if os.path.isdir(p)}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
-    pddl_files = {os.path.join(directory, f) for f in sorted(os.listdir(directory)) if f.endswith('.pddl')}
+    pddl_files = {f for f in list_paths(directory) if f.endswith('.pddl')}
     domain_files = {f for f in pddl_files if os.path.basename(f) == 'domain.pddl'}
     if len(domain_files) != 1:
         raise RuntimeError(directory, domain_files)
@@ -81,12 +81,18 @@ def get_problem():
     # TODO: filter out problems that are reorderings
     import pddl
     index = 10 # 0 | 10
-    domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
-    problem_path = problem_paths[index]
-    domain_path = get_file_path(__file__, 'domain.pddl')
-    problem_path = get_file_path(__file__, 'problems/p{:02d}.pddl'.format(index+1))
+
+    #domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
+    #problem_path = problem_paths[index]
+
+    #domain_dir = os.path.dirname(__file__ )
+    #problem_path = os.path.join(domain_dir, 'problems/p{:02d}.pddl'.format(index+1))
+
+    domain_dir = os.path.join(os.path.dirname(__file__), os.path.pardir, 'visit_all')
+    problem_path = list_paths(os.path.join(domain_dir, 'problems'))[0]
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
+    domain_path = os.path.join(domain_dir, 'domain.pddl')
     domain_pddl = read(domain_path)
     domain = parse_sequential_domain(domain_pddl)
 
@@ -124,7 +130,7 @@ def get_problem():
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
 
-    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
+    stream_pddl = read(os.path.join(domain_dir, 'stream.pddl'))
     #stream_pddl = None
 
     # TODO: compare statistical success and the actual success
@@ -137,6 +143,7 @@ def get_problem():
         'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
         'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
         'test-online': from_test(universe_test),
+        'test-open': from_test(universe_test),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
@@ -178,6 +185,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
         # Better to use little space
         'test-less_equal': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),
         'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
+        'test-open': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
     problem = get_problem()
     #for_optimization(problem)
@@ -185,7 +193,10 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
     #prohibit_actions = True
     prohibit_actions = []
     #prohibit_actions = {'send': P_SUCCESS}
-    prohibit_predicates = {'ONLINE': P_SUCCESS}
+    prohibit_predicates = {
+        'ONLINE': P_SUCCESS,
+        'open': P_SUCCESS,
+    }
 
     successes = 0.
     for _ in range(n_trials):
@@ -198,7 +209,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
                                   costs=False, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                  replan_actions=['load'],
+                                  replan_actions=['load', 'move'],
                                   )
         for solution in solutions:
             print_solution(solution)
@@ -290,13 +301,15 @@ def solve_pddl():
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
     problems = [{
-        'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/data-network-opt18/domain.pddl',
-        'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/data-network-opt18/p11.pddl',
-        #'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl',
-        #'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/caldera-opt18/p01.pddl',
-        # 'domain_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/domain.pddl',
-        # 'problem_path': '/Users/caelan/Programs/domains/classical-domains/classical/blocks/probBLOCKS-5-0.pddl',
+        'domain_path': 'data-network-opt18/domain.pddl',
+        'problem_path': 'data-network-opt18/p11.pddl',
+        #'domain_path': 'caldera-opt18/domain.pddl',
+        #'problem_path': 'caldera-opt18/p01.pddl',
+        # 'domain_path': 'blocks/domain.pddl',
+        # 'problem_path': 'blocks/probBLOCKS-5-0.pddl',
     }]
+    problems = [{key: os.path.join(CLASSICAL_PATH, path) for key, path in problem.items()} for problem in problems]
+
     for i, problem in enumerate(problems):
         print(i, problem)
     generator = create_generator(solve_trial, problems)
@@ -314,7 +327,6 @@ def solve_pddl():
             print('Wrote {}'.format(file_name))
 
 # TODO: pickle the solutions to reuse later
-# NOTE: these diversity figures do not count the stream plan
 # {/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl: 12,
 #  /home/caelan/Programs/domains/classical-domains/classical/caldera-split-opt18/domain.pddl: 11,
 #  /home/caelan/Programs/domains/classical-domains/classical/data-network-opt18/domain.pddl: 10,
@@ -351,8 +363,8 @@ def main():
     parser.add_argument('-e', '--experiment', default=None)
     args = parser.parse_args()
     if args.experiment is None:
-        #solve_pddlstream()
-        solve_pddl()
+        solve_pddlstream()
+        #solve_pddl()
     else:
         analyze_experiment(args.experiment)
 
@@ -362,7 +374,6 @@ if __name__ == '__main__':
 # TODO: extend PDDLStream to support typing directly
 
 # https://github.com/AI-Planning/classical-domains/tree/master/classical/data-network-opt18
-# TODO: load the initial state from a problem file
 # Packet sizes
 # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
 # https://networkx.github.io/

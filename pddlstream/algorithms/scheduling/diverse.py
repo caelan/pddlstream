@@ -11,6 +11,7 @@ from pddlstream.language.constants import str_from_plan, StreamAction, print_pla
 
 
 def p_conjunction(stream_plans):
+    # TODO: 'union' requires a 'set' object but received a 'list'
     return np.product([result.external.get_p_success(*result.get_input_values())
                        for result in set.union(*stream_plans)])
 
@@ -170,7 +171,7 @@ def extract_action_plan(opt_plan):
 def extract_stream_plan(externals, combined_plan):
     stream_plan, opt_plan, _ = combined_plan
     if stream_plan:
-        return stream_plan
+        return set(stream_plan)
     stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
     return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
             for name, inputs, _ in stream_actions}

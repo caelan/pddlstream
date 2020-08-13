@@ -222,7 +222,9 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                    for name, cached in bernoulli_fns.items()}
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
-    prohibit_predicates = ['LINKED']
+
+    prohibit_predicates = {'LINKED': P_SUCCESSES[0]}
+    costs = False
 
     print('# Init:', len(problem.init))
     print('Goal:', problem.goal)
@@ -236,7 +238,7 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                               debug=True, clean=False, temp_dir=TEMP_DIR,
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
                               planner=config['planner'], max_planner_time=candidate_time,
-                              prohibit_predicates=prohibit_predicates,
+                              costs=costs, prohibit_predicates=prohibit_predicates,
                               replan_actions=['enter'], diverse=config)
 
     runtime = elapsed_time(trial_time)
@@ -292,7 +294,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['dijkstra'] # dijkstra | forbid | kstar | symk
+    planners = ['dijkstra'] # dijkstra | forbid | kstar | symk | ff-wastar1
     selectors = ['greedy'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
