@@ -51,8 +51,11 @@ def from_list_gen_fn(list_gen_fn):
 
 
 def from_gen_fn(gen_fn):
-    return from_list_gen_fn(lambda *args, **kwargs: ([] if ov is None else [ov]
-                                                     for ov in gen_fn(*args, **kwargs)))
+    return from_list_gen_fn(lambda *args, **kwargs: ([] if ov is None else [ov] for ov in gen_fn(*args, **kwargs)))
+
+
+def from_gen(gen):
+    return from_gen_fn(lambda *args, **kwargs: gen)
 
 
 def from_sampler(sampler, max_attempts=INF):

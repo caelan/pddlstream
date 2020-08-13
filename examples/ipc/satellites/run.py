@@ -8,6 +8,7 @@ from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.utils import read
 from pddlstream.language.constants import get_length
 
+# TODO: move to IPC folder to avoid redundancy
 
 def read_pddl(filename):
     directory = os.path.dirname(os.path.abspath(__file__))

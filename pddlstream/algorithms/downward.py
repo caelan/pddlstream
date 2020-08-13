@@ -295,14 +295,16 @@ def task_from_domain_problem(domain, problem):
     check_for_duplicates([o.name for o in objects],
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
+    # TODO: add this fact to evaluations
+    #init.extend(pddl.Atom(OBJECT, (obj.name,)) for obj in objects)
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
     # TODO: optimistically evaluate (not (= ?o1 ?o2))
-    for fd_obj in objects:
-        obj = obj_from_pddl(fd_obj.name)
-        if obj.is_unique():
-            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
-        else:
-            assert obj.is_shared()
+    # for fd_obj in objects:
+    #     obj = obj_from_pddl(fd_obj.name)
+    #     if obj.is_unique():
+    #         init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+    #     else:
+    #         assert obj.is_shared()
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)
@@ -341,6 +343,7 @@ def get_literals(condition):
     raise ValueError(condition)
 
 def get_conjunctive_parts(condition):
+    # TODO: unify with get_literals
     return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
 
 def get_disjunctive_parts(condition):
