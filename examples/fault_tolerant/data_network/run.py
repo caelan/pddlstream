@@ -12,7 +12,7 @@ import traceback
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, prune_dominated_action_plans
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_test, universe_test
+from pddlstream.language.generator import from_test, universe_test, fn_from_constant
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object, \
@@ -22,7 +22,8 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
     get_prefix, get_function
 from pddlstream.algorithms.search import solve_from_pddl, diverse_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
-from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, fact_from_fd
+from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, \
+    fact_from_fd, simulate_successes
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
@@ -135,7 +136,7 @@ def get_problem():
 
     # TODO: compare statistical success and the actual success
     bernoulli_fns = {
-        #'test-open': fn_from_constant(P_SUCCESS),
+        'test-open': fn_from_constant(P_SUCCESS),
     }
 
     # universe_test | empty_test
@@ -143,7 +144,7 @@ def get_problem():
         'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
         'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
         'test-online': from_test(universe_test),
-        'test-open': from_test(universe_test),
+        #'test-open': from_test(universe_test),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
                        for name, fn in bernoulli_fns.items()})
@@ -153,8 +154,9 @@ def get_problem():
     init = list(map(fact_from_fd, initial))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
     # TODO: throw error is not a conjunction
+    problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    return problem, bernoulli_fns
 
 def for_optimization(problem):
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
@@ -172,8 +174,14 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
+    problem, bernoulli_fns = get_problem()
+    #for_optimization(problem)
+    dump_pddlstream(problem)
+    stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                      for name, cached in bernoulli_fns.items()}
+
     # TODO: combine with the number of candidates
-    planner = 'ff-wastar1' # forbid | kstar | symk | ff-astar | ff-wastar1
+    planner = 'forbid' # forbid | kstar | symk | ff-astar | ff-wastar1
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
     # TODO: sum sampling function
@@ -185,17 +193,17 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
         # Better to use little space
         'test-less_equal': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),
         'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
-        'test-open': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
+        #'test-open': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
-    problem = get_problem()
-    #for_optimization(problem)
-    dump_pddlstream(problem)
+    stream_info.update({name: StreamInfo(p_success=cached, defer_fn=defer_unique)
+                        for name, cached in bernoulli_fns.items()})
+
     #prohibit_actions = True
     prohibit_actions = []
     #prohibit_actions = {'send': P_SUCCESS}
     prohibit_predicates = {
         'ONLINE': P_SUCCESS,
-        'open': P_SUCCESS,
+        'open': P_SUCCESS, # TODO: make a function instead
     }
 
     successes = 0.
@@ -209,14 +217,19 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
                                   costs=False, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                  replan_actions=['load', 'move'],
+                                  replan_actions=True, #['load', 'move'],
                                   )
         for solution in solutions:
             print_solution(solution)
             #plan, cost, certificate = solution
             #successes += is_plan(plan)
+
+        n_simulations = 10000
+        n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+        p_success = float(n_successes) / n_simulations
+        print('Empirical success: {:.3f}'.format(p_success))
         successes += bool(solutions)
-    print('Fraction {:.3f}'.format(successes / n_trials))
+    print('Fraction solved: {:.3f}'.format(successes / n_trials))
 
 ##################################################
 
