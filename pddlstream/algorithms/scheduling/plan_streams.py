@@ -116,7 +116,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
     negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
     real_states, full_plan = recover_negative_axioms(
-        real_task, opt_task, axiom_plans, action_plan, negative_from_name)
+        real_task, opt_task, axiom_plans, action_plan, negative_from_name) # TODO: include the goal
     function_plan = compute_function_plan(opt_evaluations, action_plan)
 
     full_preimage = plan_preimage(full_plan, []) # Does not contain the stream preimage!
@@ -356,12 +356,13 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
     #simplify_conditional_effects(instantiated.task, action_instances)
+    #simplify_conditional_effects(instantiated.task, action_instances)
     stream_plan, action_instances = recover_simultaneous(
         applied_results, negative, deferred_from_name, action_instances)
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
+                       if action.name in replan_actions] or [len(action_plan) + 1]) # step after action application
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)
     if temporal_plan is not None:
