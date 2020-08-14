@@ -117,6 +117,8 @@ def extract_benchmarks(problem_paths, sizes=[0]):
         size_paths.extend(problem_paths[20*size:20*(size+1)])
     return size_paths
 
+##################################################
+
 # def parse_strings():
 #     # TODO: introduce object more generally
 #     from examples.fault_tolerant.data_network.run import fact_from_str
@@ -272,19 +274,20 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     total_time = time.time()
     set_cost_scale(1)
     n_problems = INF # 1 | INF
-    min_k, max_k = 5, 10 # Start with min_k >= 2
+    min_k, max_k = 2, 10 # Start with min_k >= 2
     max_k = min_k # INF
 
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
 
-    problem_paths = get_small_benchmarks() + get_large_benchmarks()
-    #problem_paths = get_good_benchmarks()
-    #problem_paths = extract_benchmarks(sizes=range(0, 5)) # 0 | 1
+    #problem_paths = get_small_benchmarks() + get_large_benchmarks()
+    problem_paths = get_good_benchmarks()
+    #problem_paths = extract_benchmarks(problem_paths, sizes=range(0, 5)) # 0 | 1
+
     n_problems = min(len(problem_paths), n_problems)
     #indices = random.randint(0, 19)
-    #indices = range(n_problems)
-    indices = [0] # 0 | -1
+    indices = range(n_problems)
+    #indices = [-1] # 0 | -1
     #indices = None # problem.pddl
 
     print('Problem indices:', indices)
@@ -294,8 +297,8 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['dijkstra'] # dijkstra | forbid | kstar | symk | ff-wastar1
-    selectors = ['greedy'] # random | greedy | exact | first
+    planners = ['forbid', 'symk', 'ff-wastar1'] # dijkstra | forbid | kstar | symk | ff-wastar1
+    selectors = ['greedy', 'random', 'first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
     #planners = ['forbid'] #, 'kstar']
