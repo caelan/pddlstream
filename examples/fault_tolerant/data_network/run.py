@@ -347,32 +347,92 @@ def extract_domain(path):
     #if path is None:
     #    return path
     #assert os.path.isfile(path)
-    return os.path.basename(os.path.dirname(path))
+    return os.path.basename(os.path.dirname(path)) # .decode(encoding='UTF-8')
 
-def analyze_experiment(results, min_plans=25, verbose=False): # 10 | 25
+def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
+    # https://matplotlib.org/examples/statistics/multiple_histograms_side_by_side.html
+    # https://matplotlib.org/examples/statistics/histogram_demo_multihist.html
+    import matplotlib.pyplot as plt
+
+    results_from_planner = {}
+    for result in results:
+        planner = result.get('planner', None)
+        results_from_planner.setdefault(planner, []).append(result)
+
+    attribute = 'num_plans' # all_plans | num_plans
+    planners = sorted(results_from_planner)
+    print(planners)
+    x = [[0 if result['error'] else clip(result[attribute], max_value=max_value)
+          for result in results_from_planner[planner] if min_value <= result[attribute]] for planner in planners]
+    print(zip(planners, map(len, x))) # Uneven sizes
+
+    fig, axes = plt.subplots(nrows=1, ncols=2)
+    ax0, ax1 = axes.flatten()
+    plt.title('Min Plans={}'.format(min_value))
+
+    # Make a multiple-histogram of data-sets with different length.
+    ax0.hist(x, n_bins, histtype='bar', label=planners)
+    ax0.legend(prop={'size': 10})
+    ax0.set_title('Standard Histogram')
+
+    ax1.hist(x, n_bins, normed=False, cumulative=-1, histtype='bar', stacked=False, label=planners) # range=(min_value, max_value),
+    ax1.legend(prop={'size': 10})
+    ax1.set_title('Reverse Cumulative Histogram')
+    #ax0.ylim([0, 1000])
+
+    # ax2.hist(x, n_bins, histtype='step', stacked=False, fill=False, label=planners) #, alpha=0.25)
+    # ax2.legend(prop={'size': 10})
+    # ax2.hist(x, n_bins, histtype='step', stacked=False, fill=True, label=planners, alpha=0.25)
+    # ax2.set_title('stack step (unfilled)')
+
+    fig.tight_layout()
+    plt.show()
+
+def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
     problems = Counter(extract_domain(result['domain_path']) for result in results)
     print('Problems:', problems)
-    planners = Counter(r.get('planner', None) for r in results)
+    planners = Counter(result.get('planner', None) for result in results)
     print('Planners:', planners)
 
-    counter = defaultdict(int)
+    total_counter = defaultdict(int)
+    success_counter = defaultdict(int)
     for result in sorted(results, key=lambda r: r['problem_path']):
+        domain = extract_domain(result['domain_path'])
+        planner = result.get('planner', None)
+        total_counter[domain, planner] += 1
         if result.get('error', False):
             continue
         if result['num_plans'] >= min_plans:
-            counter[extract_domain(result['domain_path'])] += 1
+            success_counter[domain, planner] += 1
             if verbose:
                 print('c={}, n={}, t={:.0f}, {}'.format(
                     result.get('all_plans', None), result['num_plans'],
                     result['runtime'], result['problem_path']))  # result['domain_path']
 
     print(SEPARATOR)
-    print('{} domains, {} problems'.format(len(counter), sum(counter.values())))
+    print('{} domains, {} problems'.format(len(success_counter), sum(success_counter.values())))
     #print(str_from_object(counter))
+
+    problem_counter = Counter()
+    for (problem, _), num in success_counter.items():
+        problem_counter[problem] += num
+
+    planner_counter = Counter()
+    for (_, planner), num in success_counter.items():
+        #planner_counter[planner] += 1 # Domains
+        planner_counter[planner] += num # Problems
+    print('Planners: ', '  '.join('{} ({})'.format(
+        planner, planner_counter[planner]) for planner in sorted(planners)))
+
     #for domain in sorted(counter, key=counter.get):
-    for domain in sorted(counter, key=problems.get):
-        print('{:<20}\t\t{:3}/{} ({:.3f})'.format(
-            domain, counter[domain], problems[domain], float(counter[domain]) / problems[domain]))
+    #for domain in sorted(problems, key=problems.get): # Num problems
+    for domain in sorted(problem_counter, key=problem_counter.get): # Most successes
+        print('{:<25} {:3}'.format(domain, problem_counter[domain]), end='')
+        for planner in sorted(planners):
+            fraction = float(success_counter[domain, planner]) / total_counter[domain, planner]
+            print('  {:3}/{:3} ({:.3f})'.format(
+                success_counter[domain, planner], total_counter[domain, planner], fraction), end='')
+        print()
 
 ##################################################
 
@@ -380,10 +440,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--experiments', nargs='*')
     args = parser.parse_args()
+
     if args.experiments:
         results = []
         for experiment_path in args.experiments:
             results.extend(read_json(experiment_path))
+        #compare_histograms(results)
         analyze_experiment(results)
     else:
         solve_pddlstream()
