@@ -297,6 +297,8 @@ def solve_trial(inputs, planner='ff-wastar1', max_time=1*10, max_printed=10): # 
 
     return inputs, outputs
 
+##################################################
+
 def solve_pddl():
     # No restriction to be untyped here
     set_cost_scale(1)
@@ -334,53 +336,58 @@ def solve_pddl():
     file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
     results = []
     for inputs, outputs in generator:
+        # TODO: pickle the solutions to reuse later
         results.append(outputs)
-        if not SERIAL: # TODO: only if is above a threshold
+        if not SERIAL: # TODO: only write if is above a threshold
             #write_pickle(file_name, results)
             write_json(file_name, results)
             print('Wrote {}'.format(file_name))
 
-# TODO: pickle the solutions to reuse later
-# {/home/caelan/Programs/domains/classical-domains/classical/caldera-opt18/domain.pddl: 12,
-#  /home/caelan/Programs/domains/classical-domains/classical/caldera-split-opt18/domain.pddl: 11,
-#  /home/caelan/Programs/domains/classical-domains/classical/data-network-opt18/domain.pddl: 10,
-#  /home/caelan/Programs/domains/classical-domains/classical/nurikabe-opt18/domain.pddl: 6,
-#  /home/caelan/Programs/domains/classical-domains/classical/settlers-opt18/domain.pddl: 5,
-#  /home/caelan/Programs/domains/classical-domains/classical/snake-opt18/domain.pddl: 3,
-#  /home/caelan/Programs/domains/classical-domains/classical/spider-opt18/domain.pddl: 6}
+def extract_domain(path):
+    #if path is None:
+    #    return path
+    #assert os.path.isfile(path)
+    return os.path.basename(os.path.dirname(path))
 
-def analyze_experiment(experiment_path, min_plans=25, verbose=False): # 10 | 25
-    # TODO: compare two of these
-    counter = defaultdict(int)
-    results = read_json(experiment_path)
+def analyze_experiment(results, min_plans=25, verbose=False): # 10 | 25
+    problems = Counter(extract_domain(result['domain_path']) for result in results)
+    print('Problems:', problems)
     planners = Counter(r.get('planner', None) for r in results)
     print('Planners:', planners)
+
+    counter = defaultdict(int)
     for result in sorted(results, key=lambda r: r['problem_path']):
         if result.get('error', False):
             continue
         if result['num_plans'] >= min_plans:
-            counter[result['domain_path']] += 1
+            counter[extract_domain(result['domain_path'])] += 1
             if verbose:
                 print('c={}, n={}, t={:.0f}, {}'.format(
                     result.get('all_plans', None), result['num_plans'],
                     result['runtime'], result['problem_path']))  # result['domain_path']
-    #print(str_from_object(counter))
+
     print(SEPARATOR)
     print('{} domains, {} problems'.format(len(counter), sum(counter.values())))
-    for key in sorted(counter, key=counter.get):
-        print(counter[key], os.path.basename(os.path.dirname(key)))
+    #print(str_from_object(counter))
+    #for domain in sorted(counter, key=counter.get):
+    for domain in sorted(counter, key=problems.get):
+        print('{:<20}\t\t{:3}/{} ({:.3f})'.format(
+            domain, counter[domain], problems[domain], float(counter[domain]) / problems[domain]))
 
 ##################################################
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--experiment', default=None)
+    parser.add_argument('-e', '--experiments', nargs='*')
     args = parser.parse_args()
-    if args.experiment is None:
+    if args.experiments:
+        results = []
+        for experiment_path in args.experiments:
+            results.extend(read_json(experiment_path))
+        analyze_experiment(results)
+    else:
         solve_pddlstream()
         #solve_pddl()
-    else:
-        analyze_experiment(args.experiment)
 
 if __name__ == '__main__':
     main()
