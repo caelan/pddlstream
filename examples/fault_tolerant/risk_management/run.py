@@ -26,12 +26,12 @@ from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
     is_plan, get_prefix, get_args, Not, StreamAction, Equal, Fact
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, \
-    read_pickle, write_pickle, ensure_dir, get_python_version
+    read_pickle, write_pickle, ensure_dir, get_python_version, MockSet
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
-    read_json, write_json
+    read_json, write_json, is_remote
 
 SERIAL = is_darwin()
 #SERIAL = True
@@ -328,6 +328,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     for (problem_path, _, config), (runtime, num, p_success) in generator:
         result = {'problem': problem_path, 'config': config,
                   'runtime': runtime, 'num_plans': num, 'p_success': p_success}
+        # TODO: record that risk management
         results.append(result)
         print('{}/{} | Plans: {} | Probability: {:.3f} | Runtime: {:.3f} | Total time: {:.3f}'.format(
             len(results), len(jobs), num, p_success, runtime, elapsed_time(total_time)))
@@ -343,29 +344,36 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
 def get_named_configs(configs):
     configs_from_name = defaultdict(list)
     for config in configs:
-        #name = config['planner'] + ' ' + config['selector']
-        name = config['selector']
+        if (config['planner'] in DIVERSE_PLANNERS) and (config['selector'] in ['first']):
+            continue
+        name = config['planner'] + ' ' + config['selector']
+        #name = config['selector']
         if (config['selector'] not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
         configs_from_name[name].append(config)
     return configs_from_name
 
-def analyze_results(results, visualize=True, verbose=False):
+def analyze_results(all_results, visualize=True, verbose=False):
+    planners = MockSet()
     #planners = ['forbid'] #, 'kstar']
+
     #selectors = ['random', 'greedy', 'exact']
-    selectors = ['random', 'greedy'] #, 'exact']
+    selectors = ['random', 'first', 'greedy'] #, 'exact']
+
     metrics = ['p_success', 'stability', 'uniqueness']
     #metrics = ['p_success']#, 'stability', 'uniqueness']
 
     # TODO: compare to best before or after filtering
     best_successes = {}
-    for result in results:
-        best_successes[result['problem']] = max(result['p_success'],  best_successes.get(result['problem'], 0))
+    for result in all_results:
+        best_successes[result['problem']] = max(result['p_success'], best_successes.get(result['problem'], 0))
 
-    results = [result for result in results if (result['config']['selector'] in selectors)
-               and (result['config']['metric'] in metrics)]
+    results = [result for result in all_results if
+               (result['config']['planner'] in planners) and
+               (result['config']['selector'] in selectors) and
+               (result['config']['metric'] in metrics)]
+    print('Results: {} | filtered: {}'.format(len(all_results), len(results)))
 
-    problems = set()
     configs = set()
     max_solutions = defaultdict(int)
     runtimes = defaultdict(list)
@@ -374,10 +382,11 @@ def analyze_results(results, visualize=True, verbose=False):
     for result in results:
         config = hashabledict(result['config'])
         configs.add(config)
-        problems.add(result['problem'])
-        runtimes[config].append(result['runtime'] - CANDIDATE_TIME)
+        runtimes[config].append(result['runtime'])
+        #runtimes[config].append(result['runtime'] - CANDIDATE_TIME)
         num_solutions[config].append(result['num_plans'])
-        max_solutions[result['problem']] = max(max_solutions[result['problem']], result['num_plans'])
+        problem = os.path.basename(result['problem'])
+        max_solutions[problem] = max(max_solutions[problem], result['num_plans'])
         p_success = result['p_success']
         #p_success = math.log(p_success)
         p_success /= best_successes[result['problem']]
@@ -396,7 +405,8 @@ def analyze_results(results, visualize=True, verbose=False):
             print('Runtimes:', runtimes[config])
 
     # TODO: combine these
-    if visualize:
+    if visualize and not is_remote():
+        # TODO: disable importing matplotlib when remote
         configs_from_name = get_named_configs(configs)
         plot_successes(configs_from_name, successes)
         plot_runtimes(configs_from_name, runtimes)
@@ -545,3 +555,5 @@ if __name__ == '__main__':
     main()
 
 # https://github.com/IBM/risk-pddl
+
+# python3 -m examples.fault_tolerant.risk_management.run 2>&1 | tee log.txt
