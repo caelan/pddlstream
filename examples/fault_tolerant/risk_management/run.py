@@ -37,7 +37,7 @@ SERIAL = is_darwin()
 #SERIAL = True
 #SERIAL = False
 
-P_SUCCESSES = [0.9]
+P_SUCCESSES = [0.75] # 0.9 | 0.75
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
 CANDIDATE_TIME = 10*60
 
@@ -297,11 +297,11 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
         problem_paths = [problem_paths[index] for index in indices]
 
     # blind search is effective on these problems
-    planners = ['forbid', 'symk', 'ff-wastar1'] # dijkstra | forbid | kstar | symk | ff-wastar1
+    #planners = ['forbid', 'symk', 'ff-wastar1'] # dijkstra | forbid | kstar | symk | ff-wastar1
     selectors = ['greedy', 'random', 'first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    #planners = ['forbid'] #, 'kstar']
+    planners = ['ff-wastar1'] #, 'kstar'] # ff-wastar1
     #selectors = ['random', 'greedy', 'exact'] #,'first']
     #metrics = ['p_success', 'stability', 'uniqueness']
 

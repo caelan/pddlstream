@@ -30,7 +30,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
     task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate
 #from pddlstream.language.write_pddl import get_problem_pddl
 
-P_SUCCESS = 0.9
+P_SUCCESS = 0.75 # 0.9 | 0.75
 
 # TODO: handle more generically
 if is_darwin():
@@ -38,9 +38,6 @@ if is_darwin():
 else:
     CLASSICAL_PATH = '/home/caelan/Programs/domains/classical-domains/classical'
 # ls /Users/caelan/Programs/domains/classical-domains/classical/*-opt18
-
-DATA_NETWORK_PATH = os.path.join(CLASSICAL_PATH, 'data-network-opt18')
-TERMES_PATH = os.path.join(CLASSICAL_PATH, 'termes-opt18')
 
 #TERMES_PATH = '/Users/caelan/Documents/IBM/termes-opt18-strips-untyped'
 
@@ -50,6 +47,9 @@ def list_paths(directory):
     if not os.path.exists(directory):
         return []
     return [os.path.abspath(os.path.join(directory, f)) for f in sorted(os.listdir(directory))]
+
+def list_pddl_problems(directory): # TODO: outlaw domain.pddl
+    return [f for f in list_paths(directory) if f.endswith('.pddl')]
 
 def get_optimal_benchmarks():
     directory = CLASSICAL_PATH
@@ -78,24 +78,29 @@ def int_from_str(s):
 
 ##################################################
 
-def get_problem():
+def get_problem(domain_name, index):
     # TODO: filter out problems that are reorderings
     import pddl
-    index = 10 # 0 | 10
-
     #domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
     #problem_path = problem_paths[index]
 
     #domain_dir = os.path.dirname(__file__ )
     #problem_path = os.path.join(domain_dir, 'problems/p{:02d}.pddl'.format(index+1))
 
-    domain_dir = os.path.join(os.path.dirname(__file__), os.path.pardir, 'visit_all')
-    problem_path = list_paths(os.path.join(domain_dir, 'problems'))[index]
+    domain_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, domain_name))
+    print(domain_dir)
+    problem_paths = list_pddl_problems(os.path.join(domain_dir, 'problems'))
+    print('# problems: {}'.format(len(problem_paths)))
+    for idx, problem_path in enumerate(problem_paths):
+        print(idx, problem_path)
+    problem_path = problem_paths[index]
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
     domain_path = os.path.join(domain_dir, 'domain.pddl')
     domain_pddl = read(domain_path)
     domain = parse_sequential_domain(domain_pddl)
+    print(os.path.abspath(domain_path))
+    print(os.path.abspath(problem_path))
 
     for action in domain.actions:
         new_parameters = []
@@ -136,6 +141,7 @@ def get_problem():
 
     # TODO: compare statistical success and the actual success
     bernoulli_fns = {
+        'test-online': fn_from_constant(P_SUCCESS),
         'test-open': fn_from_constant(P_SUCCESS),
     }
 
@@ -143,7 +149,7 @@ def get_problem():
     stream_map = {
         'test-less_equal': from_test(lambda x, y: int_from_str(x) <= int_from_str(y)),
         'test-sum': from_test(lambda x, y, z: int_from_str(x) + int_from_str(y) == int_from_str(z)),
-        'test-online': from_test(universe_test),
+        #'test-online': from_test(universe_test),
         #'test-open': from_test(universe_test),
     }
     stream_map.update({name: from_test(CachedFn(test_from_bernoulli_fn(fn)))
@@ -167,22 +173,26 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1, max_time=1*30):
+def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
+    # TODO: combine with risk_management
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    problem, bernoulli_fns = get_problem()
+    domain_name = 'visit_all' # data_network | visit_all
+    index = 2 # 0 | 10 | -1
+    problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
-    dump_pddlstream(problem)
+    if verbose:
+        dump_pddlstream(problem)
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
 
     # TODO: combine with the number of candidates
     planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1 | ff-wastar3
-    diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
+    diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 10} # 5 | 10 | INF
 
     # TODO: sum sampling function
     stream_info = {
@@ -210,11 +220,12 @@ def solve_pddlstream(n_trials=1, max_time=1*30):
     successes = 0.
     for _ in range(n_trials):
         print('\n'+'-'*5+'\n')
+        start_time = time.time()
         #problem = get_problem(**kwargs)
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
-                                  debug=True, clean=True,
+                                  debug=verbose, clean=True,
                                   costs=costs, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
@@ -228,7 +239,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30):
         n_simulations = 10000
         n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
         p_success = float(n_successes) / n_simulations
-        print('Empirical success: {:.3f}'.format(p_success))
+        print('Empirical success: {:.3f} | Runtime: {:.3f}'.format(p_success, elapsed_time(start_time)))
         successes += bool(solutions)
     print('Fraction solved: {:.3f}'.format(successes / n_trials))
 
@@ -236,7 +247,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='ff-wastar3', max_time=1*10, max_printed=10): # TODO: too greedy causes local min
+def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=10): # TODO: too greedy causes local min
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -328,7 +339,7 @@ def solve_pddl():
 
     for i, problem in enumerate(problems):
         print(i, problem)
-    generator = create_generator(solve_trial, problems)
+    generator = create_generator(solve_pddl_trial, problems)
 
     ensure_dir(EXPERIMENTS_DIR)
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
