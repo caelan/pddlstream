@@ -219,6 +219,10 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
         os.chdir(trial_wd)
 
     problem, bernoulli_fns = get_problem(problem_path)
+    # from examples.fault_tolerant.data_network.run import visualize_graph
+    # visualize_graph(problem.init, edge_predicates=[('CONNECTED', [0, 1])])
+    # return inputs, (0., 0, 0.)
+
     # dump_pddlstream(problem)
     stream_info = {name: StreamInfo(p_success=cached, defer_fn=defer_unique)
                    for name, cached in bernoulli_fns.items()}

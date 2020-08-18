@@ -97,11 +97,16 @@ def get_problem(domain_name, index):
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
     domain_path = os.path.join(domain_dir, 'domain.pddl')
-    domain_pddl = read(domain_path)
-    domain = parse_sequential_domain(domain_pddl)
     print(os.path.abspath(domain_path))
     print(os.path.abspath(problem_path))
 
+    domain, init, goal = types_to_predicates(domain_path, problem_path)
+    return get_pddlstream(domain, domain_path, init, goal)
+
+def types_to_predicates(domain_path, problem_path):
+    import pddl
+    domain_pddl = read(domain_path)
+    domain = parse_sequential_domain(domain_pddl)
     for action in domain.actions:
         new_parameters = []
         new_preconditions = []
@@ -127,15 +132,24 @@ def get_problem(domain_name, index):
     domain.type_dict[object_type.name] = object_type
 
     assert not domain.axioms
-    domain_pddl = domain
-
     assert not domain.constants
-    constant_map = {}
 
     problem_pddl = read(problem_path)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
 
+    initial = problem.init + [obj.get_atom() for obj in problem.objects]
+    init = list(map(fact_from_fd, initial))
+    goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
+    # TODO: throw error is not a conjunction
+
+    return domain, init, goal
+
+def get_pddlstream(domain, domain_path, init, goal):
+    assert not domain.constants
+    constant_map = {}
+
+    domain_dir = os.path.dirname(domain_path)
     stream_pddl = read(os.path.join(domain_dir, 'stream.pddl'))
     #stream_pddl = None
 
@@ -156,11 +170,7 @@ def get_problem(domain_name, index):
                        for name, fn in bernoulli_fns.items()})
     #stream_map = DEBUG
 
-    initial = problem.init + [obj.get_atom() for obj in problem.objects]
-    init = list(map(fact_from_fd, initial))
-    goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
-    # TODO: throw error is not a conjunction
-    problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    problem = PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, goal)
 
     return problem, bernoulli_fns
 
@@ -178,7 +188,10 @@ def visualize_graph(init, edge_predicates, title=None):
             if get_prefix(fact).lower() == name.lower():
                 args = get_args(fact)
                 edges.append((args[idx1], args[idx2]))
-    print(edges)
+    #print(edges)
+    print('# edges = {}'.format(len(edges)))
+    if len(edges) >= 500:
+        return None
 
     import networkx
     #import graphviz
@@ -230,7 +243,8 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'visit_all' # data_network | visit_all | rovers_02
+    # pipesworld-notankage
+    domain_name = 'rovers_02' # data_network | visit_all | rovers_02
     index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
