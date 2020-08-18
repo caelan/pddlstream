@@ -16,10 +16,10 @@ from pddlstream.language.generator import from_test, universe_test, fn_from_cons
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object, \
-    write_pickle, read_pickle
+    write_pickle, read_pickle, implies
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT, \
-    get_prefix, get_function
+    get_prefix, get_function, get_args
 from pddlstream.algorithms.search import solve_from_pddl, diverse_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, \
@@ -51,9 +51,9 @@ def list_paths(directory):
 def list_pddl_problems(directory): # TODO: outlaw domain.pddl
     return [f for f in list_paths(directory) if f.endswith('.pddl')]
 
-def get_optimal_benchmarks():
-    directory = CLASSICAL_PATH
-    return sorted({p for p in list_paths(directory) if os.path.isdir(p)}) #if f.endswith('-opt18')}
+def get_domains(directory=CLASSICAL_PATH, optimal=False):
+    return sorted({p for p in list_paths(directory) if os.path.isdir(p)
+                   and implies(optimal, '-opt' in os.path.basename(p))}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
     pddl_files = {f for f in list_paths(directory) if f.endswith('.pddl')}
@@ -119,7 +119,7 @@ def get_problem(domain_name, index):
     #     domain.predicates.append(predicate)
     #     domain.predicate_dict[name] = predicate
 
-    domain.types.clear()
+    domain.types[:] = []
     domain.type_dict.clear()
     object_type = pddl.Type(OBJECT, basetype_name=None)
     object_type.supertype_names = []
@@ -164,10 +164,59 @@ def get_problem(domain_name, index):
 
     return problem, bernoulli_fns
 
+def visualize_graph(init, edge_predicates, title=None):
+    # TODO: visualize causal graph and domain transition graph
+    # TODO: metric space embedding using costs
+    # TODO: highlight some important nodes
+    # https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
+    # https://networkx.github.io/
+    # https://pypi.org/project/graphviz/
+    # https://scikit-learn.org/stable/modules/generated/sklearn.manifold.SpectralEmbedding.html
+    edges = []
+    for fact in init:
+        for name, (idx1, idx2) in edge_predicates:
+            if get_prefix(fact).lower() == name.lower():
+                args = get_args(fact)
+                edges.append((args[idx1], args[idx2]))
+    print(edges)
+
+    import networkx
+    #import graphviz
+    import pygraphviz
+    #import pydot
+    import matplotlib.pyplot as plt
+
+    # options = {
+    #     'node_color': 'black',
+    #     'node_size': 100,
+    #     'width': 3,
+    # }
+    graph = networkx.DiGraph()
+    graph.add_edges_from(edges) # add_weighted_edges_from
+
+    from networkx.drawing.nx_pydot import write_dot
+    #pos = None
+    pos = networkx.nx_agraph.graphviz_layout(graph)
+
+    if pos is None:
+        try:
+            #draw = networkx.draw_spectral
+            draw = networkx.draw_planar # Fails is not planar
+            draw(graph, with_labels=True,) #, font_weight='bold'), **options)
+        except networkx.exception.NetworkXException:
+            networkx.draw_spectral(graph, with_labels=True,)
+    else:
+        networkx.draw(graph, pos=pos, with_labels=True,) #, font_weight='bold'), **options)
+    #if title is not None:
+    plt.title(title)
+    plt.show()
+
+    return graph
+
 def for_optimization(problem):
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     # TODO: compile functions into a lookup table
-    stream_predicates = ['less-equal', 'sum', ] # send-cost, io-cost
+    stream_predicates = ['less-equal', 'sum',] # send-cost, io-cost
     new_init = [init for fact in init if get_function(fact) not in stream_predicates]
     raise NotImplementedError()
 
@@ -181,11 +230,18 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'rovers_02' # data_network | visit_all | rovers_02
-    index = 1 # 0 | 10 | -1
+    domain_name = 'visit_all' # data_network | visit_all | rovers_02
+    index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
     if verbose:
+        edge_predicates = [
+            ('can_traverse', [1, 2]), # rovers_02
+            ('CONNECTED', [0, 1]), # data_network, visit_all
+        ]
+        for index in range(100):
+            problem, _ = get_problem(domain_name, index)
+            visualize_graph(problem.init, edge_predicates, title='{}[{}]'.format(domain_name, index))
         dump_pddlstream(problem)
     stochastic_fns = {name: test_from_bernoulli_fn(cached)
                       for name, cached in bernoulli_fns.items()}
@@ -315,7 +371,7 @@ def solve_pddl():
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=INF) # kstar
 
-    directory_paths = get_optimal_benchmarks()
+    directory_paths = get_domains()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
     problems = []
     for directory_path in directory_paths:
@@ -473,9 +529,6 @@ if __name__ == '__main__':
 
 # https://github.com/AI-Planning/classical-domains/tree/master/classical/data-network-opt18
 # Packet sizes
-# https://github.com/tomsilver/pddlgym/blob/master/rendering/tsp.py
-# https://networkx.github.io/
-# https://pypi.org/project/graphviz/
 
 # ./FastDownward/fast-downward.py --show-aliases
 # ./FastDownward/fast-downward.py --build release64 --alias lama examples/fault_tolerant/data_network/domain.pddl examples/fault_tolerant/data_network/problem.pddl

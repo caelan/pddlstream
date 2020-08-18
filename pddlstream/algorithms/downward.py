@@ -419,6 +419,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_dir, filename))
 
+    # TODO: increase value to effectively infinity
     num_plans = 1000 # TODO: pass in through planner
     if planner == 'forbid':
         assert max_planner_time < INF
@@ -430,9 +431,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
             domain=domain_path, problem=problem_path, num_plans=num_plans,
             max_time=max_planner_time, max_cost=max_cost)
     elif planner == 'symk':
-        path = '/Users/caelan/Programs/external/IBM/symk'
-        #path = os.environ['SYMK_PATH']
-        command = os.path.join(path, SYMK_TEMPLATE).format(
+        command = os.path.join(os.environ['SYMK_PATH'], SYMK_TEMPLATE).format(
             domain=domain_path, problem=problem_path,
             num_plans=num_plans, max_cost=max_cost)
     # elif planner == 'cerberus':
