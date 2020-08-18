@@ -181,8 +181,8 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'visit_all' # data_network | visit_all
-    index = 2 # 0 | 10 | -1
+    domain_name = 'rovers_02' # data_network | visit_all | rovers_02
+    index = 1 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
     if verbose:

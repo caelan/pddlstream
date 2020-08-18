@@ -1,15 +1,16 @@
 (define (domain rover)
 (:requirements :strips)
 (:predicates
-	 (at ?x ?y) (at_lander ?x ?y) (can_traverse ?r ?x ?y) (equipped_for_soil_analysis ?r) (equipped_for_rock_analysis ?r) (equipped_for_imaging ?r) (empty ?s) (have_rock_analysis ?r ?w) (have_soil_analysis ?r ?w) (full ?s) (calibrated ?c ?r) (supports ?c ?m) (available ?r) (visible ?w ?p) (have_image ?r ?o ?m) (communicated_soil_data ?w) (communicated_rock_data ?w) (communicated_image_data ?o ?m) (at_soil_sample ?w) (at_rock_sample ?w) (visible_from ?o ?w) (store_of ?s ?r) (calibration_target ?i ?o) (on_board ?i ?r) (channel_free ?l)(rover ?x) (waypoint ?x) (store ?x) (camera ?x) (mode ?x) (lander ?x) (objective ?x) )
+	 (at ?x ?y) (at_lander ?x ?y) (can_traverse ?r ?x ?y) (equipped_for_soil_analysis ?r) (equipped_for_rock_analysis ?r) (equipped_for_imaging ?r) (empty ?s) (have_rock_analysis ?r ?w) (have_soil_analysis ?r ?w) (full ?s) (calibrated ?c ?r) (supports ?c ?m) (available ?r) (visible ?w ?p) (have_image ?r ?o ?m) (communicated_soil_data ?w) (communicated_rock_data ?w) (communicated_image_data ?o ?m) (at_soil_sample ?w) (at_rock_sample ?w) (visible_from ?o ?w) (store_of ?s ?r) (calibration_target ?i ?o) (on_board ?i ?r) (channel_free ?l)(rover ?x) (waypoint ?x) (store ?x) (camera ?x) (mode ?x) (lander ?x) (objective ?x)
+	 (open ?y ?z))
 (:action navigate
  :parameters ( ?x ?y ?z)
  :precondition
-	(and (rover ?x) (waypoint ?y) (waypoint ?z)  (can_traverse ?x ?y ?z) (available ?x) (at ?x ?y) (visible ?y ?z))
+	(and (rover ?x) (waypoint ?y) (waypoint ?z)  (can_traverse ?x ?y ?z) (available ?x) (at ?x ?y) (visible ?y ?z) (open ?y ?z))
  :effect
 	(and (at ?x ?z) (not (at ?x ?y))))
 
-(:action sample_soil
+(:action sample_soil ; TODO: (at_soil_sample ?p)
  :parameters ( ?x ?s ?p)
  :precondition
 	(and (rover ?x) (store ?s) (waypoint ?p)  (at ?x ?p) (at_soil_sample ?p) (equipped_for_soil_analysis ?x) (store_of ?s ?x) (empty ?s))
@@ -37,7 +38,7 @@
  :effect
 	 (calibrated ?i ?r))
 
-(:action take_image
+(:action take_image ; TODO: (visible_from ?o ?p)
  :parameters ( ?r ?p ?o ?i ?m)
  :precondition
 	(and (rover ?r) (waypoint ?p) (objective ?o) (camera ?i) (mode ?m)  (calibrated ?i ?r) (on_board ?i ?r) (equipped_for_imaging ?r) (supports ?i ?m) (visible_from ?o ?p) (at ?r ?p))
