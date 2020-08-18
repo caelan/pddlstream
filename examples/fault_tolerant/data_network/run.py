@@ -90,7 +90,7 @@ def get_problem():
     #problem_path = os.path.join(domain_dir, 'problems/p{:02d}.pddl'.format(index+1))
 
     domain_dir = os.path.join(os.path.dirname(__file__), os.path.pardir, 'visit_all')
-    problem_path = list_paths(os.path.join(domain_dir, 'problems'))[0]
+    problem_path = list_paths(os.path.join(domain_dir, 'problems'))[index]
 
     #safe_rm_dir(TEMP_DIR) # TODO: fix re-running bug
     domain_path = os.path.join(domain_dir, 'domain.pddl')
@@ -167,7 +167,7 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1, max_time=1*10):
+def solve_pddlstream(n_trials=1, max_time=1*30):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     set_cost_scale(1)
@@ -181,7 +181,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
                       for name, cached in bernoulli_fns.items()}
 
     # TODO: combine with the number of candidates
-    planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1
+    planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1 | ff-wastar3
     diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 5}  # , 'max_time': 30
 
     # TODO: sum sampling function
@@ -236,7 +236,7 @@ def solve_pddlstream(n_trials=1, max_time=1*10):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_trial(inputs, planner='ff-wastar1', max_time=1*10, max_printed=10): # TODO: too greedy causes local min
+def solve_trial(inputs, planner='ff-wastar3', max_time=1*10, max_printed=10): # TODO: too greedy causes local min
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -343,6 +343,8 @@ def solve_pddl():
             write_json(file_name, results)
             print('Wrote {}'.format(file_name))
 
+##################################################
+
 def extract_domain(path):
     #if path is None:
     #    return path
@@ -402,10 +404,12 @@ def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
         total_counter[domain, planner] += 1
         if result.get('error', False):
             continue
-        if result['num_plans'] >= min_plans:
+        #if (planner != 'symk') and (result['runtime'] < result['max_time']):
+        #    print('{}: {:.0f}/{:.0f}'.format(planner, result['runtime'], result['max_time']))
+        if (result['num_plans'] >= min_plans) or ((planner != 'symk') and (result['runtime'] < 0.9*result['max_time'])):
             success_counter[domain, planner] += 1
             if verbose:
-                print('c={}, n={}, t={:.0f}, {}'.format(
+                print('c={:.3f}, n={}, t={:.0f}, {}'.format(
                     result.get('all_plans', None), result['num_plans'],
                     result['runtime'], result['problem_path']))  # result['domain_path']
 

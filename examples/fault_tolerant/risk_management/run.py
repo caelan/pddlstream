@@ -353,12 +353,12 @@ def get_named_configs(configs):
         configs_from_name[name].append(config)
     return configs_from_name
 
-def analyze_results(all_results, visualize=True, verbose=False):
-    planners = MockSet()
-    #planners = ['forbid'] #, 'kstar']
+def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
+    #planners = MockSet()
+    planners = ['ff-wastar1'] #, 'forbid', 'kstar']
 
     #selectors = ['random', 'greedy', 'exact']
-    selectors = ['random', 'first', 'greedy'] #, 'exact']
+    selectors = ['first', 'greedy'] #, 'random', 'exact']
 
     metrics = ['p_success', 'stability', 'uniqueness']
     #metrics = ['p_success']#, 'stability', 'uniqueness']
@@ -389,8 +389,9 @@ def analyze_results(all_results, visualize=True, verbose=False):
         max_solutions[problem] = max(max_solutions[problem], result['num_plans'])
         p_success = result['p_success']
         #p_success = math.log(p_success)
-        p_success /= best_successes[result['problem']]
         #p_success = 1/p_success
+        if ratio:
+            p_success /= best_successes[result['problem']]
         successes[config].append(p_success)
     #safe_rm_dir(PARALLEL_DIR)
 
@@ -408,10 +409,10 @@ def analyze_results(all_results, visualize=True, verbose=False):
     if visualize and not is_remote():
         # TODO: disable importing matplotlib when remote
         configs_from_name = get_named_configs(configs)
-        plot_successes(configs_from_name, successes)
+        plot_successes(configs_from_name, successes, ratio=ratio)
         plot_runtimes(configs_from_name, runtimes)
 
-def plot_successes(configs_from_name, successes, scale=1.0): # 0.0 | 0.25 | 1.0
+def plot_successes(configs_from_name, successes, ratio=False, scale=0.5): # 0.0 | 0.25 | 1.0
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
@@ -431,12 +432,16 @@ def plot_successes(configs_from_name, successes, scale=1.0): # 0.0 | 0.25 | 1.0
         # width = scale * test_scores_std / np.sqrt(train_sizes)
         plt.fill_between(ks, means - widths, means + widths, alpha=0.5)
         plt.plot(ks, means, 'o-', label=name)
-    plt.title('Selector Probability of Success')
+
+    plt.title('Selector Probability of Success'
+              '\nScale = {}$\sigma$'.format(scale))
     #plt.ylim(0, 1)
     plt.xlabel('K')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-    #plt.ylabel('Probability of Success')
-    plt.ylabel('Probability Performance Ratio')
+    if ratio:
+        plt.ylabel('Probability Performance Ratio')
+    else:
+        plt.ylabel('Probability of Success')
     plt.grid()
     plt.legend(loc='best')
     plt.tight_layout()
@@ -447,7 +452,7 @@ def plot_successes(configs_from_name, successes, scale=1.0): # 0.0 | 0.25 | 1.0
     #     print('Saved', figure_path)
     plt.show()
 
-def plot_runtimes(configs_from_name, runtimes, scale=0): #.25):
+def plot_runtimes(configs_from_name, runtimes, scale=0.5): #.25):
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
@@ -461,7 +466,9 @@ def plot_runtimes(configs_from_name, runtimes, scale=0): #.25):
         widths = scale * stds  # standard deviation
         plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
         plt.plot(ks, means, 'o-', label=name)
-    plt.title('Selector Runtime')
+
+    plt.title('Selector Runtime'
+              '\nScale = {}$\sigma$'.format(scale))
     plt.xlabel('K')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.ylabel('Runtime (seconds)')
