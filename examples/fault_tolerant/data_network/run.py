@@ -27,7 +27,7 @@ from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLE
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate
+    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate, Domain
 #from pddlstream.language.write_pddl import get_problem_pddl
 
 P_SUCCESS = 0.75 # 0.9 | 0.75
@@ -135,6 +135,16 @@ def types_to_predicates(domain_path, problem_path):
     assert not domain.constants
 
     problem_pddl = read(problem_path)
+    init, goal = convert_problem(domain, problem_pddl)
+
+    return domain, init, goal
+
+def convert_problem(domain_pddl, problem_pddl):
+    if isinstance(domain_pddl, Domain):
+        domain = domain_pddl
+    else:
+
+        domain = parse_sequential_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
 
@@ -142,8 +152,7 @@ def types_to_predicates(domain_path, problem_path):
     init = list(map(fact_from_fd, initial))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
     # TODO: throw error is not a conjunction
-
-    return domain, init, goal
+    return init, goal
 
 def get_pddlstream(domain, domain_path, init, goal):
     assert not domain.constants
@@ -243,7 +252,6 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    # pipesworld-notankage
     domain_name = 'rovers_02' # data_network | visit_all | rovers_02
     index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
@@ -380,13 +388,16 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=
 
 ##################################################
 
-def solve_pddl():
+def solve_pddl(visualize=True):
     # No restriction to be untyped here
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=INF) # kstar
 
     directory_paths = get_domains()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
+    # pipesworld-notankage | no-mprime | no-mystery | storage | trucks | transport-opt11-strips
+    directory_paths = [os.path.join(CLASSICAL_PATH, 'transport-opt11-strips')]
+
     problems = []
     for directory_path in directory_paths:
         try:
@@ -397,15 +408,26 @@ def solve_pddl():
         for problem_path in problem_paths:
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
-    problems = [{
-        'domain_path': 'data-network-opt18/domain.pddl',
-        'problem_path': 'data-network-opt18/p11.pddl',
-        #'domain_path': 'caldera-opt18/domain.pddl',
-        #'problem_path': 'caldera-opt18/p01.pddl',
-        # 'domain_path': 'blocks/domain.pddl',
-        # 'problem_path': 'blocks/probBLOCKS-5-0.pddl',
-    }]
+    # problems = [{
+    #     'domain_path': 'data-network-opt18/domain.pddl',
+    #     'problem_path': 'data-network-opt18/p11.pddl',
+    #     #'domain_path': 'caldera-opt18/domain.pddl',
+    #     #'problem_path': 'caldera-opt18/p01.pddl',
+    #     # 'domain_path': 'blocks/domain.pddl',
+    #     # 'problem_path': 'blocks/probBLOCKS-5-0.pddl',
+    # }]
     problems = [{key: os.path.join(CLASSICAL_PATH, path) for key, path in problem.items()} for problem in problems]
+
+    if visualize:
+        edge_predicates = [
+            ('connect', [0, 1]),
+            ('connected', [0, 1]),
+            ('road', [0, 1]),
+        ]
+        for problem in problems:
+            print(problem['domain_path'], problem['problem_path'])
+            init, goal = convert_problem(read(problem['domain_path']), read(problem['problem_path']))
+            visualize_graph(init, edge_predicates)
 
     for i, problem in enumerate(problems):
         print(i, problem)
@@ -533,8 +555,8 @@ def main():
         #compare_histograms(results)
         analyze_experiment(results)
     else:
-        solve_pddlstream()
-        #solve_pddl()
+        #solve_pddlstream()
+        solve_pddl()
 
 if __name__ == '__main__':
     main()
