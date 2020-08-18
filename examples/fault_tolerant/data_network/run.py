@@ -8,6 +8,7 @@ import time
 import datetime
 import sys
 import traceback
+import importlib
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, prune_dominated_action_plans
 from collections import defaultdict, Counter
@@ -56,13 +57,23 @@ def get_domains(directory=CLASSICAL_PATH, optimal=False):
                    and implies(optimal, '-opt' in os.path.basename(p))}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
-    pddl_files = {f for f in list_paths(directory) if f.endswith('.pddl')}
-    domain_files = {f for f in pddl_files if os.path.basename(f) == 'domain.pddl'}
-    if len(domain_files) != 1:
-        raise RuntimeError(directory, domain_files)
-    [domain_file] = list(domain_files)
-    problem_files = sorted(pddl_files - domain_files)
-    return domain_file, problem_files
+    #api = importlib.import_module('{}.api'.format(directory))
+    spec = importlib.util.spec_from_file_location('api', os.path.join(directory, 'api.py'))
+    api = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(api)
+    pairs = []
+    for domain in api.domains:
+        for domain_file, problem_file in domain['problems']:
+            pairs.append((os.path.join(directory, os.pardir, domain_file),
+                          os.path.join(directory, os.pardir, problem_file)))
+    return pairs
+    # pddl_files = {f for f in list_paths(directory) if f.endswith('.pddl')}
+    # domain_files = {f for f in pddl_files if os.path.basename(f) == 'domain.pddl'}
+    # if len(domain_files) != 1:
+    #     raise RuntimeError(directory, domain_files)
+    # [domain_file] = list(domain_files)
+    # pairs = [(domain_file, problem_file) for problem_file in sorted(pddl_files - domain_files)]
+    # return pairs
 
 ##################################################
 
@@ -143,7 +154,6 @@ def convert_problem(domain_pddl, problem_pddl):
     if isinstance(domain_pddl, Domain):
         domain = domain_pddl
     else:
-
         domain = parse_sequential_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
     #task = task_from_domain_problem(domain, problem) # Uses Object
@@ -388,7 +398,7 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=
 
 ##################################################
 
-def solve_pddl(visualize=True):
+def solve_pddl(visualize=False):
     # No restriction to be untyped here
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=INF) # kstar
@@ -396,16 +406,11 @@ def solve_pddl(visualize=True):
     directory_paths = get_domains()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
     # pipesworld-notankage | no-mprime | no-mystery | storage | trucks | transport-opt11-strips
-    directory_paths = [os.path.join(CLASSICAL_PATH, 'transport-opt11-strips')]
+    #directory_paths = [os.path.join(CLASSICAL_PATH, 'transport-opt11-strips')]
 
     problems = []
     for directory_path in directory_paths:
-        try:
-            domain_path, problem_paths = get_benchmarks(directory_path)
-        except RuntimeError:
-            continue
-        #problem_paths = problem_paths[:1] # 0, -1
-        for problem_path in problem_paths:
+        for domain_path, problem_path in get_benchmarks(directory_path):
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
     # problems = [{
