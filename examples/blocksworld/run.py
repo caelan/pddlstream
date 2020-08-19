@@ -13,7 +13,7 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.utils import read, elapsed_time, get_mapping
+from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object
 from pddlstream.language.constants import print_solution
 #from pddlstream.language.optimizer import add_result_inputs, add_result_outputs
 
@@ -120,13 +120,13 @@ def reduce_initial(replace=True):
     unused_objects = all_objects - goal_objects
     active_objects = set(goal_objects)
 
-    print(problem.init)
-    init = problem.init
+    used_init = problem.init
     if replace:
-        init = extract_facts(problem.init, goal_objects)
-        print(init)
-        unused_facts = set(problem.init) - set(init)
-        print(unused_facts)
+        all_init = problem.init
+        used_init = extract_facts(all_init, goal_objects)
+        print('Used:', used_init)
+        unused_facts = set(all_init) - set(used_init)
+        print('Unused:', unused_facts)
 
         facts_from_predicate = defaultdict(set)
         for fact in unused_facts: # init
@@ -148,49 +148,58 @@ def reduce_initial(replace=True):
             if predicate not in predicates:
                 predicates[predicate] = indices
             assert predicates[predicate] == indices
-        print(predicates)
 
         potential_streams = []
         for predicate, indices in sorted(predicates.items()):
-            print()
-            print(predicate, indices)
             for r in range(len(indices)+1):
                 for combo in map(set, combinations(indices, r=r)):
-                    print(r, combo)
-                    used_indices = frozenset(indices - combo)
-                    unused_indices = frozenset(indices - used_indices)
+                    used_indices = indices - combo
+                    unused_indices = tuple(sorted(indices - used_indices))
+                    used_indices = tuple(sorted(used_indices))
                     potential_streams.append((predicate, used_indices, unused_indices))
 
+        streams = []
         #for (predicate, used_indices, unused_indices), facts in potential_streams.items():
         for predicate, used_indices, unused_indices in potential_streams:
-            # Set of values at each index
-            # All mappings from the parameters to the used_indices of the input
-            #if predicate != 'on':
-            #    continue
             facts = facts_from_predicate[predicate]
+
             parameters = {i: '?i{}'.format(i) for i in used_indices}
-            domain = set(identify_conditions(facts, parameters, problem.init))
+            domain = set(identify_conditions(facts, parameters, all_init))
             parameters.update({i: '?o{}'.format(i) for i in unused_indices})
-            certified = set(identify_conditions(facts, parameters, problem.init)) - domain
+            certified = set(identify_conditions(facts, parameters, all_init)) - domain
             if not certified:
                 continue
-
             print()
             print(predicate, used_indices, unused_indices)
             print(domain)
             print(certified)
 
-        # for predicate, facts in facts_from_predicate.items():
-        #     print(predicate)
-        #     print(fact, used_indices)
+            inputs = [parameters[i] for i in used_indices]
+            outputs = [parameters[i] for i in unused_indices]
+            name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
 
-            #stream = Stream()
-            # Input types, typing in general?
-    quit()
+            outputs_from_input = defaultdict(list)
+            for fact in sorted(facts_from_predicate[predicate]):
+                args = get_args(fact)
+                input_values = tuple(args[i] for i in used_indices)
+                output_values = tuple(args[i] for i in unused_indices)
+                outputs_from_input[input_values].append(output_values)
+
+
+            print(outputs_from_input)
+
+            #def gen_fn(*inputs):
+            #    yield
+
+            gen_fn = outputs_from_input.get
+            stream = Stream(name, from_gen_fn(gen_fn), inputs, domain, outputs, certified, StreamInfo())
+            print(stream)
+            streams.append(stream)
+        stream_pddl = streams
 
     def test_clear(block):
         fact = ('clear', block)
-        return fact in problem.init
+        return fact in all_init
 
     # TODO: the constraint satisfaction world that I did for TLPK that automatically creates streams (hpncsp)
     def sample_on(b1):
@@ -198,9 +207,9 @@ def reduce_initial(replace=True):
         for b2 in sorted(all_objects, reverse=True):
             fact = ('on', b2, b1)
             print(fact)
-            if fact in problem.init:
+            if fact in all_init:
                 active_objects.add(b2)
-                new_facts = list(extract_facts(problem.init, active_objects))
+                new_facts = list(extract_facts(all_init, active_objects))
                 # TODO: needs to be a sequence (i.e. no sets)
                 yield WildOutput(values=[(b2,)], facts=new_facts)
 
@@ -216,9 +225,9 @@ def reduce_initial(replace=True):
     }
 
     start_time = time.time()
-    pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, init, problem.goal)
-    #solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
-    solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+    pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
+    solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
+    #solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
     print_solution(solution)
     print(elapsed_time(start_time))
 
