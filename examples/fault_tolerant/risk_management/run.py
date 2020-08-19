@@ -253,7 +253,7 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
     p_success = float(n_successes) / n_simulations
     outputs = (runtime, len(solutions), p_success)
-    # TODO: store other metrics
+    # TODO: store other metrics (such as candidate time and probability of success
 
     if not SERIAL:
         os.chdir(current_wd)
@@ -268,8 +268,8 @@ def create_generator(fn, jobs):
     if SERIAL:
         generator = map(fn, jobs)
     else:
-        num_cores = clip(int(cpu_count()-4), min_value=1, max_value=len(jobs))
-        print('Using {}/{} cores'.format(num_cores, cpu_count()))
+        num_cores = clip(int(cpu_count()/2), min_value=1, max_value=len(jobs))
+        print('Using {}/{} cores for {} jobs'.format(num_cores, cpu_count(), len(jobs)))
         pool = Pool(processes=num_cores)  # , initializer=mute)
         generator = pool.imap_unordered(fn, jobs, chunksize=1)
     return generator
@@ -279,7 +279,7 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     set_cost_scale(1)
     n_problems = INF # 1 | INF
     min_k, max_k = 2, 10 # Start with min_k >= 2
-    max_k = min_k # INF
+    #max_k = min_k # INF
 
     #constraints = PlanConstraints(max_cost=cost_multiplier) # top_quality
     constraints = PlanConstraints(max_cost=INF) # kstar
