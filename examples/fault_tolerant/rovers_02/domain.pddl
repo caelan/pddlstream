@@ -2,11 +2,11 @@
 (:requirements :strips)
 (:predicates
 	 (at ?x ?y) (at_lander ?x ?y) (can_traverse ?r ?x ?y) (equipped_for_soil_analysis ?r) (equipped_for_rock_analysis ?r) (equipped_for_imaging ?r) (empty ?s) (have_rock_analysis ?r ?w) (have_soil_analysis ?r ?w) (full ?s) (calibrated ?c ?r) (supports ?c ?m) (available ?r) (visible ?w ?p) (have_image ?r ?o ?m) (communicated_soil_data ?w) (communicated_rock_data ?w) (communicated_image_data ?o ?m) (at_soil_sample ?w) (at_rock_sample ?w) (visible_from ?o ?w) (store_of ?s ?r) (calibration_target ?i ?o) (on_board ?i ?r) (channel_free ?l)(rover ?x) (waypoint ?x) (store ?x) (camera ?x) (mode ?x) (lander ?x) (objective ?x)
-	 (open ?y ?z))
+	 (open ?x ?y ?z))
 (:action navigate
  :parameters ( ?x ?y ?z)
  :precondition
-	(and (rover ?x) (waypoint ?y) (waypoint ?z)  (can_traverse ?x ?y ?z) (available ?x) (at ?x ?y) (visible ?y ?z) (open ?y ?z))
+	(and (rover ?x) (waypoint ?y) (waypoint ?z)  (can_traverse ?x ?y ?z) (available ?x) (at ?x ?y) (visible ?y ?z) (open ?x ?y ?z))
  :effect
 	(and (at ?x ?z) (not (at ?x ?y))))
 

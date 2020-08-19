@@ -28,7 +28,9 @@ from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLE
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate, Domain
+    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate, \
+    Domain, get_fluents, get_precondition, get_literals
+from pddlstream.algorithms.algorithm import get_predicates
 #from pddlstream.language.write_pddl import get_problem_pddl
 
 P_SUCCESS = 0.75 # 0.9 | 0.75
@@ -57,15 +59,19 @@ def get_domains(directory=CLASSICAL_PATH, optimal=False):
                    and implies(optimal, '-opt' in os.path.basename(p))}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
+    import importlib.machinery
     #api = importlib.import_module('{}.api'.format(directory))
-    spec = importlib.util.spec_from_file_location('api', os.path.join(directory, 'api.py'))
-    api = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(api)
+    api = importlib.machinery.SourceFileLoader('api', os.path.join(directory, 'api.py')).load_module()
+
+    # spec = importlib.util.spec_from_file_location('api', os.path.join(directory, 'api.py')) # >= 3.5
+    # api = importlib.util.module_from_spec(spec)
+    # spec.loader.exec_module(api)
+
     pairs = []
     for domain in api.domains:
         for domain_file, problem_file in domain['problems']:
-            pairs.append((os.path.join(directory, os.pardir, domain_file),
-                          os.path.join(directory, os.pardir, problem_file)))
+            pairs.append((os.path.abspath(os.path.join(directory, os.pardir, domain_file)),
+                          os.path.abspath(os.path.join(directory, os.pardir, problem_file))))
     return pairs
     # pddl_files = {f for f in list_paths(directory) if f.endswith('.pddl')}
     # domain_files = {f for f in pddl_files if os.path.basename(f) == 'domain.pddl'}
@@ -146,7 +152,7 @@ def types_to_predicates(domain_path, problem_path):
     assert not domain.constants
 
     problem_pddl = read(problem_path)
-    init, goal = convert_problem(domain, problem_pddl)
+    domain, init, goal = convert_problem(domain, problem_pddl)
 
     return domain, init, goal
 
@@ -162,7 +168,7 @@ def convert_problem(domain_pddl, problem_pddl):
     init = list(map(fact_from_fd, initial))
     goal = And(*map(fact_from_fd, get_conjunctive_parts(problem.goal)))
     # TODO: throw error is not a conjunction
-    return init, goal
+    return domain, init, goal
 
 def get_pddlstream(domain, domain_path, init, goal):
     assert not domain.constants
@@ -254,7 +260,7 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
+def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     # TODO: combine with risk_management
@@ -262,13 +268,15 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'rovers_02' # data_network | visit_all | rovers_02
+    domain_name = 'no_mprime' # data_network | visit_all | rovers_02 | no_mprime
     index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
-    if verbose:
+    if visualize:
         edge_predicates = [
-            ('can_traverse', [1, 2]), # rovers_02
+            ('can_traverse', [1, 2]), # rovers
+            # ('visible', [0, 1]),  # rovers
+            # ('visible_from', [0, 1]),  # rovers
             ('CONNECTED', [0, 1]), # data_network, visit_all
         ]
         for index in range(100):
@@ -290,7 +298,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
         'test-sum': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),  # TODO: p_success=lambda x: 0.5
         # Better to use little space
         'test-less_equal': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),
-        'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
+        #'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
         #'test-open': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
     stream_info.update({name: StreamInfo(p_success=cached, defer_fn=defer_unique)
@@ -302,8 +310,10 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     prohibit_predicates = {
         'ONLINE': P_SUCCESS,
         'open': P_SUCCESS, # TODO: make a function instead
+        #'visible': P_SUCCESS,
+        #'visible_from': P_SUCCESS,
     }
-    costs = False
+    costs = False # TODO: toggle and see difference in performance
 
     successes = 0.
     for _ in range(n_trials):
@@ -335,7 +345,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=10): # TODO: too greedy causes local min
+def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=10): # TODO: too greedy causes local min
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -351,10 +361,28 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=
         ensure_dir(trial_wd)
         os.chdir(trial_wd)
 
+    #prohibit_actions = ['send']
+    prohibit_actions = []
+    #prohibit_actions = True
+
+    prohibit_predicates = [
+        'connect',
+        'connected',
+        'road',
+        'link',
+        'can_traverse',
+        #'visible',
+        #'visible_from',
+        'path',
+    ]
+    #prohibit_predicates = []
+
     all_solutions = []
     outputs = dict(inputs)
     outputs.update({
         'planner': planner,
+        'prohibit_actions': prohibit_actions,
+        'prohibit_predicates': prohibit_predicates,
         'max_time': max_time,
         'error': True,
     })
@@ -363,9 +391,9 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=1 * 10, max_printed=
         domain_pddl, problem_pddl = read(domain_path), read(problem_path)
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
-        prohibit_actions = True
-        #prohibit_actions = ['send']
-        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner, prohibit_actions=prohibit_actions,
+        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner,
+                                          prohibit_actions=prohibit_actions,
+                                          prohibit_predicates=prohibit_predicates,
                                           max_planner_time=max_time, max_cost=INF, debug=True)
         outputs.update({
             'error': False,
@@ -405,8 +433,23 @@ def solve_pddl(visualize=False):
 
     directory_paths = get_domains()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
-    # pipesworld-notankage | no-mprime | no-mystery | storage | trucks | transport-opt11-strips
-    #directory_paths = [os.path.join(CLASSICAL_PATH, 'transport-opt11-strips')]
+
+    directories = {
+        1: 'data-network-opt18',
+        2: 'visitall-opt11-strips',
+        3: 'rovers-02',
+        4: 'rovers',
+        5: 'pipesworld-notankage',
+        6: 'no-mprime',
+        7: 'no-mystery',
+        8: 'storage',
+        9: 'trucks',
+        10: 'transport-opt11-strips',
+        11: 'driverlog',
+    }
+    indices = sorted(directories.keys())
+    #indices = [11]
+    directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in indices]
 
     problems = []
     for directory_path in directory_paths:
@@ -421,22 +464,32 @@ def solve_pddl(visualize=False):
     #     # 'domain_path': 'blocks/domain.pddl',
     #     # 'problem_path': 'blocks/probBLOCKS-5-0.pddl',
     # }]
-    problems = [{key: os.path.join(CLASSICAL_PATH, path) for key, path in problem.items()} for problem in problems]
+    problems = [{key: os.path.join(CLASSICAL_PATH, path)
+                 for key, path in problem.items()} for problem in problems]
+    for i, problem in enumerate(problems):
+        print(i, problem)
+    generator = create_generator(solve_pddl_trial, problems)
 
     if visualize:
         edge_predicates = [
             ('connect', [0, 1]),
             ('connected', [0, 1]),
-            ('road', [0, 1]),
+            ('road', [0, 1]), # transport
+            ('link', [0, 1]), # driverlog
+            #('can_traverse', [1, 2]), # rovers
+            ('visible', [0, 1]),  # rovers
+            #('visible_from', [0, 1]),  # rovers
         ]
         for problem in problems:
+            print()
             print(problem['domain_path'], problem['problem_path'])
-            init, goal = convert_problem(read(problem['domain_path']), read(problem['problem_path']))
+            domain, init, goal = convert_problem(read(problem['domain_path']), read(problem['problem_path']))
+            fluent_predicates = get_fluents(domain)
+            assert not domain.axioms # TODO: axioms
+            predicates = {predicate for action in domain.actions
+                          for predicate in get_predicates(get_precondition(action))} # get_literals
+            print('Static predicates', predicates - fluent_predicates)
             visualize_graph(init, edge_predicates)
-
-    for i, problem in enumerate(problems):
-        print(i, problem)
-    generator = create_generator(solve_pddl_trial, problems)
 
     ensure_dir(EXPERIMENTS_DIR)
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
@@ -499,6 +552,7 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     plt.show()
 
 def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
+    # TODO: compare on just -opt
     problems = Counter(extract_domain(result['domain_path']) for result in results)
     print('Problems:', problems)
     planners = Counter(result.get('planner', None) for result in results)

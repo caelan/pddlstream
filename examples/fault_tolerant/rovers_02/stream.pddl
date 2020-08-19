@@ -1,7 +1,7 @@
 (define (stream grid-visit-all)
 	(:stream test-open
-		:inputs (?y ?z)
-		:domain (and (waypoint ?y) (waypoint ?z))
-		:certified (open ?y ?z)
+		:inputs (?x ?y ?z)
+		:domain (can_traverse ?x ?y ?z)
+		:certified (open ?x ?y ?z)
 	)
 )
