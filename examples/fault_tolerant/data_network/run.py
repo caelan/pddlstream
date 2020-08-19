@@ -426,6 +426,13 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
 
 ##################################################
 
+def get_static_predicates(domain):
+    fluent_predicates = get_fluents(domain)
+    assert not domain.axioms  # TODO: axioms
+    predicates = {predicate for action in domain.actions
+                  for predicate in get_predicates(get_precondition(action))}  # get_literals
+    return predicates - fluent_predicates
+
 def solve_pddl(visualize=False):
     # No restriction to be untyped here
     set_cost_scale(1)
@@ -488,7 +495,7 @@ def solve_pddl(visualize=False):
             assert not domain.axioms # TODO: axioms
             predicates = {predicate for action in domain.actions
                           for predicate in get_predicates(get_precondition(action))} # get_literals
-            print('Static predicates', predicates - fluent_predicates)
+            print('Static predicates', get_static_predicates(domain))
             visualize_graph(init, edge_predicates)
 
     ensure_dir(EXPERIMENTS_DIR)
