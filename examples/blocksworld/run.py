@@ -81,6 +81,8 @@ def solve_pddlstream(focused=False):
         solution = solve_incremental(pddlstream_problem, unit_costs=True, debug=True)
     print_solution(solution)
 
+##################################################
+
 def extract_facts(facts, objects):
     filtered_facts = []
     for fact in facts:
@@ -120,6 +122,25 @@ def get_static_predicates(domain):
 def get_gen_fn(outputs_from_input):
     return lambda *inps: iter(outputs_from_input[inps])
 
+def infer_arity(facts):
+    predicates = {}
+    for fact in facts:
+        predicate = get_prefix(fact)
+        indices = set(range(len(get_args(fact))))
+        if predicate not in predicates:
+            predicates[predicate] = indices
+        assert predicates[predicate] == indices
+    return predicates
+
+def generate_partitions(predicates):
+    for predicate, indices in sorted(predicates.items()):
+        for r in range(len(indices) + 1):
+            for combo in map(set, combinations(indices, r=r)):
+                input_indices = indices - combo
+                output_indices = tuple(sorted(indices - input_indices))
+                input_indices = tuple(sorted(input_indices))
+                yield predicate, input_indices, output_indices
+
 def reduce_init(problem, goal_objects, verbose=False):
     # TODO: compute goal_objects here
     domain = parse_sequential_domain(problem.domain_pddl)
@@ -147,26 +168,9 @@ def reduce_init(problem, goal_objects, verbose=False):
     #     potential_streams[predicate, input_indices, output_indices].add(fact)
     # print(potential_streams.keys())
 
-    predicates = {}
-    for fact in unused_facts:
-        predicate = get_prefix(fact)
-        indices = set(range(len(get_args(fact))))
-        if predicate not in predicates:
-            predicates[predicate] = indices
-        assert predicates[predicate] == indices
-
-    potential_streams = []
-    for predicate, indices in sorted(predicates.items()):
-        for r in range(len(indices) + 1):
-            for combo in map(set, combinations(indices, r=r)):
-                input_indices = indices - combo
-                output_indices = tuple(sorted(indices - input_indices))
-                input_indices = tuple(sorted(input_indices))
-                potential_streams.append((predicate, input_indices, output_indices))
-
     streams = []
     # for (predicate, input_indices, output_indices), facts in potential_streams.items():
-    for predicate, input_indices, output_indices in potential_streams:
+    for predicate, input_indices, output_indices in generate_partitions(infer_arity(unused_facts)):
         facts = facts_from_predicate[predicate]
 
         parameters = {i: '?i{}'.format(i) for i in input_indices}
@@ -194,7 +198,8 @@ def reduce_init(problem, goal_objects, verbose=False):
 
         name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
         gen_fn = get_gen_fn(outputs_from_input)
-        stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts, outputs, certified_facts, StreamInfo())
+        stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts,
+                        outputs, certified_facts, StreamInfo())
         stream.pddl_name = 'placeholder'
         streams.append(stream)
     return used_init, streams
