@@ -257,6 +257,7 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
+    # TODO: dump method
 
 ##################################################
 

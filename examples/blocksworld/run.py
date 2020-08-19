@@ -120,6 +120,85 @@ def get_static_predicates(domain):
 def get_gen_fn(outputs_from_input):
     return lambda *inps: iter(outputs_from_input[inps])
 
+def reduce_init(problem, goal_objects, verbose=False):
+    # TODO: compute goal_objects here
+    domain = parse_sequential_domain(problem.domain_pddl)
+    fluent_predicates = get_fluents(domain)
+    # static_predicates = get_static_predicates(domain)
+    # print(static_predicates)
+
+    all_init = problem.init
+    used_init = extract_facts(all_init, goal_objects)
+    unused_facts = set(all_init) - set(used_init)
+    if verbose:
+        print('Used:', used_init)
+        print('Unused:', unused_facts)
+
+    facts_from_predicate = defaultdict(set)
+    for fact in unused_facts:  # init
+        facts_from_predicate[get_prefix(fact)].add(fact)
+
+    # Not strictly necessary to do only unused but can narrow the pool a bit
+    # potential_streams = defaultdict(set)
+    # for fact in unused_facts:
+    #     predicate = get_prefix(fact)
+    #     input_indices = frozenset(i for i, v in enumerate(get_args(fact)) if v in active_objects)
+    #     output_indices = frozenset(i for i in range(len(get_args(fact))) if i not in input_indices)
+    #     potential_streams[predicate, input_indices, output_indices].add(fact)
+    # print(potential_streams.keys())
+
+    predicates = {}
+    for fact in unused_facts:
+        predicate = get_prefix(fact)
+        indices = set(range(len(get_args(fact))))
+        if predicate not in predicates:
+            predicates[predicate] = indices
+        assert predicates[predicate] == indices
+
+    potential_streams = []
+    for predicate, indices in sorted(predicates.items()):
+        for r in range(len(indices) + 1):
+            for combo in map(set, combinations(indices, r=r)):
+                input_indices = indices - combo
+                output_indices = tuple(sorted(indices - input_indices))
+                input_indices = tuple(sorted(input_indices))
+                potential_streams.append((predicate, input_indices, output_indices))
+
+    streams = []
+    # for (predicate, input_indices, output_indices), facts in potential_streams.items():
+    for predicate, input_indices, output_indices in potential_streams:
+        facts = facts_from_predicate[predicate]
+
+        parameters = {i: '?i{}'.format(i) for i in input_indices}
+        inputs = [parameters[i] for i in input_indices]
+        domain_facts = {f for f in identify_conditions(facts, parameters, all_init)
+                        if get_prefix(f) not in fluent_predicates}
+        assert implies(inputs, domain_facts)
+        parameters.update({i: '?o{}'.format(i) for i in output_indices})
+        outputs = [parameters[i] for i in output_indices]
+        certified_facts = set(identify_conditions(facts, parameters, all_init)) - domain_facts
+        if not certified_facts:
+            continue
+        if verbose:
+            print()
+            print(predicate, input_indices, output_indices)
+            print('Domain:', domain_facts)
+            print('Certified', certified_facts)
+
+        outputs_from_input = defaultdict(list)
+        for fact in sorted(facts_from_predicate[predicate]):
+            args = get_args(fact)
+            input_values = tuple(args[i] for i in input_indices)
+            output_values = tuple(args[i] for i in output_indices)
+            outputs_from_input[input_values].append(output_values)
+
+        name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
+        gen_fn = get_gen_fn(outputs_from_input)
+        stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts, outputs, certified_facts, StreamInfo())
+        stream.pddl_name = 'placeholder'
+        streams.append(stream)
+    return used_init, streams
+
 def reduce_initial(replace=True):
     problem = get_problem()
     #stream_pddl = None
@@ -130,89 +209,16 @@ def reduce_initial(replace=True):
     goal_objects = set()
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
-    unused_objects = all_objects - goal_objects
-    active_objects = set(goal_objects)
 
     used_init = problem.init
     if replace:
-        domain = parse_sequential_domain(problem.domain_pddl)
-        fluent_predicates = get_fluents(domain)
-        # static_predicates = get_static_predicates(domain)
-        # print(static_predicates)
-
-        all_init = problem.init
-        used_init = extract_facts(all_init, goal_objects)
-        print('Used:', used_init)
-        unused_facts = set(all_init) - set(used_init)
-        print('Unused:', unused_facts)
-
-        facts_from_predicate = defaultdict(set)
-        for fact in unused_facts: # init
-            facts_from_predicate[get_prefix(fact)].add(fact)
-
-        # Not strictly necessary to do only unused but can narrow the pool a bit
-        # potential_streams = defaultdict(set)
-        # for fact in unused_facts:
-        #     predicate = get_prefix(fact)
-        #     input_indices = frozenset(i for i, v in enumerate(get_args(fact)) if v in active_objects)
-        #     output_indices = frozenset(i for i in range(len(get_args(fact))) if i not in input_indices)
-        #     potential_streams[predicate, input_indices, output_indices].add(fact)
-        #print(potential_streams.keys())
-
-        predicates = {}
-        for fact in unused_facts:
-            predicate = get_prefix(fact)
-            indices = set(range(len(get_args(fact))))
-            if predicate not in predicates:
-                predicates[predicate] = indices
-            assert predicates[predicate] == indices
-
-        potential_streams = []
-        for predicate, indices in sorted(predicates.items()):
-            for r in range(len(indices)+1):
-                for combo in map(set, combinations(indices, r=r)):
-                    input_indices = indices - combo
-                    output_indices = tuple(sorted(indices - input_indices))
-                    input_indices = tuple(sorted(input_indices))
-                    potential_streams.append((predicate, input_indices, output_indices))
-
-        streams = []
-        #for (predicate, input_indices, output_indices), facts in potential_streams.items():
-        for predicate, input_indices, output_indices in potential_streams:
-            facts = facts_from_predicate[predicate]
-
-            parameters = {i: '?i{}'.format(i) for i in input_indices}
-            inputs = [parameters[i] for i in input_indices]
-            domain_facts = {f for f in identify_conditions(facts, parameters, all_init)
-                            if get_prefix(f) not in fluent_predicates}
-            assert implies(inputs, domain_facts)
-            parameters.update({i: '?o{}'.format(i) for i in output_indices})
-            outputs = [parameters[i] for i in output_indices]
-            certified_facts = set(identify_conditions(facts, parameters, all_init)) - domain_facts
-            if not certified_facts:
-                continue
-            print()
-            print(predicate, input_indices, output_indices)
-            print('Domain:', domain_facts)
-            print('Certified', certified_facts)
-
-            outputs_from_input = defaultdict(list)
-            for fact in sorted(facts_from_predicate[predicate]):
-                args = get_args(fact)
-                input_values = tuple(args[i] for i in input_indices)
-                output_values = tuple(args[i] for i in output_indices)
-                outputs_from_input[input_values].append(output_values)
-
-            name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
-            gen_fn = get_gen_fn(outputs_from_input)
-            stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts, outputs, certified_facts, StreamInfo())
-            stream.pddl_name = 'placeholder'
-            streams.append(stream)
-        stream_pddl = streams
+        used_init, stream_pddl = reduce_init(problem, goal_objects)
 
     stream_map = {}
     stream_info = {}
 
+    # unused_objects = all_objects - goal_objects
+    # active_objects = set(goal_objects)
     # def test_clear(block):
     #     fact = ('clear', block)
     #     return fact in all_init
