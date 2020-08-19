@@ -117,6 +117,9 @@ def get_static_predicates(domain):
                   for predicate in get_predicates(get_precondition(action))}  # get_literals
     return predicates - fluent_predicates
 
+def get_gen_fn(outputs_from_input):
+    return lambda *inps: iter(outputs_from_input[inps])
+
 def reduce_initial(replace=True):
     problem = get_problem()
     #stream_pddl = None
@@ -190,10 +193,9 @@ def reduce_initial(replace=True):
                 continue
             print()
             print(predicate, input_indices, output_indices)
-            print(domain_facts)
-            print(certified_facts)
+            print('Domain:', domain_facts)
+            print('Certified', certified_facts)
 
-            name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
             outputs_from_input = defaultdict(list)
             for fact in sorted(facts_from_predicate[predicate]):
                 args = get_args(fact)
@@ -201,44 +203,42 @@ def reduce_initial(replace=True):
                 output_values = tuple(args[i] for i in output_indices)
                 outputs_from_input[input_values].append(output_values)
 
-
-            print(outputs_from_input)
-
-            #def gen_fn(*inputs):
-            #    yield
-
-            gen_fn = outputs_from_input.get
+            name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
+            gen_fn = get_gen_fn(outputs_from_input)
             stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts, outputs, certified_facts, StreamInfo())
-            print(stream)
+            stream.pddl_name = 'placeholder'
             streams.append(stream)
         stream_pddl = streams
 
-    def test_clear(block):
-        fact = ('clear', block)
-        return fact in all_init
+    stream_map = {}
+    stream_info = {}
 
-    # TODO: the constraint satisfaction world that I did for TLPK that automatically creates streams (hpncsp)
-    def sample_on(b1):
-        # TODO: return all other facts that are contained just to speed up the process
-        for b2 in sorted(all_objects, reverse=True):
-            fact = ('on', b2, b1)
-            print(fact)
-            if fact in all_init:
-                active_objects.add(b2)
-                new_facts = list(extract_facts(all_init, active_objects))
-                # TODO: needs to be a sequence (i.e. no sets)
-                yield WildOutput(values=[(b2,)], facts=new_facts)
-
-    stream_map = {
-        'sample-block': from_gen((o,) for o in unused_objects),
-        'test-block': from_test(universe_test),
-        'test-arm-empty': from_test(universe_test),
-        'test-clear': from_test(test_clear),
-        'sample-on': sample_on,
-    }
-    stream_info = {
-        'sample-on': StreamInfo(eager=False), #, opt_gen_fn=from_gen_fn(lambda x: [(False,)])),
-    }
+    # def test_clear(block):
+    #     fact = ('clear', block)
+    #     return fact in all_init
+    #
+    # # TODO: the constraint satisfaction world that I did for TLPK that automatically creates streams (hpncsp)
+    # def sample_on(b1):
+    #     # TODO: return all other facts that are contained just to speed up the process
+    #     for b2 in sorted(all_objects, reverse=True):
+    #         fact = ('on', b2, b1)
+    #         print(fact)
+    #         if fact in all_init:
+    #             active_objects.add(b2)
+    #             new_facts = list(extract_facts(all_init, active_objects))
+    #             # TODO: needs to be a sequence (i.e. no sets)
+    #             yield WildOutput(values=[(b2,)], facts=new_facts)
+    #
+    # stream_map = {
+    #     'sample-block': from_gen((o,) for o in unused_objects),
+    #     'test-block': from_test(universe_test),
+    #     'test-arm-empty': from_test(universe_test),
+    #     'test-clear': from_test(test_clear),
+    #     'sample-on': sample_on,
+    # }
+    # stream_info = {
+    #     'sample-on': StreamInfo(eager=False), #, opt_gen_fn=from_gen_fn(lambda x: [(False,)])),
+    # }
 
     start_time = time.time()
     pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
