@@ -254,7 +254,7 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
+def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
     # TODO: make a simulator that randomizes these probabilities
     # TODO: include local correlation
     # TODO: combine with risk_management
@@ -262,13 +262,15 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'rovers_02' # data_network | visit_all | rovers_02
+    domain_name = 'no_mprime' # data_network | visit_all | rovers_02 | no_mprime
     index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
     #for_optimization(problem)
-    if verbose:
+    if visualize:
         edge_predicates = [
-            ('can_traverse', [1, 2]), # rovers_02
+            ('can_traverse', [1, 2]), # rovers
+            # ('visible', [0, 1]),  # rovers
+            # ('visible_from', [0, 1]),  # rovers
             ('CONNECTED', [0, 1]), # data_network, visit_all
         ]
         for index in range(100):
@@ -290,7 +292,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
         'test-sum': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),  # TODO: p_success=lambda x: 0.5
         # Better to use little space
         'test-less_equal': StreamInfo(opt_gen_fn=None, eager=True, p_success=0),
-        'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
+        #'test-online': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
         #'test-open': StreamInfo(p_success=P_SUCCESS, defer_fn=defer_unique),
     }
     stream_info.update({name: StreamInfo(p_success=cached, defer_fn=defer_unique)
@@ -302,6 +304,8 @@ def solve_pddlstream(n_trials=1, max_time=1*30, verbose=True):
     prohibit_predicates = {
         'ONLINE': P_SUCCESS,
         'open': P_SUCCESS, # TODO: make a function instead
+        #'visible': P_SUCCESS,
+        #'visible_from': P_SUCCESS,
     }
     costs = False
 
@@ -405,8 +409,9 @@ def solve_pddl(visualize=False):
 
     directory_paths = get_domains()
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
-    # pipesworld-notankage | no-mprime | no-mystery | storage | trucks | transport-opt11-strips
-    #directory_paths = [os.path.join(CLASSICAL_PATH, 'transport-opt11-strips')]
+    # data-network-opt18 | visitall-opt11-strips | rovers-02 | rovers
+    # pipesworld-notankage | no-mprime | no-mystery | storage | trucks | transport-opt11-strips | driverlog
+    directory_paths = [os.path.join(CLASSICAL_PATH, 'rovers')]
 
     problems = []
     for directory_path in directory_paths:
@@ -427,7 +432,11 @@ def solve_pddl(visualize=False):
         edge_predicates = [
             ('connect', [0, 1]),
             ('connected', [0, 1]),
-            ('road', [0, 1]),
+            ('road', [0, 1]), # transport
+            ('link', [0, 1]), # driverlog
+            #('can_traverse', [1, 2]), # rovers
+            ('visible', [0, 1]),  # rovers
+            #('visible_from', [0, 1]),  # rovers
         ]
         for problem in problems:
             print(problem['domain_path'], problem['problem_path'])
@@ -499,6 +508,7 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     plt.show()
 
 def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
+    # TODO: compare on just -opt
     problems = Counter(extract_domain(result['domain_path']) for result in results)
     print('Problems:', problems)
     planners = Counter(result.get('planner', None) for result in results)
@@ -560,8 +570,8 @@ def main():
         #compare_histograms(results)
         analyze_experiment(results)
     else:
-        #solve_pddlstream()
-        solve_pddl()
+        solve_pddlstream()
+        #solve_pddl()
 
 if __name__ == '__main__':
     main()
