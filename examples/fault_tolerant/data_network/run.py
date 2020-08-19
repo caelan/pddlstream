@@ -59,10 +59,14 @@ def get_domains(directory=CLASSICAL_PATH, optimal=False):
                    and implies(optimal, '-opt' in os.path.basename(p))}) #if f.endswith('-opt18')}
 
 def get_benchmarks(directory):
+    import importlib.machinery
     #api = importlib.import_module('{}.api'.format(directory))
-    spec = importlib.util.spec_from_file_location('api', os.path.join(directory, 'api.py'))
-    api = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(api)
+    api = importlib.machinery.SourceFileLoader('api', os.path.join(directory, 'api.py')).load_module()
+
+    # spec = importlib.util.spec_from_file_location('api', os.path.join(directory, 'api.py')) # >= 3.5
+    # api = importlib.util.module_from_spec(spec)
+    # spec.loader.exec_module(api)
+
     pairs = []
     for domain in api.domains:
         for domain_file, problem_file in domain['problems']:
@@ -449,7 +453,7 @@ def solve_pddl(visualize=False):
 
     problems = []
     for directory_path in directory_paths:
-        for domain_path, problem_path in get_benchmarks(directory_path)[:1]:
+        for domain_path, problem_path in get_benchmarks(directory_path):
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
     # problems = [{
