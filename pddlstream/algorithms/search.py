@@ -7,7 +7,7 @@ from time import time
 from collections import defaultdict
 
 from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl, DIVERSE_PLANNERS, scale_cost, \
-    MAX_FD_COST, DEFAULT_PLANNER
+    MAX_FD_COST, DEFAULT_PLANNER, DEFAULT_MAX_TIME, DEFAULT_MAX_PLANS
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl, \
     parse_sequential_domain, parse_problem, task_from_domain_problem, sas_from_pddl, get_conjunctive_parts
 from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time, int_ceil, implies
@@ -62,26 +62,28 @@ def get_all_preconditions(sas_action):
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
     return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
 
-def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=[], prohibit_predicates=[],
-                      planner=DEFAULT_PLANNER, max_planner_time=INF, hierarchy=[], temp_dir=TEMP_DIR,
+def diverse_from_task(sas_task, use_probabilities=True, prohibit_actions=[], prohibit_predicates=[],
+                      planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_plans=DEFAULT_MAX_PLANS,
+                      hierarchy=[], temp_dir=TEMP_DIR,
                       clean=False, debug=False, **search_args):
     # TODO: make a free version of the sas_action after it's applied
     if planner in DIVERSE_PLANNERS:
-        return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time,
+        return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time, max_plans=max_plans,
                                temp_dir=temp_dir, clean=clean, debug=debug, hierarchy=hierarchy, **search_args)
     # TODO: non-probabilistic version of this for action costs
     assert prohibit_actions or prohibit_predicates
     assert not isinstance(prohibit_actions, dict)
-    assert implies(not costs, prohibit_predicates)
+    assert implies(use_probabilities, prohibit_predicates)
     import sas_tasks
     if isinstance(prohibit_predicates, dict):
         prohibit_predicates = {predicate.lower(): prob for predicate, prob in prohibit_predicates.items()}
     else:
         prohibit_predicates = list(map(str.lower, prohibit_predicates))
     start_time = time()
-    solutions = []
+    plans = []
     var_from_action = {}
-    prob_from_precondition = defaultdict(lambda: 1.) # TODO: effort
+    # TODO: weighted average
+    prob_from_precondition = defaultdict(lambda: 1.) # TODO: cost/effort
     actions_from_precondition = defaultdict(set)
     with Verbose(debug):
         deadend_var = add_var(sas_task, layer=1)
@@ -94,8 +96,8 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
                     prob_from_precondition[precondition] = prohibit_predicates[precondition.predicate]
         sas_task.goal.pairs.append((deadend_var, 0))
 
-        while (elapsed_time(start_time) < max_planner_time) and (len(solutions) < max_solutions):
-            if not costs:
+        while (elapsed_time(start_time) < max_planner_time) and (len(plans) < max_plans):
+            if use_probabilities:
                 for sas_action in sas_task.operators:
                     #scale_cost(prob_from_precondition[action])
                     sas_action.cost = 1 # 0 | 1
@@ -111,10 +113,10 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
             solution = run_search(temp_dir, debug=debug, planner=planner,
-                                  max_planner_time=remaining_time, **search_args)
+                                  max_planner_time=remaining_time, max_plans=1, **search_args)
             if not solution:
                 break
-            solutions.extend(solution)
+            plans.extend(solution)
 
             for plan, _ in solution:
                 sas_plan = parse_sas_plan(sas_task, plan)
@@ -140,7 +142,7 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
                         #uncertain.append(precondition)
                         #success_prob *= prob
 
-                if not costs:
+                if use_probabilities:
                     # success_prob = compute_pre_prob(uncertain, prohibit_predicates)
                     success_prob = 1.
                     for precondition in uncertain:
@@ -158,7 +160,7 @@ def diverse_from_task(sas_task, max_solutions=INF, costs=True, prohibit_actions=
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', elapsed_time(start_time))
-    return solutions
+    return plans
 
 def diverse_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, debug=False, **kwargs):
     # TODO: methods for diverse manipulation solutions (like Marc)

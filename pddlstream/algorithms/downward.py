@@ -23,7 +23,7 @@ DIVERSE_PLANNERS = ['forbid', 'kstar', 'symk']
 ##################################################
 
 #FORBID_PATH = '/Users/caelan/Programs/external/IBM/ForbidIterative'
-#FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num_plans} --symmetries ' \
+#FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {max_plans} --symmetries ' \
 #                  '--domain {domain} --problem {problem}'
 # --planner topk,topq,topkq,diverse
 # topk: many plans that could be equivalent
@@ -37,7 +37,7 @@ DIVERSE_PLANNERS = ['forbid', 'kstar', 'symk']
 ##################################################
 
 FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} --symmetries ' \
-                  '--domain {domain} --problem {problem} --use-local-folder --clean-local-folder' # '--symmetries --upper-bound-on-number-of-plans {max_plans}'
+                  '--domain {domain} --problem {problem} --use-local-folder --clean-local-folder' # ' --upper-bound-on-number-of-plans {max_plans}'
 # [--overall-time-limit OVERALL_TIME_LIMIT]
 # [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
 # --reordering generates multiple plans from a single one
@@ -51,7 +51,7 @@ FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_ti
 ##################################################
 
 KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
-                  '--search "kstar(blind(),q={max_cost},k={num_plans},max_time={max_time},skip_reorderings=true)"' # ,bound={max_cost}
+                  '--search "kstar(blind(),q={max_cost},k={max_plans},max_time={max_time},skip_reorderings=true)"' # ,bound={max_cost}
 # blind, hmax, lmcut
 # TODO: kstar segfaults on OS X occasionally
 
@@ -59,7 +59,7 @@ KSATAR_TEMPLATE = './fast-downward.py --build release64 {domain} {problem} ' \
 
 # https://github.com/speckdavid/symk
 SYMK_TEMPLATE = './fast-downward.py {domain} {problem} ' \
-                '--search "symq-bd(plan_selection=unordered(num_plans={num_plans}),quality={max_cost})"'
+                '--search "symq-bd(plan_selection=unordered(num_plans={max_plans}),quality={max_cost})"'
 # plan_selection=top_k, plan_selection=unordered
 # Quality 1<=q<=infinity is a multiplier that is multiplied to the cost of the cheapest solution.
 # For example, q=1 reports only the cheapest plans, where quality=infinity corresponds to the top-k planning.
@@ -177,6 +177,7 @@ for w in range(1, 1+5):
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
 DEFAULT_PLANNER = 'ff-astar'
+DEFAULT_MAX_PLANS = 1e6 # effectively infinity
 
 ##################################################
 
@@ -405,7 +406,7 @@ def clean_planner(planner):
         safe_rm_dir(kstar_plans_path)
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
-               max_cost=INF, debug=False):
+               max_cost=INF, max_plans=DEFAULT_MAX_PLANS, debug=False): # max_plans=1
     max_time = convert_cost(max_planner_time)
     max_cost = convert_cost(scale_cost(max_cost))
     start_time = time()
@@ -419,21 +420,19 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_dir, filename))
 
-    # TODO: increase value to effectively infinity
-    num_plans = 1000 # TODO: pass in through planner
+    max_plans = int(min(DEFAULT_MAX_PLANS, max_plans))
     if planner == 'forbid':
         assert max_planner_time < INF
         command = os.path.join(os.environ['FORBID_PATH'], FORBID_TEMPLATE).format(
-            max_time=max_planner_time, max_cost=max_cost, #num_plans=num_plans, max_plans=20,
+            max_time=max_planner_time, max_cost=max_cost, #max_plans=max_plans,
             domain=domain_path, problem=problem_path)
     elif planner == 'kstar':
         command = os.path.join(os.environ['KSTAR_PATH'], KSATAR_TEMPLATE).format(
-            domain=domain_path, problem=problem_path, num_plans=num_plans,
+            domain=domain_path, problem=problem_path, max_plans=max_plans,
             max_time=max_planner_time, max_cost=max_cost)
     elif planner == 'symk':
         command = os.path.join(os.environ['SYMK_PATH'], SYMK_TEMPLATE).format(
-            domain=domain_path, problem=problem_path,
-            num_plans=num_plans, max_cost=max_cost)
+            domain=domain_path, problem=problem_path, max_plans=max_plans, max_cost=max_cost)
     # elif planner == 'cerberus':
     #     planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
     #     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)

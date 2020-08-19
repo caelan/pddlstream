@@ -9,6 +9,8 @@ import random
 from pddlstream.utils import INF, elapsed_time, find_unique, randomize
 from pddlstream.language.constants import str_from_plan, StreamAction, print_plan, OptPlan
 
+# TODO: include costs/efforts
+# TODO: costs as a function of k number of failures
 
 def p_conjunction(stream_plans):
     # TODO: 'union' requires a 'set' object but received a 'list'
@@ -78,10 +80,11 @@ def prune_dominated_stream_plans(externals, combined_plans):
 
 def p_disjunction(stream_plans, diverse):
     # Inclusion exclusion
-    # TODO: incorporate overhead
+    # TODO: incorporate cost/overhead
     # TODO: approximately compute by sampling outcomes
     # TODO: separate into connected components
     # TODO: compute for low k and increment, pruning if upper bound is less than best lower bound
+    # TODO: weight using costs
     d = diverse.get('d', INF)
     d = min(len(stream_plans), d)
     assert (d % 2 == 1) or (d == len(stream_plans))
@@ -176,14 +179,20 @@ def extract_stream_plan(externals, combined_plan):
     return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
             for name, inputs, _ in stream_actions}
 
-def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
+##################################################
+
+def greedy_diverse_subset(externals, combined_plans, diverse, verbose=True):
     # TODO: lazy greedy submodular maximization
     # TODO: greedy Bayesian update metric (like the one I used during the search)
+    # TODO: convergence relative threshold
     start_time = time.time()
     k = diverse['k']
+    max_time = diverse.get('max_time', INF)
     best_indices = set()
     # TODO: warm start using exact_diverse_subset for small k
     for i in range(len(best_indices), k):
+        if elapsed_time(start_time) >= max_time: # Randomly select the rest
+            break
         best_index, best_p = None, -INF
         for index in set(range(len(combined_plans))) - best_indices:
             stream_plans = [extract_stream_plan(externals, combined_plans[i]) for i in best_indices | {index}]
@@ -192,18 +201,20 @@ def greedy_diverse_subset(externals, combined_plans, diverse, max_time=INF):
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
-        print('{}) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
-        #if max_time < elapsed_time(start_time): # Randomly select the rest
-        #    break
+        if verbose:
+            print('{}) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
 
     best_plans = [combined_plans[i] for i in best_indices]
-    print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
-        len(combined_plans), k, elapsed_time(start_time)))
-    for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
-        print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
-        print(i, len(stream_plan), stream_plan)
-    print('\n'+'-'*50+'\n')
+    if verbose:
+        print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
+            len(combined_plans), k, elapsed_time(start_time)))
+        for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
+            print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+            print(i, len(stream_plan), stream_plan)
+        print('\n'+'-'*50+'\n')
     return best_plans
+
+##################################################
 
 def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     # TODO: dynamic programming method across multi-sets
@@ -272,7 +283,8 @@ def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     else:
         raise ValueError(selector)
     stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
+    total_cost = sum( cost for _, _, cost in subset_plans) # normalize, length
     p = score(stream_plans, diverse)
-    print('c={} | k={} | n={} | p={:.3f} | {:.3f} seconds'.format(
-        len(candidate_plans), k, len(subset_plans), p, elapsed_time(start_time)))
+    print('c={} | k={} | n={} | p={:.3f} | cost={:.3f} | {:.3f} seconds'.format(
+        len(candidate_plans), k, len(subset_plans), p, total_cost, elapsed_time(start_time)))
     return subset_plans

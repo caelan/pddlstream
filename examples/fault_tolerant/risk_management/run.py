@@ -202,10 +202,12 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 break
     return successes
 
-def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
+def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
     problem_path, constraints, config = inputs
+    planner = config['planner']
+    # config = {}
     print(SEPARATOR)
     print('Process {}: {}, {}'.format(pid, problem_path, config))
 
@@ -230,7 +232,8 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
                       for name, cached in bernoulli_fns.items()}
 
     prohibit_predicates = {'LINKED': P_SUCCESSES[0]}
-    costs = False
+    use_probabilities = config.get('probabilities', False)
+    unit_costs = False
 
     print('# Init:', len(problem.init))
     print('Goal:', problem.goal)
@@ -240,11 +243,11 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
     # solution = solve_incremental(problem, unit_costs=True, debug=True)
     # TODO: return the actual success rate of the portfolio (maybe in the cost)?
     solutions = solve_focused(problem, stream_info=stream_info, constraints=constraints,
-                              unit_costs=False, unit_efforts=False, effort_weight=None,
+                              unit_costs=unit_costs, unit_efforts=False, effort_weight=None,
                               debug=True, clean=False, temp_dir=TEMP_DIR,
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
-                              planner=config['planner'], max_planner_time=candidate_time,
-                              costs=costs, prohibit_predicates=prohibit_predicates,
+                              planner=planner, max_planner_time=candidate_time, max_plans=max_plans,
+                              use_probabilities=use_probabilities, prohibit_predicates=prohibit_predicates,
                               replan_actions=True, diverse=config)
 
     runtime = elapsed_time(trial_time)
@@ -252,7 +255,8 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, n_simulations=10000):
         print_solution(solution)
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
     p_success = float(n_successes) / n_simulations
-    outputs = (runtime, len(solutions), p_success)
+    total_cost = sum(cost for _, cost, _  in solutions)
+    outputs = (runtime, len(solutions), p_success, total_cost)
     # TODO: store other metrics (such as candidate time and probability of success
 
     if not SERIAL:
@@ -305,13 +309,16 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
     selectors = ['greedy', 'random', 'first'] # random | greedy | exact | first
     metrics = ['p_success'] # p_success | stability | uniqueness
 
-    planners = ['ff-wastar1'] #, 'kstar'] # ff-wastar1
+    planners = ['ff-wastar1'] #, 'kstar'] # ff-wastar1 | max-astar | dijkstra | symk
     #selectors = ['random', 'greedy', 'exact'] #,'first']
     #metrics = ['p_success', 'stability', 'uniqueness']
+    probs = [False, True]
 
+    # TODO: prune repeated using hashabledict
     ks = [min_k] if min_k == max_k else list(range(min_k, 1+max_k))
-    configs = [{'planner': planner, 'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
-               for planner, selector, metric, k in product(planners, selectors, metrics, ks)]
+    configs = [{'planner': planner, 'probabilities': prob,
+                'selector': selector, 'metric': metric, 'k': k, 'max_time': diverse_time}
+               for planner, prob, selector, metric, k in product(planners, probs, selectors, metrics, ks)]
     #configs = [
     #    {'selector': 'greedy', 'k': 3, 'd': INF, 'max_time': INF},  # 'candidates': 10,
     #]
@@ -319,23 +326,23 @@ def solve_pddlstream(n_trials=1, cost_multiplier=10, diverse_time=10*60, **kwarg
 
     jobs = [(problem_path, constraints, config) for _ in range(n_trials)
             for problem_path in problem_paths for config in configs]
+    #jobs = jobs[:1]
     generator = create_generator(run_trial, jobs)
 
     ensure_dir(EXPERIMENTS_DIR)
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
-    #file_name = os.path.join(EXPERIMENTS_DIR, '{}.pk3'.format(date_name))
-    file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
+    file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name)) # pk3
 
     # TODO: log problem_path
     # TODO: compare relative odds
     results = []
-    for (problem_path, _, config), (runtime, num, p_success) in generator:
+    for (problem_path, _, config), (runtime, num, p_success, cost) in generator:
         result = {'problem': problem_path, 'config': config,
-                  'runtime': runtime, 'num_plans': num, 'p_success': p_success}
+                  'runtime': runtime, 'num_plans': num, 'p_success': p_success, 'cost': cost}
         # TODO: record that risk management
         results.append(result)
-        print('{}/{} | Plans: {} | Probability: {:.3f} | Runtime: {:.3f} | Total time: {:.3f}'.format(
-            len(results), len(jobs), num, p_success, runtime, elapsed_time(total_time)))
+        print('{}/{} | Plans: {} | Probability: {:.3f} | Cost: {:.3f} | Runtime: {:.3f} | Total time: {:.3f}'.format(
+            len(results), len(jobs), num, p_success, cost, runtime, elapsed_time(total_time)))
         if not is_darwin():
             #write_pickle(file_name, results)
             write_json(file_name, results)

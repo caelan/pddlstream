@@ -313,7 +313,7 @@ def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
         #'visible': P_SUCCESS,
         #'visible_from': P_SUCCESS,
     }
-    costs = False # TODO: toggle and see difference in performance
+    use_probabilities = False # TODO: toggle and see difference in performance
 
     successes = 0.
     for _ in range(n_trials):
@@ -323,8 +323,8 @@ def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
         #solution = solve_incremental(problem, unit_costs=True, debug=True)
         solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
                                   unit_costs=False, unit_efforts=False, effort_weight=None,
-                                  debug=verbose, clean=True,
-                                  costs=costs, prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
+                                  debug=verbose, clean=True, use_probabilities=use_probabilities,
+                                  prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                   planner=planner, max_planner_time=max_time, diverse=diverse,
                                   initial_complexity=1, max_iterations=1, max_skeletons=None,
                                   replan_actions=True,
@@ -455,7 +455,7 @@ def solve_pddl(visualize=False):
         11: 'driverlog',
     }
     indices = sorted(directories.keys())
-    #indices = [11]
+    #indices = [1]
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in indices]
 
     problems = []
@@ -543,10 +543,14 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     # Make a multiple-histogram of data-sets with different length.
     ax0.hist(x, n_bins, histtype='bar', label=planners)
     ax0.legend(prop={'size': 10})
+    ax0.xlabel('K')
+    ax0.ylabel('Frequency')
     ax0.set_title('Standard Histogram')
 
     ax1.hist(x, n_bins, normed=False, cumulative=-1, histtype='bar', stacked=False, label=planners) # range=(min_value, max_value),
     ax1.legend(prop={'size': 10})
+    ax1.xlabel('K')
+    ax1.ylabel('Cumulative Frequency')
     ax1.set_title('Reverse Cumulative Histogram')
     #ax0.ylim([0, 1000])
 
