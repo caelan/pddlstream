@@ -551,12 +551,13 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     fig.tight_layout()
     plt.show()
 
-def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
+def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     # TODO: compare on just -opt
-    problems = Counter(extract_domain(result['domain_path']) for result in results)
-    print('Problems:', problems)
-    planners = Counter(result.get('planner', None) for result in results)
-    print('Planners:', planners)
+    problem_trials = Counter(extract_domain(result['domain_path']) for result in results)
+    print('Domains ({}):'.format(len(problem_trials)), sorted(problem_trials.keys()))
+    print('\nProblems ({}):'.format(sum(problem_trials.values())), problem_trials)
+    planner_trials = Counter(result.get('planner', None) for result in results)
+    print('\nPlanners ({}):'.format(len(planner_trials)), planner_trials)
 
     total_counter = defaultdict(int)
     success_counter = defaultdict(int)
@@ -565,19 +566,29 @@ def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
         planner = result.get('planner', None)
         total_counter[domain, planner] += 1
         if result.get('error', False):
+            #print('Error:', result['problem_path'])
+            # TODO: save the error
             continue
         #if (planner != 'symk') and (result['runtime'] < result['max_time']):
         #    print('{}: {:.0f}/{:.0f}'.format(planner, result['runtime'], result['max_time']))
-        if (result['num_plans'] >= min_plans) or ((planner != 'symk') and (result['runtime'] < 0.9*result['max_time'])):
+        if (result['num_plans'] >= min_plans): # or ((planner != 'symk') and (result['runtime'] < 0.9*result['max_time'])):
             success_counter[domain, planner] += 1
             if verbose:
                 print('c={:.3f}, n={}, t={:.0f}, {}'.format(
                     result.get('all_plans', None), result['num_plans'],
                     result['runtime'], result['problem_path']))  # result['domain_path']
 
+    domain_frequencies = defaultdict(Counter)
+    for result in results:
+        domain = extract_domain(result['domain_path'])
+        domain_frequencies[domain][result['num_plans']] += 1
+    for domain in sorted(domain_frequencies):
+        print(domain, sorted(domain_frequencies[domain].elements()))
+
     print(SEPARATOR)
-    print('{} domains, {} problems'.format(len(success_counter), sum(success_counter.values())))
+    print('Solved {} domains, {} problems'.format(len(success_counter), sum(success_counter.values())))
     #print(str_from_object(counter))
+    #print(sum(success_counter.values()), sum(total_counter.values()))
 
     problem_counter = Counter()
     for (problem, _), num in success_counter.items():
@@ -587,14 +598,14 @@ def analyze_experiment(results, min_plans=5, verbose=False): # 10 | 25
     for (_, planner), num in success_counter.items():
         #planner_counter[planner] += 1 # Domains
         planner_counter[planner] += num # Problems
-    print('Planners: ', '  '.join('{} ({})'.format(
-        planner, planner_counter[planner]) for planner in sorted(planners)))
+    print('Planners: ', '  '.join('{} ({}/{})'.format(
+        planner, planner_counter[planner], planner_trials[planner]) for planner in sorted(planner_trials)))
 
     #for domain in sorted(counter, key=counter.get):
     #for domain in sorted(problems, key=problems.get): # Num problems
     for domain in sorted(problem_counter, key=problem_counter.get): # Most successes
         print('{:<25} {:3}'.format(domain, problem_counter[domain]), end='')
-        for planner in sorted(planners):
+        for planner in sorted(planner_trials):
             fraction = float(success_counter[domain, planner]) / total_counter[domain, planner]
             print('  {:3}/{:3} ({:.3f})'.format(
                 success_counter[domain, planner], total_counter[domain, planner], fraction), end='')
