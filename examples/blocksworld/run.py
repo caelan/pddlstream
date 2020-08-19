@@ -6,7 +6,7 @@ import os
 import time
 
 from collections import defaultdict
-from itertools import permutations
+from itertools import permutations, combinations
 
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.focused import solve_focused
@@ -87,26 +87,25 @@ def extract_facts(facts, objects):
             filtered_facts.append(fact)
     return filtered_facts
 
-def identify_conditions(facts, parameters, init):
+def identify_conditions(stream_facts, parameters, init):
     facts_from_predicate = defaultdict(set)
     for fact in init:
         facts_from_predicate[get_prefix(fact)].add(fact)
-    domain = []
-    for other in facts_from_predicate:
-        example = list(facts_from_predicate[other])[0]
-        # len(get_args(example)) <= len(used_indices)
-        # indices = used_indices
+    conditions = []
+    for other_predicate in facts_from_predicate:
+        other_example = list(facts_from_predicate[other_predicate])[0]
         indices = sorted(parameters)
-        for assignment in permutations(indices, r=len(get_args(example))):
-            for fact in facts:
+        # len(get_args(other_example)) <= len(indices)
+        for assignment in permutations(indices, r=len(get_args(other_example))):
+            for fact in stream_facts:
                 args = get_args(fact)
-                domain_fact = (other,) + tuple(args[i] for i in assignment)
+                domain_fact = (other_predicate,) + tuple(args[i] for i in assignment)
                 if domain_fact not in init:
                     break
             else:
-                domain_predicate = (other,) + tuple(parameters[i] for i in assignment)
-                domain.append(domain_predicate)
-    return domain
+                domain_predicate = (other_predicate,) + tuple(parameters[i] for i in assignment)
+                conditions.append(domain_predicate)
+    return conditions
 
 def reduce_initial(replace=True):
     problem = get_problem()
@@ -129,28 +128,56 @@ def reduce_initial(replace=True):
         unused_facts = set(problem.init) - set(init)
         print(unused_facts)
 
-        potential_streams = defaultdict(set)
+        facts_from_predicate = defaultdict(set)
+        for fact in unused_facts: # init
+            facts_from_predicate[get_prefix(fact)].add(fact)
+
+        # Not strictly necessary to do only unused but can narrow the pool a bit
+        # potential_streams = defaultdict(set)
+        # for fact in unused_facts:
+        #     predicate = get_prefix(fact)
+        #     used_indices = frozenset(i for i, v in enumerate(get_args(fact)) if v in active_objects)
+        #     unused_indices = frozenset(i for i in range(len(get_args(fact))) if i not in used_indices)
+        #     potential_streams[predicate, used_indices, unused_indices].add(fact)
+        #print(potential_streams.keys())
+
+        predicates = {}
         for fact in unused_facts:
             predicate = get_prefix(fact)
-            used_indices = frozenset(i for i, v in enumerate(get_args(fact)) if v in active_objects)
-            unused_indices = frozenset(i for i in range(len(get_args(fact))) if i not in used_indices)
-            potential_streams[predicate, used_indices, unused_indices].add(fact)
-            # TODO: consider all possible splits
-        print(potential_streams.keys())
+            indices = set(range(len(get_args(fact))))
+            if predicate not in predicates:
+                predicates[predicate] = indices
+            assert predicates[predicate] == indices
+        print(predicates)
 
-        for (predicate, used_indices, unused_indices), facts in potential_streams.items(): # Can always test on subsets
+        potential_streams = []
+        for predicate, indices in sorted(predicates.items()):
+            print()
+            print(predicate, indices)
+            for r in range(len(indices)+1):
+                for combo in map(set, combinations(indices, r=r)):
+                    print(r, combo)
+                    used_indices = frozenset(indices - combo)
+                    unused_indices = frozenset(indices - used_indices)
+                    potential_streams.append((predicate, used_indices, unused_indices))
+
+        #for (predicate, used_indices, unused_indices), facts in potential_streams.items():
+        for predicate, used_indices, unused_indices in potential_streams:
             # Set of values at each index
             # All mappings from the parameters to the used_indices of the input
             #if predicate != 'on':
             #    continue
+            facts = facts_from_predicate[predicate]
+            parameters = {i: '?i{}'.format(i) for i in used_indices}
+            domain = set(identify_conditions(facts, parameters, problem.init))
+            parameters.update({i: '?o{}'.format(i) for i in unused_indices})
+            certified = set(identify_conditions(facts, parameters, problem.init)) - domain
+            if not certified:
+                continue
 
             print()
             print(predicate, used_indices, unused_indices)
-            parameters = {i: 'i{}'.format(i) for i in used_indices}
-            domain = set(identify_conditions(facts, parameters, problem.init))
             print(domain)
-            parameters.update({i: 'o{}'.format(i) for i in unused_indices})
-            certified = set(identify_conditions(facts, parameters, problem.init)) - domain
             print(certified)
 
         # for predicate, facts in facts_from_predicate.items():
