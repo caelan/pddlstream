@@ -13,7 +13,8 @@ from pddlstream.language.constants import str_from_plan, StreamAction, print_pla
 # TODO: include costs/efforts
 # TODO: costs as a function of k number of failures
 
-def generic_intersection(*collections):
+def generic_union(*collections):
+    # TODO: generic intersection
     intersection = set()
     for collection in collections:
         intersection.update(collection)
@@ -91,11 +92,16 @@ def prune_dominated_stream_plans(externals, combined_plans):
 
 ##################################################
 
-def p_conjunction(results):
-    return np.product([result.external.get_p_success(*result.get_input_values())
-                       for result in generic_intersection(*results)])
+def p_conjunction(results, probabilities=None):
+    union = generic_union(*results)
+    if probabilities is None:
+        probabilities = {result: result.external.get_p_success(*result.get_input_values())
+                         for result in union}
+    else:
+        assert all(result in probabilities for result in union)
+    return np.product(list(probabilities.values()))
 
-def p_disjunction(portfolio, diverse):
+def p_disjunction(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
     # TODO: approximately compute by sampling outcomes
@@ -110,7 +116,7 @@ def p_disjunction(portfolio, diverse):
         r = i + 1
         for plans in combinations(portfolio, r=r):
             sign = -1 if r % 2 == 0 else +1
-            p += sign*p_conjunction(plans)
+            p += sign*p_conjunction(plans, **kwargs)
     return p
 
 ##################################################
@@ -137,7 +143,7 @@ def stability(portfolio, diverse, r=2, op=np.average): # min | np.average
     values = []
     for combo in combinations(portfolio, r=r):
         # TODO: weighted intersection
-        sim = float(len(set.intersection(*combo))) / len(set.union(*combo))
+        sim = float(len(set.intersection(*combo))) / len(generic_union(*combo))
         values.append(1. - sim)
     return op(values)
 
@@ -241,7 +247,7 @@ def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
         p = score(stream_plans, diverse)
         #assert 0 <= p <= 1 # May not hold if not exact
         if verbose:
-            intersection = generic_intersection(*stream_plans)
+            intersection = set.intersection(*stream_plans)
             print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
                 elapsed_time(start_time), i, len(intersection), p))  # , intersection)
             for stream_plan in stream_plans:
@@ -286,7 +292,7 @@ def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
     assert 1 <= k
     selector = diverse['selector']
     if len(pruned_plans) <= k:
-        subset_plans = pruned_plans
+        subset_plans = stream_plans
     elif selector == 'random':
         subset_plans = random_subset(stream_plans, diverse, verbose=verbose, **kwargs)
     elif selector == 'first':

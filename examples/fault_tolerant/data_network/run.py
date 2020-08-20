@@ -11,14 +11,14 @@ import traceback
 import importlib
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, \
-    prune_dominated_action_plans, generic_intersection
+    prune_dominated_action_plans, generic_union
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test, fn_from_constant
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo, DEBUG
 from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object, \
-    write_pickle, read_pickle, implies
+    write_pickle, read_pickle, implies, find_unique, get_mapping
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT, \
     get_prefix, get_function, get_args
@@ -326,7 +326,7 @@ def solve_trial(domain_name, index, planner, diverse, max_time=1*30, n_simulatio
 
     stream_plans = [extract_streams(plan) for plan, _, _ in solutions]
     probabilities = {stream: bernoulli_fns[stream.name](*stream.inputs)
-                     for stream in generic_intersection(*stream_plans)}
+                     for stream in generic_union(*stream_plans)}
     print(p_disjunction(stream_plans, probabilities=probabilities))
 
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
@@ -351,7 +351,18 @@ def solve_pddlstream():
 
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
-def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=10): # TODO: too greedy causes local min
+PROBABILITIES = {
+    'connect': P_SUCCESS,
+    'connected': P_SUCCESS,
+    'road': P_SUCCESS, # transport
+    'link': P_SUCCESS, # driverlog
+    'can_traverse': P_SUCCESS, # rovers
+    'visible': P_SUCCESS, # rovers
+    'visible_from': P_SUCCESS, # rovers
+    'path': P_SUCCESS,
+}
+
+def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=10, max_plans=2):
     # TODO: randomize the seed
     pid = os.getpid()
     domain_path, problem_path = inputs['domain_path'], inputs['problem_path']
@@ -371,16 +382,7 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
     prohibit_actions = []
     #prohibit_actions = True
 
-    prohibit_predicates = [
-        'connect',
-        'connected',
-        'road',
-        'link',
-        'can_traverse',
-        #'visible',
-        #'visible_from',
-        'path',
-    ]
+    prohibit_predicates = list(PROBABILITIES)
     #prohibit_predicates = []
 
     all_solutions = []
@@ -392,21 +394,39 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
         'max_time': max_time,
         'error': True,
     })
+
+    domain_pddl, problem_pddl = read(domain_path), read(problem_path)
     start_time = time.time()
     try:
-        domain_pddl, problem_pddl = read(domain_path), read(problem_path)
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
         all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=planner,
                                           prohibit_actions=prohibit_actions,
                                           prohibit_predicates=prohibit_predicates,
-                                          max_planner_time=max_time, max_cost=INF, debug=True)
+                                          max_planner_time=max_time, max_cost=INF, max_plans=max_plans, debug=True)
         outputs.update({
             'error': False,
         })
     except Exception:
         traceback.print_exc()
     solutions = prune_dominated_action_plans(all_solutions)
+
+    domain = parse_sequential_domain(domain_pddl)
+    #static_predicates = get_static_predicates(domain)
+    static_sets = []
+    for plan, _ in all_solutions:
+        # TODO: more general preimage
+        preimage = set()
+        for name, args in plan:
+            action = find_unique(lambda a: a.name == name, domain.actions)
+            mapping = get_mapping([param.name for param in action.parameters], args)
+            for literal in get_literals(get_precondition(action)):
+                if literal.predicate in PROBABILITIES: #(literal.predicate in static_predicates:
+                    preimage.add(literal.rename_variables(mapping))
+        static_sets.append(preimage)
+    probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
+    print(p_disjunction(static_sets, probabilities=probabilities))
+
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
@@ -461,7 +481,7 @@ def solve_pddl(visualize=False):
         11: 'driverlog',
     }
     indices = sorted(directories.keys())
-    #indices = [11]
+    indices = [11]
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in indices]
 
     problems = []
@@ -479,6 +499,7 @@ def solve_pddl(visualize=False):
     # }]
     problems = [{key: os.path.join(CLASSICAL_PATH, path)
                  for key, path in problem.items()} for problem in problems]
+    problems = problems[:1]
     for i, problem in enumerate(problems):
         print(i, problem)
     generator = create_generator(solve_pddl_trial, problems)
@@ -497,10 +518,6 @@ def solve_pddl(visualize=False):
             print()
             print(problem['domain_path'], problem['problem_path'])
             domain, init, goal = convert_problem(read(problem['domain_path']), read(problem['problem_path']))
-            fluent_predicates = get_fluents(domain)
-            assert not domain.axioms # TODO: axioms
-            predicates = {predicate for action in domain.actions
-                          for predicate in get_predicates(get_precondition(action))} # get_literals
             print('Static predicates', get_static_predicates(domain))
             visualize_graph(init, edge_predicates)
 
@@ -642,8 +659,8 @@ def main():
         #compare_histograms(results)
         analyze_experiment(results)
     else:
-        solve_pddlstream()
-        #solve_pddl()
+        #solve_pddlstream()
+        solve_pddl()
 
 if __name__ == '__main__':
     main()

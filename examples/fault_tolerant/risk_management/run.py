@@ -15,7 +15,7 @@ from collections import defaultdict
 from itertools import product
 from multiprocessing import cpu_count, Pool
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, generic_intersection
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, generic_union
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.scheduling.plan_streams import *
@@ -187,7 +187,7 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
     for _ in range(n_simulations):
         # TODO: compare with exact computation from p_disjunction
         outcomes = {}
-        for stream in generic_intersection(*map(extract_streams, plans)):
+        for stream in generic_union(*map(extract_streams, plans)):
             name, inputs, outputs = stream
             assert not outputs
             outcomes[stream] = stochastic_fns[name](*inputs)
