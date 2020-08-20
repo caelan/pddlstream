@@ -390,6 +390,7 @@ def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
     runtimes = defaultdict(list)
     num_solutions = defaultdict(list)
     successes = defaultdict(list)
+    costs = defaultdict(list)
     for result in results:
         config = hashabledict(result['config'])
         configs.add(config)
@@ -404,6 +405,8 @@ def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
         if ratio:
             p_success /= best_successes[result['problem']]
         successes[config].append(p_success)
+        if result['num_plans']:
+            costs[config].append(result['cost'] / result['num_plans'])
     #safe_rm_dir(PARALLEL_DIR)
 
     print('Problems ({}):'.format(len(max_solutions)), max_solutions)
@@ -416,11 +419,11 @@ def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
             print('Probabilities:', successes[config])
             print('Runtimes:', runtimes[config])
 
-    # TODO: combine these
     if visualize and not is_remote():
         # TODO: disable importing matplotlib when remote
         configs_from_name = get_named_configs(configs)
         plot_data(configs_from_name, successes, ratio=ratio, y_label='Probability of Success')
+        plot_data(configs_from_name, costs, ratio=ratio, y_label='Average Cost')
         plot_data(configs_from_name, runtimes, y_label='Runtime (Seconds)')
 
 def plot_data(configs_from_name, data, ratio=False, y_label=None, scale=0.5): # 0.0 | 0.25 | 1.0
