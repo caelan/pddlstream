@@ -12,10 +12,27 @@ from pddlstream.language.constants import str_from_plan, StreamAction, print_pla
 # TODO: include costs/efforts
 # TODO: costs as a function of k number of failures
 
-def p_conjunction(stream_plans):
-    # TODO: 'union' requires a 'set' object but received a 'list'
-    return np.product([result.external.get_p_success(*result.get_input_values())
-                       for result in set.union(*stream_plans)])
+def generic_intersection(*collections):
+    intersection = set()
+    for collection in collections:
+        intersection.update(collection)
+    return intersection
+
+##################################################
+
+def extract_action_plan(opt_plan):
+    action_plan = opt_plan.action_plan if isinstance(opt_plan, OptPlan) else opt_plan
+    return {action for action in action_plan if not isinstance(action, StreamAction)}
+
+def extract_stream_plan(externals, combined_plan):
+    stream_plan, opt_plan, _ = combined_plan
+    if stream_plan:
+        return set(stream_plan)
+    stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
+    return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
+            for name, inputs, _ in stream_actions}
+
+##################################################
 
 def prune_dominated_action_plans(combined_plans):
     # TODO: consider multi-sets
@@ -73,12 +90,11 @@ def prune_dominated_stream_plans(externals, combined_plans):
 
 ##################################################
 
-# https://hub.docker.com/r/ctpelok77/ibmresearchaiplanningsolver
-# https://zenodo.org/record/3404122#.XtZg8J5KjAI
-# Diversity metrics: stability, state, uniqueness
-# Linear combinations of these
+def p_conjunction(results):
+    return np.product([result.external.get_p_success(*result.get_input_values())
+                       for result in generic_intersection(*results)])
 
-def p_disjunction(stream_plans, diverse):
+def p_disjunction(portfolio, diverse):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
     # TODO: approximately compute by sampling outcomes
@@ -86,15 +102,22 @@ def p_disjunction(stream_plans, diverse):
     # TODO: compute for low k and increment, pruning if upper bound is less than best lower bound
     # TODO: weight using costs
     d = diverse.get('d', INF)
-    d = min(len(stream_plans), d)
-    assert (d % 2 == 1) or (d == len(stream_plans))
+    d = min(len(portfolio), d)
+    assert (d % 2 == 1) or (d == len(portfolio))
     p = 0.
     for i in range(d):
         r = i + 1
-        for subset_plans in combinations(stream_plans, r=r):
+        for plans in combinations(portfolio, r=r):
             sign = -1 if r % 2 == 0 else +1
-            p += sign*p_conjunction(subset_plans)
+            p += sign*p_conjunction(plans)
     return p
+
+##################################################
+
+# https://hub.docker.com/r/ctpelok77/ibmresearchaiplanningsolver
+# https://zenodo.org/record/3404122#.XtZg8J5KjAI
+# Diversity metrics: stability, state, uniqueness
+# Linear combinations of these
 
 #def str_from_plan(action_plan):
 #    return '[{}]'.format(', '.join('{}{}'.format(*action) for action in action_plan))
@@ -103,45 +126,46 @@ def p_disjunction(stream_plans, diverse):
 # Minimize similarity
 # dDISTANTkSET: requires the distance between every pair of plans in the solution to be of bounded diversity
 # average over the pairwise dissimilarity of the set
-def stability(stream_plans, diverse, r=2, op=np.average): # min | np.average
+def stability(portfolio, diverse, r=2, op=np.average): # min | np.average
     # the ratio of the number of actions that appear on both plans
     # to the total number of actions on these plans, ignoring repetitions
-    assert stream_plans
-    if len(stream_plans) == 1:
+    # TODO: infer r from diverse
+    assert portfolio
+    if len(portfolio) == 1:
         return 1.
     values = []
-    for combo in combinations(stream_plans, r=r):
+    for combo in combinations(portfolio, r=r):
         # TODO: weighted intersection
         sim = float(len(set.intersection(*combo))) / len(set.union(*combo))
         values.append(1. - sim)
     return op(values)
 
-def state(stream_plans, diverse):
+def state(portfolio, diverse):
     # measures similarity between two plans based on representing the plans as as sequence of states
     # maybe adapt using the certified conditions?
     raise NotImplementedError()
 
-def uniqueness(stream_plans, diverse, op=np.average):
+def uniqueness(portfolio, diverse, op=np.average):
     # measures whether two plans are permutations of each other, or one plan is a subset of the other plan
-    assert stream_plans
-    if len(stream_plans) == 1:
+    assert portfolio
+    if len(portfolio) == 1:
         return 1.
     values = []
-    for stream_plan1, stream_plan2 in combinations(stream_plans, r=2):
+    for stream_plan1, stream_plan2 in combinations(portfolio, r=2):
         sim = (stream_plan1 <= stream_plan2) or (stream_plan2 <= stream_plan1)
         values.append(1 - sim)
     return op(values)
 
-def score(stream_plans, diverse, **kwargs):
+def score(portfolio, diverse, **kwargs):
     metric = diverse.get('metric', 'p_success')
     if metric == 'stability':
-        return stability(stream_plans, diverse, **kwargs)
+        return stability(portfolio, diverse) #, **kwargs)
     if metric == 'state':
-        return state(stream_plans, diverse, **kwargs)
+        return state(portfolio, diverse) #, **kwargs)
     if metric == 'uniqueness':
-        return uniqueness(stream_plans, diverse, **kwargs)
+        return uniqueness(portfolio, diverse) #, **kwargs)
     if metric == 'p_success':
-        return p_disjunction(stream_plans, diverse, **kwargs)
+        return p_disjunction(portfolio, diverse) #, **kwargs)
     raise ValueError(metric)
 
 ##################################################
@@ -155,33 +179,19 @@ def score(stream_plans, diverse, **kwargs):
 
 # TODO: toggle behavior based on k
 
-def random_subset(externals, combined_plans, diverse, **kwargs):
+def random_subset(portfolio, diverse, **kwargs):
     #if k is None:
     #    k = DEFAULT_K
     k = diverse['k']
-    return random.sample(combined_plans, k=k)
+    return random.sample(portfolio, k=k)
 
-def first_k(externals, combined_plans, diverse, **kwargs):
+def first_k(portfolio, diverse, **kwargs):
     k = diverse['k']
-    return combined_plans[:k]
+    return portfolio[:k]
 
 ##################################################
 
-def extract_action_plan(opt_plan):
-    action_plan = opt_plan.action_plan if isinstance(opt_plan, OptPlan) else opt_plan
-    return {action for action in action_plan if not isinstance(action, StreamAction)}
-
-def extract_stream_plan(externals, combined_plan):
-    stream_plan, opt_plan, _ = combined_plan
-    if stream_plan:
-        return set(stream_plan)
-    stream_actions = {action for action in opt_plan.action_plan if isinstance(action, StreamAction)}
-    return {find_unique(lambda e: e.name == name, externals).get_instance(inputs)
-            for name, inputs, _ in stream_actions}
-
-##################################################
-
-def greedy_diverse_subset(externals, combined_plans, diverse, verbose=True):
+def greedy_diverse_subset(candidates, diverse, verbose=True):
     # TODO: lazy greedy submodular maximization
     # TODO: greedy Bayesian update metric (like the one I used during the search)
     # TODO: convergence relative threshold
@@ -194,29 +204,29 @@ def greedy_diverse_subset(externals, combined_plans, diverse, verbose=True):
         if elapsed_time(start_time) >= max_time: # Randomly select the rest
             break
         best_index, best_p = None, -INF
-        for index in set(range(len(combined_plans))) - best_indices:
-            stream_plans = [extract_stream_plan(externals, combined_plans[i]) for i in best_indices | {index}]
+        for index in set(range(len(candidates))) - best_indices:
+            portfolio = [candidates[i] for i in best_indices | {index}]
             # TODO: could prune dominated candidates given the selected set
-            p = score(stream_plans, diverse)
+            p = score(portfolio, diverse)
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
         if verbose:
             print('{}) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
 
-    best_plans = [combined_plans[i] for i in best_indices]
+    best_portfolio = [candidates[i] for i in best_indices]
     if verbose:
         print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
-            len(combined_plans), k, elapsed_time(start_time)))
-        for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
-            print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
-            print(i, len(stream_plan), stream_plan)
-        print('\n'+'-'*50+'\n')
-    return best_plans
+            len(candidates), k, elapsed_time(start_time)))
+        # for i, (stream_plan, opt_plan, cost) in enumerate(best_portfolio):
+        #     print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+        #     print(i, len(stream_plan), stream_plan)
+        # print('\n'+'-'*50+'\n')
+    return best_portfolio
 
 ##################################################
 
-def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
+def exact_diverse_subset(candidates, diverse, verbose=True):
     # TODO: dynamic programming method across multi-sets
     # TODO: ILP over selections
     # TODO: pass results instead of externals
@@ -224,34 +234,39 @@ def exact_diverse_subset(externals, combined_plans, diverse, verbose=False):
     k = diverse['k']
     max_time = diverse.get('max_time', INF)
     num_considered = 0
-    best_plans, best_p = None, -INF
-    for i, subset_plans in enumerate(combinations(randomize(combined_plans), r=k)):
+    best_portfolio, best_p = None, -INF
+    for i, portfolio in enumerate(combinations(randomize(candidates), r=k)):
+        assert len(portfolio) == k
         num_considered += 1
         # Weight by effort
-        #stream_plans = [set(stream_plan) for stream_plan, _, _, in subset_plans]
-        stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
+        #stream_plans = [set(stream_plan) for stream_plan, _, _, in portfolio]
+        #stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in portfolio]
+        stream_plans = portfolio
         p = score(stream_plans, diverse)
         #assert 0 <= p <= 1 # May not hold if not exact
         if verbose:
-            intersection = set.intersection(*stream_plans)
+            intersection = generic_intersection(*stream_plans)
             print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
                 elapsed_time(start_time), i, len(intersection), p))  # , intersection)
-            for stream_plan, opt_plan, cost in subset_plans:
+            for stream_plan in stream_plans:
                 print(len(stream_plan), stream_plan)
-                print(len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+            # for stream_plan, opt_plan, cost in portfolio:
+            #     #print(len(stream_plan), stream_plan)
+            #     print(len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
         if p > best_p:
-            best_plans, best_p = subset_plans, p
+            best_portfolio, best_p = portfolio, p
         if max_time < elapsed_time(start_time):
             break
 
     # TODO: sort plans (or use my reordering technique)
-    print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
-        len(combined_plans), k, num_considered, best_p, elapsed_time(start_time)))
-    for i, (stream_plan, opt_plan, cost) in enumerate(best_plans):
-        print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
-        print(i, len(stream_plan), stream_plan)
-    print('\n'+'-'*50+'\n')
-    return best_plans
+    if verbose:
+        print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
+            len(candidates), k, num_considered, best_p, elapsed_time(start_time)))
+        # for i, (stream_plan, opt_plan, cost) in enumerate(best_portfolio):
+        #     print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+        #     print(i, len(stream_plan), stream_plan)
+        # print('\n'+'-'*50+'\n')
+    return best_portfolio
 
 ##################################################
 
@@ -265,25 +280,36 @@ def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     #     print_plan(opt_plan.action_plan)
     #     print(extract_stream_plan(externals, combined_plan))
     start_time = time.time()
+    #pruned_plans = candidate_plans
     pruned_plans = prune_dominated_action_plans(candidate_plans)
     pruned_plans = prune_dominated_stream_plans(externals, pruned_plans)
+    #stream_plans = [extract_stream_plan(externals, plan) for plan in pruned_plans]
+    stream_dict = {frozenset(extract_stream_plan(externals, plan)): i
+                   for i, plan in enumerate(pruned_plans)}
+    stream_plans = list(stream_dict.keys())
+
     k = diverse['k']
     assert 1 <= k
     selector = diverse['selector']
     if len(pruned_plans) <= k:
         subset_plans = pruned_plans
     elif selector == 'random':
-        subset_plans = random_subset(externals, pruned_plans, diverse, **kwargs)
+        subset_plans = random_subset(stream_plans, diverse, **kwargs)
     elif selector == 'first':
-        subset_plans = first_k(externals, pruned_plans, diverse, **kwargs)
+        subset_plans = first_k(stream_plans, diverse, **kwargs)
     elif selector == 'greedy':
-        subset_plans = greedy_diverse_subset(externals, pruned_plans, diverse, **kwargs)
+        subset_plans = greedy_diverse_subset(stream_plans, diverse, **kwargs)
     elif selector == 'exact':
-        subset_plans = exact_diverse_subset(externals, pruned_plans, diverse, **kwargs)
+        subset_plans = exact_diverse_subset(stream_plans, diverse, **kwargs)
     else:
         raise ValueError(selector)
-    stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in subset_plans]
-    total_cost = sum( cost for _, _, cost in subset_plans) # normalize, length
+    assert len(subset_plans) <= k
+
+    stream_plans = subset_plans
+    subset_plans = [pruned_plans[stream_dict[stream_plan]] for stream_plan in subset_plans]
+    #subset_plans = [pruned_plans[stream_plans.index(candidate)] for candidate in subset_plans] # TODO: incorrect?
+    #stream_plans = [extract_stream_plan(externals, plan) for plan in subset_plans]
+    total_cost = sum(cost for _, _, cost in subset_plans) # normalize, length
     p = score(stream_plans, diverse)
     print('c={} | k={} | n={} | p={:.3f} | cost={:.3f} | {:.3f} seconds'.format(
         len(candidate_plans), k, len(subset_plans), p, total_cost, elapsed_time(start_time)))
