@@ -361,6 +361,8 @@ def get_named_configs(configs):
         #name = config['selector']
         if (config['selector'] not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
+        if config['probabilities']:
+            name += ' ' + 'prob'
         configs_from_name[name].append(config)
     return configs_from_name
 
