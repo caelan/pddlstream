@@ -448,6 +448,12 @@ class Stream(External):
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 
+    def dump(self):
+        super(Stream, self).dump()
+        print('outputs: {}\ncertified: {}'.format(
+            str_from_object(list(self.outputs)), str_from_object(list(self.certified))))
+
+
 ##################################################
 
 def parse_stream(lisp_list, stream_map, stream_info):

@@ -20,7 +20,7 @@ from pddlstream.language.constants import print_solution
 from pddlstream.language.generator import from_test, universe_test, from_gen_fn, from_gen
 from pddlstream.language.constants import print_solution, PDDLProblem, And, Fact, get_args, get_prefix
 from pddlstream.language.conversion import list_from_conjunction
-from pddlstream.language.stream import WildOutput, StreamInfo, Stream
+from pddlstream.language.stream import WildOutput, StreamInfo, Stream, PartialInputs
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, get_conjunctive_parts, get_literals
 from pddlstream.algorithms.downward import get_fluents, get_precondition, parse_domain_pddl, parse_sequential_domain
@@ -43,7 +43,7 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num=3):
+def get_problem(num=100): # 0 | 3 | 100
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
     stream_pddl = None
@@ -180,7 +180,12 @@ def reduce_init(problem, goal_objects, verbose=False):
         assert implies(inputs, domain_facts)
         parameters.update({i: '?o{}'.format(i) for i in output_indices})
         outputs = [parameters[i] for i in output_indices]
+        if not outputs: # Test stream
+            continue
         certified_facts = set(identify_conditions(facts, parameters, all_init)) - domain_facts
+        # TODO: certified conditions that do not use output parameters
+        certified_facts = {fact for fact in certified_facts
+                           if implies(get_args(fact), set(get_args(fact)) & set(outputs))}
         if not certified_facts:
             continue
         if verbose:
@@ -198,19 +203,54 @@ def reduce_init(problem, goal_objects, verbose=False):
 
         name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
         gen_fn = get_gen_fn(outputs_from_input)
+        # TODO: adjust effort
         stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts,
                         outputs, certified_facts, StreamInfo())
+        if verbose:
+            print()
+            stream.dump()
         stream.pddl_name = 'placeholder'
         streams.append(stream)
     return used_init, streams
+    # TODO: no point if output not in it
+
+def custom_reduce(all_init, goal_objects):
+    all_objects = {o for fact in all_init for o in get_args(fact)}
+    unused_objects = all_objects - goal_objects
+    active_objects = set(goal_objects)
+
+    def test_clear(block):
+        fact = ('clear', block)
+        return fact in all_init
+
+    # TODO: the constraint satisfaction world that I did for TLPK that automatically creates streams (hpncsp)
+    def sample_on(b1):
+        # TODO: return all other facts that are contained just to speed up the process
+        for b2 in sorted(all_objects, reverse=True):
+            fact = ('on', b2, b1)
+            print(fact)
+            if fact in all_init:
+                active_objects.add(b2)
+                new_facts = list(extract_facts(all_init, active_objects))
+                # TODO: needs to be a sequence (i.e. no sets)
+                yield WildOutput(values=[(b2,)], facts=new_facts)
+
+    stream_map = {
+        'sample-block': from_gen((o,) for o in unused_objects),
+        'test-block': from_test(universe_test),
+        'test-arm-empty': from_test(universe_test),
+        'test-clear': from_test(test_clear),
+        'sample-on': sample_on,
+    }
+    stream_info = {
+        'sample-on': StreamInfo(opt_gen_fn=PartialInputs(unique=True), eager=False), #, opt_gen_fn=from_gen_fn(lambda x: [(False,)])),
+    }
+    return stream_map, stream_info
 
 def reduce_initial(replace=True):
     problem = get_problem()
-    #stream_pddl = None
-    stream_pddl = read_pddl('stream.pddl')
 
     # TODO: what if there are a bunch of predicates that aren't in the goal
-    all_objects = {o for fact in problem.init for o in get_args(fact)}
     goal_objects = set()
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
@@ -218,43 +258,17 @@ def reduce_initial(replace=True):
     used_init = problem.init
     if replace:
         used_init, stream_pddl = reduce_init(problem, goal_objects)
+    else:
+        stream_pddl = None
 
-    stream_map = {}
-    stream_info = {}
-
-    # unused_objects = all_objects - goal_objects
-    # active_objects = set(goal_objects)
-    # def test_clear(block):
-    #     fact = ('clear', block)
-    #     return fact in all_init
-    #
-    # # TODO: the constraint satisfaction world that I did for TLPK that automatically creates streams (hpncsp)
-    # def sample_on(b1):
-    #     # TODO: return all other facts that are contained just to speed up the process
-    #     for b2 in sorted(all_objects, reverse=True):
-    #         fact = ('on', b2, b1)
-    #         print(fact)
-    #         if fact in all_init:
-    #             active_objects.add(b2)
-    #             new_facts = list(extract_facts(all_init, active_objects))
-    #             # TODO: needs to be a sequence (i.e. no sets)
-    #             yield WildOutput(values=[(b2,)], facts=new_facts)
-    #
-    # stream_map = {
-    #     'sample-block': from_gen((o,) for o in unused_objects),
-    #     'test-block': from_test(universe_test),
-    #     'test-arm-empty': from_test(universe_test),
-    #     'test-clear': from_test(test_clear),
-    #     'sample-on': sample_on,
-    # }
-    # stream_info = {
-    #     'sample-on': StreamInfo(eager=False), #, opt_gen_fn=from_gen_fn(lambda x: [(False,)])),
-    # }
+    #stream_pddl = read_pddl('stream.pddl')
+    stream_map, stream_info = custom_reduce(problem.init, goal_objects)
+    #stream_map, stream_info = {}, {}
 
     start_time = time.time()
     pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
-    solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
-    #solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+    #solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
+    solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
     print_solution(solution)
     print(elapsed_time(start_time))
 

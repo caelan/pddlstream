@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix
 from pddlstream.language.conversion import values_from_objects, substitute_fact
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten
+from pddlstream.utils import elapsed_time, get_mapping, flatten, str_from_object
 
 DEBUG = 'debug'
 
@@ -257,7 +257,10 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
-    # TODO: dump method
+    def dump(self):
+        # TODO: could skip printing if no values
+        print('stream: {}\ninputs: {}\ndomain: {}'.format(
+            self.name, str_from_object(list(self.inputs)), str_from_object(list(self.domain))))
 
 ##################################################
 
