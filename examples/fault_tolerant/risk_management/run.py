@@ -420,17 +420,17 @@ def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
     if visualize and not is_remote():
         # TODO: disable importing matplotlib when remote
         configs_from_name = get_named_configs(configs)
-        plot_successes(configs_from_name, successes, ratio=ratio)
-        plot_runtimes(configs_from_name, runtimes)
+        plot_data(configs_from_name, successes, ratio=ratio, y_label='Probability of Success')
+        plot_data(configs_from_name, runtimes, y_label='Runtime (Seconds)')
 
-def plot_successes(configs_from_name, successes, ratio=False, scale=0.5): # 0.0 | 0.25 | 1.0
+def plot_data(configs_from_name, data, ratio=False, y_label=None, scale=0.5): # 0.0 | 0.25 | 1.0
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
     for name in sorted(configs_from_name):
         config_from_k = defaultdict(list)
         for config in configs_from_name[name]:
-            config_from_k[config['k']].append(successes[config])
+            config_from_k[config['k']].append(data[config])
             #config_from_k[config['k']].append(list(map(math.log, successes[config]))
         ks = sorted(config_from_k)
         means = np.array([np.mean(config_from_k[k]) for k in ks])
@@ -441,18 +441,18 @@ def plot_successes(configs_from_name, successes, ratio=False, scale=0.5): # 0.0 
         # alpha = 0.95
         # scale = tail_confidence(alpha)
         # width = scale * test_scores_std / np.sqrt(train_sizes)
-        plt.fill_between(ks, means - widths, means + widths, alpha=0.5)
+        plt.fill_between(ks, means - widths, means + widths, alpha=0.25)
         plt.plot(ks, means, 'o-', label=name)
 
-    plt.title('Selector Probability of Success'
-              '\nScale = {}$\sigma$'.format(scale))
+    plt.title('Selector {}'
+              '\nScale = {}$\sigma$'.format(y_label, scale))
     #plt.ylim(0, 1)
     plt.xlabel('K')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     if ratio:
-        plt.ylabel('Probability Performance Ratio')
+        plt.ylabel('{} Performance Ratio'.format(y_label))
     else:
-        plt.ylabel('Probability of Success')
+        plt.ylabel(y_label)
     plt.grid()
     plt.legend(loc='best')
     plt.tight_layout()
@@ -461,31 +461,6 @@ def plot_successes(configs_from_name, successes, ratio=False, scale=0.5): # 0.0 
     #     figure_path = os.path.join(figure_dir, '{}.png'.format(y_label)) # pdf
     #     plt.savefig(figure_path, transparent=False, bbox_inches='tight') # dpi=1000,
     #     print('Saved', figure_path)
-    plt.show()
-
-def plot_runtimes(configs_from_name, runtimes, scale=0.5): #.25):
-    import matplotlib.pyplot as plt
-    from matplotlib.ticker import MaxNLocator
-    plt.figure()
-    for name in sorted(configs_from_name):
-        config_from_k = defaultdict(list)
-        for config in configs_from_name[name]:
-            config_from_k[config['k']].append(runtimes[config])
-        ks = sorted(config_from_k)
-        means = np.array([np.mean(config_from_k[k]) for k in ks])
-        stds = np.array([np.std(config_from_k[k]) for k in ks])
-        widths = scale * stds  # standard deviation
-        plt.fill_between(ks, means - widths, means + widths, alpha=0.1)
-        plt.plot(ks, means, 'o-', label=name)
-
-    plt.title('Selector Runtime'
-              '\nScale = {}$\sigma$'.format(scale))
-    plt.xlabel('K')
-    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.ylabel('Runtime (seconds)')
-    plt.grid()
-    plt.legend(loc='best')
-    plt.tight_layout()
     plt.show()
 
 ##################################################
