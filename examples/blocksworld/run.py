@@ -4,6 +4,8 @@ from __future__ import print_function
 
 import os
 import time
+import cProfile
+import pstats
 
 from collections import defaultdict
 from itertools import permutations, combinations
@@ -43,7 +45,7 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num=100): # 0 | 3 | 100
+def get_problem(num=5000): # 0 | 3 | 100
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
     stream_pddl = None
@@ -255,9 +257,12 @@ def reduce_initial(replace=True):
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
 
+    pr = cProfile.Profile()
+    pr.enable()
     used_init = problem.init
     if replace:
         used_init, stream_pddl = reduce_init(problem, goal_objects)
+        print('Init: {} | Reduced: {}'.format(len(problem.init), len(used_init)))
     else:
         stream_pddl = None
 
@@ -265,12 +270,13 @@ def reduce_initial(replace=True):
     stream_map, stream_info = custom_reduce(problem.init, goal_objects)
     #stream_map, stream_info = {}, {}
 
-    start_time = time.time()
     pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
+    print(pddlstream)
     #solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
     solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+    pr.disable()
+    pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     print_solution(solution)
-    print(elapsed_time(start_time))
 
 ##################################################
 
