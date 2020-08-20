@@ -15,7 +15,7 @@ from collections import defaultdict
 from itertools import product
 from multiprocessing import cpu_count, Pool
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, generic_intersection
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.scheduling.plan_streams import *
@@ -176,28 +176,25 @@ def get_problem(problem_path):
 
     return pddl_problem, bernoulli_fns
 
+def extract_streams(plan):
+    return frozenset(stream for stream in plan if isinstance(stream, StreamAction))
+
 def simulate_successes(stochastic_fns, solutions, n_simulations):
     successes = 0
     plans = [plan for plan, _, _ in solutions]
     if not plans:
         return successes
     for _ in range(n_simulations):
-        streams = set()
-        for plan in plans:
-            streams.update(stream for stream in plan if isinstance(stream, StreamAction))
-
         # TODO: compare with exact computation from p_disjunction
         outcomes = {}
-        for stream in streams:
+        for stream in generic_intersection(*map(extract_streams, plans)):
             name, inputs, outputs = stream
             assert not outputs
             outcomes[stream] = stochastic_fns[name](*inputs)
             # total = sum(stochastic_fns[name](*inputs) for _ in range(n_simulations))
             # print(float(total) / n_simulations)
-
         for plan in plans:
-            stream_plan = [stream for stream in plan if isinstance(stream, StreamAction)]
-            if all(outcomes[stream] for stream in stream_plan):
+            if all(outcomes[stream] for stream in extract_streams(plan)):
                 successes += 1
                 break
     return successes
@@ -361,8 +358,8 @@ def get_named_configs(configs):
         #name = config['selector']
         if (config['selector'] not in ['random', 'first']) and ('metric' in config):
             name += ' ' + config['metric']
-        if config['probabilities']:
-            name += ' ' + 'prob'
+        #if config['probabilities']:
+        #    name += ' ' + 'prob'
         configs_from_name[name].append(config)
     return configs_from_name
 

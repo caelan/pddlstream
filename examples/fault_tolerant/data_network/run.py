@@ -10,7 +10,8 @@ import sys
 import traceback
 import importlib
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, prune_dominated_action_plans
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, \
+    prune_dominated_action_plans, generic_intersection
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test, fn_from_constant
@@ -24,7 +25,7 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
 from pddlstream.algorithms.search import solve_from_pddl, diverse_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, \
-    fact_from_fd, simulate_successes
+    fact_from_fd, simulate_successes, extract_streams
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
@@ -319,8 +320,14 @@ def solve_trial(domain_name, index, planner, diverse, max_time=1*30, n_simulatio
                               planner=planner, max_planner_time=max_time, diverse=diverse,
                               initial_complexity=1, max_iterations=1, max_skeletons=None,
                               replan_actions=True)
+
     for solution in solutions:
         print_solution(solution)
+
+    stream_plans = [extract_streams(plan) for plan, _, _ in solutions]
+    probabilities = {stream: bernoulli_fns[stream.name](*stream.inputs)
+                     for stream in generic_intersection(*stream_plans)}
+    print(p_disjunction(stream_plans, probabilities=probabilities))
 
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
     p_success = float(n_successes) / n_simulations
@@ -329,7 +336,7 @@ def solve_trial(domain_name, index, planner, diverse, max_time=1*30, n_simulatio
 def solve_pddlstream():
     # TODO: combine with risk_management
 
-    domain_name = 'no_mprime' # data_network | visit_all | rovers_02 | no_mprime
+    domain_name = 'rovers_02' # data_network | visit_all | rovers_02 | no_mprime
     index = 0 # 0 | 10 | -1
 
     # TODO: sidestep using the focused algorithm
