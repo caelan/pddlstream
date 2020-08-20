@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from itertools import combinations, permutations
+from collections import OrderedDict
 
 import numpy as np
 import time
@@ -191,7 +192,7 @@ def first_k(portfolio, diverse, **kwargs):
 
 ##################################################
 
-def greedy_diverse_subset(candidates, diverse, verbose=True):
+def greedy_diverse_subset(candidates, diverse, verbose=True, **kwargs):
     # TODO: lazy greedy submodular maximization
     # TODO: greedy Bayesian update metric (like the one I used during the search)
     # TODO: convergence relative threshold
@@ -218,18 +219,13 @@ def greedy_diverse_subset(candidates, diverse, verbose=True):
     if verbose:
         print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
             len(candidates), k, elapsed_time(start_time)))
-        # for i, (stream_plan, opt_plan, cost) in enumerate(best_portfolio):
-        #     print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
-        #     print(i, len(stream_plan), stream_plan)
-        # print('\n'+'-'*50+'\n')
     return best_portfolio
 
 ##################################################
 
-def exact_diverse_subset(candidates, diverse, verbose=True):
+def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
     # TODO: dynamic programming method across multi-sets
     # TODO: ILP over selections
-    # TODO: pass results instead of externals
     start_time = time.time()
     k = diverse['k']
     max_time = diverse.get('max_time', INF)
@@ -258,20 +254,16 @@ def exact_diverse_subset(candidates, diverse, verbose=True):
         if max_time < elapsed_time(start_time):
             break
 
-    # TODO: sort plans (or use my reordering technique)
     if verbose:
         print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
             len(candidates), k, num_considered, best_p, elapsed_time(start_time)))
-        # for i, (stream_plan, opt_plan, cost) in enumerate(best_portfolio):
-        #     print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
-        #     print(i, len(stream_plan), stream_plan)
-        # print('\n'+'-'*50+'\n')
     return best_portfolio
 
 ##################################################
 
-def diverse_subset(externals, candidate_plans, diverse, **kwargs):
+def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
+    # TODO: pass results instead of externals
     if not diverse:
         return candidate_plans[:1]
     # for i, combined_plan in enumerate(combined_plans):
@@ -284,8 +276,10 @@ def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     pruned_plans = prune_dominated_action_plans(candidate_plans)
     pruned_plans = prune_dominated_stream_plans(externals, pruned_plans)
     #stream_plans = [extract_stream_plan(externals, plan) for plan in pruned_plans]
-    stream_dict = {frozenset(extract_stream_plan(externals, plan)): i
-                   for i, plan in enumerate(pruned_plans)}
+    #stream_dict = {frozenset(extract_stream_plan(externals, plan)): i
+    #               for i, plan in enumerate(pruned_plans)} # Seems to retain ordering somehow
+    stream_dict = OrderedDict((frozenset(extract_stream_plan(externals, plan)), i)
+                              for i, plan in enumerate(pruned_plans))
     stream_plans = list(stream_dict.keys())
 
     k = diverse['k']
@@ -294,17 +288,18 @@ def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     if len(pruned_plans) <= k:
         subset_plans = pruned_plans
     elif selector == 'random':
-        subset_plans = random_subset(stream_plans, diverse, **kwargs)
+        subset_plans = random_subset(stream_plans, diverse, verbose=verbose, **kwargs)
     elif selector == 'first':
-        subset_plans = first_k(stream_plans, diverse, **kwargs)
+        subset_plans = first_k(stream_plans, diverse, verbose=verbose, **kwargs)
     elif selector == 'greedy':
-        subset_plans = greedy_diverse_subset(stream_plans, diverse, **kwargs)
+        subset_plans = greedy_diverse_subset(stream_plans, diverse, verbose=verbose, **kwargs)
     elif selector == 'exact':
-        subset_plans = exact_diverse_subset(stream_plans, diverse, **kwargs)
+        subset_plans = exact_diverse_subset(stream_plans, diverse, verbose=verbose, **kwargs)
     else:
         raise ValueError(selector)
     assert len(subset_plans) <= k
 
+    # TODO: sort plans (or use my reordering technique)
     stream_plans = subset_plans
     subset_plans = [pruned_plans[stream_dict[stream_plan]] for stream_plan in subset_plans]
     #subset_plans = [pruned_plans[stream_plans.index(candidate)] for candidate in subset_plans] # TODO: incorrect?
@@ -313,4 +308,9 @@ def diverse_subset(externals, candidate_plans, diverse, **kwargs):
     p = score(stream_plans, diverse)
     print('c={} | k={} | n={} | p={:.3f} | cost={:.3f} | {:.3f} seconds'.format(
         len(candidate_plans), k, len(subset_plans), p, total_cost, elapsed_time(start_time)))
+    if verbose:
+        for i, (stream_plan, opt_plan, cost) in enumerate(subset_plans):
+            print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
+            print(i, len(stream_plan), stream_plan)
+        print('\n'+'-'*50+'\n')
     return subset_plans
