@@ -33,7 +33,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json, is_remote
 
-SERIAL = is_darwin()
+SERIAL = is_darwin() # is_remote
 #SERIAL = True
 #SERIAL = False
 

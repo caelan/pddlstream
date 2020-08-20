@@ -62,7 +62,7 @@ def get_all_preconditions(sas_action):
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
     return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
 
-def diverse_from_task(sas_task, use_probabilities=True, prohibit_actions=[], prohibit_predicates=[],
+def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], prohibit_predicates=[],
                       planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_plans=DEFAULT_MAX_PLANS,
                       hierarchy=[], temp_dir=TEMP_DIR,
                       clean=False, debug=False, **search_args):

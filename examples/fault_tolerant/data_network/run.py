@@ -33,6 +33,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 from pddlstream.algorithms.algorithm import get_predicates
 #from pddlstream.language.write_pddl import get_problem_pddl
 
+# TODO: make a simulator that randomizes these probabilities
 P_SUCCESS = 0.75 # 0.9 | 0.75
 
 # TODO: handle more generically
@@ -260,19 +261,17 @@ def for_optimization(problem):
 
 ##################################################
 
-def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
-    # TODO: make a simulator that randomizes these probabilities
-    # TODO: include local correlation
-    # TODO: combine with risk_management
+def solve_trial(domain_name, index, planner, diverse, max_time=1*30, n_simulations=10000, visualize=False, verbose=True):
     set_cost_scale(1)
     #constraints = PlanConstraints(max_cost=100) # kstar
     constraints = PlanConstraints(max_cost=INF)
 
-    domain_name = 'no_mprime' # data_network | visit_all | rovers_02 | no_mprime
-    index = 0 # 0 | 10 | -1
     problem, bernoulli_fns = get_problem(domain_name, index)
+    stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                      for name, cached in bernoulli_fns.items()}
     #for_optimization(problem)
-    if visualize:
+
+    if visualize and not SERIAL:
         edge_predicates = [
             ('can_traverse', [1, 2]), # rovers
             # ('visible', [0, 1]),  # rovers
@@ -283,12 +282,6 @@ def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
             problem, _ = get_problem(domain_name, index)
             visualize_graph(problem.init, edge_predicates, title='{}[{}]'.format(domain_name, index))
         dump_pddlstream(problem)
-    stochastic_fns = {name: test_from_bernoulli_fn(cached)
-                      for name, cached in bernoulli_fns.items()}
-
-    # TODO: combine with the number of candidates
-    planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1 | ff-wastar3
-    diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 10} # 5 | 10 | INF
 
     # TODO: sum sampling function
     stream_info = {
@@ -315,31 +308,37 @@ def solve_pddlstream(n_trials=1, max_time=1*30, visualize=False, verbose=True):
     }
     use_probabilities = False # TODO: toggle and see difference in performance
 
-    successes = 0.
-    for _ in range(n_trials):
-        print('\n'+'-'*5+'\n')
-        start_time = time.time()
-        #problem = get_problem(**kwargs)
-        #solution = solve_incremental(problem, unit_costs=True, debug=True)
-        solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
-                                  unit_costs=False, unit_efforts=False, effort_weight=None,
-                                  debug=verbose, clean=True, use_probabilities=use_probabilities,
-                                  prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
-                                  planner=planner, max_planner_time=max_time, diverse=diverse,
-                                  initial_complexity=1, max_iterations=1, max_skeletons=None,
-                                  replan_actions=True,
-                                  )
-        for solution in solutions:
-            print_solution(solution)
-            #plan, cost, certificate = solution
-            #successes += is_plan(plan)
+    print('\n'+'-'*5+'\n')
+    start_time = time.time()
+    #problem = get_problem(**kwargs)
+    #solution = solve_incremental(problem, unit_costs=True, debug=True)
+    solutions = solve_focused(problem, constraints=constraints, stream_info=stream_info,
+                              unit_costs=False, unit_efforts=False, effort_weight=None,
+                              debug=verbose, clean=True, use_probabilities=use_probabilities,
+                              prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
+                              planner=planner, max_planner_time=max_time, diverse=diverse,
+                              initial_complexity=1, max_iterations=1, max_skeletons=None,
+                              replan_actions=True)
+    for solution in solutions:
+        print_solution(solution)
 
-        n_simulations = 10000
-        n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
-        p_success = float(n_successes) / n_simulations
-        print('Empirical success: {:.3f} | Runtime: {:.3f}'.format(p_success, elapsed_time(start_time)))
-        successes += bool(solutions)
-    print('Fraction solved: {:.3f}'.format(successes / n_trials))
+    n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+    p_success = float(n_successes) / n_simulations
+    print('Empirical success: {:.3f} | Runtime: {:.3f}'.format(p_success, elapsed_time(start_time)))
+
+def solve_pddlstream():
+    # TODO: combine with risk_management
+
+    domain_name = 'no_mprime' # data_network | visit_all | rovers_02 | no_mprime
+    index = 0 # 0 | 10 | -1
+
+    # TODO: sidestep using the focused algorithm
+    # prune_dominated_action_plans
+
+    # TODO: combine with the number of candidates
+    planner = 'ff-wastar3' # forbid | kstar | symk | ff-astar | ff-wastar1 | ff-wastar3
+    diverse = {'selector': 'greedy', 'metric': 'p_success', 'k': 10} # 5 | 10 | INF
+    solve_trial(domain_name, index, planner, diverse)
 
 ##################################################
 
@@ -455,7 +454,7 @@ def solve_pddl(visualize=False):
         11: 'driverlog',
     }
     indices = sorted(directories.keys())
-    #indices = [1]
+    #indices = [11]
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in indices]
 
     problems = []
@@ -636,8 +635,8 @@ def main():
         #compare_histograms(results)
         analyze_experiment(results)
     else:
-        #solve_pddlstream()
-        solve_pddl()
+        solve_pddlstream()
+        #solve_pddl()
 
 if __name__ == '__main__':
     main()
