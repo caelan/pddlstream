@@ -183,8 +183,6 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
     # dump_pddlstream(problem)
     stream_info = {name: StreamInfo(p_success=cached, defer_fn=defer_unique)
                    for name, cached in bernoulli_fns.items()}
-    stochastic_fns = {name: test_from_bernoulli_fn(cached)
-                      for name, cached in bernoulli_fns.items()}
 
     prohibit_predicates = {'LINKED': P_SUCCESSES[0]}
     prohibit_predicates = {name.lower(): prob for name, prob in prohibit_predicates.items()}
@@ -209,19 +207,22 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
     runtime = elapsed_time(trial_time)
     for solution in solutions:
         print_solution(solution)
-    n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+
+    # stochastic_fns = {name: test_from_bernoulli_fn(cached)
+    #                   for name, cached in bernoulli_fns.items()}
+    # n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+    # p_success = float(n_successes) / n_simulations
 
     # TODO: could retrieve from stream_info instead
     plans = [extract_streams(plan) for plan, _, _ in solutions]
-    stuff = {stream: bernoulli_fns[stream.name](*stream.inputs) for stream in generic_union(*plans)}
-    print(p_disjunction(plans, config, probabilities=stuff))
+    probabilities = {stream: bernoulli_fns[stream.name](*stream.inputs) for stream in generic_union(*plans)}
+    p_success = p_disjunction(plans, config, probabilities=probabilities)
 
-    plans = [[action for action in plan if isinstance(action, Action)] for plan, _, _ in solutions]
-    static_plans = extract_static(problem.domain_pddl, plans, prohibit_predicates)
-    probabilities = {fact: prohibit_predicates[fact.predicate] for fact in generic_union(*static_plans)}
-    print(p_disjunction(static_plans, config, probabilities=probabilities))
+    # plans = [[action for action in plan if isinstance(action, Action)] for plan, _, _ in solutions]
+    # static_plans = extract_static(problem.domain_pddl, plans, prohibit_predicates)
+    # probabilities = {fact: prohibit_predicates[fact.predicate] for fact in generic_union(*static_plans)}
+    # p_success = p_disjunction(static_plans, config, probabilities=probabilities)
 
-    p_success = float(n_successes) / n_simulations
     total_cost = sum(cost for _, cost, _  in solutions)
     outputs = (runtime, len(solutions), p_success, total_cost)
     # TODO: store other metrics (such as candidate time and probability of success

@@ -20,7 +20,7 @@ from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, elapsed_time, INF, ensure_dir, safe_rm_dir, implies
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, OBJECT, \
-    get_prefix, get_function, get_args
+    get_prefix, get_function, get_args, Action
 from pddlstream.algorithms.search import diverse_from_pddl
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
@@ -367,7 +367,7 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
     outputs.update({
         'planner': planner,
         'prohibit_actions': prohibit_actions,
-        'prohibit_predicates': prohibit_predicates,
+        'prohibit_predicates': PROBABILITIES,
         'max_time': max_time,
         'error': True,
     })
@@ -388,20 +388,27 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
         traceback.print_exc()
     solutions = prune_dominated_action_plans(all_solutions)
 
-    static_sets = extract_static(domain_pddl, [plan for plan, _, in solutions], PROBABILITIES)
+    plans = [plan for plan, _, in solutions]
+    static_sets = extract_static(domain_pddl, plans, PROBABILITIES)
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
     all_p_success = p_disjunction(static_sets, probabilities=probabilities)
-    print(all_p_success, static_sets)
 
-    diverse = {'k': 1, 'selector': 'exact'} # exact
+    diverse = {'k': 1, 'selector': 'greedy'} # exact
     portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
     p_success = p_disjunction(portfolio, probabilities=probabilities)
-    print(p_success, portfolio)
+
+    # plans = [[action for action in plan if isinstance(action, Action)] for plan in plans] # TODO: portfolio
+    # static_plans = extract_static(domain_pddl, plans, prohibit_predicates)
+    # probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_plans)}
+    # p_success = p_disjunction(static_plans, diverse, probabilities=probabilities)
+    # print(p_success, portfolio)
 
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
         'runtime': elapsed_time(start_time),
+        'all_p_success': all_p_success,
+        'p_success': p_success,
     })
 
     print('Overall runtime:', elapsed_time(start_time))
@@ -489,9 +496,12 @@ def solve_pddl(visualize=False):
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
     #file_name = os.path.join(EXPERIMENTS_DIR, '{}.pk3'.format(date_name))
     file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
+
     results = []
     for inputs, outputs in generator:
         # TODO: pickle the solutions to reuse later
+        #outputs.update(inputs)
+        print(outputs)
         results.append(outputs)
         if not SERIAL: # TODO: only write if is above a threshold
             #write_pickle(file_name, results)
