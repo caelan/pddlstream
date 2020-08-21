@@ -15,11 +15,11 @@ from multiprocessing import cpu_count, Pool
 from collections import defaultdict
 
 from examples.fault_tolerant.utils import hashabledict, fact_from_fd, simulate_successes, extract_static, \
-    test_from_bernoulli_fn, CachedFn
+    test_from_bernoulli_fn, CachedFn, extract_streams
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import DIVERSE_PLANNERS
-from pddlstream.algorithms.scheduling.diverse import p_disjunction
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, generic_union
 
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo
@@ -187,7 +187,8 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
                       for name, cached in bernoulli_fns.items()}
 
     prohibit_predicates = {'LINKED': P_SUCCESSES[0]}
-    use_probabilities = config.get('probabilities', False)
+    prohibit_predicates = {name.lower(): prob for name, prob in prohibit_predicates.items()}
+    use_probabilities = config.get('probabilities', True)
     unit_costs = False
 
     print('# Init:', len(problem.init))
@@ -210,8 +211,15 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
         print_solution(solution)
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
 
-    # portfolio = [plan for plan, _, _ in solutions]
-    # print(p_disjunction(portfolio, config))
+    # TODO: could retrieve from stream_info instead
+    plans = [extract_streams(plan) for plan, _, _ in solutions]
+    stuff = {stream: bernoulli_fns[stream.name](*stream.inputs) for stream in generic_union(*plans)}
+    print(p_disjunction(plans, config, probabilities=stuff))
+
+    plans = [[action for action in plan if isinstance(action, Action)] for plan, _, _ in solutions]
+    static_plans = extract_static(problem.domain_pddl, plans, prohibit_predicates)
+    probabilities = {fact: prohibit_predicates[fact.predicate] for fact in generic_union(*static_plans)}
+    print(p_disjunction(static_plans, config, probabilities=probabilities))
 
     p_success = float(n_successes) / n_simulations
     total_cost = sum(cost for _, cost, _  in solutions)

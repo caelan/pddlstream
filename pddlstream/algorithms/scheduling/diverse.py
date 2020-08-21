@@ -99,11 +99,10 @@ def p_conjunction(results, probabilities=None):
     union = generic_union(*results)
     if probabilities is None:
         # TODO: add to diverse instead?
-        probabilities = {result: result.external.get_p_success(*result.get_input_values())
-                         for result in union}
+        probabilities = {result: result.external.get_p_success(*result.get_input_values()) for result in union}
     else:
         assert all(result in probabilities for result in union)
-    return np.product(list(probabilities.values()))
+    return np.product([probabilities[result] for result in union])
 
 def p_disjunction(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
@@ -322,6 +321,7 @@ def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
         len(candidate_plans), diverse['k'], len(subset_plans), p, total_cost, elapsed_time(start_time)))
     if verbose:
         for i, (stream_plan, opt_plan, cost) in enumerate(subset_plans):
+            print()
             print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
             print(i, len(stream_plan), stream_plan)
         print('\n'+'-'*50+'\n')
