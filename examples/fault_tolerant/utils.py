@@ -1,11 +1,12 @@
 import os
+import random
 
 from pddlstream.algorithms.algorithm import get_predicates
 from pddlstream.algorithms.downward import parse_sequential_domain, get_literals, get_precondition, get_fluents, \
     is_literal, is_assignment
 from pddlstream.algorithms.scheduling.diverse import generic_union
 from pddlstream.language.constants import Fact, Not, Equal, StreamAction
-from pddlstream.utils import find_unique, get_mapping
+from pddlstream.utils import find_unique, get_mapping, hash_or_id
 
 
 def list_paths(directory):
@@ -95,3 +96,20 @@ def simulate_successes(stochastic_fns, solutions, n_simulations):
                 successes += 1
                 break
     return successes
+
+
+def test_from_bernoulli_fn(bernoulli_fn):
+    return lambda *args, **kwargs: random.random() < bernoulli_fn(*args, **kwargs)
+
+
+class CachedFn(object):
+    def __init__(self, fn):
+        self.fn = fn
+        self.cache = {}
+    def __call__(self, *args): #, **kwargs):
+        key = tuple(map(hash_or_id, args)) # Add the type
+        if key not in self.cache:
+            self.cache[key] = self.fn(*args)
+        return self.cache[key]
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.fn)

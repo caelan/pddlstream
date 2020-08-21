@@ -14,18 +14,19 @@ from itertools import product
 from multiprocessing import cpu_count, Pool
 from collections import defaultdict
 
-from examples.fault_tolerant.utils import hashabledict, fact_from_fd, simulate_successes
+from examples.fault_tolerant.utils import hashabledict, fact_from_fd, simulate_successes, extract_static, \
+    test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import DIVERSE_PLANNERS
+from pddlstream.algorithms.scheduling.diverse import p_disjunction
 
 from pddlstream.language.generator import from_test
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.external import defer_unique
-from pddlstream.language.constants import print_solution, PDDLProblem, And
+from pddlstream.language.constants import print_solution, PDDLProblem, And, Action
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, \
     ensure_dir, get_python_version
-from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \

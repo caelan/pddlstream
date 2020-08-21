@@ -2,27 +2,25 @@
 
 from __future__ import print_function
 
-import os
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
 import argparse
-import random
 
 from itertools import combinations, count
 
 import pddlstream.algorithms.scheduling.diverse
+from examples.fault_tolerant.utils import test_from_bernoulli_fn, CachedFn
+
 pddlstream.algorithms.scheduling.diverse.DEFAULT_K = 2
 
 import pddlstream.algorithms.downward
 pddlstream.algorithms.downward.USE_FORBID = True
 
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.scheduling.diverse import p_disjunction
-from pddlstream.language.generator import from_test, universe_test, empty_test, fn_from_constant
+from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, get_file_path, INF, hash_or_id
+from pddlstream.utils import read, get_file_path
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan
 
 MAX_DISTANCE = 15 # 15 | INF
@@ -30,21 +28,6 @@ P_SUCCESS = 0.75
 
 DEFAULT_SIZE = mpl.rcParams['lines.markersize'] ** 2
 BLACK = 'k'
-
-def test_from_bernoulli_fn(bernoulli_fn):
-    return lambda *args, **kwargs: random.random() < bernoulli_fn(*args, **kwargs)
-
-class CachedFn(object):
-    def __init__(self, fn):
-        self.fn = fn
-        self.cache = {}
-    def __call__(self, *args): #, **kwargs):
-        key = tuple(map(hash_or_id, args)) # Add the type
-        if key not in self.cache:
-            self.cache[key] = self.fn(*args)
-        return self.cache[key]
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.fn)
 
 ##################################################
 

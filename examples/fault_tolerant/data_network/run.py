@@ -10,7 +10,7 @@ import sys
 import traceback
 
 from examples.fault_tolerant.utils import list_paths, int_from_str, extract_static, get_static_predicates, fact_from_fd, \
-    extract_streams, simulate_successes
+    extract_streams, simulate_successes, test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, select_portfolio
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
@@ -22,7 +22,6 @@ from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, OBJECT, \
     get_prefix, get_function, get_args
 from pddlstream.algorithms.search import diverse_from_pddl
-from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
