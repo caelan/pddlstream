@@ -11,7 +11,7 @@ import traceback
 import importlib
 
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, \
-    prune_dominated_action_plans, generic_union
+    prune_dominated_action_plans, generic_union, select_portfolio
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, universe_test, fn_from_constant
@@ -362,6 +362,22 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
+def extract_static(domain_pddl, plans):
+    domain = parse_sequential_domain(domain_pddl)
+    #static_predicates = get_static_predicates(domain)
+    static_sets = []
+    for plan in plans:
+        # TODO: more general preimage
+        preimage = set()
+        for name, args in plan:
+            action = find_unique(lambda a: a.name == name, domain.actions)
+            mapping = get_mapping([param.name for param in action.parameters], args)
+            for literal in get_literals(get_precondition(action)):
+                if literal.predicate in PROBABILITIES: #(literal.predicate in static_predicates:
+                    preimage.add(literal.rename_variables(mapping))
+        static_sets.append(frozenset(preimage))
+    return static_sets
+
 def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=10, max_plans=2):
     # TODO: randomize the seed
     pid = os.getpid()
@@ -411,21 +427,15 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
         traceback.print_exc()
     solutions = prune_dominated_action_plans(all_solutions)
 
-    domain = parse_sequential_domain(domain_pddl)
-    #static_predicates = get_static_predicates(domain)
-    static_sets = []
-    for plan, _ in all_solutions:
-        # TODO: more general preimage
-        preimage = set()
-        for name, args in plan:
-            action = find_unique(lambda a: a.name == name, domain.actions)
-            mapping = get_mapping([param.name for param in action.parameters], args)
-            for literal in get_literals(get_precondition(action)):
-                if literal.predicate in PROBABILITIES: #(literal.predicate in static_predicates:
-                    preimage.add(literal.rename_variables(mapping))
-        static_sets.append(preimage)
+    static_sets = extract_static(domain_pddl, [plan for plan, _, in solutions])
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
-    print(p_disjunction(static_sets, probabilities=probabilities))
+    all_p_success = p_disjunction(static_sets, probabilities=probabilities)
+    print(all_p_success, static_sets)
+
+    diverse = {'k': 1, 'selector': 'exact'} # exact
+    portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
+    p_success = p_disjunction(portfolio, probabilities=probabilities)
+    print(p_success, portfolio)
 
     outputs.update({
         'all_plans': len(all_solutions),

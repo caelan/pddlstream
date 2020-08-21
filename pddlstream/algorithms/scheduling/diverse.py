@@ -13,8 +13,11 @@ from pddlstream.language.constants import str_from_plan, StreamAction, print_pla
 # TODO: include costs/efforts
 # TODO: costs as a function of k number of failures
 
+def generic_intersection(*collections):
+    items = generic_union(*collections)
+    return {item for item in items if all(item in collection for collection in collections)}
+
 def generic_union(*collections):
-    # TODO: generic intersection
     intersection = set()
     for collection in collections:
         intersection.update(collection)
@@ -95,6 +98,7 @@ def prune_dominated_stream_plans(externals, combined_plans):
 def p_conjunction(results, probabilities=None):
     union = generic_union(*results)
     if probabilities is None:
+        # TODO: add to diverse instead?
         probabilities = {result: result.external.get_p_success(*result.get_input_values())
                          for result in union}
     else:
@@ -104,7 +108,6 @@ def p_conjunction(results, probabilities=None):
 def p_disjunction(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
-    # TODO: approximately compute by sampling outcomes
     # TODO: separate into connected components
     # TODO: compute for low k and increment, pruning if upper bound is less than best lower bound
     # TODO: weight using costs
@@ -143,7 +146,7 @@ def stability(portfolio, diverse, r=2, op=np.average): # min | np.average
     values = []
     for combo in combinations(portfolio, r=r):
         # TODO: weighted intersection
-        sim = float(len(set.intersection(*combo))) / len(generic_union(*combo))
+        sim = float(len(generic_intersection(*combo))) / len(generic_union(*combo))
         values.append(1. - sim)
     return op(values)
 
@@ -172,7 +175,7 @@ def score(portfolio, diverse, **kwargs):
     if metric == 'uniqueness':
         return uniqueness(portfolio, diverse) #, **kwargs)
     if metric == 'p_success':
-        return p_disjunction(portfolio, diverse) #, **kwargs)
+        return p_disjunction(portfolio, diverse, **kwargs)
     raise ValueError(metric)
 
 ##################################################
@@ -214,7 +217,7 @@ def greedy_diverse_subset(candidates, diverse, verbose=True, **kwargs):
         for index in set(range(len(candidates))) - best_indices:
             portfolio = [candidates[i] for i in best_indices | {index}]
             # TODO: could prune dominated candidates given the selected set
-            p = score(portfolio, diverse)
+            p = score(portfolio, diverse, **kwargs)
             if p > best_p:
                 best_index, best_p = index, p
         best_indices.add(best_index)
@@ -244,10 +247,10 @@ def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
         #stream_plans = [set(stream_plan) for stream_plan, _, _, in portfolio]
         #stream_plans = [extract_stream_plan(externals, combined_plan) for combined_plan in portfolio]
         stream_plans = portfolio
-        p = score(stream_plans, diverse)
+        p = score(stream_plans, diverse, **kwargs)
         #assert 0 <= p <= 1 # May not hold if not exact
         if verbose:
-            intersection = set.intersection(*stream_plans)
+            intersection = generic_intersection(*stream_plans)
             print('\nTime: {:.2f} | Group: {} | Intersection: {} | p={:.3f}'.format(
                 elapsed_time(start_time), i, len(intersection), p))  # , intersection)
             for stream_plan in stream_plans:
@@ -266,6 +269,25 @@ def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
     return best_portfolio
 
 ##################################################
+
+def select_portfolio(candiates, diverse, **kwargs):
+    k = diverse['k']
+    assert 1 <= k
+    selector = diverse['selector']
+    if len(candiates) <= k:
+        portfolio = candiates
+    elif selector == 'random':
+        portfolio = random_subset(candiates, diverse, **kwargs)
+    elif selector == 'first':
+        portfolio = first_k(candiates, diverse, **kwargs)
+    elif selector == 'greedy':
+        portfolio = greedy_diverse_subset(candiates, diverse, **kwargs)
+    elif selector == 'exact':
+        portfolio = exact_diverse_subset(candiates, diverse, **kwargs)
+    else:
+        raise ValueError(selector)
+    assert len(portfolio) <= k
+    return portfolio
 
 def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
     # TODO: report back other statistics (possibly in kwargs)
@@ -287,23 +309,7 @@ def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
     stream_dict = OrderedDict((frozenset(extract_stream_plan(externals, plan)), i)
                               for i, plan in enumerate(pruned_plans))
     stream_plans = list(stream_dict.keys())
-
-    k = diverse['k']
-    assert 1 <= k
-    selector = diverse['selector']
-    if len(pruned_plans) <= k:
-        subset_plans = stream_plans
-    elif selector == 'random':
-        subset_plans = random_subset(stream_plans, diverse, verbose=verbose, **kwargs)
-    elif selector == 'first':
-        subset_plans = first_k(stream_plans, diverse, verbose=verbose, **kwargs)
-    elif selector == 'greedy':
-        subset_plans = greedy_diverse_subset(stream_plans, diverse, verbose=verbose, **kwargs)
-    elif selector == 'exact':
-        subset_plans = exact_diverse_subset(stream_plans, diverse, verbose=verbose, **kwargs)
-    else:
-        raise ValueError(selector)
-    assert len(subset_plans) <= k
+    subset_plans = select_portfolio(stream_plans, diverse, verbose=verbose, **kwargs)
 
     # TODO: sort plans (or use my reordering technique)
     stream_plans = subset_plans
@@ -311,9 +317,9 @@ def diverse_subset(externals, candidate_plans, diverse, verbose=True, **kwargs):
     #subset_plans = [pruned_plans[stream_plans.index(candidate)] for candidate in subset_plans] # TODO: incorrect?
     #stream_plans = [extract_stream_plan(externals, plan) for plan in subset_plans]
     total_cost = sum(cost for _, _, cost in subset_plans) # normalize, length
-    p = score(stream_plans, diverse)
+    p = score(stream_plans, diverse, **kwargs)
     print('c={} | k={} | n={} | p={:.3f} | cost={:.3f} | {:.3f} seconds'.format(
-        len(candidate_plans), k, len(subset_plans), p, total_cost, elapsed_time(start_time)))
+        len(candidate_plans), diverse['k'], len(subset_plans), p, total_cost, elapsed_time(start_time)))
     if verbose:
         for i, (stream_plan, opt_plan, cost) in enumerate(subset_plans):
             print(i, len(opt_plan.action_plan), cost, str_from_plan(opt_plan.action_plan))
