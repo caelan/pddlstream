@@ -8,28 +8,26 @@ import time
 import random
 import numpy as np
 import sys
-import math
 import datetime
 
-from collections import defaultdict
 from itertools import product
 from multiprocessing import cpu_count, Pool
+from collections import defaultdict
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, generic_union
+from examples.fault_tolerant.utils import hashabledict, fact_from_fd, simulate_successes
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.scheduling.plan_streams import *
+from pddlstream.algorithms.downward import DIVERSE_PLANNERS
 
-from pddlstream.language.generator import from_test, fn_from_constant
-from pddlstream.language.stream import StreamInfo, DEBUG
+from pddlstream.language.generator import from_test
+from pddlstream.language.stream import StreamInfo
 from pddlstream.language.external import defer_unique
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, \
-    is_plan, get_prefix, get_args, Not, StreamAction, Equal, Fact
+from pddlstream.language.constants import print_solution, PDDLProblem, And
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, \
-    read_pickle, write_pickle, ensure_dir, get_python_version, MockSet
+    ensure_dir, get_python_version
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, is_literal, is_assignment, get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
+    get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json, is_remote
 
@@ -45,24 +43,6 @@ SMALL_RISK_DIR = 'smallprobs/'
 LARGE_RISK_DIR = 'risk-pddl/risk/'
 PARALLEL_DIR = 'temp_parallel/'
 EXPERIMENTS_DIR = 'experiments/'
-
-class hashabledict(dict):
-    def __setitem__(self, key, value):
-        raise RuntimeError()
-    # assumes immutable once hashed
-    def __hash__(self):
-        return hash(frozenset(self.items()))
-
-def fact_from_fd(literal):
-    if is_literal(literal):
-        atom = Fact(literal.predicate, literal.args)
-        if literal.negated:
-            return Not(atom)
-        return atom
-    if is_assignment(literal):
-        func = (literal.fluent.symbol,) + literal.fluent.args
-        return Equal(func, literal.expression.value)
-    raise NotImplementedError(literal)
 
 ##################################################
 
@@ -176,29 +156,6 @@ def get_problem(problem_path):
 
     return pddl_problem, bernoulli_fns
 
-def extract_streams(plan):
-    return frozenset(stream for stream in plan if isinstance(stream, StreamAction))
-
-def simulate_successes(stochastic_fns, solutions, n_simulations):
-    successes = 0
-    plans = [plan for plan, _, _ in solutions]
-    if not plans:
-        return successes
-    for _ in range(n_simulations):
-        # TODO: compare with exact computation from p_disjunction
-        outcomes = {}
-        for stream in generic_union(*map(extract_streams, plans)):
-            name, inputs, outputs = stream
-            assert not outputs
-            outcomes[stream] = stochastic_fns[name](*inputs)
-            # total = sum(stochastic_fns[name](*inputs) for _ in range(n_simulations))
-            # print(float(total) / n_simulations)
-        for plan in plans:
-            if all(outcomes[stream] for stream in extract_streams(plan)):
-                successes += 1
-                break
-    return successes
-
 def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulations=10000):
     # TODO: randomize the seed
     pid = os.getpid()
@@ -251,6 +208,10 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
     for solution in solutions:
         print_solution(solution)
     n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+
+    # portfolio = [plan for plan, _, _ in solutions]
+    # print(p_disjunction(portfolio, config))
+
     p_success = float(n_successes) / n_simulations
     total_cost = sum(cost for _, cost, _  in solutions)
     outputs = (runtime, len(solutions), p_success, total_cost)

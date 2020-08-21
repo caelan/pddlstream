@@ -8,30 +8,27 @@ import time
 import datetime
 import sys
 import traceback
-import importlib
 
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, diverse_subset, \
-    prune_dominated_action_plans, generic_union, select_portfolio
+from examples.fault_tolerant.utils import list_paths, int_from_str, extract_static, get_static_predicates, fact_from_fd, \
+    extract_streams, simulate_successes
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, select_portfolio
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.generator import from_test, universe_test, fn_from_constant
+from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, elapsed_time, INF, ensure_dir, safe_rm_dir, str_from_object, \
-    write_pickle, read_pickle, implies, find_unique, get_mapping
+from pddlstream.language.stream import StreamInfo
+from pddlstream.utils import read, elapsed_time, INF, ensure_dir, safe_rm_dir, implies
 from pddlstream.language.external import defer_unique
-from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, is_plan, Fact, OBJECT, \
+from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, OBJECT, \
     get_prefix, get_function, get_args
-from pddlstream.algorithms.search import solve_from_pddl, diverse_from_pddl
+from pddlstream.algorithms.search import diverse_from_pddl
 from examples.fault_tolerant.logistics.run import test_from_bernoulli_fn, CachedFn
-from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator, \
-    fact_from_fd, simulate_successes, extract_streams
+from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    task_from_domain_problem, get_conjunctive_parts, TEMP_DIR, set_cost_scale, make_predicate, \
-    Domain, get_fluents, get_precondition, get_literals
-from pddlstream.algorithms.algorithm import get_predicates
+    get_conjunctive_parts, set_cost_scale, Domain
+
 #from pddlstream.language.write_pddl import get_problem_pddl
 
 # TODO: make a simulator that randomizes these probabilities
@@ -47,11 +44,6 @@ else:
 #TERMES_PATH = '/Users/caelan/Documents/IBM/termes-opt18-strips-untyped'
 
 ##################################################
-
-def list_paths(directory):
-    if not os.path.exists(directory):
-        return []
-    return [os.path.abspath(os.path.join(directory, f)) for f in sorted(os.listdir(directory))]
 
 def list_pddl_problems(directory): # TODO: outlaw domain.pddl
     return [f for f in list_paths(directory) if f.endswith('.pddl')]
@@ -85,21 +77,8 @@ def get_benchmarks(directory):
 
 ##################################################
 
-def object_facts_from_str(s):
-    objs, ty = s.strip().rsplit(' - ', 1)
-    return [(ty, obj) for obj in objs.split(' ')]
-
-def fact_from_str(s):
-    return tuple(s.strip('( )').split(' '))
-
-def int_from_str(s):
-    return int(s.replace('number', ''))
-
-##################################################
-
 def get_problem(domain_name, index):
     # TODO: filter out problems that are reorderings
-    import pddl
     #domain_path, problem_paths = get_benchmarks(DATA_NETWORK_PATH)
     #problem_path = problem_paths[index]
 
@@ -222,7 +201,6 @@ def visualize_graph(init, edge_predicates, title=None):
 
     import networkx
     #import graphviz
-    import pygraphviz
     #import pydot
     import matplotlib.pyplot as plt
 
@@ -234,7 +212,6 @@ def visualize_graph(init, edge_predicates, title=None):
     graph = networkx.DiGraph()
     graph.add_edges_from(edges) # add_weighted_edges_from
 
-    from networkx.drawing.nx_pydot import write_dot
     #pos = None
     pos = networkx.nx_agraph.graphviz_layout(graph)
 
@@ -362,21 +339,6 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
-def extract_static(domain_pddl, plans):
-    domain = parse_sequential_domain(domain_pddl)
-    #static_predicates = get_static_predicates(domain)
-    static_sets = []
-    for plan in plans:
-        # TODO: more general preimage
-        preimage = set()
-        for name, args in plan:
-            action = find_unique(lambda a: a.name == name, domain.actions)
-            mapping = get_mapping([param.name for param in action.parameters], args)
-            for literal in get_literals(get_precondition(action)):
-                if literal.predicate in PROBABILITIES: #(literal.predicate in static_predicates:
-                    preimage.add(literal.rename_variables(mapping))
-        static_sets.append(frozenset(preimage))
-    return static_sets
 
 def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=10, max_plans=2):
     # TODO: randomize the seed
@@ -427,7 +389,7 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
         traceback.print_exc()
     solutions = prune_dominated_action_plans(all_solutions)
 
-    static_sets = extract_static(domain_pddl, [plan for plan, _, in solutions])
+    static_sets = extract_static(domain_pddl, [plan for plan, _, in solutions], PROBABILITIES)
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
     all_p_success = p_disjunction(static_sets, probabilities=probabilities)
     print(all_p_success, static_sets)
@@ -461,13 +423,6 @@ def solve_pddl_trial(inputs, planner='ff-wastar3', max_time=5 * 60, max_printed=
     return inputs, outputs
 
 ##################################################
-
-def get_static_predicates(domain):
-    fluent_predicates = get_fluents(domain)
-    assert not domain.axioms  # TODO: axioms
-    predicates = {predicate for action in domain.actions
-                  for predicate in get_predicates(get_precondition(action))}  # get_literals
-    return predicates - fluent_predicates
 
 def solve_pddl(visualize=False):
     # No restriction to be untyped here
