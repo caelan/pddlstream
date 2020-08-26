@@ -1,7 +1,7 @@
 (define (domain nightout)
     (:requirements :typing)
     ;(:types person location machine)
-    ;(:constants 0 10 50)
+    (:constants @min @max @amount)
     (:predicates
         (person ?p)
         (machine ?m)
@@ -22,7 +22,7 @@
     (:action withdraw_money
      :parameters (?p ?m ?cash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
      :precondition (and (person ?p) (machine ?m)
-                        (ge ?cash 0) (ge 10 ?cash) (ge ?mcash1 ?cash)
+                        (ge ?cash @min) (ge @max ?cash) (ge ?mcash1 ?cash)
                         (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1)
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
      :effect (and (inpocket ?p ?pcash2)
@@ -33,7 +33,7 @@
 
     (:action finish
      :parameters (?p ?cash)
-     :precondition (and (person ?p) (ge ?cash 50)
+     :precondition (and (person ?p) (ge ?cash @amount)
                         (inpocket ?p ?cash))
      :effect (finished))
 )

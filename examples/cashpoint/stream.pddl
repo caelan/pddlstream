@@ -1,13 +1,28 @@
 (define (stream nightout)
 
-  (:stream s-cash
-    :outputs (?c)
-    :certified (cash ?c))
+  ; TODO: differentiate between types of cash
+  ;(:stream s-cash
+  ;  :outputs (?c)
+  ;  :certified (cash ?c))
 
-  (:stream t-geq
+  (:stream t-ge
     :inputs (?c1 ?c2)
     :domain (and (cash ?c1) (cash ?c2))
-    :certified (geq ?c1 ?c2))
+    :certified (ge ?c1 ?c2))
+
+  (:stream add
+    :inputs (?c1 ?c2)
+    :domain (and (cash ?c1) (cash ?c2))
+    :outputs (?c3)
+    :certified (and (cash ?c3) (sum ?c1 ?c2 ?c3)
+                    (ge ?c1 ?c3) (ge ?c2 ?c3)))
+
+  (:stream subtract
+    :inputs (?c3 ?c2)
+    :domain (and (cash ?c3) (cash ?c2))
+    :outputs (?c1)
+    :certified (and (cash ?c1) (sum ?c1 ?c2 ?c3)
+                    (ge ?c3 ?c1) (ge ?c3 ?c2)))
 
   ;(:function (Duration ?t)
   ;           (Traj ?t))

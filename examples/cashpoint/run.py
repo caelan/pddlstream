@@ -4,8 +4,8 @@ from __future__ import print_function
 
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.utils import read_pddl, irange, INF
-from pddlstream.language.constants import get_length, PDDLProblem, print_solution
-from pddlstream.language.generator import from_test, from_gen
+from pddlstream.language.constants import get_length, PDDLProblem, print_solution, Exists, And
+from pddlstream.language.generator import from_test, from_gen, from_fn
 from pddlstream.algorithms.incremental import solve_incremental
 
 # https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl
@@ -15,33 +15,53 @@ from pddlstream.algorithms.incremental import solve_incremental
 # TODO: rocket and car domains
 
 def get_problem():
+    min_deposit = 0
+    max_deposit = 10
+    target = 3
+    initial_atm = 30
+    initial_person = 2
+
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
-    constant_map = {}
+    constant_map = {
+        '@amount': target,
+        '@min': min_deposit,
+        '@max': max_deposit,
+    }
     stream_pddl = read_pddl(__file__, 'stream.pddl')
     #stream_pddl = None
     stream_map = {
-        's-cash': from_gen((c,) for c in irange(INF)),
-        't-geq': from_test(lambda c1, c2: c1 >= c2),
+        's-cash': from_gen((c,) for c in irange(1, 2)),
+        't-ge': from_test(lambda c1, c2: c1 >= c2),
+        'add': from_fn(lambda c1, c2: (c1 + c2,)),
+        'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
     }
+
+    #initial_people = {'Emre': initial_person}
+    #initial_atms = {'Emre': initial_person}
+    amounts = [min_deposit, max_deposit, target, initial_atm, initial_person]
 
     init = [
         ('person', 'Emre'),
         ('machine', 'atm1'),
-        ('machine', 'atm2'),
-        ('machine', 'atm3'),
-        ('cash', 30),
-        ('maxwithdraw', 'atm1', 30),
-        ('maxwithdraw', 'atm2', 30),
-        ('maxwithdraw', 'atm3', 30),
-        ('inpocket', 'Emre', 2),
-    ]
-    goal = ('finished',)
+        #('machine', 'atm2'),
+        #('machine', 'atm3'),
+        ('maxwithdraw', 'atm1', initial_atm),
+        #('maxwithdraw', 'atm2', initial_atm),
+        #('maxwithdraw', 'atm3', initial_atm),
+        ('inpocket', 'Emre', initial_person),
+    ] + [('cash', amount) for amount in amounts]
+
+    goal = Exists(['?c1'], And(('inpocket', 'Emre', '?c1'), ('ge', '?c1', target)))
+    #goal = ('finished',)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 def main():
     problem = get_problem()
-    solution = solve_incremental(problem, unit_costs=True, debug=False)
+    print(problem.constant_map)
+    print(problem.init)
+    print(problem.goal)
+    solution = solve_incremental(problem, unit_costs=True, debug=False, verbose=True)
     print_solution(solution)
     return
 
