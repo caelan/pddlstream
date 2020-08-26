@@ -17,7 +17,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 def get_problem():
     min_take = 0
     max_take = 10
-    target = 3
+    target = 50
     initial_atm = 30
     initial_person = 2
 
@@ -36,22 +36,23 @@ def get_problem():
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
     }
 
+    person = 'Emre'
     #initial_people = {'Emre': initial_person}
     #initial_atms = {'Emre': initial_person}
     amounts = [min_take, max_take, target, initial_atm, initial_person]
 
     init = [
-        ('person', 'Emre'),
+        ('person', person),
         ('machine', 'atm1'),
-        #('machine', 'atm2'),
-        #('machine', 'atm3'),
+        ('machine', 'atm2'),
+        ('machine', 'atm3'),
         ('maxwithdraw', 'atm1', initial_atm),
-        #('maxwithdraw', 'atm2', initial_atm),
-        #('maxwithdraw', 'atm3', initial_atm),
-        ('inpocket', 'Emre', initial_person),
+        ('maxwithdraw', 'atm2', initial_atm),
+        ('maxwithdraw', 'atm3', initial_atm),
+        ('inpocket', person, initial_person),
     ] + [('cash', amount) for amount in amounts]
 
-    goal = Exists(['?c1'], And(('person', 'Emre'), ('inpocket', 'Emre', '?c1'), ('ge', '?c1', target)))
+    goal = Exists(['?c1'], And(('person', person), ('inpocket', person, '?c1'), ('ge', '?c1', target)))
     #goal = ('finished',)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
