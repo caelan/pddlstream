@@ -26,7 +26,7 @@ from pddlstream.language.stream import StreamInfo
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, Action
 from pddlstream.utils import read, get_file_path, safe_rm_dir, INF, Profiler, elapsed_time, \
-    ensure_dir, get_python_version
+    ensure_dir, get_python_version, user_input
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     get_conjunctive_parts, TEMP_DIR, set_cost_scale #, evaluation_from_fd, fact_from_fd
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
@@ -236,12 +236,16 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
 
     return inputs, outputs
 
-def create_generator(fn, jobs):
-    if SERIAL:
+def create_generator(fn, jobs, job_time=None):
+    assert jobs
+    num_cores = clip(1 if SERIAL else int(cpu_count()/2), min_value=1, max_value=len(jobs))
+    print('Using {}/{} cores for {} jobs'.format(num_cores, cpu_count(), len(jobs)))
+    if job_time is not None:
+        print('Estimated runtime: {} minutes'.format(len(jobs)*job_time / (num_cores * 60)))
+    if num_cores == 1:
         generator = map(fn, jobs)
     else:
-        num_cores = clip(int(cpu_count()/2), min_value=1, max_value=len(jobs))
-        print('Using {}/{} cores for {} jobs'.format(num_cores, cpu_count(), len(jobs)))
+        user_input('Begin?')
         pool = Pool(processes=num_cores)  # , initializer=mute)
         generator = pool.imap_unordered(fn, jobs, chunksize=1)
     return generator

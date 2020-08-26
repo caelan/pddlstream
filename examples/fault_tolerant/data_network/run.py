@@ -19,7 +19,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, fn_from_constant
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, elapsed_time, INF, ensure_dir, safe_rm_dir, implies
+from pddlstream.utils import read, elapsed_time, INF, ensure_dir, safe_rm_dir, implies, user_input
 from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, OBJECT, \
     get_prefix, get_function, get_args, Action
@@ -34,6 +34,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 
 # TODO: make a simulator that randomizes these probabilities
 P_SUCCESS = 0.9 # 0.9 | 0.75
+CANDIDATE_TIME = 5 * 60
 
 # TODO: handle more generically
 if is_darwin():
@@ -341,7 +342,7 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
-def solve_pddl_trial(inputs, candidate_time=5 * 60, select_time=5 * 60, max_printed=10, max_plans=INF):
+def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, select_time=5 * 60, max_printed=10, max_plans=INF):
     # TODO: randomize the seed
     pid = os.getpid()
     print(SEPARATOR)
@@ -365,33 +366,33 @@ def solve_pddl_trial(inputs, candidate_time=5 * 60, select_time=5 * 60, max_prin
 
     prohibit_predicates = PROBABILITIES
     #prohibit_predicates = []
-    use_probabilities = True
 
-    all_solutions = []
     outputs = dict(inputs)
     outputs.update({
         'prohibit_actions': prohibit_actions,
         'prohibit_predicates': list(prohibit_predicates),
+        'probabilities': PROBABILITIES,
         'max_time': candidate_time,
-        'max_plans': max_plans,
+        #'max_plans': max_plans,
         'error': True,
     })
 
     domain_pddl, problem_pddl = read(inputs['domain_path']), read(inputs['problem_path'])
     start_time = time.time()
+    all_solutions = []
     try:
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
         all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=inputs['planner'],
-                                          use_probabilities=use_probabilities,
-                                          prohibit_actions=prohibit_actions,
-                                          prohibit_predicates=prohibit_predicates,
+                                          use_probabilities=inputs['candidate_probs'],
+                                          prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                           max_planner_time=candidate_time, max_cost=INF, max_plans=max_plans, debug=True)
         outputs.update({
             'error': False,
         })
     except Exception:
         traceback.print_exc()
+
     solutions = prune_dominated_action_plans(all_solutions)
     outputs.update({
         'all_plans': len(all_solutions),
@@ -405,14 +406,12 @@ def solve_pddl_trial(inputs, candidate_time=5 * 60, select_time=5 * 60, max_prin
         print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
         solution = (plan, cost, evaluations)
         print_solution(solution)
-        #break
 
     plans = [plan for plan, _, in solutions]
     static_sets = extract_static(domain_pddl, plans, PROBABILITIES)
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
     all_p_success = p_disjunction(static_sets, probabilities=probabilities)
     outputs.update({
-        'probabilities': PROBABILITIES,
         'all_p_success': all_p_success,
     })
 
@@ -426,7 +425,7 @@ def solve_pddl_trial(inputs, candidate_time=5 * 60, select_time=5 * 60, max_prin
                            for selector in blind_selectors)
 
     informed_selectors = ['greedy'] # exact | greedy
-    metrics = ['p_success'] # p_success | stability | uniqueness
+    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
     diverse_configs.extend({'selector': selector, 'metric': metric}
                            for selector, metric in product(informed_selectors, metrics))
 
@@ -482,7 +481,7 @@ def solve_pddl(visualize=False):
         11: 'driverlog',
     }
     domain_indices = sorted(directories.keys())
-    domain_indices = [4]
+    #domain_indices = [4]
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
 
     problems = []
@@ -500,21 +499,20 @@ def solve_pddl(visualize=False):
     # }]
     problems = [{key: os.path.join(CLASSICAL_PATH, path)
                  for key, path in problem.items()} for problem in problems]
-    problem_idx = 0
-    problems = problems[problem_idx:problem_idx+1]
+    #problem_idx = 0
+    #problems = problems[problem_idx:problem_idx+1]
 
-    planners = ['ff-wastar1'] # dijkstra | forbid | kstar | symk | ff-wastar1 | ff-wastar3
+    planners = ['ff-wastar3'] # dijkstra | forbid | kstar | symk | ff-wastar1 | ff-wastar3
+    candidate_probs = [False, True]
 
     trials = []
-    for problem, planner in product(problems, planners):
+    for problem, planner, prob in product(problems, planners, candidate_probs):
         trial = dict(problem)
-        trial.update({'planner': planner})
+        trial.update({'planner': planner, 'candidate_probs': prob})
         trials.append(trial)
 
     for i, trial in enumerate(trials):
         print(i, trial)
-    generator = create_generator(solve_pddl_trial, trials)
-    # TODO: estimate runtime
 
     if visualize:
         edge_predicates = [
@@ -537,7 +535,9 @@ def solve_pddl(visualize=False):
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
     #file_name = os.path.join(EXPERIMENTS_DIR, '{}.pk3'.format(date_name))
     file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
+    print('File name: {}'.format(file_name))
 
+    generator = create_generator(solve_pddl_trial, trials, job_time=CANDIDATE_TIME)
     results = []
     for inputs, outputs_list in generator:
         # TODO: pickle the solutions to reuse later
