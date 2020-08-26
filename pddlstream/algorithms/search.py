@@ -73,7 +73,7 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
     # TODO: non-probabilistic version of this for action costs
     assert prohibit_actions or prohibit_predicates
     assert not isinstance(prohibit_actions, dict)
-    assert implies(use_probabilities, prohibit_predicates)
+    assert implies(use_probabilities, isinstance(prohibit_predicates, dict) and prohibit_predicates)
     import sas_tasks
     if isinstance(prohibit_predicates, dict):
         prohibit_predicates = {predicate.lower(): prob for predicate, prob in prohibit_predicates.items()}
@@ -147,9 +147,12 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
                     success_prob = 1.
                     for precondition in uncertain:
                         success_prob *= prob_from_precondition[precondition]
+                    if success_prob == 1.:
+                       return plans
                     for precondition in uncertain:
                         p_this = prob_from_precondition[precondition]
                         p_rest = success_prob / p_this
+                        #print(p_this, p_rest)
                         p_this_fails = (1 - p_this)*p_rest
                         p_rest_fail = p_this*(1 - p_rest)
                         prob_from_precondition[precondition] = p_rest_fail / (p_this_fails + p_rest_fail)
