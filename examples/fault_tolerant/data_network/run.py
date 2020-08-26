@@ -9,6 +9,8 @@ import datetime
 import sys
 import traceback
 
+from itertools import product
+
 from examples.fault_tolerant.utils import list_paths, int_from_str, extract_static, get_static_predicates, fact_from_fd, \
     extract_streams, simulate_successes, test_from_bernoulli_fn, CachedFn
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, select_portfolio
@@ -339,7 +341,7 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
-def solve_pddl_trial(inputs, max_time=5 * 60, max_printed=10, max_plans=5):
+def solve_pddl_trial(inputs, candidate_time=5 * 60, select_time=5 * 60, max_printed=10, max_plans=INF):
     # TODO: randomize the seed
     pid = os.getpid()
     print(SEPARATOR)
@@ -370,7 +372,7 @@ def solve_pddl_trial(inputs, max_time=5 * 60, max_printed=10, max_plans=5):
     outputs.update({
         'prohibit_actions': prohibit_actions,
         'prohibit_predicates': list(prohibit_predicates),
-        'max_time': max_time,
+        'max_time': candidate_time,
         'max_plans': max_plans,
         'error': True,
     })
@@ -384,7 +386,7 @@ def solve_pddl_trial(inputs, max_time=5 * 60, max_printed=10, max_plans=5):
                                           use_probabilities=use_probabilities,
                                           prohibit_actions=prohibit_actions,
                                           prohibit_predicates=prohibit_predicates,
-                                          max_planner_time=max_time, max_cost=INF, max_plans=max_plans, debug=True)
+                                          max_planner_time=candidate_time, max_cost=INF, max_plans=max_plans, debug=True)
         outputs.update({
             'error': False,
         })
@@ -397,9 +399,16 @@ def solve_pddl_trial(inputs, max_time=5 * 60, max_printed=10, max_plans=5):
         'runtime': elapsed_time(start_time),
     })
 
+    print('Candidate runtime:', elapsed_time(start_time))
+    evaluations = []
+    for i, (plan, cost) in enumerate(solutions[:max_printed]):
+        print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
+        solution = (plan, cost, evaluations)
+        print_solution(solution)
+        #break
+
     plans = [plan for plan, _, in solutions]
     static_sets = extract_static(domain_pddl, plans, PROBABILITIES)
-
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
     all_p_success = p_disjunction(static_sets, probabilities=probabilities)
     outputs.update({
@@ -411,33 +420,36 @@ def solve_pddl_trial(inputs, max_time=5 * 60, max_printed=10, max_plans=5):
     #max_k = min_k # INF
     ks = list(range(min_k, 1+max_k))
 
+    diverse_configs = []
+    blind_selectors = ['random', 'first'] # random | first
+    diverse_configs.extend({'selector': selector}
+                           for selector in blind_selectors)
+
+    informed_selectors = ['greedy'] # exact | greedy
+    metrics = ['p_success'] # p_success | stability | uniqueness
+    diverse_configs.extend({'selector': selector, 'metric': metric}
+                           for selector, metric in product(informed_selectors, metrics))
+
     outputs_list = []
-    diverse = inputs.get('diverse', None)
-    if diverse:
-        for k in ks:
+    if select_time is not None: # TODO: make a separate function
+        print(SEPARATOR)
+        for diverse, k in product(diverse_configs, ks):
             diverse = dict(diverse)
-            diverse['k'] = k
+            diverse.update({'k': k, 'max_time': select_time})
             portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
             p_success = p_disjunction(portfolio, probabilities=probabilities)
             outputs = dict(outputs)
             outputs.update({
                 'diverse': diverse,
-                'full_runtime': elapsed_time(start_time),
+                'full_runtime': elapsed_time(start_time), # select runtime
                 'p_success': p_success,
             })
             outputs_list.append(outputs)
-            print('All: {:.3f} | Portfolio: {:.3f} | Runtime: {:.3f}'.format(
+            print(diverse)
+            print('All: {:.3f} | Portfolio: {:.3f} | Runtime: {:.3f}'.format( # k: {}
                 all_p_success, p_success, elapsed_time(start_time)))
     else:
         outputs_list = [outputs]
-
-    print('Overall runtime:', elapsed_time(start_time))
-    evaluations = []
-    for i, (plan, cost) in enumerate(solutions[:max_printed]):
-        print('\nPlan {}/{}'.format(i + 1, len(solutions)), )
-        solution = (plan, cost, evaluations)
-        print_solution(solution)
-        #break
 
     if not SERIAL:
         os.chdir(current_wd)
@@ -469,13 +481,9 @@ def solve_pddl(visualize=False):
         10: 'transport-opt11-strips',
         11: 'driverlog',
     }
-    indices = sorted(directories.keys())
-    indices = [4]
-    directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in indices]
-
-    planner = 'ff-wastar3'
-    diverse = {'k': 3, 'selector': 'greedy'} # exact
-    #diverse = None
+    domain_indices = sorted(directories.keys())
+    domain_indices = [4]
+    directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
 
     problems = []
     for directory_path in directory_paths:
@@ -492,14 +500,21 @@ def solve_pddl(visualize=False):
     # }]
     problems = [{key: os.path.join(CLASSICAL_PATH, path)
                  for key, path in problem.items()} for problem in problems]
-    for problem in problems:
-        problem.update({'planner': planner, 'diverse': diverse})
+    problem_idx = 0
+    problems = problems[problem_idx:problem_idx+1]
 
-    #problems = problems[:1]
-    problems = problems[5:6]
-    for i, problem in enumerate(problems):
-        print(i, problem)
-    generator = create_generator(solve_pddl_trial, problems)
+    planners = ['ff-wastar1'] # dijkstra | forbid | kstar | symk | ff-wastar1 | ff-wastar3
+
+    trials = []
+    for problem, planner in product(problems, planners):
+        trial = dict(problem)
+        trial.update({'planner': planner})
+        trials.append(trial)
+
+    for i, trial in enumerate(trials):
+        print(i, trial)
+    generator = create_generator(solve_pddl_trial, trials)
+    # TODO: estimate runtime
 
     if visualize:
         edge_predicates = [
