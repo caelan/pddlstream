@@ -3,8 +3,6 @@
 from __future__ import print_function
 
 import argparse
-import cProfile
-import pstats
 
 import numpy as np
 from numpy import array
@@ -17,6 +15,7 @@ from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
 from pddlstream.language.temporal import retime_plan
+from pddlstream.utils import Profiler
 
 # Be careful about uniqueness here
 #CONF0 = array([-7.5, 5.])
@@ -113,7 +112,7 @@ def main(success_cost=0):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.gurobi,
                                               use_optimizer=args.gurobi)
-    stream_pddl, stream_map = pddlstream_problem[2:4]
+    _, _, stream_pddl, stream_map, _, _ = pddlstream_problem
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'t-cfree': StreamInfo(eager=False, negate=True),
@@ -122,29 +121,27 @@ def main(success_cost=0):
     print('Constraints:', CONSTRAINTS)
     print('Objectives:', OBJECTIVES)
     terms = CONSTRAINTS # + OBJECTIVES
-    pr = cProfile.Profile()
-    pr.enable()
-    if args.algorithm == 'focused':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
-                                                 incremental=False, stream_info=stream_info,
-                                                 #search_sample_ratio=1,
-                                                 #max_skeletons=1,
-                                                 success_cost=success_cost, max_time=args.max_time)
-    elif args.algorithm == 'incremental':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 success_cost=success_cost, max_time=args.max_time,
-                                                 verbose=False, debug=False)
-    else:
-        # TODO: likely need to make GRASP a stream to solve
-        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
-                                           costs=not args.unit, success_cost=success_cost,
-                                           max_time=args.max_time, search_sample_ratio=1,
-                                           debug=False)
-        #raise ValueError(args.algorithm)
+
+    with Profiler():
+        if args.algorithm == 'focused':
+            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
+                                                     incremental=False, stream_info=stream_info,
+                                                     #search_sample_ratio=1,
+                                                     #max_skeletons=1,
+                                                     success_cost=success_cost, max_time=args.max_time)
+        elif args.algorithm == 'incremental':
+            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
+                                                     success_cost=success_cost, max_time=args.max_time,
+                                                     verbose=False, debug=False)
+        else:
+            # TODO: likely need to make GRASP a stream to solve
+            solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
+                                               costs=not args.unit, success_cost=success_cost,
+                                               max_time=args.max_time, search_sample_ratio=1,
+                                               debug=False)
+            #raise ValueError(args.algorithm)
 
     dump_assignment(solution)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     bindings, cost, evaluations = solution
     if bindings is None:
         return

@@ -1,32 +1,40 @@
 (define (domain nightout)
-(:requirements :typing :fluents :durative-actions
-                 :duration-inequalities)
-(:types person location machine)
+    (:requirements :typing)
+    ;(:types person location machine)
+    ;(:constants 0 10 50)
+    (:predicates
+        (person ?p)
+        (machine ?m)
+        (cash ?c)
 
-(:predicates
-                (finished)
-		)
-(:functions     (inpocket ?p - person)
-                (minwithdraw ?m - machine)
-                (maxwithdraw ?m - machine)
+        (ge ?c1 ?c2)
+        (sum ?c1 ?c2 ?c3)
+
+        (finished)
+        (inpocket ?p ?c)
+        (maxwithdraw ?m ?c)
+    )
+    (:functions
+        ;(minwithdraw ?m - machine)
+    )
+
+    ; TODO: convert typing using diverse code
+    (:action withdraw_money
+     :parameters (?p ?m ?cash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
+     :precondition (and (person ?p) (machine ?m)
+                        (ge ?cash 0) (ge 10 ?cash) (ge ?mcash1 ?cash)
+                        (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1)
+                        (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
+     :effect (and (inpocket ?p ?pcash2)
+                  (maxwithdraw ?m ?mcash2)
+                  (not (inpocket ?p ?pcash1))
+                  (not (maxwithdraw ?m ?mcash1))
+                  (increase (total-cost) 2)))
+
+    (:action finish
+     :parameters (?p ?cash)
+     :precondition (and (person ?p) (ge ?cash 50)
+                        (inpocket ?p ?cash))
+     :effect (finished))
 )
-
-
-(:durative-action withdraw_money
-:parameters (?p - person ?m - machine)
-:control (?cash ?times - number)
-:duration (= ?duration 2)
-:condition (and (at start (>= ?cash 0))
-    (at start (<= ?cash 10))
-                (at start (>= (maxwithdraw ?m) 0)))
-:effect (and
-                (at start (decrease (maxwithdraw ?m) ?cash))
-                (at end (increase (inpocket ?p) ?cash))
-        ))
-
-(:action finish
-:parameters (?p - person)
-:precondition (and (>= (inpocket ?p) 50) )
-:effect (and (finished)) )
-
-)
+; https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl

@@ -87,7 +87,7 @@ def dump_assignment(solution):
     print('Solved: {}'.format(bindings is not None))
     print('Cost: {}'.format(cost))
     print('Total facts: {}'.format(len(evaluations)))
-    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations.all_facts))))) # preimage_facts
     if bindings is None:
         return
     print('Assignments:')
@@ -159,7 +159,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
                                                  unique_binding=True, unsatisfiable=True,
                                                  max_effort=max_effort, planner=planner, **search_args)
             if stream_plan is not None:
-                external_plan = reorder_stream_plan(combine_optimizers(
+                external_plan = reorder_stream_plan(store, combine_optimizers(
                     init_evaluations, stream_plan + list(function_plan)))
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))

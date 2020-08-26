@@ -150,6 +150,7 @@ def implies(a, b):
 
 
 def irange(start, end=None, step=1):
+    # TODO: combine with other infinite generator
     if end is None:
         end = start
         start = 0
@@ -454,3 +455,8 @@ def inclusive_range(start, stop, step=1):
     if sequence and (sequence[-1] == stop):
         sequence.append(stop)
     return sequence
+
+
+def read_pddl(this_file, pddl_filename):
+    directory = os.path.dirname(os.path.abspath(this_file))
+    return read(os.path.join(directory, pddl_filename))

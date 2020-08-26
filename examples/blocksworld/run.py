@@ -40,7 +40,7 @@ def get_problem():
         ('clear', 'b'),
         ('arm-empty',),
     ]
-    goal =  ('on', 'a', 'b')
+    goal = ('on', 'a', 'b')
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 

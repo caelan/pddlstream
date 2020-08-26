@@ -93,9 +93,12 @@ def negate_test(test):
     return lambda *args, **kwargs: not test(*args, **kwargs)
 
 
+def from_gen(gen):
+    return from_gen_fn(lambda *args, **kwargs: iter(gen))
+
+
 def empty_gen():
-    return lambda *args, **kwargs: iter([])
-#empty_gen = lambda *args, **kwargs: iter([])
+    return from_gen([])
 
 ##################################################
 
