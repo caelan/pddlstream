@@ -25,10 +25,8 @@
                         (ge ?cash @min) (ge @max ?cash) (ge ?mcash1 ?cash)
                         (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1)
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
-     :effect (and (inpocket ?p ?pcash2)
-                  (maxwithdraw ?m ?mcash2)
-                  (not (inpocket ?p ?pcash1))
-                  (not (maxwithdraw ?m ?mcash1))
+     :effect (and (inpocket ?p ?pcash2) (maxwithdraw ?m ?mcash2)
+                  (not (inpocket ?p ?pcash1)) (not (maxwithdraw ?m ?mcash1))
                   (increase (total-cost) 2)))
 
     (:action finish

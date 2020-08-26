@@ -15,22 +15,22 @@ from pddlstream.algorithms.incremental import solve_incremental
 # TODO: rocket and car domains
 
 def get_problem():
-    min_deposit = 0
-    max_deposit = 10
+    min_take = 0
+    max_take = 10
     target = 3
     initial_atm = 30
     initial_person = 2
 
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
     constant_map = {
+        '@min': min_take,
+        '@max': max_take,
         '@amount': target,
-        '@min': min_deposit,
-        '@max': max_deposit,
     }
     stream_pddl = read_pddl(__file__, 'stream.pddl')
     #stream_pddl = None
     stream_map = {
-        's-cash': from_gen((c,) for c in irange(1, 2)),
+        's-cash': from_gen((c,) for c in irange(1, 2)), # min_take, max_take
         't-ge': from_test(lambda c1, c2: c1 >= c2),
         'add': from_fn(lambda c1, c2: (c1 + c2,)),
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
@@ -38,7 +38,7 @@ def get_problem():
 
     #initial_people = {'Emre': initial_person}
     #initial_atms = {'Emre': initial_person}
-    amounts = [min_deposit, max_deposit, target, initial_atm, initial_person]
+    amounts = [min_take, max_take, target, initial_atm, initial_person]
 
     init = [
         ('person', 'Emre'),
@@ -51,7 +51,7 @@ def get_problem():
         ('inpocket', 'Emre', initial_person),
     ] + [('cash', amount) for amount in amounts]
 
-    goal = Exists(['?c1'], And(('inpocket', 'Emre', '?c1'), ('ge', '?c1', target)))
+    goal = Exists(['?c1'], And(('person', 'Emre'), ('inpocket', 'Emre', '?c1'), ('ge', '?c1', target)))
     #goal = ('finished',)
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
