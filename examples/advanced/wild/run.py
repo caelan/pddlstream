@@ -9,7 +9,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import PDDLProblem, And, Exists, print_solution
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.generator import from_fn, from_test, from_sampler
+from pddlstream.language.generator import from_fn, from_test, from_sampler, fn_from_constant
 
 # TODO:
 # Push wild streams
@@ -27,28 +27,32 @@ DOMAIN_PDDL = """
 (define (domain wild)
   (:predicates 
     (Carrot ?c)
-    (Cut ?c0 ?c1 ?c2)
+    (Cut ?c0 ?s ?c1 ?c2)
     (Loc ?l)
     (AtLoc ?c ?l)
+  )
+  (:functions 
+    (SplitCost ?c0 ?s)
   )
   (:action move
     :parameters (?c ?l1 ?l2)
     :precondition (and (Carrot ?c) (Loc ?l1) (Loc ?l2)
                        (AtLoc ?c ?l1))
     :effect (and (AtLoc ?c ?l2)
-                 (not (AtLoc ?c ?l1)))
+                 (not (AtLoc ?c ?l1))
+                 (increase (total-cost) 1))
   )  
   (:action cut
-    :parameters (?l ?c0 ?c1 ?c2)
-    :precondition (and (Loc ?l) (Cut ?c0 ?c1 ?c2) 
+    :parameters (?l ?c0 ?s ?c1 ?c2)
+    :precondition (and (Loc ?l) (Cut ?c0 ?s ?c1 ?c2) 
                        (AtLoc ?c0 ?l))
     :effect (and (AtLoc ?c1 ?l) (AtLoc ?c2 ?l)
-                 (not (AtLoc ?c0 ?l)))
+                 (not (AtLoc ?c0 ?l)) 
+                 (increase (total-cost) (SplitCost ?c0 ?s)))
   )
 )
 """
 
-# TODO: cost as a function of the split
 STREAM_PDDL = """
 (define (stream wild)
   (:stream sample-split
@@ -61,7 +65,11 @@ STREAM_PDDL = """
     :domain (and (Carrot ?c0) (Split ?s))
     :outputs (?c1 ?c2)
     :certified (and (Carrot ?c1) (Carrot ?c2) 
-                    (Cut ?c0 ?c1 ?c2)) ; ?s
+                    (Cut ?c0 ?s ?c1 ?c2))
+  )
+  
+  (:function (SplitCost ?c0 ?s)
+    (and (Carrot ?c0) (Split ?s))
   )
 )
 """
@@ -79,9 +87,13 @@ def convex_combo(x1, x2, lamb=0.5):
 def get_problem():
     constant_map = {}
     stream_map = {
-        'sample-split': from_sampler(lambda: to_tuple(random.random())),
+        'sample-split': from_sampler(lambda: to_tuple(round(random.random(), 2))),
         'compute-split': from_fn(lambda (x1, x2), s: [(x1, convex_combo(x1, x2, s)),
                                                         (convex_combo(x1, x2, s), x2)]),
+        #'SplitCost': fn_from_constant(2),
+        'SplitCost': lambda (x1, x2), s: 1./(min(convex_combo(x1, x2, s) - x1,
+                                                 x2 - convex_combo(x1, x2, s)))
+
     }
 
     locations = ['loc0', 'loc1', 'loc2']
@@ -120,7 +132,8 @@ def main():
         solution = solve_focused(pddlstream_problem, stream_info=info,
                                  planner='max-astar', effort_weight=1)
     elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, debug=False, verbose=True)
+        solution = solve_incremental(pddlstream_problem, #success_cost=0., max_iterations=3, max_time=5,
+                                     debug=False, verbose=True)
     else:
         raise ValueError(args.algorithm)
     print_solution(solution)
