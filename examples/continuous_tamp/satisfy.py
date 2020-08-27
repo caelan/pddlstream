@@ -8,14 +8,14 @@ import numpy as np
 from numpy import array
 
 from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
-from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic
+from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic, TIGHT_SKELETON
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
 from pddlstream.language.temporal import retime_plan
-from pddlstream.utils import Profiler
+from pddlstream.utils import Profiler, INF
 
 # Be careful about uniqueness here
 #CONF0 = array([-7.5, 5.])
@@ -72,6 +72,16 @@ CONSTRAINTS = [
     #('traj', '?t3'),
 ]
 
+OBJECTIVES = [
+    Minimize(('dist', CONF0, '?q0')),
+    Minimize(('dist', '?q0', '?q1')),
+    Minimize(('dist', '?q1', '?q3')),
+    Minimize(('dist', '?q3', '?q2')),
+]
+
+##################################################
+
+# SKELETON = TIGHT_SKELETON
 SKELETON = [
     ('move', ['r0', CONF0, '?t0', '?q0']),
     ('pick', ['r0', 'A', POSE0, '?g0', '?q0']),
@@ -82,13 +92,6 @@ SKELETON = [
     ('pick', ['r0', 'B', POSE1, '?g1', '?q3']),
     ('move', ['r0', '?q3', '?t2', '?q2']),
     ('place', ['r0', 'B', '?p1', '?g1', '?q2']),
-]
-
-OBJECTIVES = [
-    Minimize(('dist', CONF0, '?q0')),
-    Minimize(('dist', '?q0', '?q1')),
-    Minimize(('dist', '?q1', '?q3')),
-    Minimize(('dist', '?q3', '?q2')),
 ]
 
 ##################################################
