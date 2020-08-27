@@ -3,12 +3,13 @@
 from __future__ import print_function
 
 import argparse
+import random
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import PDDLProblem, And, Exists, print_solution
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.generator import from_fn, from_test
+from pddlstream.language.generator import from_fn, from_test, from_sampler
 
 # TODO:
 # Push wild streams
@@ -17,8 +18,10 @@ from pddlstream.language.generator import from_fn, from_test
 # Objects in a bag
 # Open world models and object counts
 # Active segmentation
-# Universal quantification (over infinite domains
 # Collisions
+# Universal quantification (over infinite domains
+# Conditional effects
+# Unknown number of pieces
 
 DOMAIN_PDDL = """
 (define (domain wild)
@@ -45,14 +48,20 @@ DOMAIN_PDDL = """
 )
 """
 
+# TODO: cost as a function of the split
 STREAM_PDDL = """
 (define (stream wild)
-  (:stream split
-    :inputs (?c0)
-    :domain (Carrot ?c0)
+  (:stream sample-split
+    :outputs (?s)
+    :certified (Split ?s)
+  )
+
+  (:stream compute-split
+    :inputs (?c0 ?s)
+    :domain (and (Carrot ?c0) (Split ?s))
     :outputs (?c1 ?c2)
     :certified (and (Carrot ?c1) (Carrot ?c2) 
-                    (Cut ?c0 ?c1 ?c2))
+                    (Cut ?c0 ?c1 ?c2)) ; ?s
   )
 )
 """
@@ -60,22 +69,32 @@ STREAM_PDDL = """
 
 ##################################################
 
+# TODO: compose functions
+def to_tuple(*x):
+    return tuple(x)
+
+def convex_combo(x1, x2, lamb=0.5):
+    return lamb*x1 + (1-lamb)*x2
+
 def get_problem():
     constant_map = {}
     stream_map = {
-        'split': from_fn(lambda (x1, x2): [(x1, (x1 + x2)/2), ((x1 + x2)/2, x2)]),
+        'sample-split': from_sampler(lambda: to_tuple(random.random())),
+        'compute-split': from_fn(lambda (x1, x2), s: [(x1, convex_combo(x1, x2, s)),
+                                                        (convex_combo(x1, x2, s), x2)]),
     }
 
     locations = ['loc0', 'loc1', 'loc2']
-
     init_carrot = (0., 1.)
     init = [
+        #('Split', 0.5),
         ('Carrot', init_carrot),
         ('AtLoc', init_carrot, 'loc0'),
     ] + [('Loc', loc) for loc in locations]
 
 
-    goal = And(*[Exists(['?c'], ('AtLoc', '?c', loc)) for loc in locations]) # TODO: staic
+    goal = And(*[Exists(['?c'], And(('Loc', loc), ('AtLoc', '?c', loc)))
+                 for loc in locations])
 
     return PDDLProblem(DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, init, goal)
 
