@@ -7,7 +7,7 @@ import random
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import PDDLProblem, And, Exists, print_solution
+from pddlstream.language.constants import PDDLProblem, And, Exists, print_solution, Imply
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_fn, from_test, from_sampler, fn_from_constant
 
@@ -37,6 +37,7 @@ DOMAIN_PDDL = """
   (:action move
     :parameters (?c ?l1 ?l2)
     :precondition (and (Carrot ?c) (Loc ?l1) (Loc ?l2)
+                       ; (forall (?c2) (imply (Carrot ?c2) (Carrot ?c2)))
                        (AtLoc ?c ?l1))
     :effect (and (AtLoc ?c ?l2)
                  (not (AtLoc ?c ?l1))
@@ -59,7 +60,6 @@ STREAM_PDDL = """
     :outputs (?s)
     :certified (Split ?s)
   )
-
   (:stream compute-split
     :inputs (?c0 ?s)
     :domain (and (Carrot ?c0) (Split ?s))
@@ -67,7 +67,6 @@ STREAM_PDDL = """
     :certified (and (Carrot ?c1) (Carrot ?c2) 
                     (Cut ?c0 ?s ?c1 ?c2))
   )
-  
   (:function (SplitCost ?c0 ?s)
     (and (Carrot ?c0) (Split ?s))
   )
@@ -91,8 +90,8 @@ def get_problem():
         'compute-split': from_fn(lambda (x1, x2), s: [(x1, convex_combo(x1, x2, s)),
                                                         (convex_combo(x1, x2, s), x2)]),
         #'SplitCost': fn_from_constant(2),
-        'SplitCost': lambda (x1, x2), s: 1./(min(convex_combo(x1, x2, s) - x1,
-                                                 x2 - convex_combo(x1, x2, s)))
+        'SplitCost': lambda (x1, x2), s: round(1./(min(convex_combo(x1, x2, s) - x1,
+                                                       x2 - convex_combo(x1, x2, s))), 3)
 
     }
 
