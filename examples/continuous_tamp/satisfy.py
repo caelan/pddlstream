@@ -93,7 +93,7 @@ OBJECTIVES = [
 
 ##################################################
 
-def main(success_cost=0):
+def main(success_cost=INF, use_costs=False): # 0 | INF
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
@@ -118,9 +118,12 @@ def main(success_cost=0):
         #'t-cfree': StreamInfo(eager=False, negate=True),
         #'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST), # Doesn't make a difference
     }
+
+    terms = CONSTRAINTS
     print('Constraints:', CONSTRAINTS)
-    print('Objectives:', OBJECTIVES)
-    terms = CONSTRAINTS # + OBJECTIVES
+    if use_costs:
+        print('Objectives:', OBJECTIVES)
+        terms += OBJECTIVES
 
     with Profiler():
         if args.algorithm == 'focused':
@@ -130,6 +133,7 @@ def main(success_cost=0):
                                                      #max_skeletons=1,
                                                      success_cost=success_cost, max_time=args.max_time)
         elif args.algorithm == 'incremental':
+            assert not args.gurobi
             solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
                                                      success_cost=success_cost, max_time=args.max_time,
                                                      verbose=False, debug=False)

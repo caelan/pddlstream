@@ -148,6 +148,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
               'Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue.skeletons), len(queue),
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
+
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
             domain.axioms[:] = create_disabled_axioms(queue, use_parameters=False)
@@ -160,6 +161,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             if stream_plan is not None:
                 external_plan = reorder_stream_plan(store, combine_optimizers(
                     init_evaluations, stream_plan + list(function_plan)))
+
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
         last_success = (external_plan is not None)

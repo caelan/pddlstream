@@ -182,8 +182,7 @@ class OptimizerInstance(StreamInstance):
         # TODO: cluster connected components in the infeasible set
         # TODO: compute things dependent on a stream and treat like an optimizer
         # Also make an option to just treat everything like an optimizer
-    def _next_outputs(self):
-        self._create_generator()
+    def _next_wild(self):
         output, self.enumerated = get_next(self._generator, default=[])
         if not isinstance(output, OptimizerOutput):
             output = OptimizerOutput(assignments=output)

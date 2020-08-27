@@ -15,8 +15,7 @@ PRUNE_BINDINGS = True
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering
-# TODO: FIFO
-Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost'])
+Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost']) # TODO: FIFO
 
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
@@ -172,7 +171,7 @@ class SkeletonQueue(Sized):
         instance = binding.result.instance
         if PRUNE_BINDINGS and not binding.do_evaluate():
             # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
-            # Do I need to reenable this stream in case another skeleton needs it?
+            # Do I need to re-enable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
             #if instance.enumerated:
             #    return False, is_new

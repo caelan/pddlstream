@@ -207,7 +207,7 @@ class Instance(object):
 
     def update_statistics(self, start_time, results):
         overhead = elapsed_time(start_time)
-        successes = len([r.is_successful() for r in results])
+        successes = sum(r.is_successful() for r in results)
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
         #self.successes += successes

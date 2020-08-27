@@ -237,15 +237,19 @@ class StreamInstance(Instance):
         else:
             self._generator = self.external.gen_fn(*input_values)
 
+    def _next_wild(self):
+        output, self.enumerated = get_next(self._generator, default=[])
+        if not isinstance(output, WildOutput):
+            output = WildOutput(values=output)
+        return output
+
     def _next_outputs(self):
+        # TODO: deprecate
         self._create_generator()
         # TODO: shuffle history
         # TODO: return all test stream outputs at once
         if self.num_calls == len(self.history):
-            output, self.enumerated = get_next(self._generator, default=[])
-            if not isinstance(output, WildOutput):
-                output = WildOutput(values=output)
-            self.history.append(output)
+            self.history.append(self._next_wild())
         return self.history[self.num_calls]
 
     def next_results(self, verbose=False):
