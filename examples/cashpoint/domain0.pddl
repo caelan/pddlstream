@@ -22,7 +22,7 @@
     (:action withdraw_money
      :parameters (?p ?m ?cash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
      :precondition (and (person ?p) (machine ?m)
-                        (ge ?cash @min) (ge @max ?cash) (ge ?mcash1 ?cash)
+                        ; (ge ?cash @min) (ge @max ?cash) (ge ?mcash1 ?cash)
                         (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1)
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
      :effect (and (inpocket ?p ?pcash2) (maxwithdraw ?m ?mcash2)

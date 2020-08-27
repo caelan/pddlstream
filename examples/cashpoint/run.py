@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.utils import read_pddl, irange, INF
+from pddlstream.utils import read_pddl, irange, INF, randomize
 from pddlstream.language.constants import get_length, PDDLProblem, print_solution, Exists, And
 from pddlstream.language.generator import from_test, from_gen, from_fn
 from pddlstream.algorithms.incremental import solve_incremental
@@ -15,7 +15,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 # TODO: rocket and car domains
 
 def get_problem():
-    min_take = 0
+    min_take = 1
     max_take = 10
     target = 50
     initial_atm = 30
@@ -30,7 +30,7 @@ def get_problem():
     stream_pddl = read_pddl(__file__, 'stream.pddl')
     #stream_pddl = None
     stream_map = {
-        's-cash': from_gen((c,) for c in irange(1, 2)), # min_take, max_take
+        's-cash': from_gen((c,) for c in randomize(list(irange(min_take, max_take+1)))), # randomize | reversed
         't-ge': from_test(lambda c1, c2: c1 >= c2),
         'add': from_fn(lambda c1, c2: (c1 + c2,)),
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
@@ -57,15 +57,15 @@ def get_problem():
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def main():
+def solve_pddlstream():
     problem = get_problem()
     print(problem.constant_map)
     print(problem.init)
     print(problem.goal)
-    solution = solve_incremental(problem, unit_costs=True, debug=False, verbose=True)
+    solution = solve_incremental(problem, planner='max-astar', unit_costs=True, debug=False, verbose=True)
     print_solution(solution)
-    return
 
+def solve_pddl():
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
     problem_pddl = read_pddl(__file__, 'problem0.pddl')
 
@@ -78,6 +78,10 @@ def main():
         return
     for i, action in enumerate(plan):
         print('{}) {}'.format(i+1, ' '.join(map(str, action))))
+
+def main():
+    #solve_pddl()
+    solve_pddlstream()
 
 if __name__ == '__main__':
     main()
