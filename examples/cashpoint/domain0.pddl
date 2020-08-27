@@ -5,7 +5,9 @@
     (:predicates
         (person ?p)
         (machine ?m)
-        (cash ?c)
+        (pcash ?c)
+        (wcash ?c)
+        (mcash ?c)
 
         (ge ?c1 ?c2)
         (sum ?c1 ?c2 ?c3)
@@ -23,7 +25,7 @@
      :parameters (?p ?m ?cash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
      :precondition (and (person ?p) (machine ?m)
                         ; (ge ?cash @min) (ge @max ?cash) (ge ?mcash1 ?cash)
-                        (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1)
+                        (sum ?pcash1 ?cash ?pcash2) (sum ?mcash2 ?cash ?mcash1) ; TODO: separate
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
      :effect (and (inpocket ?p ?pcash2) (maxwithdraw ?m ?mcash2)
                   (not (inpocket ?p ?pcash1)) (not (maxwithdraw ?m ?mcash1))
@@ -31,7 +33,7 @@
 
     (:action finish
      :parameters (?p ?cash)
-     :precondition (and (person ?p) (ge ?cash @amount)
+     :precondition (and (person ?p) (ge ?cash @amount) ; (pcash ?cash)
                         (inpocket ?p ?cash))
      :effect (finished))
 )

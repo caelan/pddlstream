@@ -172,10 +172,10 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
-    if hierarchy is None:
-        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     if hierarchy == SERIALIZE:
         return serialized_solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+    if not hierarchy:
+        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):
