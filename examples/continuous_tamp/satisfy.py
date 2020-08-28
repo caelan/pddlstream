@@ -42,6 +42,8 @@ INIT = [
     ('region', 'red'),
 ]
 
+##################################################
+
 # TODO: predicate (Not) constraints as well
 CONSTRAINTS = [
     ('cfree', 'A', '?p0', 'B', POSE1),
@@ -64,8 +66,8 @@ CONSTRAINTS = [
     #('conf', '?q1'),
     #('conf', '?q2'),
     #('conf', '?q3'),
-    ('pose', 'A', '?p0'),
-    ('pose', 'B', '?p1'),
+    #('pose', 'A', '?p0'),
+    #('pose', 'B', '?p1'),
     #('traj', '?t0'),
     #('traj', '?t1'),
     #('traj', '?t2'),
@@ -96,7 +98,7 @@ SKELETON = [
 
 ##################################################
 
-def main(success_cost=INF, use_costs=False): # 0 | INF
+def main(success_cost=INF, use_costs=True): # 0 | INF
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
