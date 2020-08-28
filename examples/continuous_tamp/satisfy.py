@@ -36,7 +36,7 @@ INIT = [
     ('placeable', 'B', 'red'),
     ('pose', 'A', POSE0),
     ('pose', 'B', POSE1),
-    ('grasp', 'A', GRASP),
+    ('grasp', 'A', GRASP), # TODO: allow binding from init facts
     ('grasp', 'B', GRASP),
     ('region', 'grey'),
     ('region', 'red'),
@@ -143,7 +143,6 @@ def main(success_cost=INF, use_costs=True): # 0 | INF
                                                      success_cost=success_cost, max_time=args.max_time,
                                                      verbose=False, debug=False)
         else:
-            # TODO: likely need to make GRASP a stream to solve
             solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
                                                costs=not args.unit, success_cost=success_cost,
                                                max_time=args.max_time, search_sample_ratio=1,

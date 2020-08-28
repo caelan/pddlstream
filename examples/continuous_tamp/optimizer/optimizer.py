@@ -97,6 +97,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
 
+        # TODO: grasp variable?
         var_from_param = {}
         for fact in facts:
             prefix, args = fact[0], fact[1:]

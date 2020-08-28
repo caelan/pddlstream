@@ -143,6 +143,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         # TODO: actually compute when these are needed + dependencies
         last_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
+            # TODO: function_plan is a dict
             function_plan.add(result) # Prevents these results from being pruned
         else:
             stream_plan.append(result)

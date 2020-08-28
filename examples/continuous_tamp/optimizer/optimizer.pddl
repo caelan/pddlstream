@@ -7,8 +7,7 @@
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
-  ; TODO: streams derived from init facts
-  (:stream s-grasp
+  (:stream s-grasp ; TODO: could make this an optimizer as well
     :inputs (?b)
     :domain (Block ?b)
     :outputs (?g)
