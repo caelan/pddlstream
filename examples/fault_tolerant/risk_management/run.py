@@ -396,22 +396,28 @@ def analyze_results(all_results, ratio=False, visualize=True, verbose=False):
     if visualize and not is_remote():
         # TODO: disable importing matplotlib when remote
         configs_from_name = get_named_configs(configs)
-        plot_data(configs_from_name, successes, ratio=ratio, y_label='Probability of Success')
-        plot_data(configs_from_name, costs, ratio=ratio, y_label='Average Cost')
-        plot_data(configs_from_name, runtimes, y_label='Runtime (Seconds)')
+        plot_data(extract_data(configs_from_name, successes), ratio=ratio, y_label='Probability of Success')
+        plot_data(extract_data(configs_from_name, costs), ratio=ratio, y_label='Average Cost')
+        plot_data(extract_data(configs_from_name, runtimes), y_label='Runtime (Seconds)')
 
-def plot_data(configs_from_name, data, ratio=False, y_label=None, scale=0.5): # 0.0 | 0.25 | 1.0
+def extract_data(configs_from_name, data):
+    data_from_k_name = defaultdict(lambda: defaultdict(list))
+    for name in sorted(configs_from_name):
+        for config in configs_from_name[name]:
+            data_from_k_name[name][config['k']].append(data[config])
+            #config_from_k[config['k']].append(list(map(math.log, successes[config]))
+    return data_from_k_name
+
+def plot_data(data_from_k_name, ratio=False, y_label=None, scale=0.5): # 0.0 | 0.25 | 1.0
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
     plt.figure()
-    for name in sorted(configs_from_name):
-        config_from_k = defaultdict(list)
-        for config in configs_from_name[name]:
-            config_from_k[config['k']].append(data[config])
-            #config_from_k[config['k']].append(list(map(math.log, successes[config]))
-        ks = sorted(config_from_k)
-        means = np.array([np.mean(config_from_k[k]) for k in ks])
-        stds = np.array([np.std(config_from_k[k]) for k in ks])
+
+    for name in sorted(data_from_k_name):
+        data_from_k = data_from_k_name[name]
+        ks = sorted(data_from_k)
+        means = np.array([np.mean(data_from_k[k]) for k in ks])
+        stds = np.array([np.std(data_from_k[k]) for k in ks])
         widths = scale * stds  # standard deviation
         # TODO: standard error (confidence interval)
         # from learn_tools.active_learner import tail_confidence

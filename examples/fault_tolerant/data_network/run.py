@@ -12,7 +12,7 @@ import traceback
 from itertools import product
 
 from examples.fault_tolerant.utils import list_paths, int_from_str, extract_static, get_static_predicates, fact_from_fd, \
-    extract_streams, simulate_successes, test_from_bernoulli_fn, CachedFn
+    extract_streams, simulate_successes, test_from_bernoulli_fn, CachedFn, hashabledict
 from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, select_portfolio
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
@@ -24,7 +24,8 @@ from pddlstream.language.external import defer_unique
 from pddlstream.language.constants import print_solution, PDDLProblem, And, dump_pddlstream, OBJECT, \
     get_prefix, get_function, get_args, Action
 from pddlstream.algorithms.search import diverse_from_pddl
-from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
+from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, \
+    create_generator, plot_data
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json, timeout
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
@@ -359,6 +360,7 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
     metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
     diverse_configs.extend({'selector': selector, 'metric': metric}
                            for selector, metric in product(informed_selectors, metrics))
+    # TODO: only add stability and uniqueness when candidate_probs=False
 
     start_time = time.time()
     outputs_list = []
@@ -419,6 +421,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
     start_time = time.time()
     all_solutions = []
     try:
+        # TODO: universal effects somewhere
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
         all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=inputs['planner'],
@@ -615,7 +618,7 @@ def get_planner_name(result):
     planner = '{} {}'.format(result.get('planner', None), result.get('candidate_probs', None))
     diverse = result.get('diverse', None)
     if diverse is not None:
-        print(diverse)
+        #print(diverse)
         planner = '{} {} {}'.format(planner, diverse['selector'], diverse.get('metric', None)) # diverse['k']
     return planner
 
@@ -624,14 +627,45 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     problem_trials = Counter(extract_domain(result['domain_path']) for result in results)
     print('Domains ({}):'.format(len(problem_trials)), sorted(problem_trials.keys()))
     print('\nProblems ({}):'.format(sum(problem_trials.values())), problem_trials)
-    planner_trials = Counter(result.get('planner', None) for result in results)
+    planner_trials = Counter(map(get_planner_name, results))
     print('\nPlanners ({}):'.format(len(planner_trials)), planner_trials)
+
+    skip_planners = [
+        # 'ff-wastar3 False first None',
+        # 'ff-wastar3 False greedy p_success',
+        # 'ff-wastar3 False greedy stability',
+        # 'ff-wastar3 False greedy uniqueness',
+        # 'ff-wastar3 False random None',
+        # 'ff-wastar3 True first None',
+        # 'ff-wastar3 True greedy p_success',
+        'ff-wastar3 True greedy stability',
+        'ff-wastar3 True greedy uniqueness',
+        # 'ff-wastar3 True random None',
+    ]
+
+    # TODO: relative
+    metric = 'error' # p_success | runtime | full_runtime | num_plans | runtime | error
+    #from examples.fault_tolerant.risk_management.run import analyze_results
+    data_from_k_name = defaultdict(lambda: defaultdict(list))
+    for result in results:
+        #print(result)
+        #result = hashabledict(result['result'])
+        planner = get_planner_name(result)
+        if planner in skip_planners:
+            continue
+        data = result[metric]
+        #data = result['runtime'] + result['full_runtime']
+        #data = result['num_plans'] >= 10
+        data_from_k_name[planner][result['diverse']['k']].append(data)
+    print(sorted(data_from_k_name))
+    plot_data(data_from_k_name)
+    quit()
 
     total_counter = defaultdict(int)
     success_counter = defaultdict(int)
     for result in sorted(results, key=lambda r: r['problem_path']):
         domain = extract_domain(result['domain_path'])
-        planner = result.get('planner', None)
+        planner = get_planner_name(result)
         total_counter[domain, planner] += 1
         if result.get('error', False):
             #print('Error:', result['problem_path'])
