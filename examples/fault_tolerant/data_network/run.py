@@ -26,7 +26,7 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
 from pddlstream.algorithms.search import diverse_from_pddl
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, create_generator
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
-    read_json, write_json
+    read_json, write_json, timeout
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
     get_conjunctive_parts, set_cost_scale, Domain
 
@@ -342,7 +342,45 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
-def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, select_time=5 * 60, max_printed=10, max_plans=INF):
+def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
+    # TODO: timeout
+    print(SEPARATOR)
+
+    min_k, max_k = 2, 10 # Start with min_k >= 2
+    #max_k = min_k # INF
+    ks = list(range(min_k, 1+max_k))
+
+    diverse_configs = []
+    blind_selectors = ['random', 'first'] # random | first
+    diverse_configs.extend({'selector': selector}
+                           for selector in blind_selectors)
+
+    informed_selectors = ['greedy'] # exact | greedy
+    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
+    diverse_configs.extend({'selector': selector, 'metric': metric}
+                           for selector, metric in product(informed_selectors, metrics))
+
+    start_time = time.time()
+    outputs_list = []
+    for diverse, k in product(diverse_configs, ks):
+        print('{}) k={}: {}'.format(len(outputs_list), k, diverse))
+        diverse = dict(diverse)
+        diverse.update({'k': k, 'max_time': select_time})
+        portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
+        p_success = p_disjunction(portfolio, probabilities=probabilities)
+        outputs = dict(outputs)
+        outputs.update({
+            'diverse': diverse,
+            'full_runtime': elapsed_time(start_time),  # select runtime
+            'p_success': p_success,
+        })
+        outputs_list.append(outputs)
+        print(diverse)
+        print('Portfolio: {:.3f} | Runtime: {:.3f}'.format( # k: {}
+            p_success, elapsed_time(start_time)))
+    return outputs_list
+
+def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_plans=INF):
     # TODO: randomize the seed
     pid = os.getpid()
     print(SEPARATOR)
@@ -393,13 +431,13 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, select_time=5 * 60, 
     except Exception:
         traceback.print_exc()
 
+    print(SEPARATOR)
     solutions = prune_dominated_action_plans(all_solutions)
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
         'runtime': elapsed_time(start_time),
     })
-
     print('Candidate runtime:', elapsed_time(start_time))
     evaluations = []
     for i, (plan, cost) in enumerate(solutions[:max_printed]):
@@ -407,48 +445,19 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, select_time=5 * 60, 
         solution = (plan, cost, evaluations)
         print_solution(solution)
 
+    print(SEPARATOR)
     plans = [plan for plan, _, in solutions]
     static_sets = extract_static(domain_pddl, plans, PROBABILITIES)
     probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
-    all_p_success = p_disjunction(static_sets, probabilities=probabilities)
-    outputs.update({
-        'all_p_success': all_p_success,
-    })
+    # all_p_success = p_disjunction(static_sets, probabilities=probabilities) # TODO: slow for large k
+    # outputs.update({
+    #     'all_p_success': all_p_success,
+    # })
 
-    min_k, max_k = 2, 10 # Start with min_k >= 2
-    #max_k = min_k # INF
-    ks = list(range(min_k, 1+max_k))
-
-    diverse_configs = []
-    blind_selectors = ['random', 'first'] # random | first
-    diverse_configs.extend({'selector': selector}
-                           for selector in blind_selectors)
-
-    informed_selectors = ['greedy'] # exact | greedy
-    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
-    diverse_configs.extend({'selector': selector, 'metric': metric}
-                           for selector, metric in product(informed_selectors, metrics))
-
-    outputs_list = []
-    if select_time is not None: # TODO: make a separate function
-        print(SEPARATOR)
-        for diverse, k in product(diverse_configs, ks):
-            diverse = dict(diverse)
-            diverse.update({'k': k, 'max_time': select_time})
-            portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
-            p_success = p_disjunction(portfolio, probabilities=probabilities)
-            outputs = dict(outputs)
-            outputs.update({
-                'diverse': diverse,
-                'full_runtime': elapsed_time(start_time), # select runtime
-                'p_success': p_success,
-            })
-            outputs_list.append(outputs)
-            print(diverse)
-            print('All: {:.3f} | Portfolio: {:.3f} | Runtime: {:.3f}'.format( # k: {}
-                all_p_success, p_success, elapsed_time(start_time)))
-    else:
-        outputs_list = [outputs]
+    # if select_time is None:
+    #     outputs_list = [outputs]
+    # else:
+    outputs_list = run_selection(probabilities, static_sets, outputs)
 
     if not SERIAL:
         os.chdir(current_wd)
@@ -543,7 +552,8 @@ def solve_pddl(visualize=False):
         # TODO: pickle the solutions to reuse later
         for outputs in outputs_list:
             #outputs.update(inputs)
-            print(len(results), outputs)
+            # TODO: time remaining
+            print('{}/{}'.format(len(results), len(trials)), outputs)
             results.append(outputs)
         if not SERIAL: # TODO: only write if is above a threshold
             #write_pickle(file_name, results)
@@ -600,6 +610,14 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
 
     fig.tight_layout()
     plt.show()
+
+def get_planner_name(result):
+    planner = '{} {}'.format(result.get('planner', None), result.get('candidate_probs', None))
+    diverse = result.get('diverse', None)
+    if diverse is not None:
+        print(diverse)
+        planner = '{} {} {}'.format(planner, diverse['selector'], diverse.get('metric', None)) # diverse['k']
+    return planner
 
 def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     # TODO: compare on just -opt

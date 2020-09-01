@@ -104,22 +104,39 @@ def p_conjunction(results, probabilities=None):
         assert all(result in probabilities for result in union)
     return np.product([probabilities[result] for result in union])
 
+def p_combinations(portfolio, r, max_time=INF, **kwargs):
+    start_time = time.time()
+    p = 0.
+    for plans in combinations(portfolio, r=r):
+        if elapsed_time(start_time) >= max_time:
+            break
+        p += p_conjunction(plans, **kwargs)
+    sign = -1 if r % 2 == 0 else +1
+    return sign*p
+
+def is_overestimate(portfolio, d):
+    return (d % 2 == 1) or (d == len(portfolio))
+
 def p_disjunction(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
     # TODO: separate into connected components
-    # TODO: compute for low k and increment, pruning if upper bound is less than best lower bound
+    # TODO: prune if upper bound is less than best lower bound
     # TODO: weight using costs
-    d = diverse.get('d', INF)
-    d = min(len(portfolio), d)
-    assert (d % 2 == 1) or (d == len(portfolio))
-    p = 0.
+    start_time = time.time()
+    max_time = diverse.get('d', INF)
+    d = min(len(portfolio), diverse.get('d', INF))
+    assert is_overestimate(portfolio, d)
+    p_list = []
     for i in range(d):
-        r = i + 1
-        for plans in combinations(portfolio, r=r):
-            sign = -1 if r % 2 == 0 else +1
-            p += sign*p_conjunction(plans, **kwargs)
-    return p
+        #print(i, sum(p_list), elapsed_time(start_time))
+        p = p_combinations(portfolio, r=(i + 1), max_time=(max_time - elapsed_time(start_time)), **kwargs)
+        if p is None:
+            break
+        p_list.append(p)
+    if not is_overestimate(portfolio, len(p_list)):
+        p_list = p_list[:-1]
+    return sum(p_list)
 
 ##################################################
 
