@@ -7,7 +7,7 @@ import numpy as np
 import time
 import random
 
-from pddlstream.utils import INF, elapsed_time, find_unique, randomize
+from pddlstream.utils import INF, elapsed_time, find_unique, randomize, get_connected_components
 from pddlstream.language.constants import str_from_plan, StreamAction, print_plan, OptPlan
 
 # TODO: include costs/efforts
@@ -95,6 +95,13 @@ def prune_dominated_stream_plans(externals, combined_plans):
 
 ##################################################
 
+def extract_components(portfolio):
+    vertices = list(range(len(portfolio)))
+    edges = [(i1, i2) for i1, i2 in combinations(vertices, r=2) if portfolio[i1] & portfolio[i2]]
+    clusters = get_connected_components(vertices, edges)
+    #print(clusters)
+    return [[portfolio[i] for i in cluster] for cluster in clusters]
+
 def p_conjunction(results, probabilities=None):
     union = generic_union(*results)
     if probabilities is None:
@@ -105,6 +112,7 @@ def p_conjunction(results, probabilities=None):
     return np.product([probabilities[result] for result in union])
 
 def p_combinations(portfolio, r, max_time=INF, **kwargs):
+    # TODO: extract_components
     start_time = time.time()
     p = 0.
     for plans in combinations(portfolio, r=r):
@@ -117,10 +125,9 @@ def p_combinations(portfolio, r, max_time=INF, **kwargs):
 def is_overestimate(portfolio, d):
     return (d % 2 == 1) or (d == len(portfolio))
 
-def p_disjunction(portfolio, diverse={}, **kwargs):
+def p_disjunction_helper(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
-    # TODO: separate into connected components
     # TODO: prune if upper bound is less than best lower bound
     # TODO: weight using costs
     start_time = time.time()
@@ -137,6 +144,13 @@ def p_disjunction(portfolio, diverse={}, **kwargs):
     if not is_overestimate(portfolio, len(p_list)):
         p_list = p_list[:-1]
     return sum(p_list)
+
+def p_disjunction(portfolio, diverse={}, **kwargs):
+    return p_disjunction_helper(portfolio, diverse=diverse, **kwargs)
+    # p_fail = 1.
+    # for cluster in extract_components(portfolio):
+    #     p_fail *= (1. - p_disjunction_helper(cluster, diverse=diverse, **kwargs))
+    # return 1. - p_fail
 
 ##################################################
 
