@@ -521,16 +521,17 @@ def solve_pddl(visualize=False):
         problem_idx = 0
         problems = problems[problem_idx:problem_idx+1]
 
-    trials = []
+    configs = []
     top_planners = ['forbid', 'symk'] # kstar
     #top_planners = []
-    trials.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
+    configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
     planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3
     candidate_probs = [False, True]
-    trials.extend(product(problems, planners, candidate_probs))
+    configs.extend(product(problems, planners, candidate_probs))
 
-    for problem, planner, prob in trials:
+    trials = []
+    for problem, planner, prob in configs:
         trial = dict(problem)
         trial.update({'planner': planner, 'candidate_probs': prob})
         trials.append(trial)

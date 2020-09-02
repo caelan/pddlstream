@@ -208,15 +208,17 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
     for solution in solutions:
         print_solution(solution)
 
-    # stochastic_fns = {name: test_from_bernoulli_fn(cached)
-    #                   for name, cached in bernoulli_fns.items()}
-    # n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
-    # p_success = float(n_successes) / n_simulations
+    stochastic_fns = {name: test_from_bernoulli_fn(cached)
+                      for name, cached in bernoulli_fns.items()}
+    n_successes = simulate_successes(stochastic_fns, solutions, n_simulations)
+    empirical_p_success = float(n_successes) / n_simulations
 
     # TODO: could retrieve from stream_info instead
     plans = [extract_streams(plan) for plan, _, _ in solutions]
     probabilities = {stream: bernoulli_fns[stream.name](*stream.inputs) for stream in generic_union(*plans)}
     p_success = p_disjunction(plans, config, probabilities=probabilities)
+    print('Exact: {} | Empirical: {}'.format(p_success, empirical_p_success))
+    quit()
 
     # plans = [[action for action in plan if isinstance(action, Action)] for plan, _, _ in solutions]
     # static_plans = extract_static(problem.domain_pddl, plans, prohibit_predicates)
