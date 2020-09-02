@@ -29,7 +29,7 @@ from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLE
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json, timeout
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
-    get_conjunctive_parts, set_cost_scale, Domain
+    get_conjunctive_parts, set_cost_scale, Domain, DIVERSE_PLANNERS
 
 #from pddlstream.language.write_pddl import get_problem_pddl
 
@@ -352,11 +352,13 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
     ks = list(range(min_k, 1+max_k))
 
     diverse_configs = []
-    blind_selectors = ['random', 'first'] # random | first
+    blind_selectors = ['random'] # random | first
+    if outputs['planner'] not in DIVERSE_PLANNERS:
+        blind_selectors.append('first')
     diverse_configs.extend({'selector': selector}
                            for selector in blind_selectors)
 
-    informed_selectors = ['greedy'] # exact | greedy
+    informed_selectors = ['greedy', 'exact'] # exact | greedy
     metrics = ['p_success'] # p_success | stability | uniqueness
     if not outputs['candidate_probs']:
         metrics.extend(['stability', 'uniqueness'])
@@ -522,8 +524,8 @@ def solve_pddl(visualize=False):
         problems = problems[problem_idx:problem_idx+1]
 
     configs = []
-    top_planners = ['forbid', 'symk'] # kstar
-    #top_planners = []
+    #top_planners = ['forbid', 'symk'] # kstar
+    top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
     planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3
@@ -655,10 +657,12 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         'ff-wastar3 True greedy stability',
         'ff-wastar3 True greedy uniqueness',
         # 'ff-wastar3 True random None',
+        'forbid False first None',
+        'symk False first None',
     ]
 
     metric = 'p_success' # p_success | runtime | full_runtime | num_plans | runtime | error | total_cost
-    relative = True
+    ratio = True
 
     #from examples.fault_tolerant.risk_management.run import analyze_results
     best_from_problem = defaultdict(float)
@@ -675,7 +679,6 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         problem = result['problem_path']
         best_from_problem[problem] = max(best_from_problem[problem], score)
         scored_results.append((result, score))
-    print(best_from_problem)
 
     data_from_k_name = defaultdict(lambda: defaultdict(list))
     for result, score in scored_results:
@@ -685,12 +688,12 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         problem = result['problem_path']
         if best_from_problem[problem] == 0:
             continue
-        if relative:
+        if ratio:
             score /= best_from_problem[problem]
         data_from_k_name[planner][result['diverse']['k']].append(score)
 
     print(sorted(data_from_k_name))
-    plot_data(data_from_k_name, ratio=relative, y_label=metric)
+    plot_data(data_from_k_name, ratio=ratio, y_label=metric)
     quit()
 
     total_counter = defaultdict(int)
