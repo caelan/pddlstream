@@ -437,7 +437,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
 
     print(SEPARATOR)
     solutions = prune_dominated_action_plans(all_solutions)
-    total_cost = sum(cost for _, cost, _  in solutions)
+    total_cost = sum(cost for _, cost  in solutions)
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
