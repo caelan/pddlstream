@@ -146,6 +146,7 @@ def p_disjunction_helper(portfolio, diverse={}, **kwargs):
     return sum(p_list)
 
 def p_disjunction(portfolio, diverse={}, **kwargs):
+    # TODO: cache subproblems
     return p_disjunction_helper(portfolio, diverse=diverse, **kwargs)
     # p_fail = 1.
     # for cluster in extract_components(portfolio):
@@ -205,6 +206,7 @@ def score(portfolio, diverse, **kwargs):
     if metric == 'uniqueness':
         return uniqueness(portfolio, diverse) #, **kwargs)
     if metric == 'p_success':
+        # TODO: Monte Carlo simulation
         return p_disjunction(portfolio, diverse, **kwargs)
     raise ValueError(metric)
 

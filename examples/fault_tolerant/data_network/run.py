@@ -357,10 +357,11 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
                            for selector in blind_selectors)
 
     informed_selectors = ['greedy'] # exact | greedy
-    metrics = ['p_success', 'stability', 'uniqueness'] # p_success | stability | uniqueness
+    metrics = ['p_success'] # p_success | stability | uniqueness
+    if not outputs['candidate_probs']:
+        metrics.extend(['stability', 'uniqueness'])
     diverse_configs.extend({'selector': selector, 'metric': metric}
                            for selector, metric in product(informed_selectors, metrics))
-    # TODO: only add stability and uniqueness when candidate_probs=False
 
     start_time = time.time()
     outputs_list = []
@@ -373,7 +374,7 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
         outputs = dict(outputs)
         outputs.update({
             'diverse': diverse,
-            'full_runtime': elapsed_time(start_time),  # select runtime
+            'select_runtime': elapsed_time(start_time),
             'p_success': p_success,
         })
         outputs_list.append(outputs)
@@ -436,10 +437,12 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
 
     print(SEPARATOR)
     solutions = prune_dominated_action_plans(all_solutions)
+    total_cost = sum(cost for _, cost, _  in solutions)
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
-        'runtime': elapsed_time(start_time),
+        'search_runtime': elapsed_time(start_time),
+        'total_cost': total_cost,
     })
     print('Candidate runtime:', elapsed_time(start_time))
     evaluations = []
@@ -492,8 +495,11 @@ def solve_pddl(visualize=False):
         10: 'transport-opt11-strips',
         11: 'driverlog',
     }
-    domain_indices = sorted(directories.keys())
-    #domain_indices = [4]
+
+    if SERIAL:
+        domain_indices = [4]
+    else:
+        domain_indices = sorted(directories.keys())
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
 
     problems = []
@@ -511,14 +517,20 @@ def solve_pddl(visualize=False):
     # }]
     problems = [{key: os.path.join(CLASSICAL_PATH, path)
                  for key, path in problem.items()} for problem in problems]
-    #problem_idx = 0
-    #problems = problems[problem_idx:problem_idx+1]
-
-    planners = ['ff-wastar3'] # dijkstra | forbid | kstar | symk | ff-wastar1 | ff-wastar3
-    candidate_probs = [False, True]
+    if SERIAL:
+        problem_idx = 0
+        problems = problems[problem_idx:problem_idx+1]
 
     trials = []
-    for problem, planner, prob in product(problems, planners, candidate_probs):
+    top_planners = ['forbid', 'symk'] # kstar
+    #top_planners = []
+    trials.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
+
+    planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3
+    candidate_probs = [False, True]
+    trials.extend(product(problems, planners, candidate_probs))
+
+    for problem, planner, prob in trials:
         trial = dict(problem)
         trial.update({'planner': planner, 'candidate_probs': prob})
         trials.append(trial)
@@ -543,6 +555,7 @@ def solve_pddl(visualize=False):
             print('Static predicates', get_static_predicates(domain))
             visualize_graph(init, edge_predicates)
 
+    # TODO: estimate runtime and include the select time
     ensure_dir(EXPERIMENTS_DIR)
     date_name = datetime.datetime.now().strftime(DATE_FORMAT)
     #file_name = os.path.join(EXPERIMENTS_DIR, '{}.pk3'.format(date_name))
@@ -643,22 +656,40 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         # 'ff-wastar3 True random None',
     ]
 
-    # TODO: relative
-    metric = 'error' # p_success | runtime | full_runtime | num_plans | runtime | error
+    metric = 'p_success' # p_success | runtime | full_runtime | num_plans | runtime | error | total_cost
+    relative = True
+
     #from examples.fault_tolerant.risk_management.run import analyze_results
-    data_from_k_name = defaultdict(lambda: defaultdict(list))
+    best_from_problem = defaultdict(float)
+    scored_results = []
     for result in results:
         #print(result)
         #result = hashabledict(result['result'])
+        score = result[metric]
+        #average_cost = result[metric] / result['num_plans']
+        #score = result['runtime'] + result['full_runtime']
+        #score = result['num_plans'] >= 10
+        #score = math.log(result[p_success])
+        #score = 1./result[p_success]
+        problem = result['problem_path']
+        best_from_problem[problem] = max(best_from_problem[problem], score)
+        scored_results.append((result, score))
+    print(best_from_problem)
+
+    data_from_k_name = defaultdict(lambda: defaultdict(list))
+    for result, score in scored_results:
         planner = get_planner_name(result)
-        if planner in skip_planners:
+        if planner in skip_planners: # Apply before?
             continue
-        data = result[metric]
-        #data = result['runtime'] + result['full_runtime']
-        #data = result['num_plans'] >= 10
-        data_from_k_name[planner][result['diverse']['k']].append(data)
+        problem = result['problem_path']
+        if best_from_problem[problem] == 0:
+            continue
+        if relative:
+            score /= best_from_problem[problem]
+        data_from_k_name[planner][result['diverse']['k']].append(score)
+
     print(sorted(data_from_k_name))
-    plot_data(data_from_k_name)
+    plot_data(data_from_k_name, ratio=relative, y_label=metric)
     quit()
 
     total_counter = defaultdict(int)

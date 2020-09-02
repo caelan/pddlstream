@@ -38,7 +38,7 @@ SERIAL = is_darwin() # is_remote
 
 P_SUCCESSES = [0.75] # 0.9 | 0.75
 #P_SUCCESSES = np.linspace(n=4, endpoint=False)
-CANDIDATE_TIME = 10*60
+CANDIDATE_TIME = 10 if SERIAL else 10*60
 
 SMALL_RISK_DIR = 'smallprobs/'
 LARGE_RISK_DIR = 'risk-pddl/risk/'
