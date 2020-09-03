@@ -148,14 +148,16 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
                     for precondition in uncertain:
                         success_prob *= prob_from_precondition[precondition]
                     if success_prob == 1.:
-                       return plans
+                        return plans
                     for precondition in uncertain:
-                        p_this = prob_from_precondition[precondition]
+                        p_this = prob_from_precondition[precondition] # Bayes update
                         p_rest = success_prob / p_this
                         #print(p_this, p_rest)
-                        p_this_fails = (1 - p_this)*p_rest
+                        #p_this_fails = (1 - p_this)*p_rest
                         p_rest_fail = p_this*(1 - p_rest)
-                        prob_from_precondition[precondition] = p_rest_fail / (p_this_fails + p_rest_fail)
+                        #p_fail = p_this_fails + p_rest_fail # Both could fail
+                        p_fail = 1 - success_prob
+                        prob_from_precondition[precondition] = p_rest_fail / p_fail
 
                 if condition:
                     axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))

@@ -418,6 +418,8 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
         'max_time': candidate_time,
         #'max_plans': max_plans,
         'error': True,
+        'corrected': True,
+        # TODO: save or recover the date
     })
 
     domain_pddl, problem_pddl = read(inputs['domain_path']), read(inputs['problem_path'])
@@ -499,7 +501,7 @@ def solve_pddl(visualize=False):
     }
 
     if SERIAL:
-        domain_indices = [4]
+        domain_indices = [1]
     else:
         domain_indices = sorted(directories.keys())
     directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
@@ -528,7 +530,7 @@ def solve_pddl(visualize=False):
     top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
-    planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3
+    planners = ['ff-wastar3', 'ff-wastar3-unit'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
     candidate_probs = [False, True]
     configs.extend(product(problems, planners, candidate_probs))
 
@@ -668,6 +670,8 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     best_from_problem = defaultdict(float)
     scored_results = []
     for result in results:
+        #if result['diverse'].get('metric', None) in ['stability', 'uniqueness']:
+        #    continue
         #print(result)
         #result = hashabledict(result['result'])
         score = result[metric]

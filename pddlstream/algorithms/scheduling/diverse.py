@@ -128,7 +128,8 @@ def is_overestimate(portfolio, d):
 def p_disjunction_helper(portfolio, diverse={}, **kwargs):
     # Inclusion exclusion
     # TODO: incorporate cost/overhead
-    # TODO: prune if upper bound is less than best lower bound
+    # TODO: prune if upper bound is less than best lower bound according to the Bonferroni inequalities
+    # TODO: iteratively increase d and prune
     # TODO: weight using costs
     start_time = time.time()
     max_time = diverse.get('d', INF)

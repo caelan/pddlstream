@@ -146,6 +146,10 @@ SEARCH_OPTIONS = {
                          'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
     # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
+    'ff-wastar3-unit': '--heuristic "h=ff(transform=adapt_costs(cost_type=ONE))" '
+                       '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w=3,'
+                       'preferred_successors_first=true,cost_type=ONE,max_time=%s,bound=%s)"',
+
     'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
               'cost_type=NORMAL,max_time=%s,bound=%s)"',
