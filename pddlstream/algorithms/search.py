@@ -116,15 +116,14 @@ def diverse_from_task(sas_task, use_probabilities=False, base_cost=0, # 0 | 1
 
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
-            solution = run_search(temp_dir, debug=debug, planner=planner,
-                                  max_planner_time=remaining_time, max_plans=1, **search_args)
-            if not solution:
+            solutions = run_search(temp_dir, debug=debug, planner=planner,
+                                   max_planner_time=remaining_time, max_plans=1, **search_args)
+            if not solutions:
                 break
-            plans.extend(solution)
-
-            for plan, neg_log_prob in solution:
+            for plan, neg_log_prob in solutions:
                 sas_plan = parse_sas_plan(sas_task, plan)
                 cost = sum(cost_from_action[action] for action in sas_plan)
+                plans.append((plan, cost))
                 uncertain = set()
                 condition = []
                 for action, sas_action in zip(plan, sas_plan):
