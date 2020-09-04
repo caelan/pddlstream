@@ -42,6 +42,8 @@ CANDIDATE_TIME = 10 if SERIAL else 10*60
 
 SMALL_RISK_DIR = 'smallprobs/'
 LARGE_RISK_DIR = 'risk-pddl/risk/'
+RISK_DOMAIN_PATH = os.path.join(get_file_path(__file__, LARGE_RISK_DIR), 'domain.pddl')
+
 PARALLEL_DIR = 'temp_parallel/'
 EXPERIMENTS_DIR = 'experiments/'
 
@@ -93,9 +95,10 @@ def extract_benchmarks(problem_paths, sizes=[0]):
     #     problem = parse_problem(domain, problem_pddl)
     #     print(os.path.basename(problem_path), len(problem.objects))
 
+    num_per_size = 20
     size_paths = [] # TODO: set
     for size in sizes:
-        size_paths.extend(problem_paths[20*size:20*(size+1)])
+        size_paths.extend(problem_paths[num_per_size*size:num_per_size*(size+1)])
     return size_paths
 
 ##################################################

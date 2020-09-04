@@ -25,7 +25,7 @@ from pddlstream.language.constants import print_solution, PDDLProblem, And, dump
     get_prefix, get_function, get_args, Action
 from pddlstream.algorithms.search import diverse_from_pddl
 from examples.fault_tolerant.risk_management.run import EXPERIMENTS_DIR, PARALLEL_DIR, SERIAL, \
-    create_generator, plot_data
+    create_generator, plot_data, get_small_benchmarks, get_large_benchmarks, RISK_DOMAIN_PATH
 from examples.pybullet.utils.pybullet_tools.utils import SEPARATOR, is_darwin, clip, DATE_FORMAT, \
     read_json, write_json, timeout
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, \
@@ -385,7 +385,8 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
             p_success, elapsed_time(start_time)))
     return outputs_list
 
-def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_plans=INF):
+def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_plans=INF,
+                     select=True, verbose=SERIAL):
     # TODO: randomize the seed
     pid = os.getpid()
     print(SEPARATOR)
@@ -394,7 +395,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
     stdout = sys.stdout
     current_wd = os.getcwd()
     trial_wd = os.path.join(current_wd, PARALLEL_DIR, '{}/'.format(pid))
-    if not SERIAL:
+    if not verbose:
         sys.stdout = open(os.devnull, 'w')
         safe_rm_dir(trial_wd)
         ensure_dir(trial_wd)
@@ -464,12 +465,12 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
     #     'all_p_success': all_p_success,
     # })
 
-    # if select_time is None:
-    #     outputs_list = [outputs]
-    # else:
-    outputs_list = run_selection(probabilities, static_sets, outputs)
+    if select:
+        outputs_list = run_selection(probabilities, static_sets, outputs)
+    else:
+        outputs_list = [outputs]
 
-    if not SERIAL:
+    if not verbose:
         os.chdir(current_wd)
         #safe_rm_dir(trial_wd)
         sys.stdout.close()
@@ -511,6 +512,10 @@ def solve_pddl(visualize=False):
         for domain_path, problem_path in get_benchmarks(directory_path):
             problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
+    risk_problems = get_small_benchmarks() + get_large_benchmarks()
+    problems = [{'domain_path': RISK_DOMAIN_PATH, 'problem_path': problem_path}
+                for problem_path in risk_problems]
+
     # problems = [{
     #     'domain_path': 'data-network-opt18/domain.pddl',
     #     'problem_path': 'data-network-opt18/p11.pddl',
@@ -526,8 +531,8 @@ def solve_pddl(visualize=False):
         problems = problems[problem_idx:problem_idx+1]
 
     configs = []
-    #top_planners = ['forbid', 'symk'] # kstar
-    top_planners = []
+    top_planners = ['forbid', 'symk'] # kstar
+    #top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
     planners = ['ff-wastar3', 'ff-wastar3-unit'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
@@ -638,6 +643,8 @@ def get_planner_name(result):
     if diverse is not None:
         #print(diverse)
         planner = '{} {} {}'.format(planner, diverse['selector'], diverse.get('metric', None)) # diverse['k']
+        if result.get('corrected'):
+            planner += '-c'
     return planner
 
 def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
@@ -663,32 +670,38 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         'symk False first None',
     ]
 
-    metric = 'p_success' # p_success | runtime | full_runtime | num_plans | runtime | error | total_cost
+    metric = 'p_success' # p_success | runtime | full_runtime | all_plans | num_plans | runtime | error | total_cost
     ratio = True
 
     #from examples.fault_tolerant.risk_management.run import analyze_results
     best_from_problem = defaultdict(float)
     scored_results = []
     for result in results:
-        #if result['diverse'].get('metric', None) in ['stability', 'uniqueness']:
+        #if not result['candidate_probs']:
         #    continue
-        #print(result)
+        if 'unit' in result['planner']:
+            continue
+        if result['diverse'].get('selector', None) in ['random']: # greedy | first | exact
+            continue
+        if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success
+            continue
         #result = hashabledict(result['result'])
         score = result[metric]
-        #average_cost = result[metric] / result['num_plans']
+        #score = result[metric] / result['num_plans']
         #score = result['runtime'] + result['full_runtime']
-        #score = result['num_plans'] >= 10
+        #score = result['all_plans'] >= min_plans # all_plans | num_plans
         #score = math.log(result[p_success])
         #score = 1./result[p_success]
         problem = result['problem_path']
-        best_from_problem[problem] = max(best_from_problem[problem], score)
         scored_results.append((result, score))
+        #if result['num_plans'] >= 0: # TODO: should clip the other results
+        best_from_problem[problem] = max(best_from_problem[problem], score)
 
     data_from_k_name = defaultdict(lambda: defaultdict(list))
     for result, score in scored_results:
         planner = get_planner_name(result)
-        if planner in skip_planners: # Apply before?
-            continue
+        # if planner in skip_planners: # TODO: apply before?
+        #     continue
         problem = result['problem_path']
         if best_from_problem[problem] == 0:
             continue
