@@ -35,7 +35,7 @@ from pddlstream.algorithms.downward import parse_sequential_domain, parse_proble
 
 # TODO: make a simulator that randomizes these probabilities
 P_SUCCESS = 0.9 # 0.9 | 0.75
-CANDIDATE_TIME = 5 * 60
+CANDIDATE_TIME = 10 if SERIAL else 5 * 60
 
 # TODO: handle more generically
 if is_darwin():
@@ -429,8 +429,8 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
         # TODO: universal effects somewhere
         #all_solutions = solve_from_pddl(domain_pddl, problem_pddl, planner=planner,
         #                                max_planner_time=max_time, max_cost=INF, debug=True)
-        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl, planner=inputs['planner'],
-                                          use_probabilities=inputs['candidate_probs'],
+        all_solutions = diverse_from_pddl(domain_pddl, problem_pddl,
+                                          planner=inputs['planner'], use_probabilities=inputs['candidate_probs'],
                                           prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
                                           max_planner_time=candidate_time, max_cost=INF, max_plans=max_plans, debug=True)
         outputs.update({
@@ -574,8 +574,8 @@ def solve_pddl(visualize=False):
         for outputs in outputs_list:
             #outputs.update(inputs)
             # TODO: time remaining
-            print('{}/{}'.format(len(results), len(trials)), outputs)
             results.append(outputs)
+            print('{}/{}'.format(len(results), len(trials)), outputs)
         if not SERIAL: # TODO: only write if is above a threshold
             #write_pickle(file_name, results)
             write_json(file_name, results)

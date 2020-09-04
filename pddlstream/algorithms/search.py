@@ -31,7 +31,7 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
         solution = run_search(temp_dir, debug=True, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     #for axiom in sas_task.axioms:
     #    # TODO: return the set of axioms here as well
     #    var, value = axiom.effect
@@ -50,7 +50,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
         solution = run_search(temp_dir, debug=debug, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return solution
 
 ##################################################
@@ -62,10 +62,13 @@ def get_all_preconditions(sas_action):
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
     return [literal.rename_variables(sas_action.propositional_action.var_mapping) for literal in conditions]
 
-def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], prohibit_predicates=[],
+def negative_log(likelihood):
+    return int_ceil(-SCALE*math.log(likelihood))
+
+def diverse_from_task(sas_task, use_probabilities=False, base_cost=0, # 0 | 1
+                      prohibit_actions=[], prohibit_predicates=[],
                       planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_plans=DEFAULT_MAX_PLANS,
-                      hierarchy=[], temp_dir=TEMP_DIR,
-                      clean=False, debug=False, **search_args):
+                      hierarchy=[], temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: make a free version of the sas_action after it's applied
     if planner in DIVERSE_PLANNERS:
         return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time, max_plans=max_plans,
@@ -85,6 +88,7 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
     # TODO: weighted average
     prob_from_precondition = defaultdict(lambda: 1.) # TODO: cost/effort
     actions_from_precondition = defaultdict(set)
+    cost_from_action = {action: action.cost for action in sas_task.operators}
     with Verbose(debug):
         deadend_var = add_var(sas_task, layer=1)
         for sas_action in sas_task.operators:
@@ -100,14 +104,14 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
             if use_probabilities:
                 for sas_action in sas_task.operators:
                     #scale_cost(prob_from_precondition[action])
-                    sas_action.cost = 1 # 0 | 1
+                    sas_action.cost = base_cost
                     likelihood = 1.
                     for precondition in get_all_preconditions(sas_action):
                         likelihood *= prob_from_precondition[precondition]
                     if likelihood == 0:
-                        sas_action.cost += INF
+                        sas_action.cost += INF # TODO: remove the action
                     else:
-                        sas_action.cost += int_ceil(-SCALE*math.log(likelihood))
+                        sas_action.cost += negative_log(likelihood)
                     sas_action.cost = min(sas_action.cost, MAX_FD_COST)
 
             write_sas_task(sas_task, temp_dir)
@@ -118,8 +122,9 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
                 break
             plans.extend(solution)
 
-            for plan, _ in solution:
+            for plan, neg_log_prob in solution:
                 sas_plan = parse_sas_plan(sas_task, plan)
+                cost = sum(cost_from_action[action] for action in sas_plan)
                 uncertain = set()
                 condition = []
                 for action, sas_action in zip(plan, sas_plan):
@@ -147,24 +152,28 @@ def diverse_from_task(sas_task, use_probabilities=False, prohibit_actions=[], pr
                     success_prob = 1.
                     for precondition in uncertain:
                         success_prob *= prob_from_precondition[precondition]
+                    print('Plan: {} | Cost: {} | Length: {} | -log(prob): {:.3f} '
+                          '| Success prob: {:.3f} | Runtime: {:.3f}'.format(
+                        len(plans), cost, len(plan), neg_log_prob, #negative_log(success_prob),
+                        success_prob, elapsed_time(start_time)))
                     if success_prob == 1.:
                         return plans
                     for precondition in uncertain:
                         p_this = prob_from_precondition[precondition] # Bayes update
                         p_rest = success_prob / p_this
-                        #print(p_this, p_rest)
-                        #p_this_fails = (1 - p_this)*p_rest
                         p_rest_fail = p_this*(1 - p_rest)
-                        #p_fail = p_this_fails + p_rest_fail # Both could fail
                         p_fail = 1 - success_prob
                         prob_from_precondition[precondition] = p_rest_fail / p_fail
+                else:
+                    print('Plan: {} | Cost: {} | Length: {} | Runtime: {:.3f}'.format(
+                        len(plans), cost, len(plan), elapsed_time(start_time)))
 
                 if condition:
                     axiom = sas_tasks.SASAxiom(condition=condition, effect=(deadend_var, 1))
                     sas_task.axioms.append(axiom)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', elapsed_time(start_time))
+        print('Plans: {} | Total runtime: {:.3f}'.format(len(plans), elapsed_time(start_time)))
     return plans
 
 def diverse_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, debug=False, **kwargs):
@@ -228,7 +237,7 @@ def serialized_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=F
         plan, cost = plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return plan, cost
 
 ##################################################
@@ -330,7 +339,7 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
             last_plan = [name_from_action(action, args) for action, args in plan]
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return plan, cost
 
 ##################################################
@@ -370,7 +379,7 @@ def abstrips_solve_from_task_sequential(sas_task, temp_dir=TEMP_DIR, clean=False
             last_plan = [name_from_action(action, args) for action, args in plan]
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     # TODO: record which level of abstraction each operator is at when returning
     # TODO: return instantiated actions here rather than names (including pruned pre/eff)
     return plan, cost
