@@ -442,12 +442,14 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
 
     print(SEPARATOR)
     solutions = prune_dominated_action_plans(all_solutions)
-    total_cost = sum(cost for _, cost  in solutions)
+    total_cost = sum(cost for _, cost in solutions)
+    total_length = sum(len(plan) for plan, _ in solutions)
     outputs.update({
         'all_plans': len(all_solutions),
         'num_plans': len(solutions),
         'search_runtime': elapsed_time(start_time),
         'total_cost': total_cost,
+        'total_length': total_length,
     })
     print('Candidate runtime:', elapsed_time(start_time))
     evaluations = []
@@ -481,7 +483,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
 
 ##################################################
 
-def solve_pddl(visualize=False):
+def solve_pddl(use_risk=False, visualize=False):
     # No restriction to be untyped here
 
     #directory_paths = get_domains()
@@ -501,20 +503,17 @@ def solve_pddl(visualize=False):
         11: 'driverlog',
     }
 
-    if SERIAL:
-        domain_indices = [1]
-    else:
-        domain_indices = sorted(directories.keys())
-    directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
-
     problems = []
-    for directory_path in directory_paths:
-        for domain_path, problem_path in get_benchmarks(directory_path):
-            problems.append({'domain_path': domain_path, 'problem_path': problem_path})
-
-    risk_problems = get_small_benchmarks() + get_large_benchmarks()
-    problems = [{'domain_path': RISK_DOMAIN_PATH, 'problem_path': problem_path}
-                for problem_path in risk_problems]
+    if use_risk:
+        risk_problems = get_small_benchmarks() + get_large_benchmarks()
+        problems.extend({'domain_path': RISK_DOMAIN_PATH, 'problem_path': problem_path}
+                        for problem_path in risk_problems)
+    else:
+        domain_indices = [1] if SERIAL else sorted(directories.keys())
+        directory_paths = [os.path.join(CLASSICAL_PATH, directories[idx]) for idx in domain_indices]
+        for directory_path in directory_paths:
+            for domain_path, problem_path in get_benchmarks(directory_path):
+                problems.append({'domain_path': domain_path, 'problem_path': problem_path})
 
     # problems = [{
     #     'domain_path': 'data-network-opt18/domain.pddl',
@@ -531,12 +530,12 @@ def solve_pddl(visualize=False):
         problems = problems[problem_idx:problem_idx+1]
 
     configs = []
-    top_planners = ['forbid', 'symk'] # kstar
-    #top_planners = []
+    #top_planners = ['forbid', 'symk'] # kstar
+    top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
-    planners = ['ff-wastar3', 'ff-wastar3-unit'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
-    candidate_probs = [False, True]
+    planners = ['max-astar'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
+    candidate_probs = [False] #, True]
     configs.extend(product(problems, planners, candidate_probs))
 
     trials = []
@@ -572,15 +571,22 @@ def solve_pddl(visualize=False):
     file_name = os.path.join(EXPERIMENTS_DIR, '{}.json'.format(date_name))
     print('File name: {}'.format(file_name))
 
+    # Print the number of post-processing configurations
     generator = create_generator(solve_pddl_trial, trials, job_time=CANDIDATE_TIME)
+    start_time = time.time()
+    num_trials = 0
     results = []
     for inputs, outputs_list in generator:
         # TODO: pickle the solutions to reuse later
-        for outputs in outputs_list:
+        num_trials += 1
+        for i, outputs in enumerate(outputs_list):
             #outputs.update(inputs)
             # TODO: time remaining
             results.append(outputs)
-            print('{}/{}'.format(len(results), len(trials)), outputs)
+            print(i, outputs)
+
+        print('Trial {}/{} | {} results | {:.3f} seconds'.format(
+            num_trials, len(trials), len(results), elapsed_time(start_time)))
         if not SERIAL: # TODO: only write if is above a threshold
             #write_pickle(file_name, results)
             write_json(file_name, results)
@@ -679,12 +685,14 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     for result in results:
         #if not result['candidate_probs']:
         #    continue
-        if 'unit' in result['planner']:
+        #if 'unit' in result['planner']:
+        #    continue
+        if result['planner'] in ['ff-wastar3', 'ff-wastar3-unit']: # 'forbid', 'kstar', 'symk']:
             continue
-        if result['diverse'].get('selector', None) in ['random']: # greedy | first | exact
+        if result['diverse'].get('selector', None) in ['first', 'exact']: # greedy | first | exact | random
             continue
-        if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success
-            continue
+        #if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success
+        #    continue
         #result = hashabledict(result['result'])
         score = result[metric]
         #score = result[metric] / result['num_plans']
@@ -769,6 +777,7 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--risk', action='store_true', help='TBD')
     parser.add_argument('-e', '--experiments', nargs='*')
     args = parser.parse_args()
 
@@ -780,7 +789,7 @@ def main():
         analyze_experiment(results)
     else:
         #solve_pddlstream()
-        solve_pddl()
+        solve_pddl(use_risk=args.risk)
 
 if __name__ == '__main__':
     main()
