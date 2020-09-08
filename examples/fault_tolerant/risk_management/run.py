@@ -241,12 +241,13 @@ def run_trial(inputs, candidate_time=CANDIDATE_TIME, max_plans=INF, n_simulation
 
     return inputs, outputs
 
-def create_generator(fn, jobs, job_time=None):
+def create_generator(fn, jobs, job_time=None, fraction=0.75):
     assert jobs
-    num_cores = clip(1 if SERIAL else int(cpu_count()/2), min_value=1, max_value=len(jobs))
+    num_cores = 1 if SERIAL else int(fraction*cpu_count())
+    num_cores = clip(num_cores, min_value=1, max_value=len(jobs))
     print('Using {}/{} cores for {} jobs'.format(num_cores, cpu_count(), len(jobs)))
     if job_time is not None:
-        print('Estimated runtime: {} minutes'.format(len(jobs)*job_time / (num_cores * 60)))
+        print('Estimated runtime: {:.3f} minutes'.format(len(jobs)*job_time / (num_cores * 60)))
     if num_cores == 1:
         generator = map(fn, jobs)
     else:

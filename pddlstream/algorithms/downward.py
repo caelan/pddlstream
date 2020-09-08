@@ -37,7 +37,8 @@ DIVERSE_PLANNERS = ['forbid', 'kstar', 'symk']
 ##################################################
 
 FORBID_TEMPLATE = 'plan.py --planner unordered_topq --overall-time-limit {max_time} --quality-bound {max_cost} --symmetries ' \
-                  '--domain {domain} --problem {problem} --use-local-folder --clean-local-folder' # ' --upper-bound-on-number-of-plans {max_plans}'
+                  '--domain {domain} --problem {problem} --use-local-folder --clean-local-folder'
+                # ' --upper-bound-on-number-of-plans {max_plans}'
 # [--overall-time-limit OVERALL_TIME_LIMIT]
 # [--planner {topk,topk_via_unordered_topq,unordered_topq,extended_unordered_topq,topq_via_topk,topq_via_unordered_topq,diverse}]
 # --reordering generates multiple plans from a single one

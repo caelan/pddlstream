@@ -8,12 +8,15 @@ import time
 import datetime
 import sys
 import traceback
+import random
+import numpy as np
 
 from itertools import product
 
 from examples.fault_tolerant.utils import list_paths, int_from_str, extract_static, get_static_predicates, fact_from_fd, \
     extract_streams, simulate_successes, test_from_bernoulli_fn, CachedFn, hashabledict
-from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, select_portfolio
+from pddlstream.algorithms.scheduling.diverse import p_disjunction, prune_dominated_action_plans, generic_union, \
+    select_portfolio, prune_dominated_stream_plans
 from collections import defaultdict, Counter
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_test, fn_from_constant
@@ -343,9 +346,38 @@ PROBABILITIES = {
     'path': P_SUCCESS,
 }
 
-def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
+def run_selection(domain_pddl, all_solutions, outputs, select_time=5 * 60, samples=100):
     # TODO: timeout
     print(SEPARATOR)
+
+    start_time = time.time()
+    #solutions = prune_dominated_action_plans(all_solutions)
+    solutions = all_solutions
+    plans = [plan for plan, _, in solutions] # TODO: retain the costs
+    solution_sets = extract_static(domain_pddl, plans, PROBABILITIES)
+    #static_sets = prune_dominated_stream_plans(externals, static_sets)
+    static_sets = prune_dominated_action_plans(solution_sets)
+    probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
+    # all_p_success = p_disjunction(static_sets, probabilities=probabilities) # TODO: slow for large k
+    # outputs.update({
+    #     'all_p_success': all_p_success,
+    # })
+
+    outputs.update({
+        #'num_plans': len(solutions),
+        'candidate_runtime': elapsed_time(start_time),
+        'candidate_plans': len(static_sets),
+    })
+    print('Solutions: {} | Candidates: {} | Runtime: {:.3f}'.format(
+        len(solutions), len(static_sets), elapsed_time(start_time)))
+
+    # p_success_samples = []
+    # for _ in range(samples):
+    #     k = 10
+    #     #portfolio = random.sample(all_solutions, k=k)
+    #     portfolio = random.sample(solutions, k=k)
+    #     p_success_samples.append(p_disjunction(portfolio, probabilities=probabilities))
+    # print(np.mean(p_success_samples))
 
     min_k, max_k = 2, 10 # Start with min_k >= 2
     #max_k = min_k # INF
@@ -353,15 +385,15 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
 
     diverse_configs = []
     blind_selectors = ['random'] # random | first
-    if outputs['planner'] not in DIVERSE_PLANNERS:
-        blind_selectors.append('first')
+    #if outputs['planner'] not in DIVERSE_PLANNERS:
+    #    blind_selectors.append('first')
     diverse_configs.extend({'selector': selector}
                            for selector in blind_selectors)
 
     informed_selectors = ['greedy', 'exact'] # exact | greedy
     metrics = ['p_success'] # p_success | stability | uniqueness
     if not outputs['candidate_probs']:
-        metrics.extend(['stability', 'uniqueness'])
+        metrics.extend(['stability']) # TODO: apply uniqueness to raw or filtered plans
     diverse_configs.extend({'selector': selector, 'metric': metric}
                            for selector, metric in product(informed_selectors, metrics))
 
@@ -376,7 +408,8 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
         outputs = dict(outputs)
         outputs.update({
             'diverse': diverse,
-            'select_runtime': elapsed_time(start_time),
+            'select_runtime': elapsed_time(start_time), # portfolio_runtime
+            'portfolio_plans': len(portfolio),
             'p_success': p_success,
         })
         outputs_list.append(outputs)
@@ -385,7 +418,7 @@ def run_selection(probabilities, static_sets, outputs, select_time=5 * 60):
             p_success, elapsed_time(start_time)))
     return outputs_list
 
-def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_plans=INF,
+def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_cost=INF, max_plans=INF,
                      select=True, verbose=SERIAL):
     # TODO: randomize the seed
     pid = os.getpid()
@@ -420,6 +453,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
         #'max_plans': max_plans,
         'error': True,
         'corrected': True,
+        # TODO: max_cost or quality bound
         # TODO: save or recover the date
     })
 
@@ -433,7 +467,7 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
         all_solutions = diverse_from_pddl(domain_pddl, problem_pddl,
                                           planner=inputs['planner'], use_probabilities=inputs['candidate_probs'],
                                           prohibit_actions=prohibit_actions, prohibit_predicates=prohibit_predicates,
-                                          max_planner_time=candidate_time, max_cost=INF, max_plans=max_plans, debug=True)
+                                          max_planner_time=candidate_time, max_cost=max_cost, max_plans=max_plans, debug=False)
         outputs.update({
             'error': False,
         })
@@ -442,7 +476,8 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
 
     print(SEPARATOR)
     solutions = prune_dominated_action_plans(all_solutions)
-    total_cost = sum(cost for _, cost in solutions)
+    #solutions = all_solutions
+    total_cost = sum(cost for _, cost in solutions) # costs don't matter is all top quality
     total_length = sum(len(plan) for plan, _ in solutions)
     outputs.update({
         'all_plans': len(all_solutions),
@@ -458,17 +493,8 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_p
         solution = (plan, cost, evaluations)
         print_solution(solution)
 
-    print(SEPARATOR)
-    plans = [plan for plan, _, in solutions]
-    static_sets = extract_static(domain_pddl, plans, PROBABILITIES)
-    probabilities = {fact: PROBABILITIES[fact.predicate] for fact in generic_union(*static_sets)}
-    # all_p_success = p_disjunction(static_sets, probabilities=probabilities) # TODO: slow for large k
-    # outputs.update({
-    #     'all_p_success': all_p_success,
-    # })
-
     if select:
-        outputs_list = run_selection(probabilities, static_sets, outputs)
+        outputs_list = run_selection(domain_pddl, solutions, outputs)
     else:
         outputs_list = [outputs]
 
@@ -530,11 +556,12 @@ def solve_pddl(use_risk=False, visualize=False):
         problems = problems[problem_idx:problem_idx+1]
 
     configs = []
-    #top_planners = ['forbid', 'symk'] # kstar
-    top_planners = []
+    top_planners = ['forbid', 'symk'] # kstar
+    #top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
-    planners = ['max-astar'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
+    #planners = ['max-astar'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
+    planners = []
     candidate_probs = [False] #, True]
     configs.extend(product(problems, planners, candidate_probs))
 
@@ -599,6 +626,11 @@ def extract_domain(path):
     #    return path
     #assert os.path.isfile(path)
     return os.path.basename(os.path.dirname(path)) # .decode(encoding='UTF-8')
+
+def extract_problem(problem_path):
+    domain = extract_domain(problem_path)
+    problem = os.path.basename(problem_path)
+    return os.path.join(domain, problem)
 
 def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     # https://matplotlib.org/examples/statistics/multiple_histograms_side_by_side.html
@@ -691,8 +723,8 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
             continue
         if result['diverse'].get('selector', None) in ['first', 'exact']: # greedy | first | exact | random
             continue
-        #if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success
-        #    continue
+        if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success | stability | uniqueness
+            continue
         #result = hashabledict(result['result'])
         score = result[metric]
         #score = result[metric] / result['num_plans']
@@ -700,17 +732,20 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         #score = result['all_plans'] >= min_plans # all_plans | num_plans
         #score = math.log(result[p_success])
         #score = 1./result[p_success]
-        problem = result['problem_path']
+        problem = extract_problem(result['problem_path'])
         scored_results.append((result, score))
-        #if result['num_plans'] >= 0: # TODO: should clip the other results
-        best_from_problem[problem] = max(best_from_problem[problem], score)
+        if result['num_plans'] >= 1: # TODO: should clip the other results
+            best_from_problem[problem] = max(best_from_problem[problem], score)
+    for problem in sorted(best_from_problem):
+        if best_from_problem[problem] != 0:
+            print(problem)
 
     data_from_k_name = defaultdict(lambda: defaultdict(list))
     for result, score in scored_results:
         planner = get_planner_name(result)
         # if planner in skip_planners: # TODO: apply before?
         #     continue
-        problem = result['problem_path']
+        problem = extract_problem(result['problem_path'])
         if best_from_problem[problem] == 0:
             continue
         if ratio:
@@ -721,6 +756,7 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     plot_data(data_from_k_name, ratio=ratio, y_label=metric)
     quit()
 
+    # TODO: be careful with problem path on different machines
     total_counter = defaultdict(int)
     success_counter = defaultdict(int)
     for result in sorted(results, key=lambda r: r['problem_path']):

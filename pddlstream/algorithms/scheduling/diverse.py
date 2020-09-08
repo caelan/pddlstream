@@ -39,6 +39,15 @@ def extract_stream_plan(externals, combined_plan):
 
 ##################################################
 
+def extract_generic(combined_plan):
+    if isinstance(combined_plan, frozenset):
+        return combined_plan, len(combined_plan)
+    #if isinstance(combined_plan, OptPlan):
+    #if isinstance(combined_plan, tuple):
+    opt_plan, cost = combined_plan[-2:]
+    action_set = frozenset(extract_action_plan(opt_plan))
+    return action_set, cost
+
 def prune_dominated_action_plans(combined_plans):
     # TODO: consider multi-sets
     # TODO: more efficient trie-like data structure
@@ -49,8 +58,7 @@ def prune_dominated_action_plans(combined_plans):
     start_time = time.time()
     best_action_sets = {}
     for idx in indices:
-        opt_plan, cost = combined_plans[idx][-2:]
-        action_set = frozenset(extract_action_plan(opt_plan))
+        action_set, cost = extract_generic(combined_plans[idx])
         if (action_set not in best_action_sets) or (cost < best_action_sets[action_set][0]):
             best_action_sets[action_set] = (cost, idx)
     best_indices = {idx for _, idx in best_action_sets.values()}
@@ -62,10 +70,8 @@ def prune_dominated_action_plans(combined_plans):
     for idx1, idx2 in permutations(best_indices, r=2):
         if (idx1 in dominated) or (idx2 in dominated):
             continue
-        opt_plan1, cost1 = combined_plans[idx1][-2:]
-        action_set1 = extract_action_plan(opt_plan1)
-        opt_plan2, cost2 = combined_plans[idx2][-2:]
-        action_set2 = extract_action_plan(opt_plan2)
+        action_set1, cost1 = extract_generic(combined_plans[idx1])
+        action_set2, cost2 = extract_generic(combined_plans[idx2])
         if (action_set1 < action_set2) or (action_set1 == action_set2 and cost1 <= cost2):
             dominated.add(idx2)
     print('Pruned {}/{} dominated action plans in {:.3f} seconds'.format(
@@ -258,14 +264,14 @@ def greedy_diverse_subset(candidates, diverse, verbose=True, **kwargs):
             print('{}) p={:.3f} | Time: {:.2f}'.format(i, best_p, elapsed_time(start_time)))
 
     best_portfolio = [candidates[i] for i in best_indices]
-    if verbose:
-        print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
-            len(candidates), k, elapsed_time(start_time)))
+    #if verbose:
+    print('\nCandidates: {} | k={} | Time: {:.2f}'.format(
+        len(candidates), k, elapsed_time(start_time)))
     return best_portfolio
 
 ##################################################
 
-def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
+def exact_diverse_subset(candidates, diverse, verbose=False, **kwargs):
     # TODO: dynamic programming method across multi-sets
     # TODO: ILP over selections
     start_time = time.time()
@@ -296,9 +302,9 @@ def exact_diverse_subset(candidates, diverse, verbose=True, **kwargs):
         if max_time < elapsed_time(start_time):
             break
 
-    if verbose:
-        print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
-            len(candidates), k, num_considered, best_p, elapsed_time(start_time)))
+    #if verbose:
+    print('\nCandidates: {} | k={} | Considered: {} | Best (p={:.3f}) | Time: {:.2f}'.format(
+        len(candidates), k, num_considered, best_p, elapsed_time(start_time)))
     return best_portfolio
 
 ##################################################
