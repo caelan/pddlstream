@@ -397,12 +397,12 @@ def run_selection(domain_pddl, all_solutions, outputs, select_time=5 * 60, sampl
     diverse_configs.extend({'selector': selector, 'metric': metric}
                            for selector, metric in product(informed_selectors, metrics))
 
-    start_time = time.time()
     outputs_list = []
     for diverse, k in product(diverse_configs, ks):
         print('{}) k={}: {}'.format(len(outputs_list), k, diverse))
         diverse = dict(diverse)
         diverse.update({'k': k, 'max_time': select_time})
+        start_time = time.time() # Previously was in the wrong place
         portfolio = select_portfolio(static_sets, diverse, probabilities=probabilities)
         p_success = p_disjunction(portfolio, probabilities=probabilities)
         outputs = dict(outputs)
@@ -475,13 +475,13 @@ def solve_pddl_trial(inputs, candidate_time=CANDIDATE_TIME, max_printed=3, max_c
         traceback.print_exc()
 
     print(SEPARATOR)
-    solutions = prune_dominated_action_plans(all_solutions)
-    #solutions = all_solutions
+    #solutions = prune_dominated_action_plans(all_solutions) # might be too expensive
+    solutions = all_solutions
     total_cost = sum(cost for _, cost in solutions) # costs don't matter is all top quality
     total_length = sum(len(plan) for plan, _ in solutions)
     outputs.update({
         'all_plans': len(all_solutions),
-        'num_plans': len(solutions),
+        #'num_plans': len(solutions),
         'search_runtime': elapsed_time(start_time),
         'total_cost': total_cost,
         'total_length': total_length,
@@ -680,39 +680,28 @@ def get_planner_name(result):
     diverse = result.get('diverse', None)
     if diverse is not None:
         #print(diverse)
-        planner = '{} {} {}'.format(planner, diverse['selector'], diverse.get('metric', None)) # diverse['k']
-        if result.get('corrected'):
-            planner += '-c'
+        planner = '{} {}'.format(planner, diverse['selector']) # diverse['k']
+    if 'metric' in diverse:
+        planner += ' {}'.format(diverse['metric'])
+        # if result.get('corrected'):
+        #     planner += '-c'
     return planner
 
 def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     # TODO: compare on just -opt
+    print(results[0])
     problem_trials = Counter(extract_domain(result['domain_path']) for result in results)
     print('Domains ({}):'.format(len(problem_trials)), sorted(problem_trials.keys()))
     print('\nProblems ({}):'.format(sum(problem_trials.values())), problem_trials)
     planner_trials = Counter(map(get_planner_name, results))
     print('\nPlanners ({}):'.format(len(planner_trials)), planner_trials)
 
-    skip_planners = [
-        # 'ff-wastar3 False first None',
-        # 'ff-wastar3 False greedy p_success',
-        # 'ff-wastar3 False greedy stability',
-        # 'ff-wastar3 False greedy uniqueness',
-        # 'ff-wastar3 False random None',
-        # 'ff-wastar3 True first None',
-        # 'ff-wastar3 True greedy p_success',
-        'ff-wastar3 True greedy stability',
-        'ff-wastar3 True greedy uniqueness',
-        # 'ff-wastar3 True random None',
-        'forbid False first None',
-        'symk False first None',
-    ]
-
     metric = 'p_success' # p_success | runtime | full_runtime | all_plans | num_plans | runtime | error | total_cost
     ratio = True
 
     #from examples.fault_tolerant.risk_management.run import analyze_results
     best_from_problem = defaultdict(float)
+    candidates_from_problem = defaultdict(int)
     scored_results = []
     for result in results:
         #if not result['candidate_probs']:
@@ -721,12 +710,16 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         #    continue
         if result['planner'] in ['ff-wastar3', 'ff-wastar3-unit']: # 'forbid', 'kstar', 'symk']:
             continue
-        if result['diverse'].get('selector', None) in ['first', 'exact']: # greedy | first | exact | random
+        if result['diverse'].get('selector', None) in ['first']: # greedy | first | exact | random
             continue
-        if result['diverse'].get('metric', None) in ['stability', 'uniqueness']: # p_success | stability | uniqueness
+        if result['diverse'].get('metric', None) in ['uniqueness']: # p_success | stability | uniqueness
             continue
+        if result['all_plans']:
+            print('{}) All: {} | Pruned: {} | Candidates: {}'.format(
+                result['planner'], result['all_plans'], result['num_plans'], result['candidate_plans']))
         #result = hashabledict(result['result'])
-        score = result[metric]
+        #score = result[metric]
+        score = float(result['candidate_plans']) / result['all_plans'] if result['all_plans'] else 0.
         #score = result[metric] / result['num_plans']
         #score = result['runtime'] + result['full_runtime']
         #score = result['all_plans'] >= min_plans # all_plans | num_plans
@@ -734,17 +727,24 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         #score = 1./result[p_success]
         problem = extract_problem(result['problem_path'])
         scored_results.append((result, score))
-        if result['num_plans'] >= 1: # TODO: should clip the other results
+        if result['candidate_plans'] >= 50: # TODO: should clip the other results
             best_from_problem[problem] = max(best_from_problem[problem], score)
-    for problem in sorted(best_from_problem):
+        candidates_from_problem[problem] = max(candidates_from_problem[problem], result['candidate_plans'])
+
+    for problem in sorted(best_from_problem): # best_from_problem, candidates_from_problem
         if best_from_problem[problem] != 0:
-            print(problem)
+            print('{}) #={}, p_success={:.3f}'.format(
+                problem, candidates_from_problem[problem], best_from_problem[problem]))
 
     data_from_k_name = defaultdict(lambda: defaultdict(list))
     for result, score in scored_results:
         planner = get_planner_name(result)
-        # if planner in skip_planners: # TODO: apply before?
-        #     continue
+        if result['planner'] in ['forbid']:
+            continue
+        if result['diverse'].get('selector', None) in []: # greedy | first | exact | random
+            continue
+        if result['diverse'].get('metric', None) in []: # p_success | stability | uniqueness
+            continue
         problem = extract_problem(result['problem_path'])
         if best_from_problem[problem] == 0:
             continue
