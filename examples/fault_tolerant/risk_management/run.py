@@ -433,10 +433,10 @@ def plot_data(data_from_k_name, ratio=False, y_label=None, scale=0.5): # 0.0 | 0
         plt.fill_between(ks, means - widths, means + widths, alpha=0.25)
         plt.plot(ks, means, 'o-', label=name)
 
-    plt.title('Selector {}'
+    plt.title('{} as a function of $k$'
               '\nScale = {}$\sigma$'.format(y_label, scale))
     #plt.ylim(0, 1)
-    plt.xlabel('K')
+    plt.xlabel('$k$')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     if ratio:
         plt.ylabel('{} Performance Ratio'.format(y_label))
