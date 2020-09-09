@@ -556,12 +556,12 @@ def solve_pddl(use_risk=False, visualize=False):
         problems = problems[problem_idx:problem_idx+1]
 
     configs = []
-    top_planners = ['forbid', 'symk'] # kstar
-    #top_planners = []
+    #top_planners = ['symk'] # kstar
+    top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
-    #planners = ['max-astar'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
-    planners = []
+    planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
+    #planners = []
     candidate_probs = [False] #, True]
     configs.extend(product(problems, planners, candidate_probs))
 
@@ -676,25 +676,30 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
     plt.show()
 
 def get_planner_name(result):
-    planner = '{} {}'.format(result.get('planner', None), result.get('candidate_probs', None))
+    planner = '{}'.format(result.get('planner', None))
+    if result.get('candidate_probs', False):
+        planner += ' {}'.format(result['candidate_probs'])
     diverse = result.get('diverse', None)
     if diverse is not None:
         #print(diverse)
         planner = '{} {}'.format(planner, diverse['selector']) # diverse['k']
     if 'metric' in diverse:
         planner += ' {}'.format(diverse['metric'])
-        # if result.get('corrected'):
-        #     planner += '-c'
+    # if result.get('corrected', False):
+    #     planner += '-c'
     return planner
 
-def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
-    # TODO: compare on just -opt
-    print(results[0])
+def analyze_results(results):
     problem_trials = Counter(extract_domain(result['domain_path']) for result in results)
     print('Domains ({}):'.format(len(problem_trials)), sorted(problem_trials.keys()))
     print('\nProblems ({}):'.format(sum(problem_trials.values())), problem_trials)
     planner_trials = Counter(map(get_planner_name, results))
     print('\nPlanners ({}):'.format(len(planner_trials)), planner_trials)
+    return problem_trials, planner_trials
+
+def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
+    # TODO: compare on just -opt
+    problem_trials, planner_trials = analyze_results(results)
 
     metric = 'p_success' # p_success | runtime | full_runtime | all_plans | num_plans | runtime | error | total_cost
     ratio = True
@@ -704,33 +709,40 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     candidates_from_problem = defaultdict(int)
     scored_results = []
     for result in results:
+        problem = extract_problem(result['problem_path'])
         #if not result['candidate_probs']:
         #    continue
         #if 'unit' in result['planner']:
         #    continue
-        if result['planner'] in ['ff-wastar3', 'ff-wastar3-unit']: # 'forbid', 'kstar', 'symk']:
+        if result.get('candidate_probs', False) in [True]:
+            continue
+        if result['planner'] in ['ff-wastar3-unit']: # 'forbid', 'kstar', 'symk', 'ff-wastar3']:
             continue
         if result['diverse'].get('selector', None) in ['first']: # greedy | first | exact | random
             continue
         if result['diverse'].get('metric', None) in ['uniqueness']: # p_success | stability | uniqueness
             continue
-        if result['all_plans']:
-            print('{}) All: {} | Pruned: {} | Candidates: {}'.format(
-                result['planner'], result['all_plans'], result['num_plans'], result['candidate_plans']))
+        if result['planner'] not in DIVERSE_PLANNERS:
+            result['candidate_plans'] = result['num_plans'] # all_plans
+
+        if result['all_plans']: # and result['diverse']['selector'] == 'random':
+            print('{} | {} | All: {} | Pruned: {} | Candidates: {}'.format(
+                problem, result['planner'], result['all_plans'], result['all_plans'], result['candidate_plans']))
+
         #result = hashabledict(result['result'])
-        #score = result[metric]
-        score = float(result['candidate_plans']) / result['all_plans'] if result['all_plans'] else 0.
+        score = result[metric]
+        #score = float(result['candidate_plans']) / result['all_plans'] if result['all_plans'] else 0.
         #score = result[metric] / result['num_plans']
         #score = result['runtime'] + result['full_runtime']
         #score = result['all_plans'] >= min_plans # all_plans | num_plans
         #score = math.log(result[p_success])
         #score = 1./result[p_success]
-        problem = extract_problem(result['problem_path'])
         scored_results.append((result, score))
-        if result['candidate_plans'] >= 50: # TODO: should clip the other results
+        if result['candidate_plans'] >= 10: # TODO: should clip the other results
             best_from_problem[problem] = max(best_from_problem[problem], score)
         candidates_from_problem[problem] = max(candidates_from_problem[problem], result['candidate_plans'])
 
+    print('\nGood problems:')
     for problem in sorted(best_from_problem): # best_from_problem, candidates_from_problem
         if best_from_problem[problem] != 0:
             print('{}) #={}, p_success={:.3f}'.format(
@@ -739,8 +751,8 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     data_from_k_name = defaultdict(lambda: defaultdict(list))
     for result, score in scored_results:
         planner = get_planner_name(result)
-        if result['planner'] in ['forbid']:
-            continue
+        #if result['planner'] in ['forbid']:
+        #    continue
         if result['diverse'].get('selector', None) in []: # greedy | first | exact | random
             continue
         if result['diverse'].get('metric', None) in []: # p_success | stability | uniqueness
@@ -753,7 +765,9 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         data_from_k_name[planner][result['diverse']['k']].append(score)
 
     print(sorted(data_from_k_name))
-    plot_data(data_from_k_name, ratio=ratio, y_label=metric)
+    y_label = metric
+    y_label = 'Pr$(E_P)$' # \ensuremath{\text{Pr}\left(#1\right)}
+    plot_data(data_from_k_name, ratio=ratio, y_label=y_label)
     quit()
 
     # TODO: be careful with problem path on different machines
@@ -811,6 +825,13 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
 
 ##################################################
 
+def dump_experiments():
+    for path in reversed(list_paths(EXPERIMENTS_DIR)):
+        print(SEPARATOR)
+        print(path)
+        analyze_results(read_json(path))
+    quit()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--risk', action='store_true', help='TBD')
@@ -824,6 +845,7 @@ def main():
         #compare_histograms(results)
         analyze_experiment(results)
     else:
+        #dump_experiments()
         #solve_pddlstream()
         solve_pddl(use_risk=args.risk)
 
