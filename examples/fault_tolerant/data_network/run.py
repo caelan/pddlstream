@@ -336,14 +336,28 @@ def solve_pddlstream():
 # https://bitbucket.org/ipc2018-classical/workspace/projects/GEN
 
 PROBABILITIES = {
-    'connect': P_SUCCESS,
-    'connected': P_SUCCESS,
+    # (connect ?from-area ?to-area ?pipe)
+    'connect': P_SUCCESS, # pipesworld
+    # TODO: annotate with types?
+    # (CONNECTED ?x ?y) # risk
+    # (CONNECTED ?from - server ?to - server) # data-network
+    # (connected ?area ?area) # storage (?storearea)
+    # (connected ?from ?to) # trucks
+    # (connected ?curpos ?nextpos) # visitall
+    # (connected ?n1 ?n2) # no-mystery
+    # (connected ?n1 ?n2) no-mprime
+    'connected': P_SUCCESS, # risk, storage
     'road': P_SUCCESS, # transport
+    # (link ?loc-from ?loc-to)
     'link': P_SUCCESS, # driverlog
+    # (can_traverse ?rover ?waypoint1 ?waypoint2)
     'can_traverse': P_SUCCESS, # rovers
-    'visible': P_SUCCESS, # rovers
-    'visible_from': P_SUCCESS, # rovers
-    'path': P_SUCCESS,
+    # (visible ?waypoint1 ?waypoint2)
+    'visible': P_SUCCESS, # rovers (can see next location)
+    # (visible ?objective ?waypoint)
+    'visible_from': P_SUCCESS, # rovers (can see an objective)
+    # (path ?loc-from ?loc-to) # driverlog
+    'path': P_SUCCESS, # driverlog
 }
 
 def run_selection(domain_pddl, all_solutions, outputs, select_time=5 * 60, samples=100):
@@ -516,7 +530,7 @@ def solve_pddl(use_risk=False, visualize=False):
     #directory_paths = [TERMES_PATH] # create-block, destroy-block
 
     directories = {
-        1: 'data-network-opt18',
+        #1: 'data-network-opt18', # < 10
         2: 'visitall-opt11-strips',
         3: 'rovers-02',
         4: 'rovers',
@@ -524,9 +538,10 @@ def solve_pddl(use_risk=False, visualize=False):
         6: 'no-mprime',
         7: 'no-mystery',
         8: 'storage',
-        9: 'trucks',
-        10: 'transport-opt11-strips',
-        11: 'driverlog',
+        9: 'trucks', # trucks-strips  # Separate domain per problem
+        # 'transport-opt08-strips',
+        #10: 'transport-opt11-strips', # Too difficult?
+        #11: 'driverlog', # Too difficult?
     }
 
     problems = []
@@ -560,7 +575,7 @@ def solve_pddl(use_risk=False, visualize=False):
     top_planners = []
     configs.extend((problem, planner, False) for problem, planner in product(problems, top_planners))
 
-    planners = ['ff-wastar3'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
+    planners = ['dijkstra'] # dijkstra | ff-wastar1 | ff-wastar3 | ff-wastar3-unit
     #planners = []
     candidate_probs = [False] #, True]
     configs.extend(product(problems, planners, candidate_probs))
@@ -677,6 +692,7 @@ def compare_histograms(results, n_bins=10, min_value=10, max_value=100):
 
 def get_planner_name(result):
     planner = '{}'.format(result.get('planner', None))
+    #return planner
     if result.get('candidate_probs', False):
         planner += ' {}'.format(result['candidate_probs'])
     diverse = result.get('diverse', None)
@@ -697,11 +713,25 @@ def analyze_results(results):
     print('\nPlanners ({}):'.format(len(planner_trials)), planner_trials)
     return problem_trials, planner_trials
 
+# IPC
+# ffwastar3: experiments/20-09-09_13-52-33.json
+# forbid, symk: experiments/20-09-09_03-05-53.json
+# ffwastar3: experiments/20-09-03_00-38-12.json
+# ffwastar3: experiments/20-09-02_11-47-27.json
+# python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-09_13-52-33.json experiments/20-09-09_03-05-53.json
+
+# Risk
+# forbid, symk: experiments/20-09-08_19-50-49.json
+# python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-09_11-04-56.json experiments/20-09-08_15-43-34.json
+
 def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     # TODO: compare on just -opt
     problem_trials, planner_trials = analyze_results(results)
 
-    metric = 'p_success' # p_success | runtime | full_runtime | all_plans | num_plans | runtime | error | total_cost
+    # TODO: some of these are deprecated
+    # runtime | full_runtime | search_runtime | candidate_runtime | select_runtime
+    # all_plans | num_plans | candidate_plans
+    metric = 'p_success' # p_success | error | total_cost
     ratio = True
 
     #from examples.fault_tolerant.risk_management.run import analyze_results
@@ -714,6 +744,9 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         #    continue
         #if 'unit' in result['planner']:
         #    continue
+        if result['error']:
+            print(result) # TODO: UniversalQuantifier error?
+            quit()
         if result.get('candidate_probs', False) in [True]:
             continue
         if result['planner'] in ['ff-wastar3-unit']: # 'forbid', 'kstar', 'symk', 'ff-wastar3']:
@@ -722,8 +755,11 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
             continue
         if result['diverse'].get('metric', None) in ['uniqueness']: # p_success | stability | uniqueness
             continue
-        if result['planner'] not in DIVERSE_PLANNERS:
+
+        if result['planner'] not in DIVERSE_PLANNERS and ('candidate_plans' not in result):
             result['candidate_plans'] = result['num_plans'] # all_plans
+        if result['planner'] not in DIVERSE_PLANNERS and ('num_plans' not in result):
+            result['num_plans'] = result['all_plans'] # all_plans
 
         if result['all_plans']: # and result['diverse']['selector'] == 'random':
             print('{} | {} | All: {} | Pruned: {} | Candidates: {}'.format(
@@ -767,6 +803,7 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     print(sorted(data_from_k_name))
     y_label = metric
     y_label = 'Pr$(E_P)$' # \ensuremath{\text{Pr}\left(#1\right)}
+    y_label = 'Select time (seconds)'
     plot_data(data_from_k_name, ratio=ratio, y_label=y_label)
     quit()
 
@@ -825,6 +862,89 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
 
 ##################################################
 
+def bar_graph(results):
+    import matplotlib
+    import matplotlib.pyplot as plt
+    FONT_SIZE = 14
+    WIDTH = 0.2
+    ALPHA = 1.0 # 0.5
+
+    threshold = 10
+    metrics = ['all_plans', 'candidate_plans'] # num_plans
+    best_from_problem = defaultdict(int)
+    scored_results = defaultdict(list)
+    for result in results:
+        problem = extract_problem(result['problem_path'])
+        planner = result['planner']
+        if result['error']:
+            print(result) # TODO: UniversalQuantifier error?
+            quit()
+        if result.get('candidate_probs', False) in [True]:
+            continue
+        if planner in ['ff-wastar3-unit']: # 'forbid', 'kstar', 'symk', 'ff-wastar3']:
+            continue
+
+        if result['planner'] not in DIVERSE_PLANNERS and ('candidate_plans' not in result):
+            result['candidate_plans'] = result['num_plans'] # all_plans
+        if result['planner'] not in DIVERSE_PLANNERS and ('num_plans' not in result):
+            result['num_plans'] = result['all_plans'] # all_plans
+
+        #score = float(result['candidate_plans']) / result['all_plans'] if result['all_plans'] else 0.
+        for metric in metrics:
+            score = result[metric]
+            scored_results[problem, metric, planner].append(score)
+            if score >= threshold:
+                best_from_problem[problem, metric] = max(best_from_problem[problem, metric], score)
+
+    problems = sorted({problem for problem, _ in best_from_problem})
+    print('Problems:', problems)
+    planners = sorted({planner for _, _, planner in scored_results})
+    print('Planners:', planners)
+
+    relative = defaultdict(float)
+    for problem, metric, planner in scored_results:
+        if best_from_problem[problem, metric] != 0:
+            average = 0.
+            if scored_results[problem, metric, planner]:
+                average = np.mean(scored_results[problem, metric, planner])
+            relative[problem, metric, planner] = float(average) / best_from_problem[problem, metric]
+
+    matplotlib.rcParams.update({'font.size': FONT_SIZE})
+    ax = plt.subplot()
+    #hatch = '/'
+    hatch = None
+
+    indices = np.array(range(len(metrics)))
+    for p_idx, planner in enumerate(planners): # Add everything with the same label at once
+        values = []
+        for metric in metrics:
+            values.append([relative[problem, metric, planner]
+                           for problem in problems if best_from_problem[problem, metric] != 0])
+            # values.append([np.mean(scored_results[problem, metric, planner]) / best_from_problem[problem, metric]
+            #                for problem in problems if best_from_problem[problem, metric] != 0])
+
+        means = list(map(np.mean, values)) # 100
+        #stds = list(map(np.std, values))
+        stds = None
+        rects = plt.bar(p_idx*WIDTH + indices, means, WIDTH, alpha=ALPHA, hatch=hatch, yerr=stds,
+                        label=planner) # align='center'
+
+    plt.title('Plan Ratio Pre/Post Pruning')
+    ticks = np.arange(len(metrics)) + WIDTH*len(metrics)/2.
+    plt.xticks(ticks, metrics)
+    plt.xlabel('Pre/Post Pruning')
+    ax.autoscale(tight=True)
+    plt.legend(loc='best') # 'upper left'
+    #plt.legend(loc='upper left')
+    plt.ylabel('Plan Ratio')
+    plt.ylim([0., 1.])
+    #plt.savefig('test')
+    plt.tight_layout()
+    #plt.grid()
+    plt.show()
+
+##################################################
+
 def dump_experiments():
     for path in reversed(list_paths(EXPERIMENTS_DIR)):
         print(SEPARATOR)
@@ -843,9 +963,10 @@ def main():
         for experiment_path in args.experiments:
             results.extend(read_json(experiment_path))
         #compare_histograms(results)
-        analyze_experiment(results)
+        #analyze_experiment(results)
+        bar_graph(results)
     else:
-        #dump_experiments()
+        dump_experiments()
         #solve_pddlstream()
         solve_pddl(use_risk=args.risk)
 

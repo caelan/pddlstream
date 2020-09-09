@@ -442,6 +442,7 @@ def plot_data(data_from_k_name, ratio=False, y_label=None, scale=0.5): # 0.0 | 0
         plt.ylabel('{} Performance Ratio'.format(y_label))
     else:
         plt.ylabel(y_label)
+    plt.ylim(bottom=0)
     plt.grid()
     plt.legend(loc='best')
     plt.tight_layout()
