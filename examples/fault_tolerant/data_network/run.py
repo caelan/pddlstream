@@ -346,7 +346,7 @@ PROBABILITIES = {
     # (connected ?curpos ?nextpos) # visitall
     # (connected ?n1 ?n2) # no-mystery
     # (connected ?n1 ?n2) no-mprime
-    'connected': P_SUCCESS, # risk, storage
+    'connected': P_SUCCESS, # risk, storage, visitall
     'road': P_SUCCESS, # transport
     # (link ?loc-from ?loc-to)
     'link': P_SUCCESS, # driverlog
@@ -700,7 +700,10 @@ def get_planner_name(result):
         #print(diverse)
         planner = '{} {}'.format(planner, diverse['selector']) # diverse['k']
     if 'metric' in diverse:
-        planner += ' {}'.format(diverse['metric'])
+        metric = diverse['metric']
+        if diverse['metric'] == 'p_success':
+            metric = 'Pr$(E_P)$'
+        planner += ' {}'.format(metric)
     # if result.get('corrected', False):
     #     planner += '-c'
     return planner
@@ -719,8 +722,11 @@ def analyze_results(results):
 # ffwastar3: experiments/20-09-03_00-38-12.json
 # ffwastar3: experiments/20-09-02_11-47-27.json
 # python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-09_13-52-33.json experiments/20-09-09_03-05-53.json
+# python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-03_00-38-12.json experiments/20-09-09_03-05-53.json
+# python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-02_11-47-27.json experiments/20-09-09_03-05-53.json
 
 # Risk
+# dijkstra: experiments/20-09-09_18-09-03.json
 # forbid, symk: experiments/20-09-08_19-50-49.json
 # python3 -m examples.fault_tolerant.data_network.run -e experiments/20-09-09_11-04-56.json experiments/20-09-08_15-43-34.json
 
@@ -731,8 +737,8 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
     # TODO: some of these are deprecated
     # runtime | full_runtime | search_runtime | candidate_runtime | select_runtime
     # all_plans | num_plans | candidate_plans
-    metric = 'p_success' # p_success | error | total_cost
-    ratio = True
+    metric = 'select_runtime' # p_success | error | total_cost
+    ratio = False
 
     #from examples.fault_tolerant.risk_management.run import analyze_results
     best_from_problem = defaultdict(float)
@@ -749,7 +755,7 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
             quit()
         if result.get('candidate_probs', False) in [True]:
             continue
-        if result['planner'] in ['ff-wastar3-unit']: # 'forbid', 'kstar', 'symk', 'ff-wastar3']:
+        if result['planner'] in ['ff-wastar3-unit', 'forbid']: # 'forbid', 'kstar', 'symk', 'ff-wastar3']:
             continue
         if result['diverse'].get('selector', None) in ['first']: # greedy | first | exact | random
             continue
@@ -774,11 +780,13 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
         #score = math.log(result[p_success])
         #score = 1./result[p_success]
         scored_results.append((result, score))
-        if result['candidate_plans'] >= 10: # TODO: should clip the other results
+        if result['candidate_plans'] >= min_plans: # TODO: should clip the other results
             best_from_problem[problem] = max(best_from_problem[problem], score)
         candidates_from_problem[problem] = max(candidates_from_problem[problem], result['candidate_plans'])
 
-    print('\nGood problems:')
+    good_problems = [problem for problem in sorted(best_from_problem) if best_from_problem[problem] != 0]
+    print('\n{} good problems:'.format(len(good_problems)))
+    #print(good_problems)
     for problem in sorted(best_from_problem): # best_from_problem, candidates_from_problem
         if best_from_problem[problem] != 0:
             print('{}) #={}, p_success={:.3f}'.format(
@@ -802,8 +810,10 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
 
     print(sorted(data_from_k_name))
     y_label = metric
-    y_label = 'Pr$(E_P)$' # \ensuremath{\text{Pr}\left(#1\right)}
-    y_label = 'Select time (seconds)'
+    if 'time' in metric:
+        y_label = 'Select Time (Seconds)'
+    else:
+        y_label = 'Pr$(E_P)$' # \ensuremath{\text{Pr}\left(#1\right)}
     plot_data(data_from_k_name, ratio=ratio, y_label=y_label)
     quit()
 
@@ -862,14 +872,13 @@ def analyze_experiment(results, min_plans=10, verbose=False): # 10 | 25
 
 ##################################################
 
-def bar_graph(results):
+def bar_graph(results, threshold=10):
     import matplotlib
     import matplotlib.pyplot as plt
     FONT_SIZE = 14
-    WIDTH = 0.2
+    WIDTH = 0.25
     ALPHA = 1.0 # 0.5
 
-    threshold = 10
     metrics = ['all_plans', 'candidate_plans'] # num_plans
     best_from_problem = defaultdict(int)
     scored_results = defaultdict(list)
@@ -894,11 +903,12 @@ def bar_graph(results):
             score = result[metric]
             scored_results[problem, metric, planner].append(score)
             if score >= threshold:
+                #best_from_problem[problem, metric] = 1
                 best_from_problem[problem, metric] = max(best_from_problem[problem, metric], score)
 
     problems = sorted({problem for problem, _ in best_from_problem})
     print('Problems:', problems)
-    planners = sorted({planner for _, _, planner in scored_results})
+    planners = sorted({planner for _, _, planner in scored_results}, key=lambda n: ('astar' not in n, n))
     print('Planners:', planners)
 
     relative = defaultdict(float)
@@ -931,7 +941,9 @@ def bar_graph(results):
 
     plt.title('Plan Ratio Pre/Post Pruning')
     ticks = np.arange(len(metrics)) + WIDTH*len(metrics)/2.
-    plt.xticks(ticks, metrics)
+
+    metric_names = [name.replace('_', ' ').title() for name in metrics] # capitalize()
+    plt.xticks(ticks, metric_names)
     plt.xlabel('Pre/Post Pruning')
     ax.autoscale(tight=True)
     plt.legend(loc='best') # 'upper left'
@@ -963,8 +975,8 @@ def main():
         for experiment_path in args.experiments:
             results.extend(read_json(experiment_path))
         #compare_histograms(results)
-        #analyze_experiment(results)
-        bar_graph(results)
+        analyze_experiment(results)
+        #bar_graph(results)
     else:
         dump_experiments()
         #solve_pddlstream()
