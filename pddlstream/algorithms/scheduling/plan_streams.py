@@ -36,6 +36,9 @@ from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.language.object import Object
 from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 
+RENAME_ACTIONS = False
+#RENAME_ACTIONS = not USE_FORBID
+
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
                                          'supporting_facts', 'axiom_plan'])
 
@@ -96,9 +99,10 @@ def instantiate_optimizer_axioms(instantiated, domain, results):
     temp_problem = get_problem(evaluations, Not((UNSATISFIABLE,)), temp_domain)
     # TODO: UNSATISFIABLE might be in atoms making the goal always infeasible
     with Verbose():
-        # TODO: the FastDownward instantiation will prune static preconditions
+        # TODO: the FastDownward instantiation prunes static preconditions
+        use_fd = False if using_optimizers(results) else FD_INSTANTIATE
         new_instantiated = instantiate_task(task_from_domain_problem(temp_domain, temp_problem),
-                                            check_infeasible=False, prune_static=False)
+                                            use_fd=use_fd, check_infeasible=False, prune_static=False)
         assert new_instantiated is not None
     instantiated.axioms.extend(new_instantiated.axioms)
     instantiated.atoms.update(new_instantiated.atoms)
@@ -289,7 +293,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, debug=False, rename=not USE_FORBID, **kwargs):
+                                effort_weight, debug=False, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
@@ -304,9 +308,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
         add_optimizer_effects(instantiated, node_from_atom)
         # TODO: reachieve=False when using optimizers or should add applied facts
         instantiate_optimizer_axioms(instantiated, domain, all_results)
-    action_from_name = rename_instantiated_actions(instantiated, rename)
-    #for action in action_from_name.values():
-    #    action.dump()
+    action_from_name = rename_instantiated_actions(instantiated, RENAME_ACTIONS)
+    # TODO: the action unsatisfiable conditions are pruned
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = True
@@ -316,10 +319,9 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if renamed_plan is None:
         return instantiated, None, temporal_plan, INF
-    if rename:
-        action_instances = [action_from_name[name] for name, _ in renamed_plan]
-    else:
-        action_instances = [action_from_name['({} {})'.format(name, ' '.join(args))] for name, args in renamed_plan]
+
+    action_instances = [action_from_name[name if RENAME_ACTIONS else '({} {})'.format(name, ' '.join(args))]
+                        for name, args in renamed_plan]
     cost = get_plan_cost(action_instances, cost_from_action)
     return instantiated, action_instances, temporal_plan, cost
 

@@ -6,7 +6,7 @@ from random import uniform
 
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.utils import read_pddl, irange, INF, randomize, Profiler
-from pddlstream.language.constants import get_length, PDDLProblem, print_solution, Exists, And
+from pddlstream.language.constants import get_length, PDDLProblem, print_solution, Exists, And, NOT, MINIMIZE, is_parameter
 from pddlstream.language.generator import from_test, from_gen, from_fn, from_sampler, from_list_fn
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
@@ -20,22 +20,73 @@ from pddlstream.language.stream import StreamInfo, PartialInputs
 
 # TODO: rocket and car domains
 
-def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=False):
+def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=True):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
     # https://www.fico.com/fico-xpress-optimization/docs/latest/examples/python/GUID-E77AC35C-9488-3F0A-98B4-7F5FD81AFF1D.html
     if not has_gurobi():
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
-    from gurobipy import Model, GRB, quicksum
+    from gurobipy import Model, GRB, quicksum, GurobiError
 
     def fn(outputs, facts, hint={}):
         print(outputs, facts)
 
+        model = Model(name='TAMP')
+        model.setParam(GRB.Param.OutputFlag, verbose)
+        if max_time < INF:
+            model.setParam(GRB.Param.TimeLimit, max_time)
+
+        var_from_param = {}
+        for fact in facts:
+            prefix, args = fact[0], fact[1:]
+            if prefix in ['wcash', 'pcash', 'mcash']:
+                cash, = args
+                if is_parameter(cash):
+                    var_from_param[cash] = model.addVar(lb=0, ub=GRB.INFINITY)
+        get_var = lambda p: var_from_param[p] if is_parameter(p) else p # var_from_param.get(p, p)
+
+        objective_terms = []
+        for index, fact in enumerate(facts):
+            prefix, args = fact[0], map(get_var, fact[1:])
+            name = str(index)
+            if prefix == 'ge':
+                cash1, cash2 = args
+                model.addConstr(cash1 >= cash2, name=name)
+            elif prefix == 'withdraw':
+                wcash, pcash1, pcash2, mcash1, mcash2 = args
+                model.addConstr(pcash1 + wcash == pcash2, name=name)
+                model.addConstr(mcash1 - wcash == mcash2, name=name)
+            elif prefix == NOT:
+                fact = args[0]
+                predicate, args = fact[0], fact[1:]
+                if predicate == 'posecollision' and collisions:
+                    collision_constraint(model, name, *map(get_var, args))
+            elif prefix == MINIMIZE:
+                fact = args[0]
+                func, args = fact[0], fact[1:]
+                if func in ('dist', 'distance'):
+                    objective_terms.extend(distance_cost(*map(get_var, args)))
+        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+
+        try:
+            model.optimize()
+        except GurobiError as e:
+            raise e
+        # TODO: use model.solCount instead
+        print('Solutions: {} | Status: {}'.format(model.solCount, model.status))
+        #print('Objective: {:.3f} | Solutions: {} | Status: {}'.format(model.objVal, model.solCount, model.status))
+
+        # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
+        if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL | UNBOUNDED
+            return OptimizerOutput()
+        assignment = tuple(get_var(out).x for out in outputs)
         return OptimizerOutput(assignments=[assignment])
     return from_list_fn(fn)
 
-def get_problem(optimize=False):
+##################################################
+
+def get_problem(optimize=True):
     initial_atm = 30
     initial_person = 2
 
@@ -97,6 +148,8 @@ def get_problem(optimize=False):
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
+##################################################
+
 def solve_pddlstream(focused=True):
     problem = get_problem()
     print(problem.constant_map)
@@ -104,6 +157,7 @@ def solve_pddlstream(focused=True):
     print(problem.goal)
 
     stream_info = {
+        't-ge': StreamInfo(eager=True),
         'withdraw': StreamInfo(opt_gen_fn=PartialInputs(unique=True)),
     }
     with Profiler(field='cumtime'):
@@ -111,13 +165,15 @@ def solve_pddlstream(focused=True):
             solution = solve_focused(problem, stream_info=stream_info,
                                      planner='max-astar', unit_costs=True,
                                      initial_complexity=3,
-                                     debug=True, verbose=True)
+                                     clean=False, debug=True, verbose=True)
         else:
             solution = solve_incremental(problem, planner='max-astar', unit_costs=True,
-                                         debug=False, verbose=True)
+                                         clean=False, debug=False, verbose=True)
     print_solution(solution)
     plan, cost, certificate = solution
     print('Certificate:', certificate.preimage_facts)
+
+##################################################
 
 def solve_pddl():
     domain_pddl = read_pddl(__file__, 'domain0.pddl')

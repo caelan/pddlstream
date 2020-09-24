@@ -159,11 +159,11 @@ def instantiate_domain(task, prune_static=True):
 
 ##################################################
 
-def instantiate_task(task, check_infeasible=True, **kwargs):
+def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwargs):
     start_time = time()
     print()
     normalize.normalize(task)
-    if FD_INSTANTIATE:
+    if use_fd:
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)

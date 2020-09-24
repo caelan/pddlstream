@@ -23,6 +23,8 @@ NEGATIVE_SUFFIX = '-negative'
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
 # TODO: automatically convert to test streams on inputs
 
+##################################################
+
 def get_empty_fn():
     return lambda *input_values: None
 
@@ -100,8 +102,6 @@ def get_debug_gen_fn(stream):
     return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
 ##################################################
-
-# TODO: make wild the default output
 
 class WildOutput(object):
     def __init__(self, values=[], facts=[], actions=[], enumerated=False, replan=False):
