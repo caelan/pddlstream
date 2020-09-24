@@ -35,6 +35,6 @@
     :certified (and (pcash ?pcash2) (mcash ?mcash2)
                     (withdraw ?wcash ?pcash1 ?pcash2 ?mcash1 ?mcash2)))
 
-  ;(:function (Duration ?t)
-  ;           (Traj ?t))
+  (:function (withdrawcost ?c)
+             (wcash ?c))
 )

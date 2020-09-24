@@ -19,6 +19,7 @@
     )
     (:functions
         ;(minwithdraw ?m - machine)
+        (withdrawcost ?wcash)
     )
 
     ; TODO: convert typing using diverse code
@@ -31,7 +32,8 @@
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
      :effect (and (inpocket ?p ?pcash2) (maxwithdraw ?m ?mcash2)
                   (not (inpocket ?p ?pcash1)) (not (maxwithdraw ?m ?mcash1))
-                  (increase (total-cost) 2)))
+                  ;(increase (total-cost) 2)))
+                  (increase (total-cost) (withdrawcost ?wcash))))
 
     (:action finish
      ;:parameters (?p ?pcash) ; TODO: strange bug due to constants

@@ -1,7 +1,6 @@
 (define (stream cashpoint)
-  ;(:function (Dist ?q1 ?q2)
-  ;  (and (Conf ?q1) (Conf ?q2))
-  ;)
+  (:function (withdrawcost ?c)
+             (wcash ?c))
 
   ;;;;;;;;;;
 
@@ -31,6 +30,6 @@
     ;(:constraint (sum ?mc2 ?wc ?mc1)
     ;  :necessary (and (mcash ?mc2) (wcash ?wc) (mcash ?mc1)))
 
-    ;(:objective Dist)
+    (:objective withdrawcost)
   )
 )

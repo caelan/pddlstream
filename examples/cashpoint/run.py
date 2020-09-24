@@ -48,37 +48,36 @@ def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=True):
 
         objective_terms = []
         for index, fact in enumerate(facts):
-            prefix, args = fact[0], map(get_var, fact[1:])
             name = str(index)
-            if prefix == 'ge':
-                cash1, cash2 = args
-                model.addConstr(cash1 >= cash2, name=name)
-            elif prefix == 'withdraw':
-                wcash, pcash1, pcash2, mcash1, mcash2 = args
-                model.addConstr(pcash1 + wcash == pcash2, name=name)
-                model.addConstr(mcash1 - wcash == mcash2, name=name)
-            elif prefix == NOT:
-                fact = args[0]
-                predicate, args = fact[0], fact[1:]
-                if predicate == 'posecollision' and collisions:
-                    collision_constraint(model, name, *map(get_var, args))
-            elif prefix == MINIMIZE:
-                fact = args[0]
-                func, args = fact[0], fact[1:]
-                if func in ('dist', 'distance'):
-                    objective_terms.extend(distance_cost(*map(get_var, args)))
+            if fact[0] == MINIMIZE:
+                fact = fact[1]
+                func, args = fact[0], map(get_var, fact[1:])
+                if func == 'withdrawcost':
+                    cash, = args
+                    objective_terms.append(cash)
+            elif fact[0] == NOT:
+                fact = fact[1]
+                predicate, args = fact[0], map(get_var, fact[1:])
+            else:
+                prefix, args = fact[0], map(get_var, fact[1:])
+                if prefix == 'ge':
+                    cash1, cash2 = args
+                    model.addConstr(cash1 >= cash2, name=name)
+                elif prefix == 'withdraw':
+                    wcash, pcash1, pcash2, mcash1, mcash2 = args
+                    model.addConstr(pcash1 + wcash == pcash2, name=name)
+                    model.addConstr(mcash1 - wcash == mcash2, name=name)
         model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
 
         try:
             model.optimize()
         except GurobiError as e:
             raise e
-        # TODO: use model.solCount instead
-        print('Solutions: {} | Status: {}'.format(model.solCount, model.status))
-        #print('Objective: {:.3f} | Solutions: {} | Status: {}'.format(model.objVal, model.solCount, model.status))
+        objective = model.objVal if objective_terms else 0
+        print('Objective: {:.3f} | Solutions: {} | Status: {}'.format(objective, model.solCount, model.status))
 
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
-        if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL | UNBOUNDED
+        if not model.solCount: # GRB.INFEASIBLE | GRB.INF_OR_UNBD | OPTIMAL | SUBOPTIMAL | UNBOUNDED
             return OptimizerOutput()
         assignment = tuple(get_var(out).x for out in outputs)
         return OptimizerOutput(assignments=[assignment])
@@ -118,6 +117,7 @@ def get_problem(optimize=True):
         'add': from_fn(lambda c1, c2: (c1 + c2,)),
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
         'withdraw': from_fn(lambda wc, pc1, mc1: (pc1 + wc, mc1 - wc) if mc1 - wc >= 0 else None),
+        'withdrawcost': lambda c: c, # TODO: withdraw fee
         'gurobi': create_optimizer(),
     }
 
@@ -150,7 +150,7 @@ def get_problem(optimize=True):
 
 ##################################################
 
-def solve_pddlstream(focused=True):
+def solve_pddlstream(focused=True, planner='max-astar', unit_costs=False):
     problem = get_problem()
     print(problem.constant_map)
     print(problem.init)
@@ -163,11 +163,11 @@ def solve_pddlstream(focused=True):
     with Profiler(field='cumtime'):
         if focused:
             solution = solve_focused(problem, stream_info=stream_info,
-                                     planner='max-astar', unit_costs=True,
+                                     planner=planner, unit_costs=unit_costs,
                                      initial_complexity=3,
                                      clean=False, debug=True, verbose=True)
         else:
-            solution = solve_incremental(problem, planner='max-astar', unit_costs=True,
+            solution = solve_incremental(problem, planner=planner, unit_costs=unit_costs,
                                          clean=False, debug=False, verbose=True)
     print_solution(solution)
     plan, cost, certificate = solution
