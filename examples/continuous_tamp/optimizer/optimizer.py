@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion
+from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.language.optimizer import OptimizerOutput
 
@@ -17,6 +17,8 @@ def has_gurobi():
 
 def value_from_var(vars):
     import gurobipy
+    if isinstance(vars, float):
+        return vars
     if isinstance(vars, gurobipy.Var):
         return vars.X
     new_vars = list(map(value_from_var, vars))
@@ -97,7 +99,6 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
 
-        # TODO: grasp variable?
         var_from_param = {}
         for fact in facts:
             prefix, args = fact[0], fact[1:]
@@ -109,6 +110,10 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
                 _, param = args
                 if is_parameter(param):
                     var_from_param[param] = np_var(model)
+            elif prefix == 'grasp':  # TODO: iterate over combinations
+                _, param = args
+                if is_parameter(param):
+                    var_from_param[param] = GRASP
             elif prefix == 'traj':
                 raise NotImplementedError()
                 #param, = args

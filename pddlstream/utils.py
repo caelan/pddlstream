@@ -150,7 +150,7 @@ def implies(a, b):
 
 
 def irange(start, end=None, step=1):
-    # TODO: combine with other infinite generator
+    # TODO: combine with my other infinite generator
     if end is None:
         end = start
         start = 0

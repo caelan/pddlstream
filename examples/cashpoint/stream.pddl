@@ -1,30 +1,32 @@
 (define (stream nightout)
 
   (:stream s-cash
-    :outputs (?c)
-    :certified (and (wcash ?c) (cash ?c)))
+    :outputs (?wc)
+    :certified (and (wcash ?wc) (cash ?wc)))
 
   (:stream t-ge
-    :inputs (?c1 ?c2)
-    ;:domain (and (cash ?c1) (cash ?c2))
-    ;:domain (and (pcash ?c1) (pcash ?c2))
-    :domain (and (pcash ?c1) (tcash ?c2))
-    :certified (ge ?c1 ?c2))
+    :inputs (?pc ?tc)
+    ;:domain (and (cash ?pc) (cash ?tc))
+    ;:domain (and (pcash ?pc) (pcash ?tc))
+    :domain (and (pcash ?pc) (tcash ?tc))
+    :certified (ge ?pc ?tc))
 
   ; TODO: condition on the person and machine
   (:stream add
-    :inputs (?c1 ?c2)
-    :domain (and (pcash ?c1) (wcash ?c2))
-    :outputs (?c3)
-    :certified (and (pcash ?c3) (cash ?c3) (sum ?c1 ?c2 ?c3)
-                    (ge ?c3 ?c1))) ; (ge ?c3 ?c2)
+    :inputs (?pc1 ?wc)
+    :domain (and (pcash ?pc1) (wcash ?wc))
+    :outputs (?pc2)
+    :certified (and (pcash ?pc2) (cash ?pc2)
+                    (sum ?pc1 ?wc ?pc2)
+                    (ge ?pc2 ?pc1))) ; (ge ?pc2 ?wc)
 
   (:stream subtract
-    :inputs (?c3 ?c2)
-    ;:domain (ge ?c3 ?c2) ; (and (cash ?c3) (cash ?c2))
-    :domain (and (mcash ?c3) (wcash ?c2))
-    :outputs (?c1)
-    :certified (and (mcash ?c1) (cash ?c1) (sum ?c1 ?c2 ?c3))) ; (ge ?c3 ?c1)))
+    :inputs (?mc2 ?wc)
+    ;:domain (ge ?mc2 ?wc) ; (and (cash ?mc2) (cash ?wc))
+    :domain (and (mcash ?mc2) (wcash ?wc))
+    :outputs (?mc1)
+    :certified (and (mcash ?mc1) (cash ?mc1)
+               (sum ?mc1 ?wc ?mc2))) ; (ge ?mc2 ?mc1)))
 
   ;(:function (Duration ?t)
   ;           (Traj ?t))

@@ -262,8 +262,8 @@ def main():
     if args.algorithm == 'focused':
         solver = solve_focused  # solve_focused | solve_serialized
         solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
-                          replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
-                          max_time=args.max_time, max_iterations=INF, verbose=True,
+                          replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
+                          max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
                           unit_costs=args.unit, success_cost=success_cost,
                           unit_efforts=True, effort_weight=1,
                           search_sample_ratio=1,

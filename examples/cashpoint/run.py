@@ -7,7 +7,7 @@ from random import uniform
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.utils import read_pddl, irange, INF, randomize, Profiler
 from pddlstream.language.constants import get_length, PDDLProblem, print_solution, Exists, And
-from pddlstream.language.generator import from_test, from_gen, from_fn, from_sampler
+from pddlstream.language.generator import from_test, from_gen, from_fn, from_sampler, from_list_fn
 from pddlstream.algorithms.incremental import solve_incremental
 
 # https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl
@@ -23,7 +23,7 @@ def get_problem():
     min_take = 1
     #max_take = 10
     max_take = initial_atm
-    target = 50
+    target = 3 # 3 | 50
 
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
     constant_map = {
@@ -31,7 +31,9 @@ def get_problem():
         '@max': max_take,
         '@amount': target,
     }
+
     stream_pddl = read_pddl(__file__, 'stream.pddl')
+    #stream_pddl = read_pddl(__file__, 'optimizer.pddl')
     #stream_pddl = None
     stream_map = {
         #'s-cash': from_gen((c,) for c in randomize(irange(min_take, max_take + 1))),
@@ -40,6 +42,7 @@ def get_problem():
         't-ge': from_test(lambda c1, c2: c1 >= c2),
         'add': from_fn(lambda c1, c2: (c1 + c2,)),
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
+        'gurobi': from_list_fn(lambda *args, **kwargs: []),
     }
 
     person = 'Emre'

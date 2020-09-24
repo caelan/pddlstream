@@ -81,7 +81,7 @@ def optimistic_stream_instantiation(instance, bindings, evaluations, opt_evaluat
 def optimistic_stream_evaluation(evaluations, stream_plan, use_bindings=True):
     # TODO: can also use the instantiator and operate directly on the outputs
     # TODO: could bind by just using new_evaluations
-    evaluations = set(evaluations) # For subset testing
+    evaluations = set(evaluations) # Converts to a set for subset testing
     opt_evaluations = set(evaluations)
     new_results = []
     bindings = {}
