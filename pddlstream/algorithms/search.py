@@ -158,10 +158,13 @@ def diverse_from_task(sas_task, use_probabilities=False, base_cost=0, # 0 | 1
                     if success_prob == 1.:
                         return plans
                     for precondition in uncertain:
-                        p_this = prob_from_precondition[precondition] # Bayes update
-                        p_rest = success_prob / p_this
-                        p_rest_fail = p_this*(1 - p_rest)
-                        p_fail = 1 - success_prob
+                        # TODO: implement new cost transform
+                        # Bayes update
+                        p_this = prob_from_precondition[precondition] # Pr(E_l)
+                        #p_rest = success_prob / p_this # Pr(\bigcap_{l' \neq l} E_{l'})
+                        #p_rest_fail = p_this*(1 - p_rest) # Pr(E_l \bigcap_{l' \neq l} E_{l'})
+                        p_rest_fail = p_this - success_prob # equivalent to p_rest_fail above
+                        p_fail = 1 - success_prob # 1 - Pr(\bigcap_{l'} E_{l'})
                         prob_from_precondition[precondition] = p_rest_fail / p_fail
                 else:
                     print('Plan: {} | Cost: {} | Length: {} | Runtime: {:.3f}'.format(

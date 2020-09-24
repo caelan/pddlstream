@@ -146,7 +146,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
-                var.start = coord
+                var.start = coord # TODO: VarHintVal
 
         model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
         #m.write("file.lp")
