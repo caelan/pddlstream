@@ -1,7 +1,7 @@
 (define (domain nightout)
     (:requirements :typing)
     ;(:types person location machine)
-    (:constants @min @max @amount)
+    (:constants @amount) ; @min @max)
     (:predicates
         (person ?p)
         (machine ?m)
@@ -11,6 +11,7 @@
 
         (ge ?c1 ?c2)
         (sum ?c1 ?c2 ?c3)
+        (withdraw ?wcash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
 
         (finished)
         (inpocket ?p ?c)
@@ -25,16 +26,19 @@
      :parameters (?p ?m ?wcash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
      :precondition (and (person ?p) (machine ?m)
                         ; (ge ?wcash @min) (ge @max ?wcash) (ge ?mcash1 ?wcash)
-                        (sum ?pcash1 ?wcash ?pcash2) (sum ?mcash2 ?wcash ?mcash1) ; TODO: separate
+                        ;(sum ?pcash1 ?wcash ?pcash2) (sum ?mcash2 ?wcash ?mcash1) ; TODO: separate
+                        (withdraw ?wcash ?pcash1 ?pcash2 ?mcash1 ?mcash2)
                         (inpocket ?p ?pcash1) (maxwithdraw ?m ?mcash1))
      :effect (and (inpocket ?p ?pcash2) (maxwithdraw ?m ?mcash2)
                   (not (inpocket ?p ?pcash1)) (not (maxwithdraw ?m ?mcash1))
                   (increase (total-cost) 2)))
 
     (:action finish
-     :parameters (?p ?wcash)
-     :precondition (and (person ?p) (ge ?wcash @amount) ; (pcash ?wcash)
-                        (inpocket ?p ?wcash))
+     ;:parameters (?p ?pcash) ; TODO: strange bug due to constants
+     ;:precondition (and (person ?p) (ge ?pcash @amount) ; (pcash ?wcash)
+     :parameters (?p ?pcash ?tcash)
+     :precondition (and (person ?p) (ge ?pcash ?tcash)
+                        (inpocket ?p ?pcash))
      :effect (finished))
 )
 ; https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl
