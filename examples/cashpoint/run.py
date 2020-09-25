@@ -20,7 +20,7 @@ from pddlstream.language.stream import StreamInfo, PartialInputs
 
 # TODO: rocket and car domains
 
-def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=True):
+def create_optimizer(min_take=0, max_take=INF, max_time=5, diagnose=True, verbose=True):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -44,6 +44,11 @@ def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=True):
                 cash, = args
                 if is_parameter(cash):
                     var_from_param[cash] = model.addVar(lb=0, ub=GRB.INFINITY)
+                    if prefix == 'wcash':
+                        model.addConstr(var_from_param[cash] >= min_take)
+                        if max_take < INF:
+                            model.addConstr(var_from_param[cash] <= max_take)
+
         get_var = lambda p: var_from_param[p] if is_parameter(p) else p # var_from_param.get(p, p)
 
         objective_terms = []
@@ -73,10 +78,13 @@ def create_optimizer(collisions=True, max_time=5, diagnose=True, verbose=True):
             model.optimize()
         except GurobiError as e:
             raise e
-        objective = model.objVal if objective_terms else 0
+
+        objective = 0
+        if objective_terms:
+            objective = INF if model.status == GRB.INFEASIBLE else model.objVal
         print('Objective: {:.3f} | Solutions: {} | Status: {}'.format(objective, model.solCount, model.status))
 
-        # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
+        # https://www.gurobi.com/documentation/9.0/refman/optimization_status_codes.html
         if not model.solCount: # GRB.INFEASIBLE | GRB.INF_OR_UNBD | OPTIMAL | SUBOPTIMAL | UNBOUNDED
             return OptimizerOutput()
         assignment = tuple(get_var(out).x for out in outputs)
@@ -92,8 +100,8 @@ def get_problem(optimize=True):
     min_take = 1
     #max_take = 10
     max_take = initial_atm
-    target = 3 # 1 | 3 | 50
-    num_atms = 1
+    target = 50 # 1 | 3 | 50
+    num_atms = 2
 
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
     constant_map = {
@@ -118,7 +126,7 @@ def get_problem(optimize=True):
         'subtract': from_fn(lambda c3, c2: (c3 - c2,) if c3 - c2 >= 0 else None),
         'withdraw': from_fn(lambda wc, pc1, mc1: (pc1 + wc, mc1 - wc) if mc1 - wc >= 0 else None),
         'withdrawcost': lambda c: c, # TODO: withdraw fee
-        'gurobi': create_optimizer(),
+        'gurobi': create_optimizer(min_take, max_take),
     }
 
     person = 'Emre'
