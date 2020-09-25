@@ -92,8 +92,8 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     positive_externals = streams + functions + optimizers
-    use_skeletons = max_skeletons is not None
-    has_optimizers = bool(optimizers)
+    use_skeletons = (max_skeletons is not None)
+    has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution

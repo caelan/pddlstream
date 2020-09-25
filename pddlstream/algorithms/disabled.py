@@ -57,7 +57,7 @@ def process_instance(store, domain, instance, disable=True):
     evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
-        instance.disable(evaluations, domain)
+        instance.disable(store.evaluations, domain)
     for result in new_results:
         #add_certified(evaluations, result)  # TODO: only add if the fact is actually new?
         complexity = INF if result.external.is_special() or not disable else \

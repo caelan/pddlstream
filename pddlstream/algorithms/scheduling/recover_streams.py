@@ -48,8 +48,8 @@ def get_achieving_streams(evaluations, stream_results, max_effort=INF, **effort_
 def evaluations_from_stream_plan(evaluations, stream_results, max_effort=INF):
     opt_evaluations = set(evaluations)
     for result in stream_results:
-        assert(not result.instance.disabled)
-        assert(not result.instance.enumerated)
+        if result.instance.disabled or result.instance.enumerated:
+            raise RuntimeError(result)
         domain = set(map(evaluation_from_fact, result.instance.get_domain()))
         assert(domain <= opt_evaluations)
         opt_evaluations.update(map(evaluation_from_fact, result.get_certified()))

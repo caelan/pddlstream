@@ -36,8 +36,8 @@ INIT = [
     ('placeable', 'B', 'red'),
     ('pose', 'A', POSE0),
     ('pose', 'B', POSE1),
-    ('grasp', 'A', GRASP), # TODO: allow binding from init facts
-    ('grasp', 'B', GRASP),
+    #('grasp', 'A', GRASP), # TODO: allow binding from init facts
+    #('grasp', 'B', GRASP),
     ('region', 'grey'),
     ('region', 'red'),
 ]

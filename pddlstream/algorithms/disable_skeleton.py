@@ -45,7 +45,6 @@ def create_disable_axiom(external_plan, use_parameters=True):
     effect = (UNSATISFIABLE,)
     axiom = make_axiom(parameters, preconditions, effect)
     #axiom.dump()
-    #user_input('Continue?')
     return axiom
 
 

@@ -220,10 +220,10 @@ def main():
     parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
+    tamp_problem, args = initialize(parser)
 
     # TODO: test if placed in the same region
     defer_fn = defer_shared # never_defer | defer_unique | defer_shared
-    tamp_problem, args = initialize(parser)
     stream_info = {
         's-region': StreamInfo(defer_fn=defer_fn),
         's-grasp': StreamInfo(defer_fn=defer_fn),

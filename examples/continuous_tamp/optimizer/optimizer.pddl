@@ -7,11 +7,11 @@
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
-  ;(:stream s-grasp
-  ;  :inputs (?b)
-  ;  :domain (Block ?b)
-  ;  :outputs (?g)
-  ;  :certified (Grasp ?b ?g))
+  (:stream s-grasp
+    :inputs (?b)
+    :domain (Block ?b)
+    :outputs (?g)
+    :certified (Grasp ?b ?g))
 
   ;;;;;;;;;;
 
@@ -26,10 +26,10 @@
       :domain (Placeable ?b ?r)
       :graph (and (Contain ?b ?p ?r) (Pose ?b ?p)))
 
-    (:variables (?g) ; TODO: could be independent of the block
-      :inputs (?b)
-      :domain (Block ?b)
-      :graph (Grasp ?b ?g))
+    ;(:variables (?g) ; TODO: could be independent of the block
+    ;  :inputs (?b)
+    ;  :domain (Block ?b)
+    ;  :graph (Grasp ?b ?g))
 
     (:variables (?q)
       :inputs (?b ?p ?g)

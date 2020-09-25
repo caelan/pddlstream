@@ -7,7 +7,7 @@ from collections import defaultdict, namedtuple
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, get_cost_scale, \
     conditions_hold, apply_action, scale_cost, fd_from_fact, make_domain, make_predicate, evaluation_from_fd, \
     plan_preimage, fact_from_fd, USE_FORBID, pddl_from_instance, parse_action
-from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated
+from pddlstream.algorithms.instantiate_task import instantiate_task, sas_from_instantiated, FD_INSTANTIATE
 from pddlstream.algorithms.scheduling.add_optimizers import add_optimizer_effects, \
     using_optimizers, recover_simultaneous
 from pddlstream.algorithms.scheduling.apply_fluents import convert_fluent_streams
@@ -343,6 +343,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         init_evaluations = {e for e, n in evaluations.items() if n.result not in achieved_results}
         applied_results = achieved_results | set(applied_results)
         evaluations = init_evaluations # For clarity
+
     # TODO: could iteratively increase max_effort
     node_from_atom = get_achieving_streams(evaluations, applied_results, # TODO: apply to all_results?
                                            max_effort=max_effort)
@@ -367,6 +368,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
                        if action.name in replan_actions] or [len(action_plan)]) # step after action application
+
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)
     if temporal_plan is not None:
