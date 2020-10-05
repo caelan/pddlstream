@@ -181,6 +181,7 @@ def compute_inconsistent(model):
     # TODO: search over irreducible infeasible sets
     model.setObjective(0.0)
     model.computeIIS()
+    print('IIS is minimal\n' if model.IISMinimal else 'IIS is not minimal\n')
     #assert model.IISMinimal
     infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
     return infeasible
@@ -274,11 +275,9 @@ def identify_feasible_subsets(facts, model):
     # The trouble is that it's not clear which constraints would be useful to relax
     model.setObjective(0.0)
     model.computeIIS()
-    if model.IISMinimal:
-        print('IIS is minimal\n')
-    else:
-        print('IIS is not minimal\n')
+    print('IIS is minimal\n' if model.IISMinimal else 'IIS is not minimal\n')
     iss_constraints = {c.constrName for c in model.getConstrs() if c.IISConstr}
+    #iss_constraints = compute_inconsistent(model)
     iss_facts = [facts[int(name)] for name in sorted(iss_constraints)]
     print(iss_facts)
     for c in model.getConstrs():

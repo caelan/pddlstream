@@ -20,7 +20,7 @@ from pddlstream.language.stream import StreamInfo, PartialInputs
 
 # TODO: rocket and car domains
 
-def create_optimizer(min_take=0, max_take=INF, max_time=5, diagnose=True, verbose=True):
+def create_optimizer(min_take=0, max_take=INF, max_wallet=INF, max_time=5, integer=True, diagnose=True, verbose=True):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -43,11 +43,18 @@ def create_optimizer(min_take=0, max_take=INF, max_time=5, diagnose=True, verbos
             if prefix in ['wcash', 'pcash', 'mcash']:
                 cash, = args
                 if is_parameter(cash):
-                    var_from_param[cash] = model.addVar(lb=0, ub=GRB.INFINITY)
+                    # TODO: scale by 100 for cents
+                    var_from_param[cash] = model.addVar(
+                        lb=0, ub=GRB.INFINITY, vtype=GRB.INTEGER if integer else GRB.CONTINUOUS)
                     if prefix == 'wcash':
                         model.addConstr(var_from_param[cash] >= min_take)
                         if max_take < INF:
                             model.addConstr(var_from_param[cash] <= max_take)
+                    if (prefix == 'pcash') and (max_wallet < INF):
+                        model.addConstr(var_from_param[cash] <= max_wallet)
+                    if prefix == 'mcash':
+                        # min_balance >= 0
+                        pass
 
         get_var = lambda p: var_from_param[p] if is_parameter(p) else p # var_from_param.get(p, p)
 
