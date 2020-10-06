@@ -27,6 +27,7 @@ from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.downward import parse_sequential_domain, parse_problem, get_conjunctive_parts, get_literals
 from pddlstream.algorithms.downward import get_fluents, get_precondition, parse_domain_pddl, parse_sequential_domain
 from pddlstream.algorithms.algorithm import get_predicates
+from pddlstream.algorithms.serialized import SEPARATOR
 
 
 def read_pddl(filename):
@@ -45,7 +46,7 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num_tower=2, num_distract=5000): # 0 | 3 | 100 | 5000
+def get_problem(num_tower=3, num_distract=100): # 0 | 3 | 100 | 5000
     assert (num_tower >= 1) and (num_distract >= 1)
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
@@ -98,6 +99,7 @@ def extract_facts(facts, objects):
     return filtered_facts
 
 def identify_conditions(stream_facts, parameters, init):
+    # TODO: optimize this bottleneck
     facts_from_predicate = defaultdict(set)
     for fact in init:
         facts_from_predicate[get_prefix(fact)].add(fact)
@@ -147,13 +149,14 @@ def generate_partitions(predicates):
                 input_indices = tuple(sorted(input_indices))
                 yield predicate, input_indices, output_indices
 
-def reduce_init(problem, goal_objects, verbose=True):
-    # TODO: compute goal_objects here
+def reduce_init(problem, goal_objects, allow_tests=True, verbose=True):
+    # TODO: compute goal_objects + constants here
     domain = parse_sequential_domain(problem.domain_pddl)
     fluent_predicates = get_fluents(domain)
     # static_predicates = get_static_predicates(domain)
     # print(static_predicates)
 
+    # Facts with zero args will be in used_init
     all_init = problem.init
     used_init = extract_facts(all_init, goal_objects)
     unused_facts = set(all_init) - set(used_init)
@@ -175,6 +178,7 @@ def reduce_init(problem, goal_objects, verbose=True):
     # print(potential_streams.keys())
 
     streams = []
+    stream_info = {}
     # for (predicate, input_indices, output_indices), facts in potential_streams.items():
     for predicate, input_indices, output_indices in generate_partitions(infer_arity(unused_facts)):
         facts = facts_from_predicate[predicate]
@@ -184,21 +188,16 @@ def reduce_init(problem, goal_objects, verbose=True):
         domain_facts = {f for f in identify_conditions(facts, parameters, all_init)
                         if get_prefix(f) not in fluent_predicates}
         assert implies(inputs, domain_facts)
+
         parameters.update({i: '?o{}'.format(i) for i in output_indices})
         outputs = [parameters[i] for i in output_indices]
-        if not outputs: # Test stream
+        if not allow_tests and not outputs:
             continue
         certified_facts = set(identify_conditions(facts, parameters, all_init)) - domain_facts
-        # TODO: certified conditions that do not use output parameters
         certified_facts = {fact for fact in certified_facts
-                           if implies(get_args(fact), set(get_args(fact)) & set(outputs))}
+                           if set(get_args(fact)) & set(inputs + outputs)} # implies(outputs, get_args(fact)
         if not certified_facts:
             continue
-        # if verbose:
-        #     print()
-        #     print(predicate, input_indices, output_indices)
-        #     print('Domain:', domain_facts)
-        #     print('Certified', certified_facts)
 
         outputs_from_input = defaultdict(list)
         for fact in sorted(facts_from_predicate[predicate]):
@@ -217,12 +216,11 @@ def reduce_init(problem, goal_objects, verbose=True):
             stream.dump()
         stream.pddl_name = 'placeholder'
         streams.append(stream)
-    return used_init, streams
-    # TODO: no point if output not in it
+    return used_init, streams, stream_info
 
 ##################################################
 
-def custom_reduce(all_init, goal_objects):
+def custom_reduce_init(all_init, goal_objects):
     all_objects = {o for fact in all_init for o in get_args(fact)}
     unused_objects = all_objects - goal_objects
     active_objects = set(goal_objects)
@@ -257,45 +255,46 @@ def custom_reduce(all_init, goal_objects):
 
 ##################################################
 
-def solve_reduced(focused=True, replace=True):
+# TODO: remove preconditions that involve constants
+# Check plan validity wrt the true underlying state
+
+def solve_reduced(focused=False, replace=True, custom=False):
     problem = get_problem()
 
     # TODO: what if there are a bunch of predicates that aren't in the goal
+    # TODO: constants
     goal_objects = set()
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
 
-    pr = cProfile.Profile() # Profiler
-    pr.enable()
-    used_init = problem.init
-    if replace:
-        used_init, stream_pddl = reduce_init(problem, goal_objects, verbose=False)
-        print(used_init)
-        print('Init: {} | Reduced: {}'.format(len(problem.init), len(used_init)))
-    else:
-        stream_pddl = None
 
-    #stream_pddl = read_pddl('stream.pddl')
-    stream_map, stream_info = custom_reduce(problem.init, goal_objects)
-    stream_map, stream_info = {}, {}
+    stream_pddl, stream_map, stream_info, used_init = None, {}, {}, problem.init
+    if replace:
+        used_init, stream_pddl, stream_info = reduce_init(problem, goal_objects)
+        print('Init: {} | Reduced: {}'.format(len(problem.init), len(used_init)))
+        print('Init:', used_init)
+    elif custom:
+        stream_pddl = read_pddl('stream.pddl')
+        stream_map, stream_info = custom_reduce_init(problem.init, goal_objects)
+        # TODO: what is used_init?
 
     pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
-    print(pddlstream.init)
-    print(pddlstream.goal)
+    print(SEPARATOR)
+    print('Init:', pddlstream.init)
+    print('Goal:', pddlstream.goal)
     if focused:
         solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
     else:
         solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     print_solution(solution)
 
 ##################################################
 
 def main():
-    #solve_pddl()
-    #solve_pddlstream()
-    solve_reduced()
+    with Profiler(field='cumtime', num=10):
+        # solve_pddl()
+        # solve_pddlstream()
+        solve_reduced()
 
 if __name__ == '__main__':
     main()
