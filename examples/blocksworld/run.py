@@ -15,7 +15,7 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object, implies
+from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object, implies, Profiler, safe_zip
 from pddlstream.language.constants import print_solution
 #from pddlstream.language.optimizer import add_result_inputs, add_result_outputs
 
@@ -45,33 +45,37 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num=5000): # 0 | 3 | 100
+def get_problem(num_tower=2, num_distract=5000): # 0 | 3 | 100 | 5000
+    assert (num_tower >= 1) and (num_distract >= 1)
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
     stream_pddl = None
     stream_map = {}
-    others = ['b{}'.format(i) for i in range(num)]
+
+    tower = ['t{}'.format(i) for i in range(num_tower)]
+    others = ['b{}'.format(i) for i in range(num_distract)]
 
     init = [
-        ('on', 'b', 'a'),
-        ('on-table', 'a'),
-        ('on-table', 'c'),
-        ('clear', 'b'),
-        ('clear', 'c'),
         ('arm-empty',),
-        ('isblock', 'a'),
-        ('isblock', 'b'),
-        ('isblock', 'c'),
+        ('on-table', tower[0]),
+        ('clear', tower[-1]),
     ]
+    for b in tower + others:
+        init.extend([
+            ('isblock', b),
+        ])
+    for t1, t2 in safe_zip(tower[1:], tower[:-1]):
+        init.append(
+            ('on', t1, t2),
+        )
     for block in others:
         init.extend([
             ('on-table', block),
             ('clear', block),
-            ('isblock', block),
         ])
 
-    goal = ('on', 'a', 'c')
-    #goal = ('clear', 'a')
+    goal = ('on', tower[0], others[0])
+    #goal = ('clear', tower[0])
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
@@ -143,7 +147,7 @@ def generate_partitions(predicates):
                 input_indices = tuple(sorted(input_indices))
                 yield predicate, input_indices, output_indices
 
-def reduce_init(problem, goal_objects, verbose=False):
+def reduce_init(problem, goal_objects, verbose=True):
     # TODO: compute goal_objects here
     domain = parse_sequential_domain(problem.domain_pddl)
     fluent_predicates = get_fluents(domain)
@@ -190,11 +194,11 @@ def reduce_init(problem, goal_objects, verbose=False):
                            if implies(get_args(fact), set(get_args(fact)) & set(outputs))}
         if not certified_facts:
             continue
-        if verbose:
-            print()
-            print(predicate, input_indices, output_indices)
-            print('Domain:', domain_facts)
-            print('Certified', certified_facts)
+        # if verbose:
+        #     print()
+        #     print(predicate, input_indices, output_indices)
+        #     print('Domain:', domain_facts)
+        #     print('Certified', certified_facts)
 
         outputs_from_input = defaultdict(list)
         for fact in sorted(facts_from_predicate[predicate]):
@@ -215,6 +219,8 @@ def reduce_init(problem, goal_objects, verbose=False):
         streams.append(stream)
     return used_init, streams
     # TODO: no point if output not in it
+
+##################################################
 
 def custom_reduce(all_init, goal_objects):
     all_objects = {o for fact in all_init for o in get_args(fact)}
@@ -249,7 +255,9 @@ def custom_reduce(all_init, goal_objects):
     }
     return stream_map, stream_info
 
-def reduce_initial(replace=True):
+##################################################
+
+def solve_reduced(focused=True, replace=True):
     problem = get_problem()
 
     # TODO: what if there are a bunch of predicates that aren't in the goal
@@ -257,23 +265,27 @@ def reduce_initial(replace=True):
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
 
-    pr = cProfile.Profile()
+    pr = cProfile.Profile() # Profiler
     pr.enable()
     used_init = problem.init
     if replace:
-        used_init, stream_pddl = reduce_init(problem, goal_objects)
+        used_init, stream_pddl = reduce_init(problem, goal_objects, verbose=False)
+        print(used_init)
         print('Init: {} | Reduced: {}'.format(len(problem.init), len(used_init)))
     else:
         stream_pddl = None
 
     #stream_pddl = read_pddl('stream.pddl')
     stream_map, stream_info = custom_reduce(problem.init, goal_objects)
-    #stream_map, stream_info = {}, {}
+    stream_map, stream_info = {}, {}
 
     pddlstream = PDDLProblem(problem.domain_pddl, problem.constant_map, stream_pddl, stream_map, used_init, problem.goal)
-    print(pddlstream)
-    #solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
-    solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+    print(pddlstream.init)
+    print(pddlstream.goal)
+    if focused:
+        solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+    else:
+        solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
     pr.disable()
     pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     print_solution(solution)
@@ -283,7 +295,7 @@ def reduce_initial(replace=True):
 def main():
     #solve_pddl()
     #solve_pddlstream()
-    reduce_initial()
+    solve_reduced()
 
 if __name__ == '__main__':
     main()
