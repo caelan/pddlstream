@@ -15,7 +15,7 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object, implies, Profiler, safe_zip, user_input
+from pddlstream.utils import INF, read, elapsed_time, get_mapping, str_from_object, implies, Profiler, safe_zip, user_input
 from pddlstream.language.constants import print_solution
 #from pddlstream.language.optimizer import add_result_inputs, add_result_outputs
 
@@ -45,8 +45,8 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num_tower=2, num_distract=1): # 0 | 3 | 100 | 5000
-    assert (num_tower >= 1) and (num_distract >= 1)
+def get_problem(num_tower=3, num_distract=1000): # 0 | 3 | 100 | 5000
+    assert (num_tower >= 1) and (num_distract >= 0)
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
     stream_pddl = None
@@ -76,6 +76,7 @@ def get_problem(num_tower=2, num_distract=1): # 0 | 3 | 100 | 5000
 
     goal = ('on', tower[0], others[0])
     #goal = ('clear', tower[0])
+    #goal = ('holding', tower[0])
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
@@ -179,13 +180,15 @@ def reduce_init(problem, goal_objects, verbose=True):
     for predicate, input_indices, output_indices in generate_partitions(infer_arity(unused_facts)):
         facts = facts_from_predicate[predicate]
 
-        parameters = {i: '?i{}'.format(i) for i in input_indices}
+        parameters = {i: '?a{}'.format(i) for i in input_indices}
         inputs = [parameters[i] for i in input_indices]
         domain_facts = {f for f in identify_conditions(facts, parameters, all_init)
                         if get_prefix(f) not in fluent_predicates}
         assert implies(inputs, domain_facts)
 
-        parameters.update({i: '?o{}'.format(i) for i in output_indices})
+        # TODO: RuntimeError: Preimage fact ('clear', #o0) is not achievable!
+        # TODO: anything that starts wth '?o' causes an focused bug
+        parameters.update({i: '?b{}'.format(i) for i in output_indices})
         outputs = [parameters[i] for i in output_indices]
         #if not outputs:
         #    continue
@@ -226,15 +229,17 @@ def reduce_init(problem, goal_objects, verbose=True):
                         outputs, certified_facts, StreamInfo())
         stream.pddl_name = 'placeholder'
         streams.append(stream)
+
+        # TODO: make a function if inputs aren't optimistic
         p_success = float(num_successful) / num_inputs # p_success
-        stream_info[name] = StreamInfo(p_success=p_success) # TODO: make a function if inputs aren't optimistic
+        stream_info[name] = StreamInfo(opt_gen_fn=PartialInputs(unique=False), p_success=p_success)
         if verbose:
             print()
             stream.dump()
             print('Successful {}/{}: {:.3f}'.format(num_successful, num_inputs, p_success))
     if verbose:
         print('{}/{} init | {} streams'.format(len(used_init), len(all_init), len(streams)))
-        user_input()
+        #user_input()
 
     return used_init, streams, stream_info
 
@@ -302,9 +307,8 @@ def solve_reduced(focused=True, replace=True, custom=False):
     print('Init:', pddlstream.init)
     print('Goal:', pddlstream.goal)
     if focused:
-        # TODO: RuntimeError: Preimage fact ('clear', #o0) is not achievable!
         solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True,
-                                 max_skeletons=None, effort_weight=1,
+                                 max_skeletons=INF, effort_weight=None,
                                  verbose=True, debug=False)
     else:
         solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
