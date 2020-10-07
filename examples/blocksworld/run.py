@@ -15,7 +15,7 @@ from pddlstream.algorithms.focused import solve_focused
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object, implies, Profiler, safe_zip
+from pddlstream.utils import read, elapsed_time, get_mapping, str_from_object, implies, Profiler, safe_zip, user_input
 from pddlstream.language.constants import print_solution
 #from pddlstream.language.optimizer import add_result_inputs, add_result_outputs
 
@@ -29,12 +29,11 @@ from pddlstream.algorithms.downward import get_fluents, get_precondition, parse_
 from pddlstream.algorithms.algorithm import get_predicates
 from pddlstream.algorithms.serialized import SEPARATOR
 
+##################################################
 
 def read_pddl(filename):
     directory = os.path.dirname(os.path.abspath(__file__))
     return read(os.path.join(directory, filename))
-
-##################################################
 
 def solve_pddl():
     domain_pddl = read_pddl('domain.pddl')
@@ -46,7 +45,7 @@ def solve_pddl():
 
 ##################################################
 
-def get_problem(num_tower=3, num_distract=100): # 0 | 3 | 100 | 5000
+def get_problem(num_tower=2, num_distract=1): # 0 | 3 | 100 | 5000
     assert (num_tower >= 1) and (num_distract >= 1)
     domain_pddl = read_pddl('domain.pddl')
     constant_map = {}
@@ -119,13 +118,12 @@ def identify_conditions(stream_facts, parameters, init):
                 conditions.append(domain_predicate)
     return conditions
 
-def get_static_predicates(domain):
-    fluent_predicates = get_fluents(domain)
-    print(fluent_predicates)
-    assert not domain.axioms  # TODO: axioms
-    predicates = {predicate for action in domain.actions
-                  for predicate in get_predicates(get_precondition(action))}  # get_literals
-    return predicates - fluent_predicates
+# def get_static_predicates(domain):
+#     fluent_predicates = get_fluents(domain)
+#     assert not domain.axioms  # TODO: axioms
+#     predicates = {predicate for action in domain.actions
+#                   for predicate in get_predicates(get_precondition(action))}  # get_literals
+#     return predicates - fluent_predicates
 
 def get_gen_fn(outputs_from_input):
     return lambda *inps: iter(outputs_from_input[inps])
@@ -149,12 +147,9 @@ def generate_partitions(predicates):
                 input_indices = tuple(sorted(input_indices))
                 yield predicate, input_indices, output_indices
 
-def reduce_init(problem, goal_objects, allow_tests=True, verbose=True):
+def reduce_init(problem, goal_objects, verbose=True):
     # TODO: compute goal_objects + constants here
-    domain = parse_sequential_domain(problem.domain_pddl)
-    fluent_predicates = get_fluents(domain)
-    # static_predicates = get_static_predicates(domain)
-    # print(static_predicates)
+    fluent_predicates = get_fluents(parse_sequential_domain(problem.domain_pddl))
 
     # Facts with zero args will be in used_init
     all_init = problem.init
@@ -179,6 +174,7 @@ def reduce_init(problem, goal_objects, allow_tests=True, verbose=True):
 
     streams = []
     stream_info = {}
+    previous_streams = []
     # for (predicate, input_indices, output_indices), facts in potential_streams.items():
     for predicate, input_indices, output_indices in generate_partitions(infer_arity(unused_facts)):
         facts = facts_from_predicate[predicate]
@@ -191,13 +187,18 @@ def reduce_init(problem, goal_objects, allow_tests=True, verbose=True):
 
         parameters.update({i: '?o{}'.format(i) for i in output_indices})
         outputs = [parameters[i] for i in output_indices]
-        if not allow_tests and not outputs:
-            continue
+        #if not outputs:
+        #    continue
         certified_facts = set(identify_conditions(facts, parameters, all_init)) - domain_facts
         certified_facts = {fact for fact in certified_facts
                            if set(get_args(fact)) & set(inputs + outputs)} # implies(outputs, get_args(fact)
         if not certified_facts:
             continue
+        stream_key = (inputs, domain_facts, outputs, certified_facts)
+        if stream_key in previous_streams:
+            # TODO: further prune if another stream could be composed instead
+            continue
+        previous_streams.append(stream_key)
 
         outputs_from_input = defaultdict(list)
         for fact in sorted(facts_from_predicate[predicate]):
@@ -205,17 +206,36 @@ def reduce_init(problem, goal_objects, allow_tests=True, verbose=True):
             input_values = tuple(args[i] for i in input_indices)
             output_values = tuple(args[i] for i in output_indices)
             outputs_from_input[input_values].append(output_values)
+        num_successful = len(outputs_from_input)
+        assert num_successful >= 1
+
+        num_inputs = 1
+        input_params = set()
+        for fact in domain_facts:
+            fact_params = set(get_args(fact))
+            if input_params & fact_params:
+                raise NotImplementedError() # TODO: more intelligent instantiation
+            input_params.update(fact_params)
+            num_inputs *= len(facts_from_predicate[get_prefix(fact)])
+        if input_params != set(inputs):
+            raise NotImplementedError()
 
         name = '{}({},{})'.format(predicate, str_from_object(inputs), str_from_object(outputs))
         gen_fn = get_gen_fn(outputs_from_input)
-        # TODO: adjust effort
         stream = Stream(name, from_gen_fn(gen_fn), inputs, domain_facts,
                         outputs, certified_facts, StreamInfo())
+        stream.pddl_name = 'placeholder'
+        streams.append(stream)
+        p_success = float(num_successful) / num_inputs # p_success
+        stream_info[name] = StreamInfo(p_success=p_success) # TODO: make a function if inputs aren't optimistic
         if verbose:
             print()
             stream.dump()
-        stream.pddl_name = 'placeholder'
-        streams.append(stream)
+            print('Successful {}/{}: {:.3f}'.format(num_successful, num_inputs, p_success))
+    if verbose:
+        print('{}/{} init | {} streams'.format(len(used_init), len(all_init), len(streams)))
+        user_input()
+
     return used_init, streams, stream_info
 
 ##################################################
@@ -255,10 +275,10 @@ def custom_reduce_init(all_init, goal_objects):
 
 ##################################################
 
-# TODO: remove preconditions that involve constants
+# TODO: remove preconditions that involve constants, which increase the problem size
 # Check plan validity wrt the true underlying state
 
-def solve_reduced(focused=False, replace=True, custom=False):
+def solve_reduced(focused=True, replace=True, custom=False):
     problem = get_problem()
 
     # TODO: what if there are a bunch of predicates that aren't in the goal
@@ -266,7 +286,6 @@ def solve_reduced(focused=False, replace=True, custom=False):
     goal_objects = set()
     for fact in list_from_conjunction(problem.goal):
         goal_objects.update(get_args(fact))
-
 
     stream_pddl, stream_map, stream_info, used_init = None, {}, {}, problem.init
     if replace:
@@ -283,7 +302,10 @@ def solve_reduced(focused=False, replace=True, custom=False):
     print('Init:', pddlstream.init)
     print('Goal:', pddlstream.goal)
     if focused:
-        solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True, verbose=True, debug=False)
+        # TODO: RuntimeError: Preimage fact ('clear', #o0) is not achievable!
+        solution = solve_focused(pddlstream, stream_info=stream_info, unit_costs=True,
+                                 max_skeletons=None, effort_weight=1,
+                                 verbose=True, debug=False)
     else:
         solution = solve_incremental(pddlstream, unit_costs=True, verbose=True, debug=False)
     print_solution(solution)

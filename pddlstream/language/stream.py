@@ -116,7 +116,7 @@ class WildOutput(object):
         return iter([self.values, self.facts])
 
 class StreamInfo(ExternalInfo):
-    def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
+    def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False, context=False,
                  verbose=True, **kwargs):
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
@@ -124,6 +124,7 @@ class StreamInfo(ExternalInfo):
         self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
         self.negate = negate
         self.simultaneous = simultaneous
+        self.context = context
         self.verbose = verbose
         # TODO: make this false by default for negated test streams
         #self.order = 0
