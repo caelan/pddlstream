@@ -3,7 +3,7 @@
 PDDLStream is a planning framework comprised of an action language and suite of algorithms for Artificial Intelligence (AI) planning in the presence of sampling procedures.
 PDDLStream extends Planning Domain Definition Language (PDDL) by introducing streams, declarative specifications of sampling procedures.
 PDDLStream algorithms are domain independent and solve PDDLStream problems with only a blackbox description of each sampler.
-The orginal application of PDDLStream was for general-purpose robot Task and Motion Planning (TAMP). 
+The original application of PDDLStream was for general-purpose robot Task and Motion Planning (TAMP). 
 
 The [default](https://github.com/caelan/pddlstream) **pddlstream** branch ([stable](https://github.com/caelan/pddlstream/tree/stable)) is the newest stable "release" of **pddlstream**.
 The [master](https://github.com/caelan/pddlstream/tree/master) **pddlstream** branch is the most recent and advanced version of **pddlstream** but also is somewhat experimental.
@@ -23,7 +23,7 @@ Caelan R. Garrett, Tomás Lozano-Pérez, Leslie P. Kaelbling. PDDLStream: Integr
 
 ## History
 
-PDDLStream is the "third version" of the STRIPStream planning framework, intended to supercede the previous versions:
+PDDLStream is the "third version" of the STRIPStream planning framework, intended to supersede the previous versions:
 
 1) https://github.com/caelan/stripstream
 2) https://github.com/caelan/ss
@@ -61,7 +61,7 @@ If necessary, see FastDownward's [documentation](http://www.fast-downward.org/Ob
 
 ### Pure Python
 
-These are simple examples that can be run without additional depedencies:
+These are simple examples that can be run without additional dependencies:
 * Blocksworld: `$ python -m examples.blocksworld.blocksworld`
 * Blocksworld with Derived Predicates: `$ python -m examples.blocksworld.blocksworld_derived`
 * Discrete Belief Space: `$ python -m examples.discrete_belief.run`
