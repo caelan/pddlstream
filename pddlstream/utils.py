@@ -9,6 +9,7 @@ import time
 import random
 import cProfile
 import pstats
+import io
 
 from collections import defaultdict, deque
 from heapq import heappush, heappop
@@ -259,7 +260,9 @@ class Profiler(Saver):
         return self.pr
     def restore(self):
         self.pr.disable()
-        stats = pstats.Stats(self.pr).sort_stats(self.field)
+        stream = None
+        #stream = io.StringIO()
+        stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field)
         stats.print_stats(self.num)
         return stats
 
@@ -460,3 +463,7 @@ def inclusive_range(start, stop, step=1):
 def read_pddl(this_file, pddl_filename):
     directory = os.path.dirname(os.path.abspath(this_file))
     return read(os.path.join(directory, pddl_filename))
+
+
+def lowercase(*strings):
+    return [string.lower() for string in strings]

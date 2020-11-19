@@ -29,8 +29,10 @@ def is_refined(stream_plan):
 
 ##################################################
 
-def optimistic_process_instance(instantiator, instance):
+def optimistic_process_instance(instantiator, instance, verbose=False):
     for result in instance.next_optimistic():
+        if verbose:
+            print(result) # TODO: make a debug tools that reports the optimistic streams
         new_facts = False
         complexity = instantiator.compute_complexity(instance)
         for fact in result.get_certified():

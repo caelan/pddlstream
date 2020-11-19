@@ -4,7 +4,7 @@ from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_lisp, parse_goal, make_cost, set_cost_scale, \
     fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain
-from pddlstream.language.temporal import parse_domain
+from pddlstream.language.temporal import parse_domain, SimplifiedDomain
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous
@@ -41,7 +41,7 @@ def parse_constants(domain, constant_map):
     return obj_from_constant
 
 def check_problem(domain, streams, obj_from_constant):
-    for action in domain.actions + domain.axioms:
+    for action in (domain.actions + domain.axioms):
         for p, c in Counter(action.parameters).items():
             if c != 1:
                 raise ValueError('Parameter [{}] for action [{}] is not unique'.format(p.name, action.name))
@@ -59,9 +59,9 @@ def check_problem(domain, streams, obj_from_constant):
                 undeclared_predicates.add(name)
             elif len(get_args(fact)) != domain.predicate_dict[name].get_arity(): # predicate used with wrong arity: {}
                 print('Warning! predicate used with wrong arity in stream [{}]: {}'.format(stream.name, fact))
-        for constant in stream.constants:
-            if constant not in obj_from_constant:
-                raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
+        # for constant in stream.constants:
+        #     if constant not in obj_from_constant:
+        #         raise ValueError('Undefined constant in stream [{}]: {}'.format(stream.name, constant))
     if undeclared_predicates:
         print('Warning! Undeclared predicates: {}'.format(
             sorted(undeclared_predicates))) # Undeclared predicate: {}
@@ -83,23 +83,26 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     # TODO: just return the problem if already written programmatically
     #reset_globals() # Prevents use of satisfaction.py
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+
     domain = parse_domain(domain_pddl)
     #domain = domain_pddl
-    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,
-                                unit_costs=unit_costs, unit_efforts=unit_efforts)
-    evaluations = evaluations_from_init(init)
-    goal_exp = obj_from_value_expression(goal)
-
-    if not isinstance(domain, Domain):
-        #assert isinstance(domain, str) # raw PDDL is returned
-        _ = {name: Object(value, name=name) for name, value in constant_map.items()}
-        return evaluations, goal_exp, domain, streams
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
     if unit_costs:
         set_unit_costs(domain)
-    obj_from_constant = parse_constants(domain, constant_map)
+    obj_from_constant = parse_constants(domain, constant_map) # Keep before parse_stream_pddl
+
+    streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,
+                                unit_costs=unit_costs, unit_efforts=unit_efforts)
     check_problem(domain, streams, obj_from_constant)
+
+    evaluations = evaluations_from_init(init)
+    goal_exp = obj_from_value_expression(goal)
+
+    if isinstance(domain, SimplifiedDomain):
+        #assert isinstance(domain, str) # raw PDDL is returned
+        _ = {name: Object(value, name=name) for name, value in constant_map.items()}
+        return evaluations, goal_exp, domain, streams
 
     #normalize_domain_goal(domain, goal_expression)
     goal_exp = add_plan_constraints(constraints, domain, evaluations, goal_exp)

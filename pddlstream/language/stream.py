@@ -8,7 +8,7 @@ from pddlstream.language.conversion import list_from_conjunction, substitute_exp
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
-    parse_lisp_list, select_inputs
+    parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
@@ -374,7 +374,7 @@ class Stream(External):
     def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
-        self.certified = tuple(certified)
+        self.certified = tuple(map(convert_constants, certified))
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
 
         for p, c in Counter(self.outputs).items():

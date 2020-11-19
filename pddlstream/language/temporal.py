@@ -383,6 +383,7 @@ def reverse_plan(plan):
 TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
                                                'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
 
+# TODO: rename SimplifiedDomain
 SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
                                                    'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
                                                    'durative_actions', 'pddl'])
@@ -420,9 +421,9 @@ def parse_temporal_domain(domain_pddl):
     constants = convert_parameters(constants)
     axioms = list(map(convert_axiom, axioms))
 
-    return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
-                          {p.name: p for p in predicates}, functions, simple_actions, axioms,
-                          simple_from_durative, domain_pddl)
+    return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants,
+                            predicates, {p.name: p for p in predicates}, functions,
+                            simple_actions, axioms, simple_from_durative, domain_pddl)
 
 DURATIVE_ACTIONS = ':durative-actions'
 
