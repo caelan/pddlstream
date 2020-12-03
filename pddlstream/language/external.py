@@ -1,8 +1,8 @@
 from collections import Counter
 
 from pddlstream.algorithms.common import compute_complexity
-from pddlstream.language.constants import get_args, is_parameter, get_prefix
-from pddlstream.language.conversion import values_from_objects, substitute_fact
+from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fact
+from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
 from pddlstream.utils import elapsed_time, get_mapping, flatten
@@ -40,6 +40,11 @@ def get_defer_all_unbound(inputs='', unique=False): # TODO: shortcut for all inp
 
 def get_domain_predicates(streams):
     return {get_prefix(a) for s in streams for a in s.domain}
+
+def convert_constants(fact):
+    # TODO: take the constant map as an input
+    # TODO: throw an error if undefined
+    return Fact(get_prefix(fact), [p if is_parameter(p) else Object.from_name(p) for p in get_args(fact)])
 
 ##################################################
 
@@ -140,8 +145,8 @@ class Instance(object):
     def mapping(self):
         if self._mapping is None:
             self._mapping = get_mapping(self.external.inputs, self.input_objects)
-            for constant in self.external.constants:
-                self._mapping[constant] = Object.from_name(constant)
+            #for constant in self.external.constants: # TODO: no longer needed
+            #    self._mapping[constant] = Object.from_name(constant)
         return self._mapping
 
     def get_mapping(self):
@@ -225,7 +230,7 @@ class External(Performance):
     def __init__(self, name, info, inputs, domain):
         super(External, self).__init__(name, info)
         self.inputs = tuple(inputs)
-        self.domain = tuple(domain)
+        self.domain = tuple(map(convert_constants, domain))
         for p, c in Counter(self.inputs).items():
             if not is_parameter(p):
                 # AssertionError: Expected item to be a variable: q2 in (?q1 q2)

@@ -34,9 +34,10 @@ def test_mapping(atoms1, atoms2):
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
 
 class Instantiator(Sized): # Dynamic Instantiator
-    def __init__(self, streams, evaluations={}):
+    def __init__(self, streams, evaluations={}, verbose=False):
         # TODO: lazily instantiate upon demand
         self.streams = streams
+        self.verbose = verbose
         #self.streams_from_atom = defaultdict(list)
         self.queue = []
         self.num_pushes = 0 # shared between the queues
@@ -67,6 +68,8 @@ class Instantiator(Sized): # Dynamic Instantiator
         priority = Priority(complexity, self.num_pushes)
         heappush(self.queue, HeapElement(priority, instance))
         self.num_pushes += 1
+        if self.verbose:
+            print(self.num_pushes, instance)
 
     def pop_stream(self):
         priority, instance = heappop(self.queue)
