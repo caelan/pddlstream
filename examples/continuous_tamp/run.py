@@ -215,6 +215,7 @@ def dump_pddlstream(pddlstream_problem):
 ##################################################
 
 def main():
+    # TODO: side grasps (horizontal gripper, one finger, forklift)
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')

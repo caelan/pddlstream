@@ -21,7 +21,7 @@ from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory
+from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -168,6 +168,17 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
             process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                 bind=bind, max_failures=max_failures)
         sample_time += elapsed_time(start_time)
+
+    summary = store.export_summary()
+    summary.update({
+        'iterations': num_iterations,
+        'complexity': complexity_limit,
+        'skeletons': len(skeleton_queue.skeletons),
+        'sample_time': sample_time,
+        'search_time': search_time,
+        # TODO: optimal, infeasible, etc...
+    })
+    print(str_from_object(summary)) # TODO: return the summary
 
     write_stream_statistics(externals, verbose)
     return store.extract_solution()

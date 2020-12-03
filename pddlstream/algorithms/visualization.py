@@ -29,6 +29,11 @@ SYNTHESIZER_TEMPLATE = '{}_{}.png'
 ##################################################
 
 def has_pygraphviz():
+    # TODO: networkx
+    # https://github.com/caelan/pddlstream/blob/82ee5e363585d0af8ff9532ecc14641687d5b56b/examples/fault_tolerant/data_network/run.py#L189
+    #import networkx
+    #import graphviz
+    #import pydot
     try:
         import pygraphviz
     except ImportError:

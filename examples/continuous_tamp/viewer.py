@@ -98,6 +98,7 @@ class ContinuousTMPViewer(object):
     #                                                 fill=color, outline='black', width=2)
 
     def draw_region(self, region, name=''):
+        # TODO: draw table legs (with an offset)
         x1, x2 = map(self.scale_x, region)
         y1, y2 = self.ground_height, self.height
         color = COLOR_FROM_NAME.get(name, name)

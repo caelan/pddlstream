@@ -5,6 +5,7 @@ import numpy as np
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.language.optimizer import OptimizerOutput
+from pddlstream.utils import INF
 
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
@@ -20,7 +21,7 @@ def value_from_var(vars):
     if isinstance(vars, float):
         return vars
     if isinstance(vars, gurobipy.Var):
-        return vars.X
+        return vars.X # .Xn
     new_vars = list(map(value_from_var, vars))
     if isinstance(vars, np.ndarray):
         return np.array(new_vars)
@@ -69,16 +70,18 @@ def motion_constraint(model, name, q1, t, q2):
        model.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
 
 def distance_cost(q1, q2):
+    from gurobipy import abs_
     # TODO: cost on endpoints and subtract from total cost
     terms = []
     for i in range(len(q1)):
         delta = q2[i] - q1[i]
         terms.append(delta * delta)
+        #terms.append(abs_(delta)) # TODO: doesn't work if non-linear
     return terms
 
 ##################################################
 
-def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose=False):
+def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion', verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -87,20 +90,25 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
     from gurobipy import Model, GRB, quicksum
 
+    # TODO: structural optimization program
     def fn(outputs, facts, hint={}):
         # TODO: pass in the variables and constraint streams instead?
         # The true test is placing two blocks in a tight region obstructed by one
+        constraint_indices = {i for i, term in enumerate(facts) if term[0] != MINIMIZE}
         positive, negative, costs = partition_facts(facts)
         #print('Parameters:', outputs)
-        print('Constraints:', positive + negative)
+        #print('Constraints:', positive + negative)
         if costs:
             print('Costs:', costs)
+
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
+        model.setParam(GRB.Param.Cutoff, GRB.INFINITY) # TODO: account for scaling
 
+        variable_indices = {}
         var_from_param = {}
-        for fact in facts:
+        for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
             if prefix == 'conf':
                 param, = args
@@ -119,11 +127,16 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
                 #param, = args
                 #if param not in var_from_id:
                 #    var_from_id[id(param)] = [np_var(model), np_var(model)]
+            else:
+                continue
+            variable_indices[index] = fact
+        print('Variables:', [facts[index] for index in sorted(variable_indices)])
+        print('Constraints:', [facts[index] for index in sorted(set(constraint_indices) - set(variable_indices))])
 
         def get_var(p):
             return var_from_param[p] if is_parameter(p) else p
 
-        objective_terms = []
+        objective_terms = [] # TODO: could make a variable to impose a constraint
         constraint_from_name = {}
         for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
@@ -149,28 +162,48 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
                     objective_terms.extend(distance_cost(*map(get_var, args)))
                 continue
             constraint_from_name[name] = fact
+        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
                 var.start = coord
 
-        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
         #m.write("file.lp")
         model.optimize()
         # https://www.gurobi.com/documentation/7.5/refman/optimization_status_codes.html
-        if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD): # OPTIMAL | SUBOPTIMAL
-            if not diagnose:
+        #if model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD, GRB.CUTOFF): # OPTIMAL | SUBOPTIMAL
+        if model.SolCount == 0:
+            if diagnostic is None:
                 return OptimizerOutput()
-            constraint_indices = {i for i, term in enumerate(facts) if term[0] != MINIMIZE}
-            #infeasible = constraint_indices
-            infeasible = compute_inconsistent(model)
-            #infeasible = deletion_filter(model, constraint_indices)
-            #infeasible = elastic_filter(model, constraint_indices)
-            infeasible_facts = [facts[index] for index in sorted(infeasible)]
-            print('Inconsistent:', infeasible_facts)
+            # TODO: drop collision constraints until violated
+            if diagnostic == 'all':
+                infeasible = constraint_indices
+            elif diagnostic == 'deletion':
+                infeasible = deletion_filter(model, constraint_indices)
+            elif diagnostic == 'elastic':
+                infeasible = elastic_filter(model, constraint_indices)
+            elif diagnostic == 'gurobi':
+                infeasible = compute_inconsistent(model)
+            else:
+                raise NotImplementedError(diagnostic)
+            print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
             return OptimizerOutput(infeasible=[infeasible])
+
+            #expr.getValue() # TODO: store expressions and evaluate value
+        # for c in model.getConstrs():
+        #     print(c, c.Slack, c.RHS)
+        #     print(c.__dict__)
+        #     print(dir(c))
+
+        print('Solved: {} | Objective: {:.3f} | Solutions: {} | Status: {} | Runtime: {:.3f}'.format(
+            True, model.ObjVal, model.SolCount, model.status, model.runtime))
+
+        #infeasible = constraint_indices
+        infeasible = deletion_filter(model, constraint_indices, max_objective=model.ObjVal - 1e-6)
+        print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
+
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
-        return OptimizerOutput(assignments=[assignment])
+        return OptimizerOutput(assignments=[assignment], infeasible=[infeasible])
     return fn
     #return lambda outputs, facts, **kwargs: \
     #    identify_infeasibility(fn, outputs, facts, diagnose=False, **kwargs)
@@ -178,26 +211,38 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnose=True, verbose
 ##################################################
 
 def compute_inconsistent(model):
+    from gurobipy import GRB
     # TODO: search over irreducible infeasible sets
-    model.setObjective(0.0)
+    model.setObjective(0.0) # Makes a difference in performance
+    model.setParam(GRB.Param.IISMethod, 1)
+
     model.computeIIS()
     print('IIS is minimal\n' if model.IISMinimal else 'IIS is not minimal\n')
     #assert model.IISMinimal
     infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
     return infeasible
 
+##################################################
+
 def constraints_from_indices(model, indices):
     names = {str(i) for i in indices}
     return [c for c in model.getConstrs() if c.constrName in names]
 
-def deletion_filter(original_model, indices):
+def deletion_filter(original_model, indices, max_objective=INF):
     from gurobipy import GRB
-    model = original_model.feasibility()
+
+    model = copy_model(original_model)
+    if max_objective < INF:
+        model.setParam(GRB.Param.Cutoff, max_objective)
+    else:
+        model = model.feasibility()
+
     prune_constraints = set(model.getConstrs()) - set(constraints_from_indices(model, indices))
     for c in prune_constraints:
         model.remove(c)
     model.optimize()
-    assert model.status == GRB.INFEASIBLE
+    #assert model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD, GRB.CUTOFF)
+    assert model.SolCount == 0
 
     inconsistent = set()
     for index in sorted(indices):
@@ -208,27 +253,12 @@ def deletion_filter(original_model, indices):
         for c in constraints:
             temp_model.remove(c)
         temp_model.optimize()
-        if temp_model.status == GRB.INFEASIBLE:
+        #if temp_model.status == GRB.INFEASIBLE:
+        if temp_model.SolCount == 0:
             model = temp_model
         else:
             inconsistent.add(index)
     return inconsistent
-
-def identify_infeasibility(fn, parameters, terms, **kwargs):
-    # TODO: apply to general constraint networks
-    output = fn(parameters, terms, **kwargs)
-    if output:
-        return output
-    active_indices = {i for i, term in enumerate(terms) if term[0] != MINIMIZE}
-    for index in list(active_indices):
-        constraints = [terms[i] for i in active_indices - {index}]
-        output = fn(parameters, constraints, **kwargs)
-        if output:
-            active_indices.remove(index)
-    # TODO: be careful about removing variables
-    infeasible_facts = [terms[index] for index in sorted(active_indices)]
-    print('Inconsistent:', infeasible_facts)
-    return OptimizerOutput(infeasible=[infeasible_facts])
 
 ##################################################
 
@@ -257,7 +287,7 @@ def relax_constraints(model, indices):
     violated = {index for index, value in violations.items() if 1e-6 < value}
     return violated
 
-def elastic_filter(original_model, indices):
+def elastic_filter(original_model, indices, postproces=True):
     elastic = set(indices)
     inconsistent = set()
     while True:
@@ -267,8 +297,27 @@ def elastic_filter(original_model, indices):
             break
         elastic -= violated
         inconsistent |= violated
-    #return inconsistent
-    return deletion_filter(original_model, inconsistent)
+    if postproces:
+        inconsistent = deletion_filter(original_model, inconsistent)
+    return inconsistent
+
+##################################################
+
+def identify_infeasibility(fn, parameters, terms, **kwargs):
+    # TODO: apply to general constraint networks
+    output = fn(parameters, terms, **kwargs)
+    if output:
+        return output
+    active_indices = {i for i, term in enumerate(terms) if term[0] != MINIMIZE}
+    for index in list(active_indices):
+        constraints = [terms[i] for i in active_indices - {index}]
+        output = fn(parameters, constraints, **kwargs)
+        if output:
+            active_indices.remove(index)
+    # TODO: be careful about removing variables
+    infeasible_facts = [terms[index] for index in sorted(active_indices)]
+    print('Inconsistent:', infeasible_facts)
+    return OptimizerOutput(infeasible=[infeasible_facts])
 
 def identify_feasible_subsets(facts, model):
     # TODO: add facts corresponding to feasible subproblems

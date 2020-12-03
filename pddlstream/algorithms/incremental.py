@@ -11,7 +11,7 @@ from pddlstream.language.attachments import has_attachments, compile_fluents_as_
 from pddlstream.language.statistics import load_stream_statistics, write_stream_statistics
 from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import INF, Verbose
+from pddlstream.utils import INF, Verbose, str_from_object
 
 UPDATE_STATISTICS = False
 
@@ -121,6 +121,16 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
     #retrace_stream_plan(store, domain, goal_expression)
     #print('Final queue size: {}'.format(len(instantiator)))
+
+    summary = store.export_summary()
+    summary.update({
+        # TODO: integrate into store
+        'iterations': num_iterations,
+        'complexity': complexity_limit,
+        # TODO: optimal, infeasible, etc...
+    })
+    print(str_from_object(summary)) # TODO: return the summary
+
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()
