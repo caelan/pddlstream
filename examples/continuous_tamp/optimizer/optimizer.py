@@ -46,6 +46,14 @@ def copy_model(model):
     model.update()
     return model.copy()
 
+def set_guess(var, value, hard=True):
+    if hard:
+        #var.LB = value
+        #var.UB = value
+        var.Start = value  # solver will try to build a single feasible solution from the provided set of variable values
+    else:
+        var.VarHintVal = value  # variable hints provide guidance to the MIP solver that affects the entire solution process
+
 ##################################################
 
 def collision_constraint(model, name, b1, p1, b2, p2):
@@ -77,23 +85,22 @@ def motion_constraint(model, name, q1, t, q2):
     for i in range(len(q2)):
         model.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
 
-def distance_cost(model, q1, q2, l=1):
-    from gurobipy import abs_, GRB
+def distance_cost(model, q1, q2, norm=1):
+    from gurobipy import GRB
     # TODO: cost on endpoints and subtract from total cost
     terms = []
     for i in range(len(q1)):
         delta = q2[i] - q1[i]
-        if l == 1:
+        if norm == 1:
             # TODO: doesn't work with deletion filter (additional constraints)
             distance = model.addVar(lb=0., ub=GRB.INFINITY)
             model.addConstr(-delta <= distance)
             model.addConstr(delta <= distance)
             terms.append(distance)
-            # terms.append(abs_(delta)) # TODO: only applies to variables
-        elif l == 2:
+        elif norm == 2:
             terms.append(delta * delta)
         else:
-            raise RuntimeError(l)
+            raise RuntimeError(norm)
     return terms
 
 ##################################################
@@ -113,14 +120,48 @@ def sample_targets(model, var_from_param):
                 distance = model.addVar(lb=0., ub=GRB.INFINITY)
                 model.addConstr(-delta <= distance)
                 model.addConstr(delta <= distance)
-                # TODO: how do you use abs_(delta)?
                 objective_terms.append(distance / extent)
                 # covar_from_paramord.X = 0 # Attribute 'X' cannot be set
                 print(param, index, coord, coord.LB, coord.UB, value)
                 # TODO: start with feasible solution and then expand
     return objective_terms
 
-def get_optimize_fn(regions, collisions=True, max_time=5., hard=False, diagnostic='gurobi', diagnose_cost=True, verbose=False):
+def sample_solutions(model, var_from_param, num_samples=1, norm=1):
+    from gurobipy import GRB, quicksum, abs_
+    # model = model.feasibility()
+    # model.setObjective(0.0)
+    if norm == 2:
+        model.setParam(GRB.Param.NonConvex, 2) # PSDTol
+    objective_terms = []
+    solutions = [] # TODO: sample initial solution from this set
+    for _ in range(num_samples):
+        # TODO: variable for the total distance per sample
+        for param, var in var_from_param.items():
+            for index, coord in enumerate(var):
+                value = coord.X
+                set_guess(coord, value, hard=True)
+                delta = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                model.addConstr(delta == coord - value)
+                if norm == 1:
+                    distance = model.addVar(lb=0., ub=GRB.INFINITY)
+                    model.addConstr(distance == abs_(delta))
+                    objective_terms.append(-distance)  # TODO: weight
+                elif norm == 2:
+                    objective_terms.append(-delta*delta)
+                else:
+                    raise NotImplementedError(norm)
+        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+        #print(model.getObjective())
+        model.optimize()
+        #solution = None
+        solution = [value_from_var(var) for var in var_from_param.values()] # TODO: not hashable
+        #solutions.append(solution)
+        yield solution
+
+##################################################
+
+def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
+                    diagnostic='gurobi', diagnose_cost=True, verbose=True):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -227,6 +268,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False, diagnosti
 
         weight = 0
         if weight > 0:
+            # TODO: sample from neighborhood of the previous solution
             objective_terms.extend(weight * term for term in sample_targets(model, var_from_param))
         model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
 
@@ -242,10 +284,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False, diagnosti
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
                 # https://www.gurobi.com/documentation/9.1/refman/varhintval.html#attr:VarHintVal
-                if hard:
-                    var.Start = coord # solver will try to build a single feasible solution from the provided set of variable values
-                else:
-                    var.VarHintVal = coord # variable hints provide guidance to the MIP solver that affects the entire solution process
+                set_guess(var, coord, hard=hard)
 
         #m.write("file.lp")
         model.optimize()
@@ -284,6 +323,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False, diagnosti
             #infeasible = constraint_indices
             infeasible = nontrivial_indices
         print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
+
+        samples = list(sample_solutions(model, var_from_param, num_samples=3))
+        print(samples)
 
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
         return OptimizerOutput(assignments=[assignment], infeasible=[infeasible])
