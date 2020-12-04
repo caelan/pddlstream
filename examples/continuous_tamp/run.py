@@ -43,13 +43,18 @@ def create_problem(tamp_problem):
     init = [
        #('Region', GROUND_NAME),
        Equal((TOTAL_COST,), 0)] + \
-           [('Block', b) for b in initial.block_poses.keys()] + \
            [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
-           [('Pose', b, p) for b, p in initial.block_poses.items()] + \
-           [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
-            for r in tamp_problem.regions if r in ENVIRONMENT_NAMES or
-            (b in tamp_problem.goal_cooked and (r in STOVE_NAMES))]
+            for r in tamp_problem.regions if (r in ENVIRONMENT_NAMES) or
+            ((b in tamp_problem.goal_cooked) and (r in STOVE_NAMES))]
+
+    for b, p in initial.block_poses.items():
+        init += [
+            ('Block', b),
+            ('Pose', b, p),
+            ('AtPose', b, p),
+            ('Grasp', b, GRASP),
+        ]
 
     goal_literals = [] + \
                     [('Cooked', b) for b in tamp_problem.goal_cooked] # Placeable for the stove

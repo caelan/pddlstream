@@ -7,11 +7,11 @@
   ;  (and (Traj ?t) (Pose ?b2 ?p2))
   ;)
 
-  (:stream s-grasp
-    :inputs (?b)
-    :domain (Block ?b)
-    :outputs (?g)
-    :certified (Grasp ?b ?g))
+  ;(:stream s-grasp
+  ;  :inputs (?b)
+  ;  :domain (Block ?b)
+  ;  :outputs (?g)
+  ;  :certified (Grasp ?b ?g))
 
   ;;;;;;;;;;
 

@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import numpy as np
+import random
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
@@ -8,6 +9,8 @@ from pddlstream.language.optimizer import OptimizerOutput
 from pddlstream.utils import INF
 
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
+
+NAN = float('nan')
 
 def has_gurobi():
     try:
@@ -31,8 +34,13 @@ def unbounded_var(model):
     from gurobipy import GRB
     return model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
-def np_var(model, d=2):
-    return np.array([unbounded_var(model) for _ in range(d)])
+def np_var(model, d=2, lower=None, upper=None):
+    from gurobipy import GRB
+    if lower is None:
+        lower = d*[-GRB.INFINITY]
+    if upper is None:
+        upper = d*[+GRB.INFINITY]
+    return np.array([model.addVar(lb=lb, ub=ub) for lb, ub in zip(lower, upper)])
 
 def copy_model(model):
     model.update()
@@ -52,7 +60,7 @@ def kinematics_constraint(model, name, b, q, p, g):
     from gurobipy import GRB
     for i in range(len(q)):
         model.addConstr(q[i] + g[i], GRB.EQUAL, p[i], name=name)
-    model.addConstr(p[1], GRB.EQUAL, 0, name=name)  # IK vs pick/place semantics
+    #model.addConstr(p[1], GRB.EQUAL, 0, name=name)  # IK vs pick/place semantics
 
 def contained_constraint(model, regions, name, b, p, r):
     from gurobipy import GRB
@@ -65,32 +73,72 @@ def contained_constraint(model, regions, name, b, p, r):
 def motion_constraint(model, name, q1, t, q2):
     from gurobipy import GRB
     for i in range(len(q1)):
-       model.addConstr(t[0][i], GRB.EQUAL, q1[i], name=name)
+        model.addConstr(t[0][i], GRB.EQUAL, q1[i], name=name)
     for i in range(len(q2)):
-       model.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
+        model.addConstr(t[1][i], GRB.EQUAL, q2[i], name=name)
 
-def distance_cost(q1, q2):
-    from gurobipy import abs_
+def distance_cost(model, q1, q2, l=1):
+    from gurobipy import abs_, GRB
     # TODO: cost on endpoints and subtract from total cost
     terms = []
     for i in range(len(q1)):
         delta = q2[i] - q1[i]
-        terms.append(delta * delta)
-        #terms.append(abs_(delta)) # TODO: doesn't work if non-linear
+        if l == 1:
+            # TODO: doesn't work with deletion filter (additional constraints)
+            distance = model.addVar(lb=0., ub=GRB.INFINITY)
+            model.addConstr(-delta <= distance)
+            model.addConstr(delta <= distance)
+            terms.append(distance)
+            # terms.append(abs_(delta)) # TODO: only applies to variables
+        elif l == 2:
+            terms.append(delta * delta)
+        else:
+            raise RuntimeError(l)
     return terms
 
 ##################################################
 
-def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion', verbose=False):
+def sample_targets(model, var_from_param):
+    from gurobipy import GRB
+    model.update()
+    objective_terms = []
+    for param, var in var_from_param.items():
+        # TODO: apply only to some variables
+        for index, coord in enumerate(var):
+            if (-INF < coord.LB) and (coord.UB < INF):
+                # TODO: inequality constraint version of this
+                extent = coord.UB - coord.LB
+                value = random.uniform(coord.LB, coord.UB)
+                delta = coord - value
+                distance = model.addVar(lb=0., ub=GRB.INFINITY)
+                model.addConstr(-delta <= distance)
+                model.addConstr(delta <= distance)
+                # TODO: how do you use abs_(delta)?
+                objective_terms.append(distance / extent)
+                # covar_from_paramord.X = 0 # Attribute 'X' cannot be set
+                print(param, index, coord, coord.LB, coord.UB, value)
+                # TODO: start with feasible solution and then expand
+    return objective_terms
+
+def get_optimize_fn(regions, collisions=True, max_time=5., hard=False, diagnostic='gurobi', diagnose_cost=True, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
     # https://www.fico.com/fico-xpress-optimization/docs/latest/examples/python/GUID-E77AC35C-9488-3F0A-98B4-7F5FD81AFF1D.html
     if not has_gurobi():
         raise ImportError('This generator requires Gurobi: http://www.gurobi.com/')
-    from gurobipy import Model, GRB, quicksum
+    from gurobipy import Model, GRB, quicksum, abs_
 
-    # TODO: structural optimization program
+    min_x = min(x1 for x1, _ in regions.values())
+    max_x = max(x2 for _, x2 in regions.values())
+    min_y, max_y = 0, max_x - min_x
+    # lower = [min_x, min_y]
+    # upper = [max_x, max_y]
+
+    # lower = 2*[-INF]
+    # upper = 2*[+INF]
+    lower = upper = None
+
     def fn(outputs, facts, hint={}):
         # TODO: pass in the variables and constraint streams instead?
         # The true test is placing two blocks in a tight region obstructed by one
@@ -101,11 +149,23 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
         if costs:
             print('Costs:', costs)
 
+        # https://github.com/yijiangh/coop_assembly/blob/e52abef7c1cfb1d3e32691d163abc85dd77f27a2/src/coop_assembly/geometry_generation/caelan.py
         model = Model(name='TAMP')
         model.setParam(GRB.Param.OutputFlag, verbose)
         model.setParam(GRB.Param.TimeLimit, max_time)
         model.setParam(GRB.Param.Cutoff, GRB.INFINITY) # TODO: account for scaling
+        #if num_solutions < INF:
+        #    model.setParam(GRB.Param.SolutionLimit, num_solutions)
 
+        # Limit how many solutions to collect
+        #model.setParam(GRB.Param.PoolSolutions, 2)
+        # Limit the search space by setting a gap for the worst possible solution that will be accepted
+        #model.setParam(GRB.Param.PoolGap, 0.10) # PoolGapAbs
+        # do a systematic search for the k-best solutions
+        #model.setParam(GRB.Param.PoolSearchMode, 2) # 0 | 1 | 2
+        # https://www.gurobi.com/documentation/9.1/examples/poolsearch_py.html#subsubsection:poolsearch.py
+
+        # TODO: remove anything that's just a domain condition?
         variable_indices = {}
         var_from_param = {}
         for index, fact in enumerate(facts):
@@ -113,11 +173,11 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
             if prefix == 'conf':
                 param, = args
                 if is_parameter(param):
-                    var_from_param[param] = np_var(model)
+                    var_from_param[param] = np_var(model, lower=lower, upper=upper)
             elif prefix == 'pose':
                 _, param = args
                 if is_parameter(param):
-                    var_from_param[param] = np_var(model)
+                    var_from_param[param] = np_var(model, lower=lower, upper=upper)
             elif prefix == 'grasp':  # TODO: iterate over combinations
                 _, param = args
                 if is_parameter(param):
@@ -130,22 +190,24 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
             else:
                 continue
             variable_indices[index] = fact
-        print('Variables:', [facts[index] for index in sorted(variable_indices)])
-        print('Constraints:', [facts[index] for index in sorted(set(constraint_indices) - set(variable_indices))])
 
         def get_var(p):
             return var_from_param[p] if is_parameter(p) else p
 
-        objective_terms = [] # TODO: could make a variable to impose a constraint
+        codimension = 0
+        objective_terms = [] # TODO: could make a variable to impose a cost constraint
         constraint_from_name = {}
         for index, fact in enumerate(facts):
             prefix, args = fact[0], fact[1:]
             name = str(index)
             if prefix == 'kin':
                 kinematics_constraint(model, name, *map(get_var, args))
+                codimension += 2
             elif prefix in ('contain', 'contained'):
                 contained_constraint(model, regions, name, *map(get_var, args))
+                codimension += 1
             elif prefix == 'cfree' and collisions:
+                # TODO: drop collision constraints until violated
                 collision_constraint(model, name, *map(get_var, args))
             elif prefix == 'motion':
                 #motion_constraint(model, name, *map(get_var, args))
@@ -159,14 +221,31 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
                 fact = args[0]
                 func, args = fact[0], fact[1:]
                 if func in ('dist', 'distance'):
-                    objective_terms.extend(distance_cost(*map(get_var, args)))
+                    objective_terms.extend(distance_cost(model, *map(get_var, args)))
                 continue
             constraint_from_name[name] = fact
+
+        weight = 0
+        if weight > 0:
+            objective_terms.extend(weight * term for term in sample_targets(model, var_from_param))
         model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+
+        model.update()
+        dimension = sum(len(var) for var in var_from_param.values())
+        print('{} variables (dim={}): {}'.format(len(variable_indices), dimension,
+                                                 [facts[index] for index in sorted(variable_indices)]))
+        #codimension = sum(c.Sense == '=' for c in model.getConstrs()) # TODO: filter constraints defined on auxiliary
+        nontrivial_indices = set(constraint_indices) - set(variable_indices) # TODO: rename
+        print('{} constraints: (codim={}): {}'.format(len(nontrivial_indices), codimension,
+                                                      [facts[index] for index in sorted(nontrivial_indices)]))
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
-                var.start = coord
+                # https://www.gurobi.com/documentation/9.1/refman/varhintval.html#attr:VarHintVal
+                if hard:
+                    var.Start = coord # solver will try to build a single feasible solution from the provided set of variable values
+                else:
+                    var.VarHintVal = coord # variable hints provide guidance to the MIP solver that affects the entire solution process
 
         #m.write("file.lp")
         model.optimize()
@@ -175,9 +254,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
         if model.SolCount == 0:
             if diagnostic is None:
                 return OptimizerOutput()
-            # TODO: drop collision constraints until violated
             if diagnostic == 'all':
-                infeasible = constraint_indices
+                #infeasible = constraint_indices
+                infeasible = nontrivial_indices
             elif diagnostic == 'deletion':
                 infeasible = deletion_filter(model, constraint_indices)
             elif diagnostic == 'elastic':
@@ -198,8 +277,12 @@ def get_optimize_fn(regions, collisions=True, max_time=5, diagnostic='deletion',
         print('Solved: {} | Objective: {:.3f} | Solutions: {} | Status: {} | Runtime: {:.3f}'.format(
             True, model.ObjVal, model.SolCount, model.status, model.runtime))
 
-        #infeasible = constraint_indices
-        infeasible = deletion_filter(model, constraint_indices, max_objective=model.ObjVal - 1e-6)
+        if costs and diagnose_cost:
+            infeasible = deletion_filter(model, constraint_indices, max_objective=model.ObjVal - 1e-6)
+        else:
+            # TODO: propagate automatically to optimizer
+            #infeasible = constraint_indices
+            infeasible = nontrivial_indices
         print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
 
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
@@ -214,7 +297,7 @@ def compute_inconsistent(model):
     from gurobipy import GRB
     # TODO: search over irreducible infeasible sets
     model.setObjective(0.0) # Makes a difference in performance
-    model.setParam(GRB.Param.IISMethod, 1)
+    model.setParam(GRB.Param.IISMethod, 1) # -1 | 0 | 1 | 2 | 3
 
     model.computeIIS()
     print('IIS is minimal\n' if model.IISMinimal else 'IIS is not minimal\n')
@@ -237,9 +320,9 @@ def deletion_filter(original_model, indices, max_objective=INF):
     else:
         model = model.feasibility()
 
-    prune_constraints = set(model.getConstrs()) - set(constraints_from_indices(model, indices))
-    for c in prune_constraints:
-        model.remove(c)
+    # prune_constraints = set(model.getConstrs()) - set(constraints_from_indices(model, indices))
+    # for c in prune_constraints:
+    #     model.remove(c)
     model.optimize()
     #assert model.status in (GRB.INFEASIBLE, GRB.INF_OR_UNBD, GRB.CUTOFF)
     assert model.SolCount == 0

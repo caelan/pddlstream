@@ -239,7 +239,7 @@ def tight(n_blocks=2, n_goals=2, n_robots=1):
     blocks = make_blocks(len(poses))
 
     initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
-    goal_regions = {block: GOAL_NAME for block in blocks[:n_goals]}
+    goal_regions = {block: GOAL_NAME for block in blocks[:n_goals]} # GROUND_NAME
     goal_cooked = {}
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions, goal_cooked)
