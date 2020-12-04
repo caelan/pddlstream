@@ -126,42 +126,51 @@ def sample_targets(model, var_from_param):
                 # TODO: start with feasible solution and then expand
     return objective_terms
 
-def sample_solutions(model, var_from_param, num_samples=1, norm=1):
+def sample_solutions(model, variables, num_samples=INF, norm=2, closest=True):
     from gurobipy import GRB, quicksum, abs_
     # model = model.feasibility()
     # model.setObjective(0.0)
     if norm == 2:
         model.setParam(GRB.Param.NonConvex, 2) # PSDTol
     objective_terms = []
+    if closest:
+        min_distance = model.addVar(lb=0., ub=GRB.INFINITY)
+        objective_terms.append(min_distance)
     solutions = [] # TODO: sample initial solution from this set
-    for _ in range(num_samples):
-        # TODO: variable for the total distance per sample
-        for param, var in var_from_param.items():
+    while len(solutions) < num_samples:
+        terms = []
+        for var in variables:
             for index, coord in enumerate(var):
                 value = coord.X
                 set_guess(coord, value, hard=True)
                 delta = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY)
                 model.addConstr(delta == coord - value)
                 if norm == 1:
-                    distance = model.addVar(lb=0., ub=GRB.INFINITY)
-                    model.addConstr(distance == abs_(delta))
-                    objective_terms.append(-distance)  # TODO: weight
+                    term = model.addVar(lb=0., ub=GRB.INFINITY)
+                    model.addConstr(term == abs_(delta))
                 elif norm == 2:
-                    objective_terms.append(-delta*delta)
+                    term = delta*delta
                 else:
                     raise NotImplementedError(norm)
-        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
+                terms.append(term) # TODO: scale
+        distance = quicksum(terms)
+        if closest:
+            model.addConstr(min_distance <= distance)
+        else:
+            objective_terms.append(distance) # TODO: weight
+
+        model.setObjective(quicksum(objective_terms), sense=GRB.MAXIMIZE) # MINIMIZE | MAXIMIZE
         #print(model.getObjective())
         model.optimize()
-        #solution = None
-        solution = [value_from_var(var) for var in var_from_param.values()] # TODO: not hashable
-        #solutions.append(solution)
+        print(model.ObjVal) # min_distance.X
+        solution = [value_from_var(var) for var in variables]
+        solutions.append(solution)
         yield solution
 
 ##################################################
 
 def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
-                    diagnostic='gurobi', diagnose_cost=True, verbose=True):
+                    diagnostic='gurobi', diagnose_cost=True, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -324,8 +333,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             infeasible = nontrivial_indices
         print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
 
-        samples = list(sample_solutions(model, var_from_param, num_samples=3))
-        print(samples)
+        variables = list(var_from_param.values())
+        for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
+            print(index, solution)
 
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
         return OptimizerOutput(assignments=[assignment], infeasible=[infeasible])
@@ -346,6 +356,10 @@ def compute_inconsistent(model):
     #assert model.IISMinimal
     infeasible = {int(c.constrName) for c in model.getConstrs() if c.IISConstr}
     return infeasible
+
+def enumerate_inconsistent(model):
+    # TODO: exhaustively enumerate IIS
+    raise NotImplementedError()
 
 ##################################################
 
