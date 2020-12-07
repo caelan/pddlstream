@@ -12,8 +12,8 @@ import time
 
 from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, \
-    update_state, ENVIRONMENT_NAMES, STOVE_NAMES
+    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
+    update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.focused import solve_focused
@@ -28,11 +28,6 @@ from pddlstream.language.temporal import get_end, compute_duration, retime_plan
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies, inclusive_range
 
-DISTANCE_PER_TIME = 4.0
-
-def duration_fn(traj):
-    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
-    return distance / DISTANCE_PER_TIME
 
 ##################################################
 
@@ -42,6 +37,7 @@ def create_problem(tamp_problem):
 
     init = [
        #('Region', GROUND_NAME),
+       Equal(('Cost',), 0),
        Equal((TOTAL_COST,), 0)] + \
            [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
@@ -107,7 +103,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         't-region': from_test(get_region_test(tamp_problem.regions)),
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
         'dist': distance_fn,
-        'duration': duration_fn,
+        'duration': duration_fn, # temporal
     }
     if use_optimizer:
         # To avoid loading gurobi
@@ -236,7 +232,7 @@ def main():
         's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
         't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, negate=True), # defer_fn |  defer_unbound
-        't-region': StreamInfo(eager=False, p_success=0),  # bound_fn is None
+        't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),

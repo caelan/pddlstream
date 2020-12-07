@@ -6,6 +6,7 @@ import string
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
+GROUND_Y = 0.
 
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
@@ -14,6 +15,7 @@ APPROACH = -np.array([0, CARRY_Y]) - GRASP
 
 MOVE_COST = 10.
 COST_PER_DIST = 1.
+DISTANCE_PER_TIME = 4.0
 
 def get_block_box(b, p=np.zeros(2)):
     extent = np.array([BLOCK_WIDTH, BLOCK_HEIGHT]) # TODO: vary per block
@@ -56,6 +58,11 @@ def collision_test(b1, p1, b2, p2):
 def distance_fn(q1, q2):
     ord = 1  # 1 | 2
     return MOVE_COST + COST_PER_DIST*np.linalg.norm(q2 - q1, ord=ord)
+
+
+def duration_fn(traj):
+    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
+    return distance / DISTANCE_PER_TIME
 
 
 def forward_kin(q, g):
@@ -268,6 +275,30 @@ def blocked(n_blocks=3, n_robots=1, deterministic=True):
 
     return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions, goal_cooked)
 
+def blocked_cost(n_blocks=2, n_robots=1):
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
+
+    goal_region = (2, 10)
+    regions = {
+        GROUND_NAME: REGIONS[GROUND_NAME],
+        GOAL_NAME: goal_region,
+    }
+
+    blocks = make_blocks(n_blocks)
+    lower, upper = REGIONS[GROUND_NAME]
+    poses = [np.zeros(2), np.array([goal_region[0] + 3*BLOCK_WIDTH/2, 0.])]
+    poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+                 for x in range(n_blocks-len(poses)))
+    block_poses = dict(zip(blocks, poses))
+
+    initial = TAMPState(initial_confs, {}, block_poses)
+    goal_regions = {block: GOAL_NAME for block in blocks[:2]}
+    goal_cooked = {}
+
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions, goal_cooked)
+
 def dual(n_blocks=2, n_goals=2, n_robots=1, goal_regions=['red', 'green']):
     regions = {
         GROUND_NAME: (-10, 10),
@@ -310,6 +341,7 @@ def cook(n_blocks=2, n_goals=1, n_robots=1):
     block_poses = rejection_sample_placed(block_regions=initial_regions, regions=regions)
     initial = TAMPState(dict(zip(robots, confs)), {}, block_poses)
     goal_regions = {block: 'table' for block in goal_cooked}
+    #goal_regions = {}
     # TODO: draw table legs
     # TODO: stove top burners
 
@@ -331,6 +363,7 @@ PROBLEMS = [
     mirror,
     tight,
     blocked,
+    blocked_cost,
     dual,
     cook,
     #blocked2,

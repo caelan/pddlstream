@@ -170,7 +170,7 @@ def sample_solutions(model, variables, num_samples=INF, norm=2, closest=True):
 ##################################################
 
 def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
-                    diagnostic='gurobi', diagnose_cost=True, verbose=False):
+                    diagnostic='gurobi', diagnose_cost=False, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -275,6 +275,8 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
                 continue
             constraint_from_name[name] = fact
 
+        # TODO: normalize cost relative to the best cost for a tradeoff
+        # TODO: increasing bound on deterioration in quality
         weight = 0
         if weight > 0:
             # TODO: sample from neighborhood of the previous solution
@@ -333,9 +335,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             infeasible = nontrivial_indices
         print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
 
-        variables = list(var_from_param.values())
-        for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
-            print(index, solution)
+        #variables = list(var_from_param.values())
+        #for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
+        #    print(index, solution)
 
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)
         return OptimizerOutput(assignments=[assignment], infeasible=[infeasible])
