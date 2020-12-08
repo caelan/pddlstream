@@ -2,11 +2,12 @@ from __future__ import print_function
 
 import numpy as np
 import random
+import time
 
 from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
 from pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.language.optimizer import OptimizerOutput
-from pddlstream.utils import INF
+from pddlstream.utils import INF, elapsed_time
 
 MIN_CLEARANCE = 1e-3 # 0 | 1e-3
 
@@ -46,13 +47,20 @@ def copy_model(model):
     model.update()
     return model.copy()
 
+def vars_from_expr(expr):
+    return [expr.getVar(i) for i in range(expr.size())]
+
+def set_value(var, value):
+    var.LB = value
+    var.UB = value
+
 def set_guess(var, value, hard=True):
     if hard:
-        #var.LB = value
-        #var.UB = value
-        var.Start = value  # solver will try to build a single feasible solution from the provided set of variable values
+        # solver will try to build a single feasible solution from the provided set of variable values
+        var.Start = value
     else:
-        var.VarHintVal = value  # variable hints provide guidance to the MIP solver that affects the entire solution process
+        # variable hints provide guidance to the MIP solver that affects the entire solution process
+        var.VarHintVal = value
 
 ##################################################
 
@@ -105,29 +113,34 @@ def distance_cost(model, q1, q2, norm=1):
 
 ##################################################
 
-def sample_targets(model, var_from_param):
+def sample_targets(model, variables):
+    # TODO: project without inequality constraints (placement)
+    # TODO: manifold learning for feasible subspace
+    # TODO: sample from neighborhood of the previous solution
     from gurobipy import GRB
     model.update()
     objective_terms = []
-    for param, var in var_from_param.items():
+    for var in variables:
         # TODO: apply only to some variables
-        for index, coord in enumerate(var):
-            if (-INF < coord.LB) and (coord.UB < INF):
-                # TODO: inequality constraint version of this
-                extent = coord.UB - coord.LB
-                value = random.uniform(coord.LB, coord.UB)
-                delta = coord - value
-                distance = model.addVar(lb=0., ub=GRB.INFINITY)
-                model.addConstr(-delta <= distance)
-                model.addConstr(delta <= distance)
-                objective_terms.append(distance / extent)
-                # covar_from_paramord.X = 0 # Attribute 'X' cannot be set
-                print(param, index, coord, coord.LB, coord.UB, value)
-                # TODO: start with feasible solution and then expand
+        if (-INF < var.LB) and (var.UB < INF):
+            # TODO: inequality constraint version of this
+            extent = var.UB - var.LB
+            value = random.uniform(var.LB, var.UB)
+            delta = var - value
+            distance = model.addVar(lb=0., ub=GRB.INFINITY)
+            model.addConstr(-delta <= distance)
+            model.addConstr(delta <= distance)
+            objective_terms.append(distance / extent)
+            # covar_from_paramord.X = 0 # Attribute 'X' cannot be set
+            print(var, var.LB, var.UB, value)
+            # TODO: start with feasible solution and then expand
     return objective_terms
 
 def sample_solutions(model, variables, num_samples=INF, norm=2, closest=True):
     from gurobipy import GRB, quicksum, abs_
+    start_time = time.time()
+    objective = model.getObjective()
+    #sprint(objective, objective.getValue())
     # model = model.feasibility()
     # model.setObjective(0.0)
     if norm == 2:
@@ -160,9 +173,9 @@ def sample_solutions(model, variables, num_samples=INF, norm=2, closest=True):
             objective_terms.append(distance) # TODO: weight
 
         model.setObjective(quicksum(objective_terms), sense=GRB.MAXIMIZE) # MINIMIZE | MAXIMIZE
-        #print(model.getObjective())
         model.optimize()
-        print(model.ObjVal) # min_distance.X
+        print('# {} | objective: {:.3f} | cost: {:.3f} | runtime: {:.3f}'.format(
+            len(solutions), model.ObjVal, objective.getValue(), elapsed_time(start_time))) # min_distance.X
         solution = [value_from_var(var) for var in variables]
         solutions.append(solution)
         yield solution
@@ -181,13 +194,13 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
 
     min_x = min(x1 for x1, _ in regions.values())
     max_x = max(x2 for _, x2 in regions.values())
-    min_y, max_y = 0, max_x - min_x
-    # lower = [min_x, min_y]
-    # upper = [max_x, max_y]
+    min_y, max_y = 0, (max_x - min_x) / 2.
+    lower = [min_x, min_y]
+    upper = [max_x, max_y]
 
     # lower = 2*[-INF]
     # upper = 2*[+INF]
-    lower = upper = None
+    # lower = upper = None
 
     def fn(outputs, facts, hint={}):
         # TODO: pass in the variables and constraint streams instead?
@@ -240,6 +253,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             else:
                 continue
             variable_indices[index] = fact
+        dimension = sum(len(var) for var in var_from_param.values())
 
         def get_var(p):
             return var_from_param[p] if is_parameter(p) else p
@@ -274,28 +288,50 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
                     objective_terms.extend(distance_cost(model, *map(get_var, args)))
                 continue
             constraint_from_name[name] = fact
-
-        # TODO: normalize cost relative to the best cost for a tradeoff
-        # TODO: increasing bound on deterioration in quality
-        weight = 0
-        if weight > 0:
-            # TODO: sample from neighborhood of the previous solution
-            objective_terms.extend(weight * term for term in sample_targets(model, var_from_param))
-        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE)
-
         model.update()
-        dimension = sum(len(var) for var in var_from_param.values())
+
+        # TODO: prune linearly dependent constraints
+        linear_constraints = {c for c in model.getConstrs() if c.sense == GRB.EQUAL}
+        codimension = len(linear_constraints)
+        # TODO: account for v.LB == v.UB
+        #linear_variables = {v for v in model.getVars() if v.VType == GRB.CONTINUOUS}
+        #print(vars_from_expr(model.getObjective()))
+        linear_variables = set()
+        for c in linear_constraints:
+            linear_variables.update(vars_from_expr(model.getRow(c)))
+        dimension = len(linear_variables)
+
         print('{} variables (dim={}): {}'.format(len(variable_indices), dimension,
                                                  [facts[index] for index in sorted(variable_indices)]))
-        #codimension = sum(c.Sense == '=' for c in model.getConstrs()) # TODO: filter constraints defined on auxiliary
         nontrivial_indices = set(constraint_indices) - set(variable_indices) # TODO: rename
         print('{} constraints: (codim={}): {}'.format(len(nontrivial_indices), codimension,
                                                       [facts[index] for index in sorted(nontrivial_indices)]))
+
+        # #linear_model = model
+        # linear_model = copy_model(model)
+        # #linear_model = Model(name='Linear TAMP')
+        # #for v in set(linear_model.getVars()) - linear_variables:
+        # #    linear_model.remove(v)
+        # #for c in set(linear_model.getConstrs()) - linear_constraints:
+        # #    linear_model.remove(c)
+        # #linear_model.setObjective(0.)
+        # print(model.getVars(), linear_variables, linear_model.getVars())
+        # linear_model.setObjective(quicksum(sample_targets(linear_model, linear_variables)), sense=GRB.MINIMIZE)
+        # linear_model.optimize()
+
+        # TODO: normalize cost relative to the best cost for a trade-off
+        # TODO: increasing bound on deterioration in quality
+        weight = 0
+        if weight > 0:
+            primary_variables = {v for var in var_from_param.values() for v in var}
+            objective_terms.extend(weight * term for term in sample_targets(model, primary_variables))
+        model.setObjective(quicksum(objective_terms), sense=GRB.MINIMIZE) # (1-weight) * quicksum(objective_terms)
 
         for out, value in hint.items():
             for var, coord in zip(get_var(out), value):
                 # https://www.gurobi.com/documentation/9.1/refman/varhintval.html#attr:VarHintVal
                 set_guess(var, coord, hard=hard)
+                #et_value(var, coord)
 
         #m.write("file.lp")
         model.optimize()
@@ -335,8 +371,8 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             infeasible = nontrivial_indices
         print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
 
-        #variables = list(var_from_param.values())
-        #for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
+        # variables = list(var_from_param.values())
+        # for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
         #    print(index, solution)
 
         assignment = tuple(value_from_var(get_var(out)) for out in outputs)

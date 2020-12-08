@@ -123,10 +123,12 @@ def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.025, 
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
-    example_name = os.path.basename(os.path.dirname(__file__))
-    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
-    safe_rm_dir(directory)
-    ensure_dir(directory)
+    if save:
+        #example_name = os.path.basename(os.path.dirname(__file__))
+        example_name = 'continuous_tamp'
+        directory = os.path.join(VISUALIZATIONS_DIR, '{}/'.format(example_name))
+        safe_rm_dir(directory)
+        ensure_dir(directory)
 
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
