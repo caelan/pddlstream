@@ -228,6 +228,8 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         #model.setParam(GRB.Param.PoolSearchMode, 2) # 0 | 1 | 2
         # https://www.gurobi.com/documentation/9.1/examples/poolsearch_py.html#subsubsection:poolsearch.py
 
+        ##########
+
         # TODO: remove anything that's just a domain condition?
         variable_indices = {}
         var_from_param = {}
@@ -257,6 +259,8 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
 
         def get_var(p):
             return var_from_param[p] if is_parameter(p) else p
+
+        ##########
 
         codimension = 0
         objective_terms = [] # TODO: could make a variable to impose a cost constraint
@@ -290,15 +294,21 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             constraint_from_name[name] = fact
         model.update()
 
+        ##########
+
+        #linear_model = model
+        linear_model = copy_model(model)
+        #linear_model = Model(name='Linear TAMP')
+
         # TODO: prune linearly dependent constraints
-        linear_constraints = {c for c in model.getConstrs() if c.sense == GRB.EQUAL}
+        linear_constraints = {c for c in linear_model.getConstrs() if c.sense == GRB.EQUAL}
         codimension = len(linear_constraints)
         # TODO: account for v.LB == v.UB
-        #linear_variables = {v for v in model.getVars() if v.VType == GRB.CONTINUOUS}
-        #print(vars_from_expr(model.getObjective()))
+        #linear_variables = {v for v in linear_model.getVars() if v.VType == GRB.CONTINUOUS}
+        #print(vars_from_expr(linear_model.getObjective()))
         linear_variables = set()
         for c in linear_constraints:
-            linear_variables.update(vars_from_expr(model.getRow(c)))
+            linear_variables.update(vars_from_expr(linear_model.getRow(c)))
         dimension = len(linear_variables)
 
         print('{} variables (dim={}): {}'.format(len(variable_indices), dimension,
@@ -307,17 +317,17 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         print('{} constraints: (codim={}): {}'.format(len(nontrivial_indices), codimension,
                                                       [facts[index] for index in sorted(nontrivial_indices)]))
 
-        # #linear_model = model
-        # linear_model = copy_model(model)
-        # #linear_model = Model(name='Linear TAMP')
-        # #for v in set(linear_model.getVars()) - linear_variables:
-        # #    linear_model.remove(v)
-        # #for c in set(linear_model.getConstrs()) - linear_constraints:
-        # #    linear_model.remove(c)
-        # #linear_model.setObjective(0.)
-        # print(model.getVars(), linear_variables, linear_model.getVars())
+        # TODO: generator version
+        # for v in set(linear_model.getVars()) - linear_variables:
+        #     linear_model.remove(v)
+        # for c in set(linear_model.getConstrs()) - linear_constraints:
+        #     linear_model.remove(c)
         # linear_model.setObjective(quicksum(sample_targets(linear_model, linear_variables)), sense=GRB.MINIMIZE)
         # linear_model.optimize()
+        # for v in linear_variables:
+        #     set_value(model.getVarByName(v.VarName), v.X)
+
+        ##########
 
         # TODO: normalize cost relative to the best cost for a trade-off
         # TODO: increasing bound on deterioration in quality
@@ -331,7 +341,9 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             for var, coord in zip(get_var(out), value):
                 # https://www.gurobi.com/documentation/9.1/refman/varhintval.html#attr:VarHintVal
                 set_guess(var, coord, hard=hard)
-                #et_value(var, coord)
+                #set_value(var, coord)
+
+        ##########
 
         #m.write("file.lp")
         model.optimize()
@@ -359,6 +371,8 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         #     print(c, c.Slack, c.RHS)
         #     print(c.__dict__)
         #     print(dir(c))
+
+        ##########
 
         print('Solved: {} | Objective: {:.3f} | Solutions: {} | Status: {} | Runtime: {:.3f}'.format(
             True, model.ObjVal, model.SolCount, model.status, model.runtime))
