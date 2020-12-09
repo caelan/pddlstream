@@ -113,6 +113,29 @@ def distance_cost(model, q1, q2, norm=1):
 
 ##################################################
 
+def sample_sphere_surface(d, uniform=True):
+    # TODO: hyperspherical coordinates
+    # https://en.wikipedia.org/wiki/N-sphere#Spherical_coordinates
+    while True:
+        v = np.random.randn(d)
+        r = np.sqrt(v.dot(v))
+        if not uniform or (r <= 1.):
+            return v / r
+
+def sample_sphere(d, **kwargs):
+    v = sample_sphere_surface(d, **kwargs)
+    r = np.random.rand()
+    return np.power(r, 1./d)*v
+
+def sample_subspace(d, m):
+    # TODO: linear spaces sampling method
+    # https://arxiv.org/abs/1810.06271
+    A = np.random.randn(m, d)
+    b = np.random.randn(m)
+    return A, b
+
+##################################################
+
 def sample_targets(model, variables):
     # TODO: project without inequality constraints (placement)
     # TODO: manifold learning for feasible subspace
@@ -183,7 +206,7 @@ def sample_solutions(model, variables, num_samples=INF, norm=2, closest=True):
 ##################################################
 
 def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
-                    diagnostic='gurobi', diagnose_cost=False, verbose=False):
+                    diagnostic='all', diagnose_cost=False, verbose=False):
     # https://www.gurobi.com/documentation/8.1/examples/diagnose_and_cope_with_inf.html
     # https://www.gurobi.com/documentation/8.1/examples/tsp_py.html#subsubsection:tsp.py
     # https://examples.xpress.fico.com/example.pl?id=Infeasible_python
@@ -309,6 +332,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         linear_variables = set()
         for c in linear_constraints:
             linear_variables.update(vars_from_expr(linear_model.getRow(c)))
+        linear_variables = sorted(linear_variables, key=lambda v: v.VarName)
         dimension = len(linear_variables)
 
         print('{} variables (dim={}): {}'.format(len(variable_indices), dimension,
@@ -317,6 +341,30 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         print('{} constraints: (codim={}): {}'.format(len(nontrivial_indices), codimension,
                                                       [facts[index] for index in sorted(nontrivial_indices)]))
 
+        # # https://en.wikipedia.org/wiki/Linear_subspace
+        # # TODO: Equations for a subspace
+        # #for c in model.getConstrs():
+        # #    if c.sense != GRB.EQUAL:
+        # #        model.remove(c)
+        # variables = [model.getVarByName(v.VarName) for v in linear_variables]
+        # lower_bound = np.array([v.LB for v in variables])
+        # upper_bound = np.array([v.UB for v in variables])
+        # center = (lower_bound + upper_bound) / 2.
+        # extent = (upper_bound - lower_bound) / 2.
+        # radius = np.linalg.norm(extent) # sphere
+        #
+        # point = radius*sample_sphere(dimension) + center
+        # #point = center
+        # basis = [sample_sphere_surface(dimension) for _ in range(codimension)]
+        # #basis = [np.ones(dimension)]
+        # multipliers = [unbounded_var(model) for _ in basis]
+        # subspace_constraints = []
+        # for i in range(dimension):
+        #     combination = sum([m*b[i] for m, b in zip(multipliers, basis)])
+        #     subspace_constraints.append(model.addConstr(variables[i] - point[i] == combination))
+        # #for c in subspace_constraints:
+        # #    model.remove(c)
+
         # TODO: generator version
         # for v in set(linear_model.getVars()) - linear_variables:
         #     linear_model.remove(v)
@@ -324,7 +372,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         #     linear_model.remove(c)
         # linear_model.setObjective(quicksum(sample_targets(linear_model, linear_variables)), sense=GRB.MINIMIZE)
         # linear_model.optimize()
-        # for v in linear_variables:
+        # for v in linear_variables: # Projection method
         #     set_value(model.getVarByName(v.VarName), v.X)
 
         ##########
@@ -352,7 +400,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
         if model.SolCount == 0:
             if diagnostic is None:
                 return OptimizerOutput()
-            if diagnostic == 'all':
+            elif diagnostic == 'all':
                 #infeasible = constraint_indices
                 infeasible = nontrivial_indices
             elif diagnostic == 'deletion':
@@ -383,7 +431,7 @@ def get_optimize_fn(regions, collisions=True, max_time=5., hard=False,
             # TODO: propagate automatically to optimizer
             #infeasible = constraint_indices
             infeasible = nontrivial_indices
-        print('Inconsistent:', [facts[index] for index in sorted(infeasible)])
+        print('Cost inconsistent:', [facts[index] for index in sorted(infeasible)])
 
         # variables = list(var_from_param.values())
         # for index, solution in enumerate(sample_solutions(model, variables, num_samples=15)):
