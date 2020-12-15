@@ -94,9 +94,11 @@ def is_useful_atom(atom, conditions_from_predicate):
 
 def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
     # TODO: filter instantiated_axioms that aren't applicable?
+    import options
     with Verbose(False):
-        helpful_axioms, axiom_init, _ = axiom_rules.handle_axioms(
-            [], instantiated_axioms, goals)
+        axiom_init = [] # TODO: new FastDownward does not use axiom_init
+        helpful_axioms, _ = axiom_rules.handle_axioms(
+            [], instantiated_axioms, goals, options.layer_strategy)
     axiom_init = set(axiom_init)
     axiom_effects = {axiom.effect for axiom in helpful_axioms}
     #assert len(axiom_effects) == len(axiom_init)
