@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fa
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF
 
 DEBUG = 'debug'
 
@@ -186,10 +186,20 @@ class Instance(object):
     def next_results(self, verbose=False):
         raise NotImplementedError()
 
+    def first_results(self, num=1, **kwargs):
+        results = []
+        index = 0
+        while len(results) < num:
+            while index >= len(self.results_history):
+                if self.enumerated:
+                    return results
+                self.next_results(**kwargs)
+            results.extend(self.results_history[index])
+            index += 1
+        return results
+
     def all_results(self, **kwargs):
-        while not self.enumerated:
-            self.next_results(**kwargs)
-        return self.get_results()
+        return self.first_results(num=INF, **kwargs)
 
     def get_results(self, start=0):
         results = []

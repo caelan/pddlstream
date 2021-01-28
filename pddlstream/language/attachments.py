@@ -80,7 +80,8 @@ def get_attachment_test(action_instance):
             input_objects = tuple(obj_from_pddl(
                 action_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
             stream_instance = get_fluent_instance(stream, input_objects, state)  # Output automatically cached
-            results = stream_instance.all_results() # TODO: quite after the first one
+            results = stream_instance.first_results(num=1)
+            #results = stream_instance.all_results()
             failure = not results
             if literal.negated != failure:
                 return False
