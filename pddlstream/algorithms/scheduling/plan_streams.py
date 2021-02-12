@@ -359,7 +359,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if action_instances is None:
         return FAILED, FAILED, cost
 
-    axiom_plans = recover_axioms_plans(instantiated, action_instances)
+    action_instances, axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
     #simplify_conditional_effects(instantiated.task, action_instances)
     stream_plan, action_instances = recover_simultaneous(
