@@ -367,7 +367,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
+                       if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
 
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)

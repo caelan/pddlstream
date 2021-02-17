@@ -40,6 +40,7 @@ def find_build(fd_path):
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
 
+# TODO: check at runtime so users can use utils without FD
 FD_PATH = get_file_path(__file__, '../../FastDownward/')
 TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
 FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')

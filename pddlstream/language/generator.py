@@ -77,6 +77,7 @@ def from_fn(fn):
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
+
 def outputs_from_boolean(boolean):
     return tuple() if boolean else None
 
