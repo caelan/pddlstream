@@ -64,12 +64,9 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
-    :param initial_complexity: the initial effort limit
-    :param complexity_step: the increase in the effort limit after each failure
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
-    :param search_sample_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine

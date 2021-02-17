@@ -225,9 +225,9 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     eager_plan = []
     results_from_step = defaultdict(list)
     for result in stream_plan:
-        earliest_step = first_from_stream.get(result, 0)
-        latest_step = last_from_stream.get(result, 0)
-        assert earliest_step <= latest_step
+        earliest_step = first_from_stream.get(result, 0) # exogenous
+        latest_step = last_from_stream.get(result, 0) # defer
+        #assert earliest_step <= latest_step
         defer = replan_step <= latest_step
         if not defer:
             eager_plan.append(result)

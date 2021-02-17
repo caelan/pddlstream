@@ -22,6 +22,7 @@ from pddlstream.utils import read, INF, get_file_path, find_unique
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.language.object import SharedOptValue
+from pddlstream.language.external import defer_shared, never_defer
 from collections import namedtuple
 
 BASE_CONSTANT = 1
@@ -214,7 +215,7 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False, partial=False):
+def main(display=True, teleport=False, partial=False, defer=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
@@ -236,7 +237,7 @@ def main(display=True, teleport=False, partial=False):
     stream_info = {
         'sample-pose': StreamInfo(PartialInputs('?r')),
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer=True),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer_fn=defer_shared if defer else never_defer),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     } if partial else {
         'sample-pose': StreamInfo(from_fn(opt_pose_fn)),

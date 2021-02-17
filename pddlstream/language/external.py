@@ -54,7 +54,7 @@ class ExternalInfo(PerformanceInfo):
         # TODO: enable eager=True for inexpensive test streams by default
         # TODO: make any info just a dict
         self.eager = eager
-        self.defer_fn = defer_fn
+        self.defer_fn = defer_fn # Old syntax was defer=True
         #self.complexity_fn = complexity_fn
 
 ##################################################
