@@ -19,6 +19,7 @@ class Object(object):
         self.value = value
         self.index = len(Object._obj_from_name)
         if name is None:
+            #name = str(value) # TODO: use str for the name when possible
             name = '{}{}'.format(self._prefix, self.index)
         self.pddl = name
         self.stream_instance = stream_instance # TODO: store first created stream instance

@@ -1,6 +1,7 @@
 import os
 import sys
 
+from pddlstream.algorithms.algorithm import get_predicates
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
     pddl_from_instance, DEFAULT_MAX_TIME
 from pddlstream.language.object import Object
@@ -48,18 +49,20 @@ def compile_fluents_as_attachments(domain, externals):
         for literal in get_conjunctive_parts(action.precondition):
             #if not isinstance(literal, pddl.Literal):
             #    raise NotImplementedError('Only literals are supported: {}'.format(literal))
-            if literal.predicate in predicate_map:
-                # Drops the original precondition
-                stream = predicate_map[literal.predicate]
-                mapping = remap_certified(literal, stream)
-                assert mapping is not None
-                action.attachments[literal] = stream
-                preconditions.update(pddl.Atom(EQ, (mapping[out], PLACEHOLDER.pddl))
-                                     for out in stream.outputs)
-                preconditions.update(fd_from_fact(substitute_fact(fact, mapping))
-                                     for fact in stream.domain)
-            else:
+            if not get_predicates(literal) & set(predicate_map):
                 preconditions.add(literal)
+                continue
+            if not isinstance(literal, pddl.Literal):
+                raise NotImplementedError(literal)
+            # Drops the original precondition
+            stream = predicate_map[literal.predicate]
+            mapping = remap_certified(literal, stream)
+            assert mapping is not None
+            action.attachments[literal] = stream
+            preconditions.update(pddl.Atom(EQ, (mapping[out], PLACEHOLDER.pddl))
+                                 for out in stream.outputs)
+            preconditions.update(fd_from_fact(substitute_fact(fact, mapping))
+                                 for fact in stream.domain)
         action.precondition = pddl.Conjunction(preconditions).simplified()
         #fn = lambda l: pddl.Truth() if l.predicate in predicate_map else l
         #action.precondition = replace_literals(fn, action.precondition).simplified()
@@ -75,6 +78,8 @@ def get_attachment_test(action_instance):
     # TODO: ensure no OptimisticObjects
 
     def test(state):
+        # TODO: action parameters don't depend on the state
+        # TODO: counter for how many times the action has been remapped
         for literal, stream in action_instance.action.attachments.items():
             param_from_inp = remap_certified(literal, stream)
             input_objects = tuple(obj_from_pddl(
@@ -122,13 +127,14 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
         'search': 'eager',
         'evaluator': 'greedy',
         'heuristic': 'ff',
-        'successors': 'ff',
+        'successors': 'all',
     }
     if isinstance(planner, dict):
         default_planner.update(planner)
 
     py_actions = []
     for action in instantiated.actions:
+        #action.dump()
         py_action = Action({'fd_action': action})
         py_action.conditions = set(action.precondition)
         py_action.effects = set()
@@ -144,6 +150,7 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
 
     py_axioms = []
     for axiom in instantiated.axioms:
+        #axiom.dump()
         py_axiom = Axiom({'fd_axiom_id': id(axiom)}) # Not hashable for some reason
         py_axiom.conditions = set(axiom.condition)
         py_axiom.effects = {axiom.effect}
@@ -162,4 +169,5 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     if plan is None:
         return None, INF
     actions = [pddl_from_instance(action.fd_action) for action in plan]
+    #print(actions)
     return actions, plan.cost
