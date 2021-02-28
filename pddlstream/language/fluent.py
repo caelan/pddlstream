@@ -46,10 +46,15 @@ def compile_fluent_streams(domain, externals):
             # TODO: this excludes typing. This is not entirely safe
             return literal
         output_args = set(mapping[arg] for arg in stream.outputs)
-        for effect in action.effects:
-            if isinstance(effect, pddl.Effect) and (output_args & set(effect.literal.args)):
-                raise RuntimeError('Fluent stream outputs cannot be in action effects: {}'.format(
-                    effect.literal.predicate))
+        if isinstance(action, pddl.Action): # TODO: unified Action/Axiom effects
+            for effect in action.effects:
+                if isinstance(effect, pddl.Effect) and (output_args & set(effect.literal.args)):
+                    raise RuntimeError('Fluent stream outputs cannot be in action effects: {}'.format(
+                        effect.literal.predicate))
+        elif not stream.is_negated():
+            axiom = action
+            raise RuntimeError('Fluent stream outputs cannot be in an axiom: {}'.format(axiom.name))
+
         blocked_args = tuple(mapping[arg] for arg in stream.inputs)
         blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
         if stream.is_negated():
@@ -62,5 +67,5 @@ def compile_fluent_streams(domain, externals):
         for effect in action.effects:
             effect.condition = replace_literals(fn, effect.condition, action).simplified()
     for axiom in domain.axioms:
-        axiom.condition = replace_literals(fn, axiom.condition, action).simplified()
+        axiom.condition = replace_literals(fn, axiom.condition, axiom).simplified()
     return state_streams

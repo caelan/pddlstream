@@ -64,6 +64,7 @@ def dnf_from_positive_formula(parent):
         for child in parent[1:]:
             children.extend(dnf_from_positive_formula(child))
     else:
+        # TODO: IMPLY
         children.append([tuple(parent)])
     return children
 
