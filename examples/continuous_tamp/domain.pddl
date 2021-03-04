@@ -33,6 +33,7 @@
     (UnsafeTraj ?t)
   )
   (:functions
+    (Cost)
     (Dist ?q1 ?q2)
     ; (Duration ?t)
   )
@@ -52,7 +53,7 @@
                        (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r))
     :effect (and (AtGrasp ?r ?b ?g) (CanMove ?r)
                  (not (AtPose ?b ?p)) (not (HandEmpty ?r))
-                 (increase (total-cost) 10)))
+                 (increase (total-cost) (Cost))))
 
   (:action place
     :parameters (?r ?b ?p ?g ?q)
@@ -65,7 +66,7 @@
                   )
     :effect (and (AtPose ?b ?p) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?b ?g))
-                 (increase (total-cost) 10))
+                 (increase (total-cost) (Cost)))
   )
 
   (:action cook
@@ -73,7 +74,7 @@
     :precondition (and (Placeable ?b ?s) (Stove ?s)
                        (In ?b ?s))
     :effect (and (Cooked ?b)
-                 (increase (total-cost) 10)))
+                 (increase (total-cost) (Cost))))
 
   (:derived (In ?b ?s)
     (exists (?p) (and (Contain ?b ?p ?s)

@@ -99,7 +99,7 @@ def get_constant_gen_fn(stream, constant):
 #     return fn
 
 def get_debug_gen_fn(stream):
-    return from_fn(lambda *args: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
+    return from_fn(lambda *args, **kwargs: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
 ##################################################
 
@@ -401,7 +401,8 @@ class Stream(External):
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
-        self.fluents = [] if gen_fn == DEBUG else fluents
+        self.fluents = fluents
+        #self.fluents = [] if gen_fn == DEBUG else fluents
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
         else:

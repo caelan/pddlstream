@@ -12,7 +12,7 @@ from pddlstream.language.statistics import load_stream_statistics, write_stream_
 from pddlstream.language.stream import DEBUG
 from pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.language.write_pddl import get_problem_pddl
-from pddlstream.utils import INF, Verbose
+from pddlstream.utils import INF, Verbose, str_from_object
 
 UPDATE_STATISTICS = False
 
@@ -79,11 +79,11 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     :param constraints: PlanConstraints on the set of legal solutions
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum amount of search iterations
-    :param unit_costs: use unit action costs rather than numeric costs
-    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param start_complexity: the stream complexity on the first iteration
     :param complexity_step: the increase in the complexity limit after each iteration
     :param max_complexity: the maximum stream complexity
+    :param unit_costs: use unit action costs rather than numeric costs
+    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param verbose: if True, this prints the result of each stream application
     :param search_args: keyword args for the search subroutine
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
@@ -122,9 +122,45 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
     #retrace_stream_plan(store, domain, goal_expression)
     #print('Final queue size: {}'.format(len(instantiator)))
+
+    summary = store.export_summary()
+    summary.update({
+        # TODO: integrate into store
+        'iterations': num_iterations,
+        'complexity': complexity_limit,
+        # TODO: optimal, infeasible, etc...
+    })
+    print(str_from_object(summary)) # TODO: return the summary
+
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()
+
+##################################################
+
+def solve_immediate(problem, **kwargs):
+    """
+    Solves a PDDLStream problem by searching only
+    INCOMPLETENESS WARNING: only use if no stream evaluations are necessarily (otherwise terminates early)
+    :param problem: a PDDLStream problem
+    :param kwargs: keyword args for solve_incremental
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    return solve_incremental(problem, start_complexity=0, complexity_step=0, max_complexity=0, **kwargs)
+
+def solve_exhaustive(problem, **kwargs):
+    """
+    Solves a PDDLStream problem by applying all possible streams and searching once
+    INCOMPLETENESS WARNING: only use if a finite set of instantiable stream instances (otherwise infinite loop)
+    :param problem: a PDDLStream problem
+    :param kwargs: keyword args for solve_incremental
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    return solve_incremental(problem, start_complexity=INF, complexity_step=INF, max_complexity=INF, **kwargs)
 
 ##################################################
 

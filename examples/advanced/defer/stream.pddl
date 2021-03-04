@@ -1,0 +1,25 @@
+(define (stream defer)
+  (:stream test-pose
+    :inputs (?p ?r)
+    :domain (and (Pose ?p) (Region ?r))
+    :certified (Contain ?p ?r)
+  )
+  (:stream sample-pose
+    :inputs (?r)
+    :domain (Region ?r)
+    :outputs (?p)
+    :certified (and (Pose ?p) (Contain ?p ?r))
+  )
+  (:stream inv-kin
+    :inputs (?p)
+    :domain (Pose ?p)
+    :outputs (?q)
+    :certified (and (Conf ?q) (Kin ?q ?p))
+  )
+  (:stream motion
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :outputs (?t)
+    :certified (Motion ?q1 ?t ?q2)
+  )
+)

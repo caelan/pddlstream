@@ -6,6 +6,7 @@ from pddlstream.algorithms.instantiate_task import get_goal_instance, filter_neg
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip, flatten
 
+import copy
 import pddl
 import axiom_rules
 
@@ -167,6 +168,9 @@ def backtrack_axioms(conditions, axioms_from_effect, visited_atoms):
 def recover_axioms_plans(instantiated, action_instances):
     #axioms, axiom_init, _ = axiom_rules.handle_axioms(
     #    instantiated.actions, instantiated.axioms, instantiated.goal_list)
+
+    new_action_instances = [copy.deepcopy(instance) for instance in action_instances]
+
     axioms, axiom_init = instantiated.axioms, [] # TODO: bug when needing to reachieve negated
     axioms_from_effect = defaultdict(list)
     for axiom in axioms:
@@ -175,7 +179,7 @@ def recover_axioms_plans(instantiated, action_instances):
 
     state = set(instantiated.task.init) | set(axiom_init)
     axiom_plans = []
-    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
+    for action in new_action_instances + [get_goal_instance(instantiated.task.goal)]:
         all_conditions = list(get_precondition(action)) + list(flatten(
             cond for cond, _ in action.add_effects + action.del_effects))
         axioms = backtrack_axioms(all_conditions, axioms_from_effect, set())
@@ -203,4 +207,4 @@ def recover_axioms_plans(instantiated, action_instances):
             print(axioms)
             raise RuntimeError('Could not extract axioms')
         apply_action(state, action)
-    return axiom_plans
+    return new_action_instances, axiom_plans

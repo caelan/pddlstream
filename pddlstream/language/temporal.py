@@ -455,6 +455,7 @@ def convert_args(args):
 def convert_condition(condition):
     import pddl
     class_name = condition.__class__.__name__
+    # TODO: compare class_name to the pddl class name
     if class_name in ('Truth', 'FunctionComparison'):
         # TODO: currently ignoring numeric conditions
         return pddl.Truth()

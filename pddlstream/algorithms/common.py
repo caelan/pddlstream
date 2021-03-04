@@ -1,7 +1,7 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan
+from pddlstream.language.constants import is_plan, get_length
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
 from pddlstream.utils import INF, elapsed_time, check_memory
 
@@ -61,6 +61,18 @@ class SolutionStore(object):
     def extract_solution(self):
         SOLUTIONS[:] = self.solutions
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
+    def export_summary(store): # TODO: log, status, etc...
+        # TODO: SOLUTIONS
+        return {
+            'solved': store.is_solved(),
+            #'solved': store.has_solution(),
+            'solutions': len(store.solutions),
+            'cost': store.best_cost,
+            'length': get_length(store.best_plan),
+            'evaluations': len(store.evaluations),
+            'run_time': store.elapsed_time(),
+            'timeout': store.is_timeout(),
+        }
 
 ##################################################
 

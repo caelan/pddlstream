@@ -225,9 +225,9 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     eager_plan = []
     results_from_step = defaultdict(list)
     for result in stream_plan:
-        earliest_step = first_from_stream.get(result, 0)
-        latest_step = last_from_stream.get(result, 0)
-        assert earliest_step <= latest_step
+        earliest_step = first_from_stream.get(result, 0) # exogenous
+        latest_step = last_from_stream.get(result, 0) # defer
+        #assert earliest_step <= latest_step
         defer = replan_step <= latest_step
         if not defer:
             eager_plan.append(result)
@@ -359,7 +359,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
     if action_instances is None:
         return FAILED, FAILED, cost
 
-    axiom_plans = recover_axioms_plans(instantiated, action_instances)
+    action_instances, axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
     #simplify_conditional_effects(instantiated.task, action_instances)
     stream_plan, action_instances = recover_simultaneous(
@@ -367,7 +367,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
     replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)]) # step after action application
+                       if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
 
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)
