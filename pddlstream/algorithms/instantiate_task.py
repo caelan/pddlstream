@@ -263,6 +263,7 @@ def sas_from_pddl(task, debug=False):
     #sas_task = translate.pddl_to_sas(task)
     with Verbose(debug):
         instantiated = instantiate_task(task)
+        #instantiated = convert_instantiated(instantiated)
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = task.use_min_cost_metric # TODO: are these sometimes not equal?
     return sas_task
@@ -275,3 +276,16 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     sas_task = sas_from_pddl(task)
     write_sas_task(sas_task, temp_dir)
     return task
+
+
+def convert_instantiated(instantiated_task):
+    import axiom_rules
+    task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
+    normalize.normalize(task)
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
+    init = task.init + axiom_init
+    # axioms.sort(key=lambda axiom: axiom.name)
+    # for axiom in axioms:
+    #  axiom.dump()
+    #return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
+    return InstantiatedTask(task, init, actions, axioms, reachable_action_params, goal_list) # init instead of atoms
