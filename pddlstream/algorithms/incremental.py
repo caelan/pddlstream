@@ -173,6 +173,10 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
     #externals = compile_fluents_as_attachments(domain, externals) #
+
+    #from pddlstream.algorithms.refinement import iterative_plan_streams, optimistic_process_streams
+    #results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit=INF) #, **effort_args)
+
     instantiator = Instantiator(externals, evaluations)
     process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
 
@@ -183,6 +187,8 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     task = task_from_domain_problem(domain, problem)
     with Verbose(debug):
         instantiated = instantiate_task(task)
+        if instantiated is None:
+            return None
         instantiated = convert_instantiated(instantiated)
     return instantiated
 

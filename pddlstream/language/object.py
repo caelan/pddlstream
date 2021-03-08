@@ -76,6 +76,8 @@ class SharedOptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects'
         return tuple(obj.value for obj in self.input_objects)
         #return values_from_objects(self.input_objects)
 
+##################################################
+
 class DebugValue(object): # TODO: could just do an object
     _output_counts = defaultdict(count)
     _prefix = '@' # $ | @
@@ -93,6 +95,13 @@ class DebugValue(object): # TODO: could just do an object
     def __repr__(self):
         # Can also just return first letter of the prefix
         return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), self.index)
+
+class SharedDebugValue(namedtuple('SharedDebugValue', ['stream', 'output_parameter'])):
+    _prefix = '@' # $ | @
+    @property
+    def __repr__(self):
+        index = hash(self.stream) % 1000
+        return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), index)
 
 ##################################################
 

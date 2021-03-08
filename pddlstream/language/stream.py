@@ -10,7 +10,7 @@ from pddlstream.language.conversion import list_from_conjunction, substitute_exp
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test
-from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue
+from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
 VERBOSE_FAILURES = True
@@ -98,7 +98,9 @@ def get_constant_gen_fn(stream, constant):
 #         return [output_values]
 #     return fn
 
-def get_debug_gen_fn(stream):
+def get_debug_gen_fn(stream, shared=True):
+    if shared:
+        return from_fn(lambda *args, **kwargs: tuple(SharedDebugValue(stream.name, o) for o in stream.outputs))
     return from_fn(lambda *args, **kwargs: tuple(DebugValue(stream.name, args, o) for o in stream.outputs))
 
 ##################################################
@@ -391,7 +393,7 @@ class Stream(External):
             print('Warning! Output [{}] for stream [{}] is not covered by a certified condition'.format(p, name))
 
         # TODO: automatically switch to unique if only used once
-        self.gen_fn = get_debug_gen_fn(self) if gen_fn == DEBUG else gen_fn
+        self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
         self.num_opt_fns = 0 if self.is_test() else 1 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):
