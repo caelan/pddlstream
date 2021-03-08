@@ -118,12 +118,21 @@ SEARCH_OPTIONS = {
 # Greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
 
 for w in range(1, 1+5):
-    SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
-                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
-    SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+    SEARCH_OPTIONS.update({
+        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},' \
+                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w=w),
+
+        'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},' \
+                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+
+        # http://www.fast-downward.org/Doc/SearchEngine#Eager_weighted_A.2A_search
+        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+                                   '--search "eager(alt([single(sum([g(), weight(h,{w})])),' \
+                                            'single(sum([g(),weight(h,{w})]),pref_only=true)]),' \
+                                        'preferred=[h],cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w=w),
+    })
 
 if USE_CERBERUS:
     # --internal-previous-portfolio-plans
