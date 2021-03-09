@@ -230,3 +230,16 @@ def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
     """
     return solve_binding(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
                          bind=None, max_failures=None, **kwargs)
+
+def solve_hierarchical(problem, search_sample_ratio=1, **kwargs):
+    """
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
+    :param problem: a PDDLStream problem
+    :param search_sample_ratio: the desired ratio of search time / sample time
+    :param kwargs: keyword args for solve_focused
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    return solve_adaptive(problem, max_skeletons=1, search_sample_ratio=search_sample_ratio,
+                          bind=None, max_failures=None, **kwargs)
