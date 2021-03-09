@@ -98,7 +98,6 @@ class DebugValue(object): # TODO: could just do an object
 
 class SharedDebugValue(namedtuple('SharedDebugValue', ['stream', 'output_parameter'])):
     _prefix = '@' # $ | @
-    @property
     def __repr__(self):
         index = hash(self.stream) % 1000
         return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), index)

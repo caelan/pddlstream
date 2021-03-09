@@ -80,6 +80,8 @@ def get_attachment_test(action_instance):
     def test(state):
         # TODO: action parameters don't depend on the state
         # TODO: counter for how many times the action has been remapped
+        if not hasattr(action_instance.action, 'attachments'):
+            return True
         for literal, stream in action_instance.action.attachments.items():
             param_from_inp = remap_certified(literal, stream)
             input_objects = tuple(obj_from_pddl(

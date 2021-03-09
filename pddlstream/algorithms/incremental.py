@@ -70,8 +70,8 @@ def process_stream_queue(instantiator, store, complexity_limit, **kwargs):
 
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
-                      max_iterations=INF, max_time=INF,
-                      start_complexity=0, complexity_step=1, max_complexity=INF,
+                      max_iterations=INF, max_time=INF, max_memory=INF,
+                      initial_complexity=0, complexity_step=1, max_complexity=INF,
                       verbose=False, **search_args):
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
@@ -79,7 +79,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     :param constraints: PlanConstraints on the set of legal solutions
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum amount of search iterations
-    :param start_complexity: the stream complexity on the first iteration
+    :param initial_complexity: the stream complexity on the first iteration
     :param complexity_step: the increase in the complexity limit after each iteration
     :param max_complexity: the maximum stream complexity
     :param unit_costs: use unit action costs rather than numeric costs
@@ -95,12 +95,12 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     # success_cost = terminate_cost = decision_cost
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
-    store = SolutionStore(evaluations, max_time, success_cost, verbose) # TODO: include other info here?
+    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory) # TODO: include other info here?
     if UPDATE_STATISTICS:
         load_stream_statistics(externals)
     static_externals = compile_fluents_as_attachments(domain, externals)
     num_iterations = num_calls = 0
-    complexity_limit = start_complexity
+    complexity_limit = initial_complexity
     instantiator = Instantiator(static_externals, evaluations)
     num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
     while not store.is_terminated() and (num_iterations <= max_iterations) and (complexity_limit <= max_complexity):
