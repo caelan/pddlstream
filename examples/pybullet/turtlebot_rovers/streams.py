@@ -5,11 +5,11 @@ import numpy as np
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Trajectory, create_trajectory, Command
 from examples.pybullet.utils.pybullet_tools.pr2_utils import visible_base_generator, get_detection_cone
 from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_limits, all_between, pairwise_collision, \
-    plan_joint_motion, get_sample_fn, get_distance_fn, get_collision_fn, birrt, check_initial_end, is_placement, \
+    plan_joint_motion, get_sample_fn, get_distance_fn, get_collision_fn, check_initial_end, is_placement, \
     MAX_DISTANCE, get_extend_fn, wait_for_user, create_mesh, set_pose, get_link_pose, link_from_name, \
     remove_body, create_cylinder, get_distance, point_from_pose, Pose, Point, multiply, get_visual_data, get_pose, \
     wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion
-from turtlebot_rovers.problems import get_base_joints, get_joint_positions, KINECT_FRAME
+from .problems import get_base_joints, get_joint_positions, KINECT_FRAME
 
 VIS_RANGE = 2
 COM_RANGE = 2*VIS_RANGE
