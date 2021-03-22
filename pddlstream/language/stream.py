@@ -9,7 +9,7 @@ from pddlstream.language.conversion import list_from_conjunction, substitute_exp
     objects_from_values, substitute_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
     parse_lisp_list, select_inputs, convert_constants
-from pddlstream.language.generator import get_next, from_fn, universe_test
+from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
 
@@ -454,6 +454,21 @@ class Stream(External):
 
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
+
+##################################################
+
+def create_equality_stream():
+    return Stream(name='equality', gen_fn=from_test(universe_test),
+                  inputs=['?o'], domain=[('Object', '?o')],
+                  outputs=[], certified=[('=', '?o', '?o')],
+                  info=StreamInfo(eager=True), fluents=[])
+
+def create_inequality_stream():
+    from pddlstream.algorithms.downward import IDENTICAL
+    return Stream(name='inequality', gen_fn=from_test(lambda o1, o2: o1 != o2),
+                  inputs=['?o1', '?o2'], domain=[('Object', '?o1'), ('Object', '?o2')],
+                  outputs=[], certified=[('=', '?o1', '?o2')],
+                  info=StreamInfo(eager=True), fluents=[])
 
 ##################################################
 
