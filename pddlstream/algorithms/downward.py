@@ -7,19 +7,30 @@ import subprocess
 from collections import namedtuple, defaultdict
 from time import time
 
-from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action
+from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove, safe_zip
+from pddlstream.language.write_pddl import get_problem_pddl
+
+USE_CERBERUS = False
+#CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
+CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
+# Does not support derived predicates
+
+USE_FORBID = False
+FORBID_PATH = '/Users/caelan/Programs/external/ForbidIterative'
+# --planner topk,topq,topkq,diverse
+FORBID_TEMPLATE = 'plan.py --planner topk --number-of-plans {num} --domain {domain} --problem {problem}'
+FORBID_COMMAND = os.path.join(FORBID_PATH, FORBID_TEMPLATE)
+assert not USE_CERBERUS or not USE_FORBID
+# Does not support derived predicates
+
+##################################################
 
 filepath = os.path.abspath(__file__)
 if ' ' in filepath:
     raise RuntimeError('The path to pddlstream cannot include spaces')
-
-#CERBERUS_PATH = '/home/caelan/Programs/cerberus' # Check if this path exists
-CERBERUS_PATH = '/home/caelan/Programs/fd-redblack-ipc2018' # Check if this path exists
-FD_PATH = get_file_path(__file__, '../../FastDownward/')
-USE_CERBERUS = False
 
 def find_build(fd_path):
     for release in ['release64', 'release32']:  # TODO: list the directory
@@ -29,6 +40,8 @@ def find_build(fd_path):
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./FastDownward/build.py]')
 
+# TODO: check at runtime so users can use utils without FD
+FD_PATH = get_file_path(__file__, '../../FastDownward/')
 TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
 FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')
 
@@ -57,13 +70,19 @@ SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'
 INFINITY = 'infinity'
 GOAL_NAME = '@goal' # @goal-reachable
 
-# TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
+##################################################
+
+# TODO: cost_type=PLUSONE can lead to suboptimality but often doesn't in practice due to COST_SCALE
 # TODO: modify parsing_functions to support multiple costs
 
 # bound (int): exclusive depth bound on g-values. Cutoffs are always performed according to the real cost.
 # (i.e. solutions must be strictly better than the bound)
 
 SEARCH_OPTIONS = {
+    # See FastDownward's documentation for more configurations
+    # http://www.fast-downward.org/Doc/Evaluator
+    # http://www.fast-downward.org/Doc/SearchEngine
+
     # Optimal
     'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
@@ -88,26 +107,37 @@ SEARCH_OPTIONS = {
 
     'ff-eager-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "eager(tiebreaking([h, g()]),reopen_closed=false,'
-                         'cost_type=NORMAL,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
+                         'cost_type=PLUSONE,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
     'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
-                         'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
+                         'randomize_successors=True,cost_type=PLUSONE,max_time=%s,bound=%s)"',  # preferred=[h],
+    # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
-    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
+    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
-              'cost_type=NORMAL,max_time=%s,bound=%s)"',
+              'cost_type=PLUSONE,max_time=%s,bound=%s)"',
     # The key difference is that ehc resets the open list upon finding an improvement
 }
 # TODO: do I want to sort operators in FD hill-climbing search?
-# Greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
+# TODO: greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
 
 for w in range(1, 1+5):
-    SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
-                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
-    SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+    SEARCH_OPTIONS.update({
+        # TODO: specify whether lazy or eager
+        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},' \
+                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+
+        'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},' \
+                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+
+        # http://www.fast-downward.org/Doc/SearchEngine#Eager_weighted_A.2A_search
+        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                                   '--search "eager(alt([single(sum([g(), weight(h,{w})])),' \
+                                            'single(sum([g(),weight(h,{w})]),pref_only=true)]),' \
+                                        'preferred=[h],cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+    })
 
 if USE_CERBERUS:
     # --internal-previous-portfolio-plans
@@ -123,7 +153,7 @@ if USE_CERBERUS:
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
-DEFAULT_PLANNER = 'ff-astar'
+DEFAULT_PLANNER = 'ff-astar2' # TODO: default optimal & default suboptimal
 
 ##################################################
 
@@ -141,9 +171,16 @@ def set_cost_scale(cost_scale):
     pddl.f_expression.COST_SCALE = cost_scale
 
 def scale_cost(cost):
+    if cost == INF:
+        return INF
     return int_ceil(get_cost_scale() * float(cost))
 
-set_cost_scale(1000) # TODO: make unit costs be equivalent to cost scale = 0
+def convert_cost(cost):
+    if cost == INF:
+        return INFINITY
+    return int_ceil(cost)
+
+set_cost_scale(cost_scale=1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
@@ -152,12 +189,13 @@ def parse_lisp(lisp):
 
 # TODO: dynamically generate type_dict and predicate_dict
 Domain = namedtuple('Domain', ['name', 'requirements', 'types', 'type_dict', 'constants',
-                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms'])
+                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms', 'pddl'])
 
 def parse_sequential_domain(domain_pddl):
     if isinstance(domain_pddl, Domain):
         return domain_pddl
-    domain = Domain(*parse_domain_pddl(parse_lisp(domain_pddl)))
+    args = list(parse_domain_pddl(parse_lisp(domain_pddl))) + [domain_pddl]
+    domain = Domain(*args)
     # for action in domain.actions:
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
@@ -170,12 +208,13 @@ def has_costs(domain):
     return False
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
-                                 'objects', 'init', 'goal', 'use_metric'])
+                                 'objects', 'init', 'goal', 'use_metric', 'pddl'])
 
 def parse_problem(domain, problem_pddl):
     if isinstance(problem_pddl, Problem):
         return problem_pddl
-    return Problem(*parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict))
+    args = list(parse_task_pddl(parse_lisp(problem_pddl), domain.type_dict, domain.predicate_dict)) + [problem_pddl]
+    return Problem(*args)
 
 #def parse_action(lisp_list):
 #    action = [':action', 'test'
@@ -206,17 +245,18 @@ def fd_from_fact(fact):
     return pddl.Atom(prefix, args)
 
 def fact_from_fd(fd):
-    assert(isinstance(fd, pddl.Literal) and not fd.negated)
-    return (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    assert(isinstance(fd, pddl.Literal))
+    atom = (fd.predicate,) + tuple(map(obj_from_pddl, fd.args))
+    return Not(atom) if fd.negated else atom
 
 def evaluation_from_fd(fd):
     if isinstance(fd, pddl.Literal):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
     if isinstance(fd, pddl.f_expression.Assign):
-        raise not NotImplementedError()
+        raise NotImplementedError(fd)
         #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
-        #return Evaluation(head, float(fd.expression.value) / COST_SCALE) # Need to be careful
+        #return Evaluation(head, float(fd.expression.value) / get_cost_scale())  # Need to be careful due to rounding
     raise ValueError(fd)
 
 def fd_from_evaluation(evaluation):
@@ -232,29 +272,36 @@ def fd_from_evaluation(evaluation):
 
 ##################################################
 
-def parse_goal(goal_expression, domain):
+def parse_goal(goal_exp, domain):
     #try:
     #    pass
     #except SystemExit as e:
     #    return False
-    return parse_condition(pddl_list_from_expression(goal_expression),
+    return parse_condition(pddl_list_from_expression(goal_exp),
                            domain.type_dict, domain.predicate_dict).simplified()
 
-def get_problem(init_evaluations, goal_expression, domain, unit_costs=False):
-    objects = objects_from_evaluations(init_evaluations)
-    typed_objects = list({pddl.TypedObject(pddl_from_object(obj), OBJECT) for obj in objects} - set(domain.constants))
+def get_problem(evaluations, goal_exp, domain, unit_costs=False):
+    objects = objects_from_evaluations(evaluations)
+    typed_objects = list({make_object(pddl_from_object(obj)) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
-    init = [fd_from_evaluation(e) for e in init_evaluations if not is_negated_atom(e)]
-    goal = parse_goal(goal_expression, domain)
-    return Problem(task_name=domain.name, task_domain_name=domain.name, objects=sorted(typed_objects, key=lambda o: o.name),
-                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal, use_metric=not unit_costs)
+    init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+    goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
+    problem_pddl = None
+    if USE_FORBID:
+        problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
+    write_pddl(domain.pddl, problem_pddl)
+    return Problem(task_name=domain.name, task_domain_name=domain.name,
+                   objects=sorted(typed_objects, key=lambda o: o.name),
+                   task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal,
+                   use_metric=not unit_costs, pddl=problem_pddl)
 
+IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
 def task_from_domain_problem(domain, problem):
-    # TODO: prune eval
+    # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
-    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric = problem
+    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric, problem_pddl = problem
 
     assert domain.name == task_domain_name
     requirements = pddl.Requirements(sorted(set(domain.requirements.requirements +
@@ -264,7 +311,13 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
-
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)
@@ -315,14 +368,10 @@ def get_disjunctive_parts(condition):
 #                     None, None, [], goal, domain.actions, domain.axioms, None)
 #    normalize.normalize(task)
 
-def convert_cost(cost):
-    if cost == INF:
-        return INFINITY
-    return int(cost)
-
-def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False):
+def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
+               max_cost=INF, debug=False):
     max_time = convert_cost(max_planner_time)
-    max_cost = INFINITY if max_cost == INF else scale_cost(max_cost)
+    max_cost = convert_cost(scale_cost(max_cost))
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     if planner == 'cerberus':
@@ -330,6 +379,12 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
     command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+
+    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
+    domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
+    problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
+    if USE_FORBID:
+        command = FORBID_COMMAND.format(num=2, domain=domain_path, problem=problem_path)
     if debug:
         print('Search command:', command)
 
@@ -342,12 +397,22 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #    output = subprocess.check_output(command, shell=True, cwd=None) #, timeout=None)
     #except subprocess.CalledProcessError as e:
     #    print(e)
+
+    for filename in os.listdir(temp_path):
+        if filename.startswith(SEARCH_OUTPUT):
+            safe_remove(os.path.join(temp_path, filename))
+
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
+
+    if USE_FORBID:
+        for filename in os.listdir(FORBID_PATH):
+            if filename.startswith(SEARCH_OUTPUT):
+                os.rename(os.path.join(FORBID_PATH, filename), os.path.join(temp_path, filename))
+
     if debug:
-        print(output[:-1])
+        print(output.decode(encoding='UTF-8')[:-1])
         print('Search runtime:', time() - start_time)
-    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)
@@ -375,6 +440,7 @@ def parse_solution(solution):
     return plan, cost
 
 def parse_solutions(temp_path, plan_files):
+    # TODO: return multiple solutions for focused
     best_plan, best_cost = None, INF
     for plan_file in plan_files:
         solution = read(os.path.join(temp_path, plan_file))
@@ -473,19 +539,19 @@ def get_function_assignments(task):
 def get_action_instances(task, action_plan):
     type_to_objects = instantiate.get_objects_by_type(task.objects, task.types)
     function_assignments = get_function_assignments(task)
+    predicate_to_atoms = instantiate.get_atoms_by_predicate(task.init)
     fluent_facts = MockSet()
     init_facts = set()
     action_instances = []
     for name, objects in action_plan:
         # TODO: what if more than one action of the same name due to normalization?
         # Normalized actions have same effects, so I just have to pick one
+        # TODO: conditional effects and internal parameters
         action = find_unique(lambda a: a.name == name, task.actions)
         args = list(map(pddl_from_object, objects))
-        assert (len(action.parameters) == len(args))
-        variable_mapping = {p.name: a for p, a in zip(action.parameters, args)}
-        instance = action.instantiate(variable_mapping, init_facts,
-                                      fluent_facts, type_to_objects,
-                                      task.use_min_cost_metric, function_assignments)
+        variable_mapping = {p.name: a for p, a in safe_zip(action.parameters, args)}
+        instance = action.instantiate(variable_mapping, init_facts, fluent_facts, type_to_objects,
+                                      task.use_min_cost_metric, function_assignments, predicate_to_atoms)
         assert (instance is not None)
         action_instances.append(instance)
     return action_instances
@@ -612,4 +678,11 @@ def make_domain(constants=[], predicates=[], functions=[], actions=[], axioms=[]
     return Domain(name='', requirements=pddl.Requirements([]),
              types=types, type_dict={ty.name: ty for ty in types}, constants=constants,
              predicates=predicates, predicate_dict={p.name: p for p in predicates},
-             functions=functions, actions=actions, axioms=axioms)
+             functions=functions, actions=actions, axioms=axioms, pddl=None)
+
+
+def pddl_from_instance(instance):
+    action = instance.action
+    args = [instance.var_mapping[p.name]
+            for p in action.parameters[:action.num_external_parameters]]
+    return Action(action.name, args)

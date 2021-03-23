@@ -12,7 +12,7 @@ from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
 # from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment
+from pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment, OptPlan
 from pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
 from pddlstream.language.function import Function
@@ -24,7 +24,6 @@ from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, sa
 def obj_from_existential_expression(parent): # obj_from_value_expression
     return replace_expression(parent, lambda o: OptimisticObject
                               .from_opt(o, o) if is_parameter(o) else Object.from_value(o))
-
 
 def create_domain(goal_facts):
     domain = make_domain()
@@ -87,7 +86,7 @@ def dump_assignment(solution):
     print('Solved: {}'.format(bindings is not None))
     print('Cost: {}'.format(cost))
     print('Total facts: {}'.format(len(evaluations)))
-    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations)))))
+    print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations.all_facts))))) # preimage_facts
     if bindings is None:
         return
     print('Assignments:')
@@ -149,6 +148,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
               'Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, len(queue.skeletons), len(queue),
             len(evaluations), store.best_cost, search_time, sample_time, store.elapsed_time()))
+
         external_plan = None
         if len(queue.skeletons) < max_skeletons:
             domain.axioms[:] = create_disabled_axioms(queue, use_parameters=False)
@@ -159,8 +159,9 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
                                                  unique_binding=True, unsatisfiable=True,
                                                  max_effort=max_effort, planner=planner, **search_args)
             if stream_plan is not None:
-                external_plan = reorder_stream_plan(combine_optimizers(
+                external_plan = reorder_stream_plan(store, combine_optimizers(
                     init_evaluations, stream_plan + list(function_plan)))
+
         print('Stream plan ({}, {:.3f}): {}'.format(
             get_length(external_plan), compute_plan_effort(external_plan), external_plan))
         last_success = (external_plan is not None)
@@ -172,7 +173,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time
         else:
             allocated_sample_time = INF
-        queue.process(external_plan, plan_skeleton, cost=cost,
+        queue.process(external_plan, OptPlan(plan_skeleton, []), cost=cost, # TODO: fill in preimage facts
                       complexity_limit=INF,  max_time=allocated_sample_time)
         sample_time += elapsed_time(start_time)
         if not last_success and not queue:

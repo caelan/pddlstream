@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import SolutionStore, stream_plan_complexity
+from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
@@ -17,11 +17,11 @@ from pddlstream.algorithms.visualization import reset_visualizations, create_vis
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
-from pddlstream.algorithms.recover_optimizers import combine_optimizers, replan_with_optimizers
+from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time, implies
+from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -39,30 +39,34 @@ def partition_externals(externals, verbose=False):
     return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
-                  max_time=INF, max_iterations=INF,
+                  max_time=INF, max_iterations=INF, max_memory=INF,
                   initial_complexity=0, complexity_step=1,
-                  max_skeletons=INF, bind=True, max_failures=0,
+                  max_skeletons=INF, search_sample_ratio=0,
+                  bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
-                  unit_efforts=False, max_effort=INF, effort_weight=None,
-                  reorder=True, search_sample_ratio=0,
+                  unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                   visualize=False, verbose=True, **search_kwargs):
     """
-    Solves a PDDLStream problem by first hypothesizing stream outputs and then determining whether they exist
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
+    :param replan_actions: the actions declared to induce replanning for purpose of deferred stream evaluation
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
-    :param max_skeletons: the maximum number of plan skeletons to consider
+    :param max_memory: the maximum amount of memory allowed to be used
+    :param initial_complexity: the initial effort limit
+    :param complexity_step: the increase in the effort limit after each failure
+    :param max_skeletons: the maximum number of plan skeletons to consider (max_skeletons=None indicates not adaptive)
+    :param search_sample_ratio: the desired ratio of search time / sample time when max_skeletons!=None
+    :param bind: whether to propagate parameter bindings when max_skeletons=None
+    :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
     :param unit_costs: use unit action costs rather than numeric costs
     :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
-    :param initial_complexity: the initial effort limit
-    :param complexity_step: the increase in the effort limit after each failure
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
-    :param search_sample_ratio: the desired ratio of search time / sample time
     :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
     :param verbose: if True, this prints the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
@@ -82,7 +86,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
-    store = SolutionStore(evaluations, max_time, success_cost, verbose)
+    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
@@ -91,8 +95,9 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         reset_visualizations()
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
-    use_skeletons = max_skeletons is not None
-    has_optimizers = bool(optimizers)
+    positive_externals = streams + functions + optimizers
+    use_skeletons = (max_skeletons is not None)
+    has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
@@ -118,21 +123,22 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            stream_plan, action_plan, cost = iterative_plan_streams(
-                evaluations, (streams + functions + optimizers),
+            stream_plan, opt_plan, cost = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
         else:
-            stream_plan, action_plan, cost = INFEASIBLE, INFEASIBLE, INF
+            stream_plan, opt_plan, cost = INFEASIBLE, INFEASIBLE, INF
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
         if reorder:
-            stream_plan = reorder_stream_plan(stream_plan) # This may be redundant when using reorder_combined_plan
+            # TODO: this blows up memory wise for long stream plans
+            stream_plan = reorder_stream_plan(store, stream_plan)
 
         num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
+        action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
         print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan,
             get_length(action_plan), cost, str_from_plan(action_plan)))
@@ -147,7 +153,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         if not is_plan(stream_plan):
             complexity_limit += complexity_step
             if not eager_disabled:
-                reenable_disabled(evaluations, disabled)
+                reenable_disabled(evaluations, domain, disabled)
 
         #print(stream_plan_complexity(evaluations, stream_plan))
         if use_skeletons:
@@ -157,14 +163,83 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
                 # TODO: post process a bound plan
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
-                skeleton_queue.new_skeleton(optimizer_plan, action_plan, cost)
+                skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
-            skeleton_queue.process(stream_plan, action_plan, cost, complexity_limit, allocated_sample_time)
+            if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
+                break
         else:
-            process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
+            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                 bind=bind, max_failures=max_failures)
         sample_time += elapsed_time(start_time)
 
+    summary = store.export_summary()
+    summary.update({
+        'iterations': num_iterations,
+        'complexity': complexity_limit,
+        'skeletons': len(skeleton_queue.skeletons),
+        'sample_time': sample_time,
+        'search_time': search_time,
+        # TODO: optimal, infeasible, etc...
+    })
+    print(str_from_object(summary)) # TODO: return the summary
+
     write_stream_statistics(externals, verbose)
     return store.extract_solution()
+
+##################################################
+
+def solve_focused_original(problem, fail_fast=False, **kwargs):
+    """
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
+    :param problem: a PDDLStream problem
+    :param fail_fast: whether to switch phases as soon as a stream fails
+    :param kwargs: keyword args for solve_focused
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    max_failures = 0 if fail_fast else INF
+    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
+                         bind=False, max_failures=max_failures, **kwargs)
+
+def solve_binding(problem, fail_fast=False, **kwargs):
+    """
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
+    :param problem: a PDDLStream problem
+    :param fail_fast: whether to switch phases as soon as a stream fails
+    :param kwargs: keyword args for solve_focused
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    max_failures = 0 if fail_fast else INF
+    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
+                         bind=True, max_failures=max_failures, **kwargs)
+
+def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
+    """
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
+    :param problem: a PDDLStream problem
+    :param max_skeletons: the maximum number of plan skeletons to consider
+    :param search_sample_ratio: the desired ratio of search time / sample time
+    :param kwargs: keyword args for solve_focused
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    return solve_focused(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
+                         bind=None, max_failures=None, **kwargs)
+
+def solve_hierarchical(problem, search_sample_ratio=1, **kwargs):
+    """
+    Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
+    :param problem: a PDDLStream problem
+    :param search_sample_ratio: the desired ratio of search time / sample time
+    :param kwargs: keyword args for solve_focused
+    :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
+        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        using stream applications
+    """
+    return solve_adaptive(problem, max_skeletons=1, search_sample_ratio=search_sample_ratio,
+                          bind=None, max_failures=None, **kwargs)

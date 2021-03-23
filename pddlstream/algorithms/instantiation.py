@@ -8,6 +8,8 @@ from pddlstream.language.constants import is_parameter
 from pddlstream.language.conversion import is_atom, head_from_fact
 from pddlstream.utils import safe_zip, HeapElement
 
+USE_RELATION = True
+
 # TODO: maybe store unit complexity here as well as a tiebreaker
 Priority = namedtuple('Priority', ['complexity', 'num']) # num ensures FIFO
 
@@ -32,9 +34,10 @@ def test_mapping(atoms1, atoms2):
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.43.7049&rep=rep1&type=pdf
 
 class Instantiator(Sized): # Dynamic Instantiator
-    def __init__(self, streams, evaluations={}):
+    def __init__(self, streams, evaluations={}, verbose=False):
         # TODO: lazily instantiate upon demand
         self.streams = streams
+        self.verbose = verbose
         #self.streams_from_atom = defaultdict(list)
         self.queue = []
         self.num_pushes = 0 # shared between the queues
@@ -65,6 +68,8 @@ class Instantiator(Sized): # Dynamic Instantiator
         priority = Priority(complexity, self.num_pushes)
         heappush(self.queue, HeapElement(priority, instance))
         self.num_pushes += 1
+        if self.verbose:
+            print(self.num_pushes, instance)
 
     def pop_stream(self):
         priority, instance = heappop(self.queue)
@@ -112,8 +117,10 @@ class Instantiator(Sized): # Dynamic Instantiator
                     self.atoms_from_domain[s_idx, d_idx].append(new_atom)
                     atoms = [self.atoms_from_domain[s_idx, d2_idx] if d_idx != d2_idx else [new_atom]
                               for d2_idx in range(len(stream.domain))]
-                    self._add_combinations(stream, atoms)
-                    #self._add_combinations_relation(stream, atoms)
+                    if USE_RELATION:
+                        self._add_combinations_relation(stream, atoms)
+                    else:
+                        self._add_combinations(stream, atoms)
 
     def add_atom(self, atom, complexity):
         if not is_atom(atom):

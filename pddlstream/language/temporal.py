@@ -10,7 +10,7 @@ import sys
 from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
-    parse_sequential_domain, get_conjunctive_parts
+    parse_sequential_domain, get_conjunctive_parts, write_pddl
 from pddlstream.language.constants import DurativeAction
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
@@ -34,12 +34,13 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
 # /home/caelan/Programs/VAL
 
-TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
+ENV_VAR = 'TFD_PATH'
+#TFD_PATH = '/home/caelan/Programs/tfd-src-0.4/downward'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/TFD'
 #TFD_PATH = '/home/caelan/Programs/TemPorAl/src/src/temporal-FD'
-MAX_TIME = 20
+
+MAX_TIME = '{max_planner_time}'
 PLAN_FILE = 'plan'
-TFD_TRANSLATE = os.path.join(TFD_PATH, 'translate/') # tfd & temporal-FD
 #TFD_TRANSLATE = os.path.join(TFD_PATH, 'downward/translate/') # TFD
 
 # TODO: the search produces unsound plans when it prints the full state-space
@@ -50,11 +51,11 @@ TFD_OPTIONS = {
     't': MAX_TIME,     # success timeout
     'T': MAX_TIME,     # failure timeout
     'g': False,   # greedy search
-    'l': False,    # disable lazy evaluation
+    'l': True,    # disable lazy evaluation (slow when using the makespan heuristic)
     'v': True,    # disable verbose
-    'y+Y': False, # CEA heuristic
-    'x+X': True,  # makespan heuristic
-    'G': 'm',     # g-value evaluation
+    'y+Y': True, # CEA heuristic
+    'x+X': False,  # makespan heuristic
+    'G': 'm',     # g-value evaluation (m, c, t, w)
     'Q': 'p',     # queue (r, p, h)
     'r': True,    # reschedule # TODO: reschedule doesn't seem to work well with conditional effects
     #'O': 1,       # num ordered preferred ops, TFD doesn't support
@@ -65,6 +66,18 @@ TFD_OPTIONS = {
     'f': False,  # epsilon externally
     #'b': True,   # reset after solution, TFD doesn't support
 }
+
+def create_planner(anytime=False, greedy=False, lazy=False, h_cea=False, h_makespan=False, reschedule=False):
+    planner = dict(TFD_OPTIONS)
+    planner.update({
+        'a': anytime,       # anytime search
+        'g': greedy,        # greedy search
+        'l': not lazy,      # disable lazy evaluation (slow when using the makespan heuristic)
+        'y+Y': h_cea,       # CEA heuristic
+        'x+X': h_makespan,  # makespan heuristic
+        'r': reschedule,    # reschedule
+    })
+    return planner
 
 # https://github.com/caelan/TemporalFastDownward/blob/020da65a39d3f44c821cc2062d1006ccb0fcd7e5/downward/search/best_first_search.cc#L376
 
@@ -81,18 +94,16 @@ def format_option(pair):
 
 # Contains universal conditions: 1
 # Disabling rescheduling because of universal conditions in original task!
-# Doesn't look like temporal FastDownward uses non-boolean variables
+# TODO: convert finite quantifiers
 
 # /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
-
-TFD_ARGS = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, TFD_OPTIONS.items()))))
 
 # Parameters just used in search (and split by +)
 #TFD_COMMAND = 'plan.py n {} {} {}' # Default in plannerParameters.h
 #TFD_COMMAND = 'plan.py y+Y+a+e+r+O+1+C+1+b {} {} {}' # Default in ./plan
 #TFD_COMMAND = 'plan.py y+Y+e+O+1+C+1+b {} {} {}'
 #TFD_COMMAND = 'plan.py +x+X+e+O+1+C+1+b+G+m+T+10+Q+p {} {} {}'
-TFD_COMMAND = 'plan.py %s {} {} {}' % TFD_ARGS
+TFD_COMMAND = 'plan.py %s {} {} {}'
 
 # TODO: TFD sometimes returns incorrect plans
 # ./VAL/validate pddlstream/temp/domain.pddl pddlstream/temp/problem.pddl pddlstream/temp/plan
@@ -302,23 +313,15 @@ def parse_temporal_solution(solution):
     makespan = 0.0
     plan = []
     # TODO: this regex doesn't work for @
-    regex = r'(\d+.\d+):\s+\(\s*(\w+(?:\s\w+)*)\s*\)\s+\[(\d+.\d+)\]'
+    regex = r'(\d+.\d+):\s+' \
+            r'\(\s*(\w+(?: \S+)*)\s*\)\s+' \
+            r'\[(\d+.\d+)\]'
     for start, action, duration in re.findall(regex, solution):
         entries = action.lower().split(' ')
         action = DurativeAction(entries[0], tuple(entries[1:]), float(start), float(duration))
         plan.append(action)
         makespan = max(action.start + action.duration, makespan)
     return plan, makespan
-
-def write_pddl(domain_pddl, problem_pddl):
-    # TODO: already in downward.py
-    safe_rm_dir(TEMP_DIR)  # Ensures not using old plan
-    ensure_dir(TEMP_DIR)
-    domain_path = TEMP_DIR + DOMAIN_INPUT
-    problem_path = TEMP_DIR + PROBLEM_INPUT
-    write(domain_path, domain_pddl)
-    write(problem_path, problem_pddl)
-    return domain_path, problem_path
 
 def parse_plans(temp_path, plan_files):
     best_plan, best_makespan = None, INF
@@ -335,39 +338,73 @@ def get_end(action):
     return action.start + action.duration
 
 
-def compute_duration(plan):
+def compute_start(plan):
     if not plan:
-        return 0
+        return 0.
+    return min(action.start for action in plan)
+
+
+def compute_end(plan):
+    if not plan:
+        return 0.
     return max(map(get_end, plan))
+
+
+def compute_duration(plan):
+    return compute_end(plan) - compute_start(plan)
+
+
+def apply_start(plan, new_start):
+    if not plan:
+        return plan
+    old_start = compute_start(plan)
+    delta_start = new_start - old_start
+    return [DurativeAction(name, args, start + delta_start, duration)
+            for name, args, start, duration in plan]
 
 
 def retime_plan(plan, duration=1):
     if plan is None:
         return plan
+    # TODO: duration per action
     return [DurativeAction(name, args, i * duration, duration)
             for i, (name, args) in enumerate(plan)]
+
+
+def reverse_plan(plan):
+    if plan is None:
+        return None
+    makespan = compute_duration(plan)
+    return [DurativeAction(action.name, action.args, makespan - get_end(action), action.duration)
+            for action in plan]
 
 ##################################################
 
 TemporalDomain = namedtuple('TemporalDomain', ['name', 'requirements', 'types', 'constants',
                                                'predicates', 'functions', 'actions', 'durative_actions', 'axioms'])
 
+# TODO: rename SimplifiedDomain
 SimplifiedDomain = namedtuple('SimplifiedDomain', ['name', 'requirements', 'types', 'type_dict', 'constants',
-                                               'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
-                                               'durative_actions', 'pddl'])
+                                                   'predicates', 'predicate_dict', 'functions', 'actions', 'axioms',
+                                                   'durative_actions', 'pddl'])
 
+def get_tfd_path():
+    if ENV_VAR not in os.environ:
+        raise RuntimeError('Environment variable {} is not defined!'.format(ENV_VAR))
+    return os.path.join(os.environ[ENV_VAR], 'downward/')
 
 def parse_temporal_domain(domain_pddl):
+    translate_path = os.path.join(get_tfd_path(), 'translate/') # tfd & temporal-FD
     prefixes = ['pddl', 'normalize']
     deleted = delete_imports(prefixes)
-    sys.path.insert(0, TFD_TRANSLATE)
+    sys.path.insert(0, translate_path)
     import pddl
     import normalize
     temporal_domain = TemporalDomain(*pddl.tasks.parse_domain(pddl.parser.parse_nested_list(domain_pddl.splitlines())))
     name, requirements, constants, predicates, types, functions, actions, durative_actions, axioms = temporal_domain
     fluents = normalize.get_fluent_predicates(temporal_domain)
 
-    sys.path.remove(TFD_TRANSLATE)
+    sys.path.remove(translate_path)
     delete_imports(prefixes)
     sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
@@ -384,15 +421,17 @@ def parse_temporal_domain(domain_pddl):
     constants = convert_parameters(constants)
     axioms = list(map(convert_axiom, axioms))
 
-    return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants, predicates,
-                          {p.name: p for p in predicates}, functions, simple_actions, axioms,
-                          simple_from_durative, domain_pddl)
+    return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants,
+                            predicates, {p.name: p for p in predicates}, functions,
+                            simple_actions, axioms, simple_from_durative, domain_pddl)
+
+DURATIVE_ACTIONS = ':durative-actions'
 
 def parse_domain(domain_pddl):
     try:
         return parse_sequential_domain(domain_pddl)
     except AssertionError as e:
-        if str(e) == ':durative-actions':
+        if str(e) == DURATIVE_ACTIONS:
             return parse_temporal_domain(domain_pddl)
         raise e
 
@@ -416,6 +455,7 @@ def convert_args(args):
 def convert_condition(condition):
     import pddl
     class_name = condition.__class__.__name__
+    # TODO: compare class_name to the pddl class name
     if class_name in ('Truth', 'FunctionComparison'):
         # TODO: currently ignoring numeric conditions
         return pddl.Truth()
@@ -430,6 +470,9 @@ def convert_condition(condition):
     elif class_name == 'ExistentialCondition':
         return pddl.ExistentialCondition(convert_parameters(condition.parameters),
                                          list(map(convert_condition, condition.parts)))
+    elif class_name == 'UniversalCondition':
+        return pddl.UniversalCondition(convert_parameters(condition.parameters),
+                                       list(map(convert_condition, condition.parts)))
     raise NotImplementedError(class_name)
 
 def convert_effects(effects):
@@ -462,6 +505,7 @@ def convert_parameters(parameters):
 SIMPLE_TEMPLATE = '{}-{}'
 
 def simple_from_durative_action(durative_actions, fluents):
+    from pddlstream.algorithms.algorithm import get_predicates
     import pddl
     simple_actions = {}
     for action in durative_actions:
@@ -471,11 +515,13 @@ def simple_from_durative_action(durative_actions, fluents):
         over_effects = []
         effects = list(map(convert_effects, [start_effects, over_effects, end_effects]))
 
-        static_condition = pddl.Conjunction(list({literal for condition in conditions
-                                                  for literal in get_conjunctive_parts(condition.simplified())
-                                                  if literal.predicate not in fluents}))
+        static_condition = pddl.Conjunction(list({
+            part for condition in conditions for part in get_conjunctive_parts(condition.simplified())
+            if not isinstance(part, pddl.Truth) and not (get_predicates(part) & fluents)}))
+        # TODO: deal with case where there are fluents
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):
+            # TODO: extract the durations by pretending they are action costs
             actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
                                        pddl.Conjunction([static_condition, condition]).simplified(), effect, None))
             #actions[-1].dump()
@@ -510,9 +556,12 @@ def sequential_from_temporal_plan(plan):
 
 ##################################################
 
-def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
+def solve_tfd(domain_pddl, problem_pddl, planner=TFD_OPTIONS, max_planner_time=60, debug=False, **kwargs):
     if PLANNER == 'tfd':
-        root, template = TFD_PATH, TFD_COMMAND
+        root = get_tfd_path()
+        # TODO: make a function for this
+        args = '+'.join(sorted(filter(lambda s: s is not None, map(format_option, planner.items()))))
+        template = TFD_COMMAND % args.format(max_planner_time=max_planner_time)
     elif PLANNER == 'cerberus':
         root, template = CERB_PATH, CERB_COMMAND
     elif PLANNER == 'tflap':
@@ -539,6 +588,7 @@ def solve_tfd(domain_pddl, problem_pddl, max_time=INF, debug=False):
     proc = subprocess.call(command, shell=True, cwd=root, stdout=stdout, stderr=stderr) # timeout=None (python3)
     error = proc != 0
     print('Error:', error)
+    # TODO: returns an error when no plan was found
     # TODO: close any opened resources
 
     temp_path = os.path.join(os.getcwd(), TEMP_DIR)

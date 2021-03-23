@@ -19,7 +19,14 @@ def get_steps_from_stream(stream_plan, step_from_fact, node_from_atom):
             # TODO: apply this recursively
     return steps_from_stream
 
+def get_fluent_instance(external, input_objects, state):
+    import pddl
+    fluent_facts = map(fact_from_fd, filter(
+        lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), state))
+    return external.get_instance(input_objects, fluent_facts=fluent_facts)
+
 def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact, node_from_atom):
+    #return stream_plan
     import pddl
     assert len(real_states) == len(action_plan) + 1
     steps_from_stream = get_steps_from_stream(stream_plan, step_from_fact, node_from_atom)
@@ -53,9 +60,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
                                              list(map(pddl_from_object, new_output_objects)))
                 instance.var_mapping = {p: output_mapping.get(v, v)
                                         for p, v in instance.var_mapping.items()}
-            fluent_facts = list(map(fact_from_fd, filter(
-                lambda f: isinstance(f, pddl.Atom) and (f.predicate in external.fluents), real_states[state_index])))
-            new_instance = external.get_instance(result.instance.input_objects, fluent_facts=fluent_facts)
+            new_instance = get_fluent_instance(external, result.instance.input_objects, real_states[state_index])
             # TODO: handle optimistic here
             new_result = new_instance.get_result(new_output_objects, opt_index=result.opt_index)
             fluent_plan.append(new_result)

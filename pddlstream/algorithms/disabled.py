@@ -1,8 +1,9 @@
-from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready
+from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready, UNKNOWN_EVALUATION
 from pddlstream.algorithms.algorithm import remove_blocked
+from pddlstream.language.constants import OptPlan
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.language.conversion import is_plan, transform_action_args
+from pddlstream.language.conversion import is_plan, transform_action_args, replace_expression
 from pddlstream.utils import INF, safe_zip, apply_mapping, flatten
 
 # TODO: disabled isn't quite like complexity. Stream instances below the complexity threshold might be called again
@@ -23,9 +24,13 @@ def update_cost(cost, opt_result, result):
         return cost
     return cost + (result.value - opt_result.value)
 
-def bind_action_plan(action_plan, mapping):
-    return [transform_action_args(action, lambda o: mapping.get(o, o))
-            for action in action_plan]
+def bind_action_plan(opt_plan, mapping):
+    fn = lambda o: mapping.get(o, o)
+    new_action_plan = [transform_action_args(action, fn)
+                       for action in opt_plan.action_plan]
+    new_preimage_facts = frozenset(replace_expression(fact, fn)
+                                   for fact in opt_plan.preimage_facts)
+    return OptPlan(new_action_plan, new_preimage_facts)
 
 def get_free_objects(stream_plan):
     return set(flatten(result.output_objects for result in stream_plan
@@ -41,27 +46,27 @@ def push_disabled(instantiator, disabled):
             # TODO: only add if not already queued
             instantiator.push_instance(instance)
 
-def reenable_disabled(evaluations, disabled):
+def reenable_disabled(evaluations, domain, disabled):
     for instance in disabled:
-        instance.enable(evaluations)
+        instance.enable(evaluations, domain)
     disabled.clear()
 
 def process_instance(store, domain, instance, disable=True):
     if instance.enumerated:
-        return []
+        return [], []
     evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
-        instance.disable(evaluations, domain)
+        instance.disable(store.evaluations, domain)
     for result in new_results:
         #add_certified(evaluations, result)  # TODO: only add if the fact is actually new?
         complexity = INF if result.external.is_special() or not disable else \
             result.compute_complexity(store.evaluations)
         add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
-        remove_blocked(store.evaluations, instance, new_results)
-    add_facts(store.evaluations, new_facts, result=None, complexity=0) # TODO: record the instance
-    return new_results
+        remove_blocked(store.evaluations, domain, instance, new_results)
+    add_facts(store.evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
+    return new_results, new_facts
 
 ##################################################
 
@@ -78,6 +83,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
     free_objects = get_free_objects(stream_plan)
     bindings = {}
     bound_plan = []
+    num_wild = 0
     for idx, opt_result in enumerate(stream_plan):
         if (store.best_cost <= cost) or (max_failures < (idx - len(bound_plan))):
             # TODO: this terminates early when bind=False
@@ -90,7 +96,8 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
         if bound_instance.enumerated or not is_instance_ready(store.evaluations, bound_instance):
             continue
         # TODO: could remove disabled and just use complexity_limit
-        new_results = process_instance(store, domain, bound_instance)
+        new_results, new_facts = process_instance(store, domain, bound_instance)
+        num_wild += len(new_facts)
         if not bound_instance.enumerated:
             disabled.add(bound_instance)
         for new_result in new_results:
@@ -99,7 +106,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
                 bindings = update_bindings(bindings, bound_result, bound_plan[-1])
                 cost = update_cost(cost, opt_result, bound_plan[-1])
                 break
-    if bind and (len(stream_plan) == len(bound_plan)):
+    if (num_wild == 0) and (len(stream_plan) == len(bound_plan)):
         store.add_plan(bind_action_plan(action_plan, bindings), cost)
     # TODO: report back whether to try w/o optimistic values in the event that wild
 

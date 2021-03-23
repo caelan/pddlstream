@@ -1,9 +1,8 @@
-from pddlstream.algorithms.downward import get_fluents, apply_action, has_conditional_effects, get_conjunctive_parts, make_preconditions
+from pddlstream.algorithms.downward import apply_action, get_conjunctive_parts
 from pddlstream.algorithms.instantiate_task import get_goal_instance
 from pddlstream.utils import MockSet
 from pddlstream.language.optimizer import UNSATISFIABLE
 
-from collections import defaultdict
 import pddl
 import instantiate
 
@@ -20,6 +19,7 @@ def reinstantiate_action(state, instance, negative_from_name={}):
         action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
     except pddl.conditions.Impossible:
         return None
+    precondition = list(set(precondition))
     effects = []
     effect_from_literal = {literal: (cond, effect, effect_mapping)
                            for cond, literal, effect, effect_mapping in instance.effect_mappings}

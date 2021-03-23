@@ -77,6 +77,7 @@ def from_fn(fn):
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
+
 def outputs_from_boolean(boolean):
     return tuple() if boolean else None
 
@@ -93,8 +94,12 @@ def negate_test(test):
     return lambda *args, **kwargs: not test(*args, **kwargs)
 
 
+def from_gen(gen):
+    return from_gen_fn(lambda *args, **kwargs: iter(gen))
+
+
 def empty_gen():
-    return lambda *args, **kwargs: iter([])
+    return from_gen([])
 
 ##################################################
 
@@ -102,6 +107,9 @@ def empty_gen():
 
 def fn_from_constant(constant):
     return lambda *args, **kwargs: constant
+
+universe_test = fn_from_constant(True)
+empty_test = fn_from_constant(False)
 
 ##################################################
 

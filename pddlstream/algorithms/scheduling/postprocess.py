@@ -16,8 +16,8 @@ RESCHEDULE_PLANNER = 'lmcut-astar'
 #RESCHEDULE_PLANNER = 'ff-lazy'
 
 def reschedule_stream_plan(evaluations, target_facts, domain, stream_results,
-                           unique_binding=False, unsatisfiable=False,
-                           max_effort=INF, planner=RESCHEDULE_PLANNER, debug=False):
+                           unique_binding=False, unsatisfiable=False, max_effort=INF,
+                           planner=RESCHEDULE_PLANNER, max_reschedule_time=10, debug=False):
     # TODO: search in space of partially ordered plans
     # TODO: constrain selection order to be alphabetical?
     domain.actions[:], stream_result_from_name = get_stream_actions(
@@ -29,8 +29,8 @@ def reschedule_stream_plan(evaluations, target_facts, domain, stream_results,
     reschedule_task = task_from_domain_problem(domain, reschedule_problem)
     #reschedule_task.axioms = [] # TODO: ensure that the constants are added in the event that axioms are needed?
     sas_task = sas_from_pddl(reschedule_task)
-    stream_names, effort = solve_from_task(sas_task, planner=planner,
-                                           max_planner_time=10, max_cost=max_effort, debug=debug)
+    stream_names, effort = solve_from_task(sas_task, planner=planner, max_planner_time=max_reschedule_time,
+                                           max_cost=max_effort, debug=debug)
     if stream_names is None:
         return None
     stream_plan = [stream_result_from_name[name] for name, _ in stream_names]

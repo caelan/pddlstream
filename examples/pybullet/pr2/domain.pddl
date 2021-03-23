@@ -55,6 +55,7 @@
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
                        (AtPose ?o ?p) (HandEmpty ?a) (AtBConf ?q))
     :effect (and (AtGrasp ?a ?o ?g) (CanMove)
+                 ;(forall (?r) (when (Supported ?o ?p ?r) (not (On ?o ?r))))
                  (not (AtPose ?o ?p)) (not (HandEmpty ?a))
                  (increase (total-cost) (PickCost)))
   )
@@ -64,6 +65,7 @@
                        (AtGrasp ?a ?o ?g) (AtBConf ?q))
     :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
                  (not (AtGrasp ?a ?o ?g))
+                 ;(forall (?r) (when (Supported ?o ?p ?r) (On ?o ?r)))
                  (increase (total-cost) (PlaceCost)))
   )
 

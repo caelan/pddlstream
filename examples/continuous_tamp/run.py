@@ -10,14 +10,17 @@ import random
 import numpy as np
 import time
 
-from examples.continuous_tamp.constraint_solver import cfree_motion_fn, get_optimize_fn
+from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
-    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, GROUND_NAME, SUCTION_HEIGHT, MOVE_COST, GRASP, update_state
+    get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
+    update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.focused import solve_focused
+#from pddlstream.algorithms.serialized import solve_serialized
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution
+from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -25,36 +28,43 @@ from pddlstream.language.temporal import get_end, compute_duration, retime_plan
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies, inclusive_range
 
-DISTANCE_PER_TIME = 4.0
-
-def duration_fn(traj):
-    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
-    return distance / DISTANCE_PER_TIME
 
 ##################################################
 
-def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
+def create_problem(tamp_problem):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    external_paths = []
-    if use_stream:
-        external_paths.append(get_file_path(__file__, 'stream.pddl'))
-    if use_optimizer:
-        external_paths.append(get_file_path(__file__, 'optimizer.pddl')) # optimizer | optimizer_hard
-    external_pddl = [read(path) for path in external_paths]
-
-    constant_map = {}
     init = [
-        ('Region', GROUND_NAME),
-        Equal((TOTAL_COST,), 0)] + \
-           [('Block', b) for b in initial.block_poses.keys()] + \
-           [('Pose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Grasp', b, GRASP) for b in initial.block_poses] + \
-           [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
-           [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()]
-    goal_literals = []
+       #('Region', GROUND_NAME),
+       Equal(('Cost',), 0),
+       Equal((TOTAL_COST,), 0)] + \
+           [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
+           [('Placeable', b, r) for b in initial.block_poses.keys()
+            for r in tamp_problem.regions if (r in ENVIRONMENT_NAMES) or
+            ((b in tamp_problem.goal_cooked) and (r in STOVE_NAMES))]
+
+    for b, p in initial.block_poses.items():
+        init += [
+            ('Block', b),
+            ('Pose', b, p),
+            ('AtPose', b, p),
+            ('Grasp', b, GRASP),
+        ]
+
+    goal_literals = [] + \
+                    [('Cooked', b) for b in tamp_problem.goal_cooked] # Placeable for the stove
+    for b, r in tamp_problem.goal_regions.items():
+        if isinstance(r, str):
+            init += [('Region', r), ('Placeable', b, r)]
+            goal_literals += [('In', b, r)]
+        elif isinstance(r, list):
+            for region in r:
+                init += [('Region', region), ('Placeable', b, region)]
+            goal_literals.append(Or(*[('In', b, region) for region in r]))
+        else:
+            init += [('Pose', b, r)]
+            goal_literals += [('AtPose', b, r)]
 
     for r, q in initial.robot_confs.items():
         init += [
@@ -65,30 +75,35 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
             ('HandEmpty', r),
         ]
         if tamp_problem.goal_conf is not None:
-            #goal_literals += [('AtConf', tamp_problem.goal_conf)]
+            # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
 
-    for b, r in tamp_problem.goal_regions.items():
-        if isinstance(r, str):
-            init += [('Region', r), ('Placeable', b, r)]
-            goal_literals += [('In', b, r)]
-        else:
-            init += [('Pose', b, r)]
-            goal_literals += [('AtPose', b, r)]
-
-    #goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
+    # goal_literals += [Not(('Unsafe',))] # ('HandEmpty',)
     goal = And(*goal_literals)
 
+    return init, goal
+
+def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
+
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    external_paths = []
+    if use_stream:
+        external_paths.append(get_file_path(__file__, 'stream.pddl'))
+    if use_optimizer:
+        external_paths.append(get_file_path(__file__, 'optimizer/optimizer.pddl')) # optimizer | optimizer_hard
+    external_pddl = [read(path) for path in external_paths]
+
+    constant_map = {}
     stream_map = {
-        's-motion': from_fn(plan_motion),
+        's-grasp': from_fn(lambda b: (GRASP,)),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
-        't-region': from_test(get_region_test(tamp_problem.regions)),
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
-        'dist': distance_fn,
-        'duration': duration_fn,
-
+        's-motion': from_fn(plan_motion),
+        't-region': from_test(get_region_test(tamp_problem.regions)),
         't-cfree': from_test(lambda *args: implies(collisions, not collision_test(*args))),
+        'dist': distance_fn,
+        'duration': duration_fn, # temporal
     }
     if use_optimizer:
         # To avoid loading gurobi
@@ -98,18 +113,22 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
         })
     #stream_map = 'debug'
 
+    init, goal = create_problem(tamp_problem)
+
     return PDDLProblem(domain_pddl, constant_map, external_pddl, stream_map, init, goal)
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, sec_per_step=0.002):
+def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.025, sec_per_step=1e-3):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
-    example_name = os.path.basename(os.path.dirname(__file__))
-    directory = os.path.join(VISUALIZATIONS_DIR, example_name + '/')
-    safe_rm_dir(directory)
-    ensure_dir(directory)
+    if save:
+        #example_name = os.path.basename(os.path.dirname(__file__))
+        example_name = 'continuous_tamp'
+        directory = os.path.join(VISUALIZATIONS_DIR, '{}/'.format(example_name))
+        safe_rm_dir(directory)
+        ensure_dir(directory)
 
     colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
     viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
@@ -139,6 +158,7 @@ def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.01, s
                     time.sleep(sec_per_step)
     if display:
         user_input('Finish?')
+    return state
 
 ##################################################
 
@@ -160,26 +180,26 @@ MUTEXES = [
     # TODO: add mutexes to reduce search over skeletons
 ]
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+##################################################
+
+def set_deterministic(seed=0):
+    random.seed(seed=seed)
+    np.random.seed(seed=seed)
+
+def initialize(parser):
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
-    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
-    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
-    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
-    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
+    parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
+    parser.add_argument('-p', '--problem', default='tight', help='The name of the problem to solve')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
+
     args = parser.parse_args()
     print('Arguments:', args)
-
     np.set_printoptions(precision=2)
     if args.deterministic:
-        random.seed(seed=0)
-        np.random.seed(seed=0)
+        set_deterministic()
     print('Random seed:', get_random_seed())
 
     problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
@@ -189,11 +209,33 @@ def main():
     problem_fn = problem_from_name[args.problem]
     tamp_problem = problem_fn(args.number)
     print(tamp_problem)
+    return tamp_problem, args
 
+def dump_pddlstream(pddlstream_problem):
+    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
+    print('Goal:', str_from_object(pddlstream_problem.goal))
+
+##################################################
+
+def main():
+    # TODO: side grasps (horizontal gripper, one finger, forklift)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
+    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
+    tamp_problem, args = initialize(parser)
+
+    # TODO: test if placed in the same region
+    defer_fn = defer_shared # never_defer | defer_unique | defer_shared
     stream_info = {
-        't-region': StreamInfo(eager=False, p_success=0), # bound_fn is None
-        't-cfree': StreamInfo(eager=False, negate=True),
-        'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST),
+        's-region': StreamInfo(defer_fn=defer_fn),
+        's-grasp': StreamInfo(defer_fn=defer_fn),
+        's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
+        's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
+        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, negate=True), # defer_fn |  defer_unbound
+        't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
+        'dist': FunctionInfo(defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),
@@ -210,25 +252,27 @@ def main():
                                   #skeletons=[skeleton, []],
                                   exact=True,
                                   max_cost=max_cost)
+    replan_actions = set()
+    #replan_actions = {'move', 'pick', 'place'}
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
-    print('Initial:', sorted_str_from_list(pddlstream_problem.init))
-    print('Goal:', str_from_object(pddlstream_problem.goal))
+    dump_pddlstream(pddlstream_problem)
     pr = cProfile.Profile()
     pr.enable()
     success_cost = 0 if args.optimal else INF
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, constraints=constraints, stream_info=stream_info,
-                                 planner=planner, max_planner_time=10, hierarchy=hierarchy, debug=False,
-                                 max_time=args.max_time, max_iterations=INF, verbose=True,
-                                 unit_costs=args.unit, success_cost=success_cost,
-                                 unit_efforts=False, effort_weight=0,
-                                 search_sample_ratio=1,
-                                 #max_skeletons=None, bind=True,
-                                 visualize=args.visualize)
+        solver = solve_adaptive  # solve_focused | solve_serialized | solve_adaptive
+        solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
+                          replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
+                          max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
+                          unit_costs=args.unit, success_cost=success_cost,
+                          unit_efforts=True, effort_weight=1,
+                          search_sample_ratio=1,
+                          #max_skeletons=None, bind=True,
+                          visualize=args.visualize)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, constraints=constraints,
                                      complexity_step=2, planner=planner, hierarchy=hierarchy,

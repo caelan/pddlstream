@@ -6,6 +6,7 @@ from pddlstream.algorithms.instantiate_task import get_goal_instance, filter_neg
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import Verbose, MockSet, safe_zip, flatten
 
+import copy
 import pddl
 import axiom_rules
 
@@ -71,7 +72,7 @@ def extract_axioms(state, axiom_from_atom, conditions, axiom_plan, negated_from_
         if literal_holds(state, fact):
             continue
         if fact not in axiom_from_atom:
-            #print(fact)
+            print('Fact is not achievable:', fact)
             success = False
             continue
         axiom = axiom_from_atom[fact]
@@ -167,20 +168,26 @@ def backtrack_axioms(conditions, axioms_from_effect, visited_atoms):
 def recover_axioms_plans(instantiated, action_instances):
     #axioms, axiom_init, _ = axiom_rules.handle_axioms(
     #    instantiated.actions, instantiated.axioms, instantiated.goal_list)
+
+    new_action_instances = [copy.deepcopy(instance) for instance in action_instances]
+
     axioms, axiom_init = instantiated.axioms, [] # TODO: bug when needing to reachieve negated
     axioms_from_effect = defaultdict(list)
     for axiom in axioms:
         axioms_from_effect[axiom.effect].append(axiom)
+    axioms_from_name = get_derived_predicates(instantiated.task.axioms)
 
     state = set(instantiated.task.init) | set(axiom_init)
     axiom_plans = []
-    for action in action_instances + [get_goal_instance(instantiated.task.goal)]:
-        all_conditions = list(get_precondition(action)) + list(flatten(cond for cond, _ in action.add_effects + action.del_effects))
+    for action in new_action_instances + [get_goal_instance(instantiated.task.goal)]:
+        all_conditions = list(get_precondition(action)) + list(flatten(
+            cond for cond, _ in action.add_effects + action.del_effects))
         axioms = backtrack_axioms(all_conditions, axioms_from_effect, set())
         axiom_from_atom, _ = get_achieving_axioms(state, axioms)
+
         action.applied_effects = []
         for effects in [action.add_effects, action.del_effects]:
-            negate = effects is action.del_effects
+            negate = (effects is action.del_effects)
             for i, (conditions, effect) in reversed(list(enumerate(effects))):
                 if all(literal_holds(state, literal) or (literal in axiom_from_atom) for literal in conditions):
                     action.precondition.extend(conditions)
@@ -188,7 +195,16 @@ def recover_axioms_plans(instantiated, action_instances):
                     action.applied_effects.append(effect.negate() if negate else effect)
                 else:
                     effects.pop(i)
+
+        # RuntimeError: Preimage fact ('new-axiom@0',) is not achievable!
+        #precondition = action.precondition # TODO: strange bug if this applies
+        precondition = [literal for literal in action.precondition if literal.predicate in axioms_from_name]
         axiom_plans.append([])
-        assert extract_axioms(state, axiom_from_atom, action.precondition, axiom_plans[-1])
+        success = extract_axioms(state, axiom_from_atom, precondition, axiom_plans[-1])
+        if not success:
+            print(all_conditions)
+            print(action)
+            print(axioms)
+            raise RuntimeError('Could not extract axioms')
         apply_action(state, action)
-    return axiom_plans
+    return new_action_instances, axiom_plans

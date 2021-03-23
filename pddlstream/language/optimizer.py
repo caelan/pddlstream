@@ -5,8 +5,8 @@ from pddlstream.language.constants import get_prefix, get_args, get_parameter_na
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction
 from pddlstream.language.external import parse_lisp_list, get_procedure_fn
 from pddlstream.language.function import PredicateResult, FunctionResult
-from pddlstream.language.object import Object
-from pddlstream.language.stream import OptValue, StreamInfo, Stream, StreamInstance, StreamResult, \
+from pddlstream.language.object import Object, SharedOptValue
+from pddlstream.language.stream import StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
 from pddlstream.language.generator import get_next
 from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
@@ -15,6 +15,12 @@ from pddlstream.algorithms.reorder import get_stream_plan_components, get_partia
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?
 # TODO: revert to my previous specification where streams can simply be fused
+
+VARIABLES = ':variables'
+CONSTRAINT = ':constraint'
+UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
+
+##################################################
 
 class OptimizerOutput(object):
     def __init__(self, assignments=[], facts=[], infeasible=[]): # infeasible=None
@@ -63,9 +69,9 @@ def get_effort_fn(optimizer_name):
     # TODO: higher effort is the variable cannot be free for the testing process
     # This might happen if the variable is certified to have a property after construction
     def effort_fn(*input_values):
-        parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
-        optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, OptValue)
-                              if input_values[i].stream.startswith(optimizer_name)]
+        # parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
+        # optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, SharedOptValue)
+        #                      if input_values[i].stream.startswith(optimizer_name)]
         #if not parameter_indices and not optimizer_indices:
         #    return INF
         return 1
@@ -119,9 +125,6 @@ class ConstraintStream(ComponentStream):
 
 ##################################################
 
-VARIABLES = ':variables'
-CONSTRAINT = ':constraint'
-
 def parse_variable(optimizer, lisp_list, infos):
     value_from_attribute = parse_lisp_list(lisp_list)
     assert set(value_from_attribute) <= {VARIABLES, ':inputs', ':domain', ':graph'}
@@ -133,6 +136,7 @@ def parse_variable(optimizer, lisp_list, infos):
                           infos)
 
 def parse_constraint(optimizer, lisp_list, infos):
+    # TODO: constraints with the same name
     value_from_attribute = parse_lisp_list(lisp_list)
     assert set(value_from_attribute) <= {CONSTRAINT, ':necessary'} # , ':fluents'}
     return ConstraintStream(optimizer,
@@ -161,8 +165,6 @@ def parse_optimizer(lisp_list, procedures, infos):
 
 ##################################################
 
-UNSATISFIABLE = 'unsatisfiable{}'.format(NEGATIVE_SUFFIX)
-
 class OptimizerResult(StreamResult):
     def get_components(self):
         return self.external.stream_plan
@@ -176,14 +178,14 @@ class OptimizerInstance(StreamInstance):
     def __init__(self, stream, input_objects, fluent_facts):
         super(OptimizerInstance, self).__init__(stream, input_objects, fluent_facts)
         all_constraints = frozenset(range(len(self.external.certified)))
+        print(all_constraints)
         self.infeasible = {all_constraints}
         # TODO: might need to block separate clusters at once in order to ensure that it captures the true behavior
         # TODO: connected components on facts
         # TODO: cluster connected components in the infeasible set
         # TODO: compute things dependent on a stream and treat like an optimizer
         # Also make an option to just treat everything like an optimizer
-    def _next_outputs(self):
-        self._create_generator()
+    def _next_wild(self):
         output, self.enumerated = get_next(self._generator, default=[])
         if not isinstance(output, OptimizerOutput):
             output = OptimizerOutput(assignments=output)
@@ -213,17 +215,20 @@ class OptimizerStream(Stream):
         inputs, domain, outputs, certified, functions, self.macro_from_micro, \
             self.input_objects, self.output_objects, self.fluent_facts = get_cluster_values(external_plan)
 
+        hint = self.create_hint()
+        self.objectives = certified + functions
+        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, self.objectives, hint=hint)
+        #assert len(self.get_cluster_plans()) == 1
+        super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
+                                              certified, optimizer.info)
+    def create_hint(self):
         hint = {}
         for result, mapping in safe_zip(self.stream_plan, self.macro_from_micro):
             if isinstance(result, StreamResult):
                 for param, obj in safe_zip(result.external.outputs, result.output_objects):
                     if isinstance(obj, Object):
                         hint[mapping[param]] = obj.value
-        self.objectives = certified + functions
-        gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, self.objectives, hint=hint)
-        #assert len(self.get_cluster_plans()) == 1
-        super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
-                                              certified, optimizer.info)
+        return hint
     @property
     def mapping(self):
         return get_mapping(self.inputs + self.outputs,

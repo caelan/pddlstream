@@ -7,14 +7,12 @@ try:
 except ImportError:
     raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
 
-import cProfile
-import pstats
 import argparse
 
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
-from pddlstream.utils import read, get_file_path
+from pddlstream.utils import read, get_file_path, Profiler
 from pddlstream.language.constants import PDDLProblem, And, Equal, print_solution
 from pddlstream.language.stream import StreamInfo
 
@@ -25,8 +23,8 @@ from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, c
 from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
-    disconnect, set_client, add_data_path, WorldSaver, wait_for_user, get_joint_positions, get_configuration, set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, \
-    draw_base_limits
+    disconnect, set_client, add_data_path, WorldSaver, wait_for_user, get_joint_positions, get_configuration, \
+    set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, draw_base_limits
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, Trajectory, get_base_limits
 from examples.discrete_belief.run import revisit_mdp_cost, MAX_COST, clip_cost
@@ -243,19 +241,15 @@ def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=Tr
         ABSTRIPSLayer(pos_pre=['AtBConf']),
     ]
 
-    pr = cProfile.Profile()
-    pr.enable()
-    solution = solve_focused(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
-                             success_cost=MAX_COST, verbose=verbose)
-    plan, cost, evaluations = solution
-    if MAX_COST <= cost:
-        plan = None
-    print_solution(solution)
-    print('Finite cost:', cost < MAX_COST)
-    commands = post_process(state, plan)
-    pr.disable()
-    if profile:
-        pstats.Stats(pr).sort_stats('cumtime').print_stats(10)
+    with Profiler(field='cumtime', num=10 if profile else None):
+        solution = solve_adaptive(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
+                                  success_cost=MAX_COST, verbose=verbose)
+        plan, cost, evaluations = solution
+        if MAX_COST <= cost:
+            plan = None
+        print_solution(solution)
+        print('Finite cost:', cost < MAX_COST)
+        commands = post_process(state, plan)
     saved_world.restore()
     disconnect()
     return commands

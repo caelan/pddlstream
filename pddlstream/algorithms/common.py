@@ -1,9 +1,9 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan
+from pddlstream.language.constants import is_plan, get_length
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
-from pddlstream.utils import INF, elapsed_time
+from pddlstream.utils import INF, elapsed_time, check_memory
 
 # Complexity is a way to characterize the number of external evaluations required for a solution
 # Most algorithms regularize to prefer lower complexity solutions
@@ -15,6 +15,7 @@ from pddlstream.utils import INF, elapsed_time
 COMPLEXITY_OP = max # max | sum
 INIT_EVALUATION = None
 INTERNAL_EVALUATION = False
+UNKNOWN_EVALUATION = 'unknown'
 
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
@@ -22,7 +23,7 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 SOLUTIONS = []
 
 class SolutionStore(object):
-    def __init__(self, evaluations, max_time, success_cost, verbose):
+    def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
         # TODO: store a map from head to value?
         # TODO: include other problem information here?
         # TODO: determine when the plan converges
@@ -30,6 +31,7 @@ class SolutionStore(object):
         #self.initial_evaluations = copy.copy(evaluations)
         self.start_time = time.time()
         self.max_time = max_time
+        self.max_memory = max_memory
         self.success_cost = success_cost # Inclusive
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
@@ -51,7 +53,7 @@ class SolutionStore(object):
     def elapsed_time(self):
         return elapsed_time(self.start_time)
     def is_timeout(self):
-        return self.max_time <= self.elapsed_time()
+        return (self.max_time <= self.elapsed_time()) or not check_memory(self.max_memory)
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
     #def __repr__(self):
@@ -59,6 +61,18 @@ class SolutionStore(object):
     def extract_solution(self):
         SOLUTIONS[:] = self.solutions
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
+    def export_summary(store): # TODO: log, status, etc...
+        # TODO: SOLUTIONS
+        return {
+            'solved': store.is_solved(),
+            #'solved': store.has_solution(),
+            'solutions': len(store.solutions),
+            'cost': store.best_cost,
+            'length': get_length(store.best_plan),
+            'evaluations': len(store.evaluations),
+            'run_time': store.elapsed_time(),
+            'timeout': store.is_timeout(),
+        }
 
 ##################################################
 
@@ -96,6 +110,7 @@ def compute_complexity(evaluations, facts):
         return 0
     return COMPLEXITY_OP(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
 
+
 def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
     if not is_plan(stream_plan):
         return INF
@@ -122,6 +137,7 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
                 optimistic_facts[fact] = result_complexity
         total_complexity = COMPLEXITY_OP(total_complexity, result_complexity)
     return total_complexity
+
 
 def is_instance_ready(evaluations, instance):
     return all(evaluation_from_fact(f) in evaluations

@@ -6,6 +6,7 @@ import string
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
+GROUND_Y = 0.
 
 SUCTION_HEIGHT = 1.
 GRASP = -np.array([0, BLOCK_HEIGHT + SUCTION_HEIGHT/2]) # TODO: side grasps
@@ -14,6 +15,20 @@ APPROACH = -np.array([0, CARRY_Y]) - GRASP
 
 MOVE_COST = 10.
 COST_PER_DIST = 1.
+DISTANCE_PER_TIME = 4.0
+
+def get_block_box(b, p=np.zeros(2)):
+    extent = np.array([BLOCK_WIDTH, BLOCK_HEIGHT]) # TODO: vary per block
+    lower = p - extent/2.
+    upper = p + extent/2.
+    return lower, upper
+
+
+def boxes_overlap(box1, box2):
+    lower1, upper1 = box1
+    lower2, upper2 = box2
+    return np.less_equal(lower1, upper2).all() and \
+           np.less_equal(lower2, upper1).all()
 
 
 def interval_contains(i1, i2):
@@ -30,12 +45,14 @@ def interval_overlap(i1, i2):
 
 
 def get_block_interval(b, p):
-    return p[0]*np.ones(2) + np.array([-BLOCK_WIDTH, +BLOCK_WIDTH]) / 2.
+    lower, upper = get_block_box(b, p)
+    return lower[0], upper[0]
 
 ##################################################
 
 def collision_test(b1, p1, b2, p2):
-    return interval_overlap(get_block_interval(b1, p1), get_block_interval(b2, p2))
+    return interval_overlap(get_block_interval(b1, p1),
+                            get_block_interval(b2, p2))
 
 
 def distance_fn(q1, q2):
@@ -43,18 +60,38 @@ def distance_fn(q1, q2):
     return MOVE_COST + COST_PER_DIST*np.linalg.norm(q2 - q1, ord=ord)
 
 
-def inverse_kin_fn(b, p, g):
+def duration_fn(traj):
+    distance = sum(np.linalg.norm(q2 - q1) for q1, q2 in zip(traj, traj[1:]))
+    return distance / DISTANCE_PER_TIME
+
+
+def forward_kin(q, g):
+    p = q + g
+    return p
+
+
+def inverse_kin(p, g):
     q = p - g
-    #return (q,)
+    return q
+
+
+def approach_kin(q):
     a = q - APPROACH
+    return a
+
+
+def inverse_kin_fn(b, p, g):
+    q = inverse_kin(p, g)
+    #return (q,)
+    a = approach_kin(q)
     return (a,)
 
 
-def unreliable_ik_fn(b, p):
+def unreliable_ik_fn(*args):
     # For testing the algorithms
     while 1e-2 < np.random.random():
         yield None
-    yield inverse_kin_fn(b, p)
+    yield inverse_kin_fn(*args)
 
 
 def get_region_test(regions):
@@ -107,30 +144,76 @@ def get_pose_gen(regions):
     return gen_fn
 
 
-def plan_motion(q1, q2):
+def str_eq(s1, s2, ignore_case=True):
+    if ignore_case:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    return s1 == s2
+
+
+def interpolate(waypoints, velocity=1):
+    import scipy
+    differences = [0.] + [np.linalg.norm(q2 - q1) for q1, q2 in zip(waypoints[:-1], waypoints[1:])]
+    times = np.cumsum(differences) / velocity
+    return scipy.interpolate.interp1d(times, waypoints, kind='linear')
+
+
+def plan_motion(q1, q2, fluents=[]):
     x1, y1 = q1
     x2, y2 = q2
-    t = [q1,
-         np.array([x1, CARRY_Y]),
-         np.array([x2, CARRY_Y]),
-         q2]
+    t = [q1, np.array([x1, CARRY_Y]), np.array([x2, CARRY_Y]), q2]
+
+    grasp = None
+    placed = {}
+    for fluent in fluents:
+        predicate, args = fluent[0], fluent[1:]
+        if str_eq(predicate, 'AtGrasp'):
+            assert grasp is None
+            r, b, g = args
+            grasp = g
+        elif str_eq(predicate, 'AtPose'):
+            b, p = args
+            assert b not in placed
+            placed[b] = p
+        else:
+            raise NotImplementedError(predicate)
+
+    if grasp is None:
+        return (t,)
+    for q in t:
+        p1 = forward_kin(q, grasp)
+        box1 = get_block_box(None, p1)
+        for b2, p2 in placed.items():
+            box2 = get_block_box(b2, p2)
+            if boxes_overlap(box1, box2):
+                return None
     return (t,)
+
+def test_reachable(*args, **kwargs):
+    return plan_motion(*args, **kwargs) is not None
 
 ##################################################
 
 TAMPState = namedtuple('TAMPState', ['robot_confs', 'holding', 'block_poses'])
-TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions', 'goal_conf', 'goal_regions'])
+TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions',
+                                         'goal_conf', 'goal_regions', 'goal_cooked'])
 
-REGION_NAME = 'red'
+GOAL_NAME = 'red'
+STOVE_NAME = 'stove'
+
 INITIAL_CONF = np.array([-5, CARRY_Y + 1])
 #GOAL_CONF = None
 GOAL_CONF = INITIAL_CONF
 
 REGIONS = {
     GROUND_NAME: (-10, 10),
-    REGION_NAME: (5, 10),
+    GOAL_NAME: (5, 10),
     #REGION_NAME: (7.5, 10),
+    #STOVE_NAME: (5, 10),
 }
+
+ENVIRONMENT_NAMES = [GROUND_NAME]
+STOVE_NAMES = [STOVE_NAME]
 
 def make_blocks(num):
     #return ['b{}'.format(i) for i in range(num)]
@@ -148,23 +231,25 @@ def mirror(n_blocks=1, n_robots=2):
 
     initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
     goal_regions = {block: pose for block, pose in zip(blocks, goal_poses)}
+    goal_cooked = {}
 
-    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions, goal_cooked)
 
 def tight(n_blocks=2, n_goals=2, n_robots=1):
     confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
     robots = ['r{}'.format(x) for x in range(n_robots)]
     initial_confs = dict(zip(robots, confs))
 
-    #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)]
+    #poses = [np.array([(BLOCK_WIDTH + 1)*x, 0]) for x in range(n_blocks)] # reversed
     poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
-    #poses = [sample_region(b, regions[GROUND]) for b in blocks]
+    #poses = [sample_region(b, regions[GROUND]) for b in blocks] # randomly sample
     blocks = make_blocks(len(poses))
 
     initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
-    goal_regions = {block: REGION_NAME for block in blocks[:n_goals]}
+    goal_regions = {block: GOAL_NAME for block in blocks[:n_goals]} # GROUND_NAME
+    goal_cooked = {}
 
-    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions, goal_cooked)
 
 def blocked(n_blocks=3, n_robots=1, deterministic=True):
     confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
@@ -180,15 +265,87 @@ def blocked(n_blocks=3, n_robots=1, deterministic=True):
         block_poses = dict(zip(blocks, poses))
     else:
         block_regions = {blocks[0]: GROUND_NAME}
-        block_regions.update({b: REGION_NAME for b in blocks[1:2]})
+        block_regions.update({b: GOAL_NAME for b in blocks[1:2]})
         block_regions.update({b: GROUND_NAME for b in blocks[2:]})
         block_poses = rejection_sample_placed(block_regions=block_regions, regions=REGIONS)
 
     initial = TAMPState(initial_confs, {}, block_poses)
-    goal_regions = {blocks[0]: 'red'}
+    goal_regions = {blocks[0]: GOAL_NAME}
+    goal_cooked = {}
 
-    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions)
+    return TAMPProblem(initial, REGIONS, GOAL_CONF, goal_regions, goal_cooked)
 
+def blocked_cost(n_blocks=2, n_robots=1):
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
+
+    goal_region = (2, 10)
+    regions = {
+        GROUND_NAME: REGIONS[GROUND_NAME],
+        GOAL_NAME: goal_region,
+    }
+
+    blocks = make_blocks(n_blocks)
+    lower, upper = REGIONS[GROUND_NAME]
+    poses = [np.zeros(2), np.array([goal_region[0] + 3*BLOCK_WIDTH/2, 0.])]
+    poses.extend(np.array([lower + BLOCK_WIDTH/2 + (BLOCK_WIDTH + 1) * x, 0])
+                 for x in range(n_blocks-len(poses)))
+    block_poses = dict(zip(blocks, poses))
+
+    initial = TAMPState(initial_confs, {}, block_poses)
+    goal_regions = {block: GOAL_NAME for block in blocks[:2]}
+    goal_cooked = {}
+
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions, goal_cooked)
+
+def dual(n_blocks=2, n_goals=2, n_robots=1, goal_regions=['red', 'green']):
+    regions = {
+        GROUND_NAME: (-10, 10),
+        'red': (-10, -8.5),
+        'green': (5, 10),
+    }
+    # TODO: geometric reachability
+
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    initial_confs = dict(zip(robots, confs))
+
+    poses = [np.array([-(BLOCK_WIDTH + 1) * x, 0]) for x in range(n_blocks)]
+    blocks = make_blocks(len(poses))
+
+    initial = TAMPState(initial_confs, {}, dict(zip(blocks, poses)))
+    goal_regions = {block: goal_regions for block in blocks[:n_goals]}
+    goal_cooked = {}
+
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions, goal_cooked)
+
+def cook(n_blocks=2, n_goals=1, n_robots=1):
+    # TODO: render using PyBullet
+    regions = {
+        GROUND_NAME: (-10, -5), # 'shelf'
+        'table': (-2, 2),
+        STOVE_NAME: (5, 10),
+    }
+
+    robots = ['r{}'.format(x) for x in range(n_robots)]
+    confs = [INITIAL_CONF, np.array([-1, 1])*INITIAL_CONF]
+
+    blocks = make_blocks(n_blocks)
+    goal_blocks = blocks[:n_goals]
+    goal_cooked = set(goal_blocks)
+    other_blocks = set(blocks) - goal_cooked
+
+    initial_regions = {block: GROUND_NAME for block in goal_blocks}
+    initial_regions.update({block: 'table' for block in other_blocks})
+    block_poses = rejection_sample_placed(block_regions=initial_regions, regions=regions)
+    initial = TAMPState(dict(zip(robots, confs)), {}, block_poses)
+    goal_regions = {block: 'table' for block in goal_cooked}
+    #goal_regions = {}
+    # TODO: draw table legs
+    # TODO: stove top burners
+
+    return TAMPProblem(initial, regions, GOAL_CONF, goal_regions, goal_cooked)
 
 #def blocked2(n_blocks=0, **kwargs):
 #    lower, upper = REGIONS[GROUND_NAME]
@@ -206,26 +363,35 @@ PROBLEMS = [
     mirror,
     tight,
     blocked,
+    blocked_cost,
+    dual,
+    cook,
     #blocked2,
 ]
 
 ##################################################
 
+def draw_robot(viewer, robot, pose, **kwargs):
+    x, y = pose
+    viewer.draw_robot(x, y, name=robot, **kwargs)
+
+def draw_block(viewer, block, pose, **kwargs):
+    x, y = pose
+    viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, name=block, **kwargs)
+
 def draw_state(viewer, state, colors):
     # TODO: could draw the current time
     viewer.clear_state()
     #viewer.draw_environment()
+    print(state)
     for robot, conf in state.robot_confs.items():
-        viewer.draw_robot(*conf, name=robot)
+        draw_robot(viewer, robot, conf)
     for block, pose in state.block_poses.items():
-        x, y = pose
-        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
-                          name=block, color=colors[block])
+        draw_block(viewer, block, pose, color=colors[block])
     for robot, holding in state.holding.items():
         block, grasp = holding
-        x, y = state.robot_confs[robot] + grasp
-        viewer.draw_block(x, y, BLOCK_WIDTH, BLOCK_HEIGHT,
-                          name=block, color=colors[block])
+        pose = forward_kin(state.robot_confs[robot], grasp)
+        draw_block(viewer, block, pose, color=colors[block])
     viewer.tk.update()
 
 def get_random_seed():
@@ -238,7 +404,11 @@ def apply_action(state, action):
     # TODO: don't mutate block_poses?
     name, args = action[:2]
     if name == 'move':
-        robot, _, traj, _ = args
+        if len(args) == 4:
+            robot, _, traj, _ = args
+        else:
+            robot, q1, q2 = args
+            traj = [q1, q2]
         #traj = plan_motion(*args)[0] if len(args) == 2 else args[1]
         for conf in traj[1:]:
             robot_confs[robot] = conf
@@ -256,6 +426,8 @@ def apply_action(state, action):
         yield TAMPState(robot_confs, holding, block_poses)
     else:
         raise ValueError(name)
+
+##################################################
 
 def prune_duplicates(traj):
     # TODO: could use the more general sparcify function
@@ -313,6 +485,7 @@ def update_state(state, action, t):
             block_poses[block] = pose
             robot_confs[robot] = get_value_at_time(traj[::-1], (fraction - threshold) / (1 - threshold))
     elif name == 'cook':
+        # TODO: update the object color
         pass
     else:
         raise ValueError(name)

@@ -14,13 +14,15 @@ exogenous.REPLACE_STREAM = False
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_fn
+from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, get_file_path
 from pddlstream.language.constants import print_solution
+from pddlstream.language.external import defer_shared, never_defer
 #from pddlstream.language.exogenous import FutureValue
+#from examples.advanced.defer.run import ik_fn, motion_fn
 
 class Latent(object):
     pass
-
 
 class Uncertain(Latent):
     def __init__(self, mode=None, confidence=None):
@@ -83,8 +85,9 @@ def pddlstream_from_belief():
     init = [
         ('Initial',), # Forces move first
         ('Conf', conf),
-        ('Conf', booth),
-        ('Booth', booth),
+        #('Booth', conf),
+        #('Conf', booth),
+        #('Booth', booth),
         ('AtConf', conf),
         ('HandEmpty',),
 
@@ -94,14 +97,13 @@ def pddlstream_from_belief():
         #('Observable', pose),
         #('Latent', pose),
     ]
-
     goal = ('Holding', block)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 ##################################################
 
-def main(planner='max-astar', unit_costs=True):
+def main(planner='max-astar', unit_costs=True, defer=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
     args = parser.parse_args()
@@ -112,10 +114,18 @@ def main(planner='max-astar', unit_costs=True):
     print('Init:', sorted(init, key=lambda f: f[0]))
     print('Goal:', goal)
 
+    stream_info = {
+        'motion': StreamInfo(defer_fn=defer_shared if defer else never_defer),
+    }
+
+    replan_actions = set()
+    #replan_actions = {'phone'}
+
     pr = cProfile.Profile()
     pr.enable()
     if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, planner=planner, unit_costs=unit_costs)
+        solution = solve_focused(pddlstream_problem, stream_info=stream_info, replan_actions=replan_actions,
+                                 planner=planner, unit_costs=unit_costs)
     elif args.algorithm == 'incremental':
         solution = solve_incremental(pddlstream_problem, planner=planner, unit_costs=unit_costs)
     else:

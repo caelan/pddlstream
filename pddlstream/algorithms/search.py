@@ -3,10 +3,10 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.language.temporal import solve_tfd
-from pddlstream.algorithms.downward import parse_solution, run_search, TEMP_DIR, write_pddl
-from pddlstream.algorithms.instantiate_task import write_sas_task, sas_from_pddl, translate_and_write_pddl
+from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
+from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl
 from pddlstream.utils import INF, Verbose, safe_rm_dir
+
 
 # TODO: manual_patterns
 # Specify on the discrete variables that are updated via conditional effects
@@ -172,10 +172,10 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
     # Like partial order planning in terms of precondition order
     # TODO: add achieve subgoal actions
     # TODO: most generic would be a heuristic on each state
-    if hierarchy is None:
-        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     if hierarchy == SERIALIZE:
         return serialized_solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
+    if not hierarchy:
+        return solve_from_task(sas_task, temp_dir=temp_dir, clean=clean, debug=debug, **kwargs)
     start_time = time()
     plan, cost = None, INF
     with Verbose(debug):

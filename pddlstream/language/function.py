@@ -1,7 +1,7 @@
 import time
 
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
-from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head
+from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
 from pddlstream.utils import str_from_object, apply_mapping
 
@@ -18,15 +18,15 @@ class FunctionInfo(ExternalInfo):
     def __init__(self, opt_fn=None, **kwargs):
         super(FunctionInfo, self).__init__(**kwargs)
         self.opt_fn = opt_fn
-        self.defer = False
         #self.order = 0
 
 class FunctionResult(Result):
-    def __init__(self, instance, value, opt_index=None, optimistic=True):
-        super(FunctionResult, self).__init__(instance, opt_index, 0, optimistic)
+    def __init__(self, instance, value, optimistic=True):
+        super(FunctionResult, self).__init__(instance, opt_index=0, call_index=0, optimistic=optimistic)
         self.instance = instance
         self.value = value
         self._certified = None
+        # TODO: could add empty output_objects tuple
     @property
     def certified(self):
         if self._certified is None:
@@ -34,15 +34,14 @@ class FunctionResult(Result):
         return self._certified
     def get_certified(self):
         return self.certified
-    def get_tuple(self):
-        return self.external.name, self.instance.input_objects, self.value
+    def get_action(self):
+        return FunctionAction(self.name, self.input_objects)
     def remap_inputs(self, bindings):
         #if not any(o in bindings for o in self.instance.get_objects()):
         #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
-        new_instance.opt_index = self.instance.opt_index
-        return self.__class__(new_instance, self.value, self.opt_index, self.optimistic)
+        return self.__class__(new_instance, self.value, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
@@ -53,7 +52,6 @@ class FunctionInstance(Instance):
     #_opt_value = 0
     def __init__(self, external, input_objects):
         super(FunctionInstance, self).__init__(external, input_objects)
-        self.value = None
         self._head = None
     @property
     def head(self):
@@ -62,34 +60,44 @@ class FunctionInstance(Instance):
         return self._head
     def get_head(self):
         return self.head
-    def next_results(self, verbose=False):
-        start_time = time.time()
-        assert not self.enumerated
+    @property
+    def value(self):
+        assert len(self.history) == 1
+        return self.history[0]
+    def _compute_output(self):
         self.enumerated = True
+        self.num_calls += 1
+        if self.history:
+            return self.value
         input_values = self.get_input_values()
         value = self.external.fn(*input_values)
-        self.value = self.external.codomain(value)
         # TODO: cast the inputs and test whether still equal?
-        #if not (type(self.value) is self.external._codomain):
-        #if not isinstance(self.value, self.external.codomain):
-        if self.value < 0:
-            raise ValueError('Function [{}] produced a negative value [{}]'.format(
-                self.external.name, self.value))
-        if (self.value is not False) and verbose:
-            start_call = 0
-            print('{}) {}{}={}'.format(start_call, get_prefix(self.external.head),
-                                       str_from_object(self.get_input_values()), self.value))
-        results = [self._Result(self, self.value, opt_index=None, optimistic=False)]
-        #if isinstance(self, PredicateInstance) and (self.value != self.external.opt_fn(*input_values)):
-        #    self.update_statistics(start_time, [])
-        self.update_statistics(start_time, results)
+        # if not (type(self.value) is self.external._codomain):
+        # if not isinstance(self.value, self.external.codomain):
+        if value < 0:
+            raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, value))
+        self.history.append(self.external.codomain(value))
+        return self.value
+    def next_results(self, verbose=False):
+        assert not self.enumerated
+        start_time = time.time()
+        start_calls = self.num_calls
+        start_history = len(self.history)
+        value = self._compute_output()
+        if (value is not False) and verbose:
+            print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
+                                       str_from_object(self.get_input_values()), value))
+        new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
-        return results, new_facts
+        if start_history < len(self.history):
+            self.update_statistics(start_time, new_results)
+        self.successful |= any(r.is_successful() for r in new_results)
+        return new_results, new_facts
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
         opt_value = self.external.opt_fn(*self.get_input_values())
-        self.opt_results = [self._Result(self, opt_value, opt_index=self.opt_index, optimistic=True)]
+        self.opt_results = [self._Result(self, opt_value, optimistic=True)]
         return self.opt_results
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
@@ -110,7 +118,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
-        self.fn = opt_fn if fn == DEBUG else fn
+        self.fn = opt_fn if (fn == DEBUG) else fn
         #arg_spec = get_arg_spec(self.fn)
         #if len(self.inputs) != len(arg_spec.args):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(

@@ -26,7 +26,8 @@ def add_optimizer_effects(instantiated, node_from_atom):
         extract_stream_plan(node_from_atom, facts, stream_plan)
         # TODO: can detect if some of these are simultaneous and add them as preconditions
         for result in stream_plan:
-            if isinstance(result.external, ComponentStream):
+            #if isinstance(result.external, ComponentStream):
+            if True: # TODO: integrate sampler and optimizer treatments
                 # TODO: need to make multiple versions if several ways of achieving the action
                 atom = fd_from_fact(result.stream_fact)
                 instantiated.atoms.add(atom)

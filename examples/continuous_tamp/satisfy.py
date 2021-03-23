@@ -3,20 +3,19 @@
 from __future__ import print_function
 
 import argparse
-import cProfile
-import pstats
 
 import numpy as np
 from numpy import array
 
 from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
-from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan
+from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic, TIGHT_SKELETON
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
 from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
 from pddlstream.language.temporal import retime_plan
+from pddlstream.utils import Profiler, INF
 
 # Be careful about uniqueness here
 #CONF0 = array([-7.5, 5.])
@@ -37,11 +36,13 @@ INIT = [
     ('placeable', 'B', 'red'),
     ('pose', 'A', POSE0),
     ('pose', 'B', POSE1),
-    ('grasp', 'A', GRASP),
-    ('grasp', 'B', GRASP),
+    #('grasp', 'A', GRASP), # TODO: allow binding from init facts
+    #('grasp', 'B', GRASP),
     ('region', 'grey'),
     ('region', 'red'),
 ]
+
+##################################################
 
 # TODO: predicate (Not) constraints as well
 CONSTRAINTS = [
@@ -65,14 +66,24 @@ CONSTRAINTS = [
     #('conf', '?q1'),
     #('conf', '?q2'),
     #('conf', '?q3'),
-    ('pose', 'A', '?p0'),
-    ('pose', 'B', '?p1'),
+    #('pose', 'A', '?p0'),
+    #('pose', 'B', '?p1'),
     #('traj', '?t0'),
     #('traj', '?t1'),
     #('traj', '?t2'),
     #('traj', '?t3'),
 ]
 
+OBJECTIVES = [
+    Minimize(('dist', CONF0, '?q0')),
+    Minimize(('dist', '?q0', '?q1')),
+    Minimize(('dist', '?q1', '?q3')),
+    Minimize(('dist', '?q3', '?q2')),
+]
+
+##################################################
+
+# SKELETON = TIGHT_SKELETON
 SKELETON = [
     ('move', ['r0', CONF0, '?t0', '?q0']),
     ('pick', ['r0', 'A', POSE0, '?g0', '?q0']),
@@ -85,17 +96,9 @@ SKELETON = [
     ('place', ['r0', 'B', '?p1', '?g1', '?q2']),
 ]
 
-OBJECTIVES = [
-    Minimize(('dist', CONF0, '?q0')),
-    Minimize(('dist', '?q0', '?q1')),
-    Minimize(('dist', '?q1', '?q3')),
-    Minimize(('dist', '?q3', '?q2')),
-]
+##################################################
 
-def set_deterministic(seed=0):
-    np.random.seed(seed)
-
-def main(success_cost=0):
+def main(success_cost=INF, use_costs=True): # 0 | INF
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-a', '--algorithm', default='', help='Specifies the algorithm')
@@ -114,38 +117,39 @@ def main(success_cost=0):
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, use_stream=not args.gurobi,
                                               use_optimizer=args.gurobi)
-    stream_pddl, stream_map = pddlstream_problem[2:4]
+    _, _, stream_pddl, stream_map, _, _ = pddlstream_problem
     stream_info = {
         't-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
         #'t-cfree': StreamInfo(eager=False, negate=True),
         #'distance': FunctionInfo(opt_fn=lambda q1, q2: MOVE_COST), # Doesn't make a difference
     }
+
+    terms = CONSTRAINTS
     print('Constraints:', CONSTRAINTS)
-    print('Objectives:', OBJECTIVES)
-    terms = CONSTRAINTS # + OBJECTIVES
-    pr = cProfile.Profile()
-    pr.enable()
-    if args.algorithm == 'focused':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
-                                                 incremental=False, stream_info=stream_info,
-                                                 #search_sample_ratio=1,
-                                                 #max_skeletons=1,
-                                                 success_cost=success_cost, max_time=args.max_time)
-    elif args.algorithm == 'incremental':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
-                                                 success_cost=success_cost, max_time=args.max_time,
-                                                 verbose=False, debug=False)
-    else:
-        # TODO: likely need to make GRASP a stream to solve
-        solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
-                                           costs=not args.unit, success_cost=success_cost,
-                                           max_time=args.max_time, search_sample_ratio=1,
-                                           debug=False)
-        #raise ValueError(args.algorithm)
+    if use_costs:
+        print('Objectives:', OBJECTIVES)
+        terms += OBJECTIVES
+
+    with Profiler():
+        if args.algorithm == 'focused':
+            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
+                                                     incremental=False, stream_info=stream_info,
+                                                     #search_sample_ratio=1,
+                                                     #max_skeletons=1,
+                                                     success_cost=success_cost, max_time=args.max_time)
+        elif args.algorithm == 'incremental':
+            assert not args.gurobi
+            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
+                                                     success_cost=success_cost, max_time=args.max_time,
+                                                     verbose=False, debug=False)
+        else:
+            solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
+                                               costs=not args.unit, success_cost=success_cost,
+                                               max_time=args.max_time, search_sample_ratio=1,
+                                               debug=False)
+            #raise ValueError(args.algorithm)
 
     dump_assignment(solution)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     bindings, cost, evaluations = solution
     if bindings is None:
         return

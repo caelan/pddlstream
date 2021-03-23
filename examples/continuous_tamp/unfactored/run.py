@@ -2,73 +2,75 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
-
 import numpy as np
-from pddlstream.algorithms.focused import solve_focused
 
 from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
-    tight, draw_state, \
-    get_random_seed, TAMPState
-from examples.continuous_tamp.viewer import ContinuousTMPViewer, GROUND_NAME
+    tight, blocked, draw_state, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT, apply_action
+from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
+from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import user_input, read, INF, get_file_path
+from pddlstream.utils import user_input, read, INF, get_file_path, Profiler
 from pddlstream.language.constants import print_solution
 
-R = 'r'
-H = 'h'
+from copy import deepcopy
 
-def at_conf(s, q):
-    return np.allclose(s[R], q)
+def at_conf(s, r, q):
+    return np.allclose(s.robot_confs[r], q)
 
 def at_pose(s, b, p):
-    return (s[b] is not None) and np.allclose(s[b], p)
+    #if s[b] is None:
+    if b not in s.block_poses:
+        return False
+    return np.allclose(s.block_poses[b], p)
 
-def holding(s, b):
-    return s[H] == b
+def hand_empty(s, r):
+    return r not in s.holding
+    #return s[r] is None
 
-def hand_empty(s):
-    return s[H] is None
+def holding(s, r, b):
+    if hand_empty(s, r):
+        return False
+    return s.holding[r][0] == b
+
+def at_grasp(s, r, b, g):
+    return holding(s, r, b) and (np.allclose(s.holding[r][1], g))
 
 ##################################################
 
-def move_fn(s1, q1, t, q2):
-    if not at_conf(s1, q1):
+def move_fn(s1, r, q1, t, q2):
+    if not at_conf(s1, r, q1):
         return None
-    s2 = s1.copy()
-    s2[R] = q2
+    s2 = deepcopy(s1)
+    s2.robot_confs[r] = q2
     return (s2,)
 
-def pick_fn(s1, b, q, p):
-    if not (at_pose(s1, b, p) and at_conf(s1, q)):
+def pick_fn(s1, r, b, q, p, g):
+    if not (at_pose(s1, b, p) and at_conf(s1, r, q)):
         return None
-    s2 = s1.copy()
-    s2[b] = None
-    s2[H] = b
+    s2 = deepcopy(s1)
+    del s2.block_poses[b]
+    s2.holding[r] = (b, g)
     return (s2,)
 
-def place_fn(s1, b, q, p):
-    if not (holding(s1, b) and at_conf(s1, q)):
+def place_fn(s1, r, b, q, p, g):
+    if not (at_grasp(s1, r, b, g) and at_conf(s1, r, q)):
         return None
-    s2 = s1.copy()
-    s2[b] = p
-    s2[H] = None
+    s2 = deepcopy(s1)
+    s2.block_poses[b] = p
+    del s2.holding[r]
     return (s2,)
 
 def get_goal_test(tamp_problem):
     region_test = get_region_test(tamp_problem.regions)
     def test(s):
-        if not at_conf(s, tamp_problem.goal_conf):
-            return False
-        return holding(s, 'block0')
-
-        if not hand_empty(s):
-            return False
+        for r in tamp_problem.initial.robot_confs:
+            if not at_conf(s, r, tamp_problem.goal_conf): # or not hand_empty(s, r):
+                return False
+        #return holding(s, 'r0', 'A')
         for b, r in tamp_problem.goal_regions.items():
-            if (s[b] is None) or not region_test(b, s[b], r):
+            if not (b in s.block_poses and region_test(b, s.block_poses[b], r)):
                 return False
         return True
     return test
@@ -77,31 +79,25 @@ def get_goal_test(tamp_problem):
 
 def pddlstream_from_tamp(tamp_problem):
     initial = tamp_problem.initial
-    assert(initial.holding is None)
+    assert(not initial.holding) # is None
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
 
-    # TODO: can always make the state the set of fluents
-    #state = tamp_problem.initial
-    state = {
-        R: tamp_problem.initial.conf,
-        H: tamp_problem.initial.holding,
-    }
-    for b, p in tamp_problem.initial.block_poses.items():
-        state[b] = p
-
+    # TODO: can always make the state a set of fluents
     init = [
-        ('State', state),
-        ('AtState', state),
-        ('Conf', initial.conf)] + \
+        ('State', initial),
+        ('AtState', initial)] + \
+           [('Robot', r) for r in initial.robot_confs.keys()] + \
+           [('Conf', q) for q in initial.robot_confs.values()] + \
            [('Block', b) for b in initial.block_poses.keys()] + \
            [('Pose', b, p) for b, p in initial.block_poses.items()] + \
+           [('Grasp', b, GRASP) for b in initial.block_poses.keys()] + \
            [('Region', r) for r in tamp_problem.regions.keys()] + \
-           [('AtPose', b, p) for b, p in initial.block_poses.items()] + \
            [('Placeable', b, GROUND_NAME) for b in initial.block_poses.keys()] + \
            [('Placeable', b, r) for b, r in tamp_problem.goal_regions.items()]
+    # TODO: could populate AtConf, AtPose, HandEmpty, Holding
     goal = ('AtGoal',)
 
     stream_map = {
@@ -123,7 +119,29 @@ def pddlstream_from_tamp(tamp_problem):
 
 ##################################################
 
-def main(focused=False, deterministic=False, unit_costs=True):
+def step_plan(tamp_problem, plan):
+    if plan is None:
+        return
+    # TODO: could also use the old version of this
+    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
+    viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
+    state = tamp_problem.initial
+    print()
+    print(state)
+    draw_state(viewer, state, colors)
+    user_input('Start?')
+    for i, action in enumerate(plan):
+        name, args = action
+        print(i, name, args)
+        for state in apply_action(state, action):
+            print(state)
+            draw_state(viewer, state, colors)
+            user_input('Continue?')
+    user_input('Finish?')
+
+##################################################
+
+def main(deterministic=False, unit_costs=True):
     np.set_printoptions(precision=2)
     if deterministic:
         seed = 0
@@ -131,49 +149,16 @@ def main(focused=False, deterministic=False, unit_costs=True):
     print('Seed:', get_random_seed())
 
     problem_fn = tight  # get_tight_problem | get_blocked_problem
-    tamp_problem = problem_fn()
+    tamp_problem = problem_fn(n_blocks=1, n_goals=1, n_robots=1)
     print(tamp_problem)
 
-    stream_info = {
-        #'test-region': StreamInfo(eager=True, p_success=0), # bound_fn is None
-        #'plan-motion': StreamInfo(p_success=1),  # bound_fn is None
-        #'trajcollision': StreamInfo(p_success=1),  # bound_fn is None
-        #'cfree': StreamInfo(eager=True),
-    }
-
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    pr = cProfile.Profile()
-    pr.enable()
-    if focused:
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                 max_time=10, success_cost=INF, debug=False,
-                                 effort_weight=None, unit_costs=unit_costs,
-                                 visualize=False)
-    else:
-        solution = solve_incremental(pddlstream_problem, complexity_step=1,
+    with Profiler():
+        solution = solve_incremental(pddlstream_problem, complexity_step=1, max_time=30,
                                      unit_costs=unit_costs, verbose=False)
-    print_solution(solution)
-    plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    if plan is None:
-        return
-
-    colors = dict(zip(sorted(tamp_problem.initial.block_poses.keys()), COLORS))
-    viewer = ContinuousTMPViewer(tamp_problem.regions, title='Continuous TAMP')
-    state = tamp_problem.initial
-    print()
-    print(state)
-    draw_state(viewer, state, colors)
-    for i, (action, args) in enumerate(plan):
-        user_input('Continue?')
-        print(i, action, args)
-        s2 = args[-1]
-        state = TAMPState(s2[R], s2[H], {b: s2[b] for b in state.block_poses if s2[b] is not None})
-        print(state)
-        draw_state(viewer, state, colors)
-    user_input('Finish?')
-
+        print_solution(solution)
+        plan, cost, evaluations = solution
+    step_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()

@@ -14,12 +14,15 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
     get_distance, LockRenderer, get_min_limit, get_max_limit
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
+from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.constants import Equal, AND, print_solution
-from pddlstream.utils import read, INF, get_file_path, find_unique
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.stream import StreamInfo, PartialInputs, OptValue
+from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.language.object import SharedOptValue
+from pddlstream.language.external import defer_shared, never_defer
 from collections import namedtuple
 
 BASE_CONSTANT = 1
@@ -54,7 +57,8 @@ def place_movable(certified):
 def move_cost_fn(c):
     [t] = c.commands
     distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
-    return BASE_CONSTANT + distance / BASE_VELOCITY
+    #return BASE_CONSTANT + distance / BASE_VELOCITY
+    return 1
 
 #######################################################
 
@@ -63,7 +67,7 @@ def extract_point2d(v):
         return v.values[:2]
     if isinstance(v, Pose):
         return point_from_pose(v.value)[:2]
-    if isinstance(v, OptValue):
+    if isinstance(v, SharedOptValue):
         if v.stream == 'sample-pose':
             r, = v.values
             return point_from_pose(get_pose(r))[:2]
@@ -82,7 +86,8 @@ def extract_point2d(v):
 def opt_move_cost_fn(t):
     q1, q2 = t.values
     distance = get_distance(extract_point2d(q1), extract_point2d(q2))
-    return BASE_CONSTANT + distance / BASE_VELOCITY
+    #return BASE_CONSTANT + distance / BASE_VELOCITY
+    return 1
 
 #######################################################
 
@@ -210,7 +215,7 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False, partial=False):
+def main(display=True, teleport=False, partial=False, defer=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
@@ -232,7 +237,7 @@ def main(display=True, teleport=False, partial=False):
     stream_info = {
         'sample-pose': StreamInfo(PartialInputs('?r')),
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer=True),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer_fn=defer_shared if defer else never_defer),
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     } if partial else {
         'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
@@ -245,14 +250,12 @@ def main(display=True, teleport=False, partial=False):
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF)
+    with Profiler():
+        with LockRenderer():
+            #solution = solve_incremental(pddlstream_problem, debug=True)
+            solution = solve_adaptive(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     if plan is None:
         return
     if (not display) or (plan is None):

@@ -69,7 +69,7 @@ def get_problem1():
         ('P1', value),
         #('P2', value),
     ]
-    goal =  Or(
+    goal = Or(
         ('Goal',),
         #Exists([], ('P2', value)),
         #Exists(['?p'], ('P2', '?p')),

@@ -1,0 +1,21 @@
+(define (problem nightout)
+ (:domain nightout)
+ ;(:objects Emre - person
+ ;          atm1 atm2 atm3 - machine)
+ (:init
+    (person Emre)
+    (cash 0)
+    (cash 10)
+    (cash 50)
+    (machine atm1)
+    (machine atm2)
+    (machine atm3)
+    (maxwithdraw atm1 30)
+    (maxwithdraw atm2 30)
+    (maxwithdraw atm3 30)
+    (inpocket Emre 2)
+ )
+ (:goal (finished))
+ (:metric minimize (total-cost))
+)
+; https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/p0.pddl
