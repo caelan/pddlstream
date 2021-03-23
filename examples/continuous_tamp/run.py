@@ -16,7 +16,7 @@ from examples.continuous_tamp.primitives import get_pose_gen, collision_test, di
     update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
@@ -264,7 +264,7 @@ def main():
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     if args.algorithm == 'focused':
-        solver = solve_focused  # solve_focused | solve_serialized
+        solver = solve_adaptive  # solve_focused | solve_serialized | solve_adaptive
         solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
                           replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
                           max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,

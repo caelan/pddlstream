@@ -200,7 +200,7 @@ def solve_focused_original(problem, fail_fast=False, **kwargs):
         using stream applications
     """
     max_failures = 0 if fail_fast else INF
-    return solve_binding(problem, max_skeletons=None, search_sample_ratio=None,
+    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
                          bind=False, max_failures=max_failures, **kwargs)
 
 def solve_binding(problem, fail_fast=False, **kwargs):
@@ -214,7 +214,7 @@ def solve_binding(problem, fail_fast=False, **kwargs):
         using stream applications
     """
     max_failures = 0 if fail_fast else INF
-    return solve_binding(problem, max_skeletons=None, search_sample_ratio=None,
+    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
                          bind=True, max_failures=max_failures, **kwargs)
 
 def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
@@ -228,7 +228,7 @@ def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    return solve_binding(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
+    return solve_focused(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
                          bind=None, max_failures=None, **kwargs)
 
 def solve_hierarchical(problem, search_sample_ratio=1, **kwargs):

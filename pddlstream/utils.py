@@ -260,6 +260,8 @@ class Profiler(Saver):
         return self.pr
     def restore(self):
         self.pr.disable()
+        if self.num is None:
+            return None
         stream = None
         #stream = io.StringIO()
         stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field)

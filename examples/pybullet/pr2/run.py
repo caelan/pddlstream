@@ -14,11 +14,11 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
     disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
     get_distance, LockRenderer, get_min_limit, get_max_limit
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
 from pddlstream.language.constants import Equal, AND, print_solution
-from pddlstream.utils import read, INF, get_file_path, find_unique
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.language.object import SharedOptValue
@@ -250,15 +250,12 @@ def main(display=True, teleport=False, partial=False, defer=False):
     print('Goal:', goal)
     print('Streams:', stream_map.keys())
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer():
-        #solution = solve_incremental(pddlstream_problem, debug=True)
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
+    with Profiler():
+        with LockRenderer():
+            #solution = solve_incremental(pddlstream_problem, debug=True)
+            solution = solve_adaptive(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     if plan is None:
         return
     if (not display) or (plan is None):

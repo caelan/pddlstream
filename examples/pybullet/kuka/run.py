@@ -13,9 +13,9 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     Point, set_default_camera, stable_z, \
     BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
-from pddlstream.utils import read, INF, get_file_path, find_unique
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler
 from pddlstream.language.constants import print_solution
 
 def get_fixed(robot, movable):
@@ -172,13 +172,10 @@ def main(display=True, teleport=False):
     print('Synthesizers:', stream_map.keys())
     print(names)
 
-    pr = cProfile.Profile()
-    pr.enable()
-    solution = solve_focused(pddlstream_problem, success_cost=INF)
+    with Profiler():
+        solution = solve_adaptive(pddlstream_problem, success_cost=INF)
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
     if plan is None:
         return
 
