@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import time
+
 from itertools import product
 from copy import deepcopy, copy
 
@@ -13,7 +15,7 @@ from pddlstream.language.function import FunctionResult, Function
 from pddlstream.language.stream import StreamResult, Result
 from pddlstream.language.statistics import check_effort, compute_plan_effort
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import INF, safe_zip, get_mapping, implies
+from pddlstream.utils import INF, safe_zip, get_mapping, implies, elapsed_time
 
 CONSTRAIN_STREAMS = False
 CONSTRAIN_PLANS = False
@@ -188,6 +190,7 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
 
 def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, complexity_limit, **effort_args):
     # Previously didn't have unique optimistic objects that could be constructed at arbitrary depths
+    start_time = time.time()
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
     num_iterations = 0
     while True:
@@ -196,8 +199,8 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
         stream_plan, action_plan, cost, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {}'.format(
-            num_iterations, len(results), final_depth, is_plan(action_plan)))
+        print('Attempt: {} | Results: {} | Depth: {} | Success: {} | Time: {:.3f}'.format(
+            num_iterations, len(results), final_depth, is_plan(action_plan), elapsed_time(start_time)))
         if is_plan(action_plan):
             return stream_plan, action_plan, cost
         if final_depth == 0:

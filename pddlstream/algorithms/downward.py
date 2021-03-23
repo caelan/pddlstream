@@ -72,13 +72,17 @@ GOAL_NAME = '@goal' # @goal-reachable
 
 ##################################################
 
-# TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
+# TODO: cost_type=PLUSONE can lead to suboptimality but often doesn't in practice due to COST_SCALE
 # TODO: modify parsing_functions to support multiple costs
 
 # bound (int): exclusive depth bound on g-values. Cutoffs are always performed according to the real cost.
 # (i.e. solutions must be strictly better than the bound)
 
 SEARCH_OPTIONS = {
+    # See FastDownward's documentation for more configurations
+    # http://www.fast-downward.org/Doc/Evaluator
+    # http://www.fast-downward.org/Doc/SearchEngine
+
     # Optimal
     'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
                 '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
@@ -103,35 +107,36 @@ SEARCH_OPTIONS = {
 
     'ff-eager-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "eager(tiebreaking([h, g()]),reopen_closed=false,'
-                         'cost_type=NORMAL,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
+                         'cost_type=PLUSONE,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
     'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
-                         'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
+                         'randomize_successors=True,cost_type=PLUSONE,max_time=%s,bound=%s)"',  # preferred=[h],
     # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
-    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
+    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
-              'cost_type=NORMAL,max_time=%s,bound=%s)"',
+              'cost_type=PLUSONE,max_time=%s,bound=%s)"',
     # The key difference is that ehc resets the open list upon finding an improvement
 }
 # TODO: do I want to sort operators in FD hill-climbing search?
-# Greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
+# TODO: greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
 
 for w in range(1, 1+5):
     SEARCH_OPTIONS.update({
-        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+        # TODO: specify whether lazy or eager
+        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},' \
-                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w=w),
+                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
 
         'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
                    '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},' \
                    'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
 
         # http://www.fast-downward.org/Doc/SearchEngine#Eager_weighted_A.2A_search
-        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
+        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
                                    '--search "eager(alt([single(sum([g(), weight(h,{w})])),' \
                                             'single(sum([g(),weight(h,{w})]),pref_only=true)]),' \
-                                        'preferred=[h],cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w=w),
+                                        'preferred=[h],cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
     })
 
 if USE_CERBERUS:
@@ -148,7 +153,7 @@ if USE_CERBERUS:
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
-DEFAULT_PLANNER = 'ff-astar'
+DEFAULT_PLANNER = 'ff-astar2' # TODO: default optimal & default suboptimal
 
 ##################################################
 
@@ -175,7 +180,7 @@ def convert_cost(cost):
         return INFINITY
     return int_ceil(cost)
 
-set_cost_scale(1e3) # TODO: make unit costs be equivalent to cost scale = 0
+set_cost_scale(cost_scale=1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
