@@ -3,7 +3,7 @@ from collections import Counter
 from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
 from pddlstream.algorithms.downward import parse_lisp, parse_goal, make_cost, set_cost_scale, \
-    fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain
+    fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain, has_costs
 from pddlstream.language.temporal import parse_domain, SimplifiedDomain
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
@@ -90,6 +90,8 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
         raise NotImplementedError('Types are not currently supported')
     if unit_costs:
         set_unit_costs(domain)
+    if not has_costs(domain):
+        print('Warning! All actions have no cost. Recommend setting unit_costs=True')
     obj_from_constant = parse_constants(domain, constant_map) # Keep before parse_stream_pddl
 
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,

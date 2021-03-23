@@ -130,7 +130,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
         'complexity': complexity_limit,
         # TODO: optimal, infeasible, etc...
     })
-    print(str_from_object(summary)) # TODO: return the summary
+    print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
 
     if UPDATE_STATISTICS:
         write_stream_statistics(externals, verbose)
@@ -165,6 +165,7 @@ def solve_exhaustive(problem, **kwargs):
 ##################################################
 
 def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, max_time=INF, verbose=False, **search_args):
+    # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
     stream_map = DEBUG
     problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)

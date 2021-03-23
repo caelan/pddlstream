@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from __future__ import print_function
 
@@ -6,10 +6,9 @@ import os
 
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.focused import solve_focused
-
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.utils import read
-from pddlstream.language.constants import print_solution
+from pddlstream.language.constants import print_solution, PDDLProblem
 
 
 def read_pddl(filename):
@@ -42,14 +41,15 @@ def get_problem():
     ]
     goal = ('on', 'a', 'b')
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(focused=False):
+def solve_pddlstream(focused=False, unit_costs=True, debug=False):
     pddlstream_problem = get_problem()
+    planner = 'lmcut-astar' # cerberus
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=True)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, planner=planner, debug=debug)
     else:
-        solution = solve_incremental(pddlstream_problem, unit_costs=True, planner='cerberus', debug=False)
+        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs, planner=planner, debug=debug)
     print_solution(solution)
 
 ##################################################

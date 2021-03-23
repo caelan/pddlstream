@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import os
-from collections import namedtuple, defaultdict, deque
+from collections import namedtuple, defaultdict, deque, Counter
 from time import time
 
 from pddlstream.algorithms.downward import get_literals, get_precondition, get_fluents, get_function_assignments, \
@@ -9,7 +9,7 @@ from pddlstream.algorithms.downward import get_literals, get_precondition, get_f
     get_conjunctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir, str_from_object
 
 import pddl
 import instantiate
@@ -159,6 +159,12 @@ def instantiate_domain(task, prune_static=True):
 
 ##################################################
 
+def dump_instantiated(instantiated):
+    print('Instantiated frequencies | Atoms: {} | Actions: {} | Axioms: {}'.format(
+        str_from_object(Counter(atom.predicate for atom in instantiated.atoms)),
+        str_from_object(Counter(action.action.name for action in instantiated.actions)),
+        str_from_object(Counter(axiom.axiom.name for axiom in instantiated.axioms))))
+
 def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwargs):
     start_time = time()
     print()
@@ -179,7 +185,9 @@ def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwarg
     if check_infeasible and not relaxed_reachable:
         return None
     goal_list = instantiate_goal(task.goal)
-    return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
+    instantiated = InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
+    dump_instantiated(instantiated)
+    return instantiated
 
 ##################################################
 

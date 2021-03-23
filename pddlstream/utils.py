@@ -11,7 +11,7 @@ import cProfile
 import pstats
 import io
 
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Counter
 from heapq import heappush, heappop
 
 import numpy as np
@@ -328,7 +328,7 @@ def str_from_object(obj):  # str_object
     if type(obj) == tuple:
         return '({})'.format(', '.join(str_from_object(item) for item in obj))
     #if isinstance(obj, dict):
-    if type(obj) in [dict, defaultdict]:
+    if type(obj) in [dict, defaultdict, Counter]:
         return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key), str_from_object(obj[key])) \
                                   for key in sorted(obj.keys(), key=lambda k: str_from_object(k))))
     if type(obj) in [set, frozenset]:
