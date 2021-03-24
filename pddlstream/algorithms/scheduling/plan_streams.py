@@ -39,8 +39,8 @@ from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 RENAME_ACTIONS = False
 #RENAME_ACTIONS = not USE_FORBID
 
-OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost',
-                                         'supporting_facts', 'axiom_plan'])
+OptSolution = namedtuple('OptSolution', ['stream_plan', 'opt_plan', 'cost']) # TODO: move to the below
+#OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost', 'supporting_facts', 'axiom_plan'])
 
 ##################################################
 
@@ -297,7 +297,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
-    with Verbose(verbose=False):
+    with Verbose(verbose=debug):
         instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
     if instantiated is None:
         return instantiated, None, temporal_plan, INF
@@ -357,7 +357,7 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         domain, stream_domain, applied_results, all_results, opt_evaluations,
         node_from_atom, goal_expression, effort_weight, **kwargs)
     if action_instances is None:
-        return FAILED, FAILED, cost
+        return OptSolution(FAILED, FAILED, cost)
 
     action_instances, axiom_plans = recover_axioms_plans(instantiated, action_instances)
     # TODO: extract out the minimum set of conditional effects that are actually required
@@ -375,4 +375,4 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         # TODO: handle deferred streams
         assert all(isinstance(action, Action) for action in opt_plan.action_plan)
         opt_plan.action_plan[:] = temporal_plan
-    return stream_plan, opt_plan, cost
+    return OptSolution(stream_plan, opt_plan, cost)

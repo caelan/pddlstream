@@ -9,7 +9,8 @@ from pddlstream.algorithms.downward import get_literals, get_precondition, get_f
     get_conjunctive_parts, get_conditional_effects
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
-from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir, str_from_object
+from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir, \
+    str_from_object, user_input
 
 import pddl
 import instantiate
@@ -44,7 +45,8 @@ def instantiate_condition(action, is_static, args_from_predicate):
     static_conditions = list(filter(is_static, get_literals(get_precondition(action))))
     static_parameters = set(filter(is_parameter, flatten(atom.args for atom in static_conditions)))
     if not (parameters <= static_parameters):
-        raise NotImplementedError(parameters)
+        raise NotImplementedError('Could not instantiate action {} due to parameters: {}'.format(
+            action.name, str_from_object(parameters - static_parameters)))
     atoms_from_cond = {condition: args_from_predicate[condition.predicate, get_constants(condition)]
                        for condition in static_conditions}
     conditions, atoms = zip(*atoms_from_cond.items())
@@ -148,7 +150,7 @@ def instantiate_domain(task, prune_static=True):
                 instantiated_axioms.append(inst_axiom)
 
     reachable_facts, reachable_operators = get_achieving_axioms(init_facts, instantiated_actions + instantiated_axioms)
-    atoms = {atom for atom in (init_facts | set(reachable_facts)) if isinstance(atom, pddl.Atom)}
+    atoms = {atom.positive() for atom in (init_facts | set(reachable_facts)) if isinstance(atom, pddl.Literal)}
     relaxed_reachable = all(literal_holds(init_facts, goal) or goal in reachable_facts
                             for goal in instantiate_goal(task.goal))
     reachable_actions = [action for action in reachable_operators
