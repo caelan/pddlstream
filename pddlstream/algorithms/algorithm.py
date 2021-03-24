@@ -31,6 +31,7 @@ def parse_constants(domain, constant_map):
         value = constant_map.get(constant.name, constant.name)
         obj_from_constant[constant.name] = Object(value, name=constant.name) # TODO: remap names
         # TODO: add object predicate
+
     for name in constant_map:
         for constant in domain.constants:
             if constant.name == name:
@@ -47,6 +48,7 @@ def check_problem(domain, streams, obj_from_constant):
                 raise ValueError('Parameter [{}] for action [{}] is not unique'.format(p.name, action.name))
         # TODO: check that no undeclared parameters & constants
         #action.dump()
+
     undeclared_predicates = set()
     for stream in streams:
         # TODO: domain.functions
@@ -111,6 +113,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     parse_goal(goal_exp, domain) # Just to check that it parses
 
     # TODO: refactor the following?
+    identify_non_producers(streams)
     compile_to_exogenous(evaluations, domain, streams)
     enforce_simultaneous(domain, streams)
     compile_fluent_streams(domain, streams)
@@ -212,16 +215,20 @@ def get_certified_predicates(external):
         return {get_prefix(external.head)}
     raise ValueError(external)
 
-def get_non_producers(externals):
-    # TODO: handle case where no domain conditions
+def identify_non_producers(externals):
+    # Streams that can be evaluated at the end as tests
     pairs = set()
     for external1 in externals:
         for external2 in externals:
+            # TODO: handle case where no domain conditions
             if get_certified_predicates(external1) & get_domain_predicates(external2):
+                # TODO: count intersection when arity of zero
                 pairs.add((external1, external2))
     producers = {e1 for e1, _ in pairs}
     non_producers = set(externals) - producers
-    # TODO: these are streams that be evaluated at the end as tests
+    for external in non_producers:
+       external.num_opt_fns = 0
+    # TODO: automatically set negate=True
     return non_producers
 
 ##################################################

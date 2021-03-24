@@ -83,7 +83,7 @@ class Result(object):
         return self.instance.input_objects
 
     def is_refined(self):
-        return self.opt_index == 0 # TODO: base on output objects instead?
+        return self.opt_index == 0 # TODO: base on output objects instead
 
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
@@ -182,6 +182,14 @@ class Instance(object):
         self.num_calls = 0
         self.enumerated = False
         self.successful = False
+
+    def is_refined(self):
+        return self.opt_index == 0
+
+    def refine(self):
+        if not self.is_refined():
+            self.opt_index -= 1
+        return self.opt_index
 
     def next_results(self, verbose=False):
         raise NotImplementedError()

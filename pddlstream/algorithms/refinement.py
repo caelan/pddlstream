@@ -77,8 +77,8 @@ def optimistic_stream_instantiation(instance, bindings, evaluations, opt_evaluat
         if domain_evaluations <= opt_evaluations:
             new_instance = instance.external.get_instance(input_combo)
             # TODO: method for eagerly evaluating some of these?
-            if (new_instance.opt_index != 0) and implies(only_immediate, domain_evaluations <= evaluations):
-                new_instance.opt_index -= 1
+            if not new_instance.is_refined() and implies(only_immediate, domain_evaluations <= evaluations):
+                new_instance.refine()
             new_instances.append(new_instance)
     return new_instances
 
@@ -156,9 +156,10 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
         return None, None, INF, depth
-    stream_plan, action_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-    if not is_plan(action_plan):
-        return stream_plan, action_plan, cost, depth
+    stream_plan, opt_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
+    if not is_plan(opt_plan):
+        return stream_plan, opt_plan, cost, depth
+    #action_plan, preimage_facts = opt_plan
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
     #print(depth, get_length(stream_plan))
@@ -172,8 +173,9 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #            print(result, effort)
     #print()
 
+    # TODO: identify control parameters that can be separated across actions
     if is_refined(stream_plan):
-        return stream_plan, action_plan, cost, depth
+        return stream_plan, opt_plan, cost, depth
     new_depth = depth + 1
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not (CONSTRAIN_STREAMS or CONSTRAIN_PLANS):
@@ -184,7 +186,7 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     next_results, _ = optimistic_process_streams(evaluations, externals, complexity_limit, **effort_args)
     next_constraints = None
     if CONSTRAIN_PLANS:
-        next_constraints = compute_skeleton_constraints(action_plan, bindings)
+        next_constraints = compute_skeleton_constraints(opt_plan, bindings)
     return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn, complexity_limit,
                                      new_depth, next_constraints, **effort_args)
 
