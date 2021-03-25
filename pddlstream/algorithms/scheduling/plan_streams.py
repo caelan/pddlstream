@@ -147,7 +147,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
         # TODO: actually compute when these are needed + dependencies
         last_from_stream[result] = 0
         if isinstance(result.external, Function) or (result.external in negative):
-            if len(action_plan) != replan_step:
+            if len(action_plan) > replan_step:
                 raise NotImplementedError() # TODO: deferring negated optimizers
             # Prevents these results from being pruned
             function_plan[result] = replan_step
