@@ -10,10 +10,13 @@ import random
 import numpy as np
 import time
 
+from itertools import product
+
 from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
     update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
+from pddlstream.algorithms.downward import get_cost_scale
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.focused import solve_focused, solve_adaptive
@@ -55,16 +58,17 @@ def create_problem(tamp_problem):
     goal_literals = [] + \
                     [('Cooked', b) for b in tamp_problem.goal_cooked] # Placeable for the stove
     for b, r in tamp_problem.goal_regions.items():
-        if isinstance(r, str):
-            init += [('Region', r), ('Placeable', b, r)]
-            goal_literals += [('In', b, r)]
-        elif isinstance(r, list):
-            for region in r:
-                init += [('Region', region), ('Placeable', b, region)]
-            goal_literals.append(Or(*[('In', b, region) for region in r]))
-        else:
+        if isinstance(r, np.ndarray):
             init += [('Pose', b, r)]
             goal_literals += [('AtPose', b, r)]
+        else:
+            blocks = [b] if isinstance(b, str) else b
+            regions = [r] if isinstance(r, str) else r
+            conditions = []
+            for body, region in product(blocks, regions):
+                init += [('Region', region), ('Placeable', body, region)]
+                conditions += [('In', body, region)]
+            goal_literals.append(Or(*conditions))
 
     for r, q in initial.robot_confs.items():
         init += [
@@ -265,13 +269,16 @@ def main(negate=True):
     success_cost = 0 if args.optimal else INF
     planner = 'max-astar'
     #planner = 'ff-wastar1'
+
+    #effort_weight = 1.
+    effort_weight = 1. / get_cost_scale()
     if args.algorithm == 'focused':
         solver = solve_adaptive  # solve_focused | solve_serialized | solve_adaptive
         solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
                           replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
                           max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
                           unit_costs=args.unit, success_cost=success_cost,
-                          unit_efforts=True, effort_weight=1,
+                          unit_efforts=True, effort_weight=effort_weight,
                           search_sample_ratio=1,
                           #max_skeletons=None, bind=True,
                           visualize=args.visualize)

@@ -4,7 +4,7 @@
     ;:domain (and (Block ?b) (Region ?r))
     :domain (Placeable ?b ?r)
     :outputs (?p)
-    :certified (and (Pose ?b ?p) (Contain ?b ?p ?r)))
+    :certified (and (Contain ?b ?p ?r) (Pose ?b ?p)))
 
   (:stream s-grasp
     :inputs (?b)
@@ -16,13 +16,14 @@
     :inputs (?b ?p ?g)
     :domain (and (Pose ?b ?p) (Grasp ?b ?g))
     :outputs (?q)
-    :certified (and (Conf ?q) (Kin ?b ?q ?p ?g)))
+    :certified (and (Kin ?b ?q ?p ?g) (Conf ?q)))
 
   (:stream s-motion
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
+    ;:fluents (AtPose AtGrasp AtConf)
     :outputs (?t)
-    :certified (and (Traj ?t) (Motion ?q1 ?t ?q2)))
+    :certified (and (Motion ?q1 ?t ?q2) (Traj ?t)))
 
   (:stream t-cfree
     :inputs (?b1 ?p1 ?b2 ?p2)
