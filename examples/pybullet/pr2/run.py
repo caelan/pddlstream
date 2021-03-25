@@ -2,8 +2,6 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
 import argparse
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
@@ -12,8 +10,8 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, ge
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
-    get_distance, LockRenderer, get_min_limit, get_max_limit
+    disconnect, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
+    get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line
 from pddlstream.algorithms.focused import solve_focused, solve_adaptive
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
@@ -215,7 +213,7 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False, partial=False, defer=False):
+def main(teleport=False, partial=False, defer=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
@@ -228,8 +226,8 @@ def main(display=True, teleport=False, partial=False, defer=False):
     # cleaning_button_problem | cooking_button_problem
     with HideOutput():
         problem = problem_fn()
-    state_id = save_state()
-    #saved_world = WorldSaver()
+    #state_id = save_state()
+    saved_world = WorldSaver()
     #dump_world()
 
     pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
@@ -251,32 +249,26 @@ def main(display=True, teleport=False, partial=False, defer=False):
     print('Streams:', stream_map.keys())
 
     with Profiler():
-        with LockRenderer():
+        with LockRenderer(lock=True):
             #solution = solve_incremental(pddlstream_problem, debug=True)
             solution = solve_adaptive(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
-    print_solution(solution)
-    plan, cost, evaluations = solution
-    if plan is None:
-        return
-    if (not display) or (plan is None):
+            print_solution(solution)
+            plan, cost, evaluations = solution
+            commands = post_process(problem, plan)
+            problem.remove_gripper()
+
+    if not has_gui() or (commands is None):
         disconnect()
         return
 
-    with LockRenderer():
-        commands = post_process(problem, plan)
-    if args.viewer:
-        restore_state(state_id)
-    else:
-        disconnect()
-        connect(use_gui=True)
-        with HideOutput():
-            problem_fn() # TODO: way of doing this without reloading?
-
+    #restore_state(state_id)
+    saved_world.restore()
+    wait_if_gui('Execute?')
     if args.simulate:
         control_commands(commands)
     else:
         apply_commands(State(), commands, time_step=0.01)
-    user_input('Finish?')
+    wait_if_gui('Finish?')
     disconnect()
     # TODO: need to wrap circular joints
 

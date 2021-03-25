@@ -16,9 +16,9 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_t
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
-    set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, user_input, \
+    set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, \
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
-    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW
+    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
@@ -311,7 +311,7 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
             else:
                 raise ValueError(name)
         if sec_per_step is None:
-            user_input('Continue?')
+            wait_if_gui('Continue?')
         else:
             wait_for_duration(sec_per_step)
 
