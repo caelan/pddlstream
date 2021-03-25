@@ -115,8 +115,9 @@ def apply_mapping(sequence, mapping):
     return tuple(mapping.get(e, e) for e in sequence)
 
 
-#def safe_apply_mapping(sequence, mapping)
-#    return tuple(mapping[e] for e in sequence)
+def safe_apply_mapping(sequence, mapping):
+    # TODO: flip arguments order
+    return tuple(mapping[e] for e in sequence)
 
 
 def negate_test(test):

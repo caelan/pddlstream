@@ -1,8 +1,9 @@
 from pddlstream.language.constants import get_prefix, get_args
+from pddlstream.language.conversion import pddl_from_object
 from pddlstream.language.exogenous import replace_literals
 from pddlstream.language.external import get_domain_predicates
 from pddlstream.language.stream import Stream
-from pddlstream.utils import find_unique, get_mapping
+from pddlstream.utils import find_unique, get_mapping, safe_apply_mapping
 
 
 def get_predicate_map(state_streams):
@@ -55,11 +56,13 @@ def compile_fluent_streams(domain, externals):
             axiom = action
             raise RuntimeError('Fluent stream outputs cannot be in an axiom: {}'.format(axiom.name))
 
-        blocked_args = tuple(mapping[arg] for arg in stream.inputs)
+        blocked_args = safe_apply_mapping(stream.inputs, mapping)
         blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
         if stream.is_negated:
-            # TODO: add stream conditions here
-            return blocked_literal
+            conditions = [blocked_literal]
+            conditions.extend(pddl.Atom(get_prefix(fact), safe_apply_mapping(get_args(fact), mapping))
+                              for fact in stream.domain) # fd_from_fact
+            return pddl.Conjunction(conditions) # TODO: prune redundant conditions
         return pddl.Conjunction([literal, blocked_literal])
 
     for action in domain.actions:

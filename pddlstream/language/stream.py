@@ -11,7 +11,7 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
     parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -58,7 +58,7 @@ class PartialInputs(object):
     #        return
     #    input_objects = stream_instance.input_objects
     #    mapping = get_mapping(self.stream.inputs, input_objects)
-    #    selected_objects = tuple(mapping[inp] for inp in self.inputs)
+    #    selected_objects = safe_apply_mapping(self.inputs, mapping)
     #    # for _ in irange(self.num):
     #    for _ in irange(stream_instance.num_optimistic):
     #        yield [tuple(SharedOptValue(self.stream.name, self.inputs, selected_objects, out)

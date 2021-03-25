@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fa
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten, INF
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping
 
 DEBUG = 'debug'
 
@@ -17,7 +17,7 @@ def select_inputs(instance, inputs):
     external = instance.external
     assert set(inputs) <= set(external.inputs)
     mapping = get_mapping(external.inputs, instance.input_objects)
-    return tuple(mapping[inp] for inp in inputs)
+    return safe_apply_mapping(inputs, mapping)
 
 def get_defer_any_unbound(unique=False):
     def defer_any_unbound(result, bound_objects=set(), *args, **kwargs):

@@ -18,6 +18,7 @@ from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 from pddlstream.utils import find_unique, get_mapping, INF
 
 UNIVERSAL_TO_CONDITIONAL = False
+AUTOMATICALLY_NEGATE = True
 
 # TODO: rename to parsing
 
@@ -86,7 +87,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     #reset_globals() # Prevents use of satisfaction.py
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
 
-    domain = parse_domain(domain_pddl)
+    domain = parse_domain(domain_pddl) # TODO: normalize here
     #domain = domain_pddl
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
@@ -224,11 +225,18 @@ def identify_non_producers(externals):
             if get_certified_predicates(external1) & get_domain_predicates(external2):
                 # TODO: count intersection when arity of zero
                 pairs.add((external1, external2))
+                if external1.is_negated:
+                    raise ValueError('Stream [{}] can certify [{}] and thus cannot be negated'.format(
+                        external1.name, external2.name))
+
     producers = {e1 for e1, _ in pairs}
     non_producers = set(externals) - producers
     for external in non_producers:
-       external.num_opt_fns = 0
-    # TODO: automatically set negate=True
+        external.num_opt_fns = 0
+        if AUTOMATICALLY_NEGATE and isinstance(external, Stream) and external.is_test and not external.is_negated:
+            # TODO: could instead only negate if in a negative axiom
+            external.info.negate = True
+            print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))
     return non_producers
 
 ##################################################
@@ -267,7 +275,13 @@ def set_unit_efforts(externals):
         if external.get_effort() < INF:
             external.info.effort = 1
 
+NO_INFO = None
+RELATIONAL_INFO = 'relational_info' # structural_info
+STATISTICS_INFO = 'statistics_info'
+
 def parse_stream_pddl(stream_pddl, stream_map, stream_info={}, unit_costs=False, unit_efforts=False):
+    if stream_info is None: # NO_INFO
+        stream_info = {}
     externals = []
     if stream_pddl is None:
         return externals # No streams
