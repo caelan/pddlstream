@@ -65,55 +65,43 @@ class Result(object):
         self.opt_index = opt_index
         self.call_index = call_index
         self.optimistic = optimistic
-
     @property
     def external(self):
         return self.instance.external
-
     @property
     def info(self):
         return self.external.info
-
     @property
     def name(self):
         return self.external.name
-
     @property
     def input_objects(self):
         return self.instance.input_objects
-
+    @property
+    def domain(self):
+        return self.instance.domain
     def is_refined(self):
         return self.opt_index == 0 # TODO: base on output objects instead
-
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
-
     def get_domain(self):
         return self.instance.get_domain()
-
     def get_certified(self):
         raise NotImplementedError()
-
     def get_components(self):
         return [self]
-
     def get_unsatisfiable(self):
         return [self.get_components()]
-
     def get_action(self):
         raise NotImplementedError()
-
     def remap_inputs(self, bindings):
         raise NotImplementedError()
-
     def is_successful(self):
         raise NotImplementedError()
-
     def compute_complexity(self, evaluations):
         # Should be constant
         return compute_complexity(evaluations, self.get_domain()) + \
                self.external.get_complexity(self.call_index)
-
     def get_effort(self, **kwargs):
         if not self.optimistic:
             return 0  # Unit efforts?
@@ -136,11 +124,9 @@ class Instance(object):
         self._mapping = None
         self._domain = None
         self.reset()
-
     @property
     def info(self):
         return self.external.info
-
     @property
     def mapping(self):
         if self._mapping is None:
@@ -148,10 +134,6 @@ class Instance(object):
             #for constant in self.external.constants: # TODO: no longer needed
             #    self._mapping[constant] = Object.from_name(constant)
         return self._mapping
-
-    def get_mapping(self):
-        return self.mapping
-
     @property
     def domain(self):
         if self._domain is None:
@@ -159,22 +141,16 @@ class Instance(object):
             self._domain = tuple(substitute_fact(atom, self.mapping)
                                  for atom in self.external.domain)
         return self._domain
-
     def get_domain(self):
         return self.domain
-
     def get_objects(self):
         return set(self.input_objects)
-
     def get_input_values(self):
         return values_from_objects(self.input_objects)
-
     #def is_first_call(self): # TODO: use in streams
     #    return self.online_calls == 0
-    #
     #def has_previous_success(self):
     #    return self.online_success != 0
-
     def reset(self):
         #self.enable(evaluations={}, domain=None)
         self.disabled = False
@@ -182,10 +158,8 @@ class Instance(object):
         self.num_calls = 0
         self.enumerated = False
         self.successful = False
-
     def is_refined(self):
         return self.opt_index == 0
-
     def refine(self):
         if not self.is_refined():
             self.opt_index -= 1
@@ -266,6 +240,9 @@ class External(Performance):
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+    @property
+    def has_outputs(self):
+        raise NotImplementedError()
     @property
     def is_fluent(self):
         raise NotImplementedError()

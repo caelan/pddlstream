@@ -148,8 +148,6 @@ class StreamResult(Result):
             self._mapping = get_mapping(self.external.outputs, self.output_objects)
             self._mapping.update(self.instance.mapping)
         return self._mapping
-    def get_mapping(self):
-        return self.mapping
     @property
     def stream_fact(self):
         if self._stream_fact is None:
@@ -283,7 +281,7 @@ class StreamInstance(Instance):
         new_facts = list(map(obj_from_value_expression, new_facts))
         self.successful |= any(r.is_successful() for r in new_results)
         self.num_calls += 1 # Must be after get_result
-        #if self.external.is_test() and self.successful:
+        #if self.external.is_test and self.successful:
         #    # Set of possible test stream outputs is exhausted (excluding wild)
         #   self.enumerated = True
         return new_results, new_facts
@@ -395,7 +393,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
-        self.num_opt_fns = 0 if self.is_test() else 1 # Always unique if no outputs
+        self.num_opt_fns = 0 if self.is_test else 1 # Always unique if no outputs
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             #self.info.opt_gen_fn.register(self)
             if self.info.opt_gen_fn.unique:
@@ -422,8 +420,12 @@ class Stream(External):
     #def reset(self):
     #    super(Stream, self).reset()
     #    self.disabled_instances = []
+    @property
     def is_test(self):
         return not self.outputs
+    @property
+    def has_outputs(self):
+        return not self.is_test
     @property
     def is_fluent(self):
         return self.fluents
