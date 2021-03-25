@@ -27,9 +27,9 @@ def get_negative_result(negative, input_objects, fluent_facts=frozenset()):
 
 def convert_negative_stream(negative, literal, step_from_atom, real_states, negative_plan):
     import pddl
-    # assert not negative.is_fluent()
+    # assert not negative.is_fluent
     fluent_facts_list = []
-    if negative.is_fluent():
+    if negative.is_fluent:
         # TODO: ensure that only used once?
         for step in step_from_atom[literal]:
             fluent_facts_list.append(list(map(fact_from_fd, filter(

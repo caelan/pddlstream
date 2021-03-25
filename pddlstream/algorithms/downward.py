@@ -180,6 +180,9 @@ def scale_cost(cost):
         return INF
     return int_ceil(get_cost_scale() * float(cost))
 
+def get_min_unit():
+    return 1. / get_cost_scale()
+
 set_cost_scale(cost_scale=1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################

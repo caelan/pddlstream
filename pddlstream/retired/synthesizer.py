@@ -26,15 +26,14 @@ def decompose_stream_plan(stream_plan):
 
 class SynthStreamResult(StreamResult):
     def get_functions(self):
-        return substitute_expression(self.instance.external.functions, self.get_mapping())
+        return substitute_expression(self.instance.external.functions, self.mapping)
     def decompose(self):
-        mapping = self.get_mapping()
         results = []
         for i, stream in enumerate(self.instance.external.streams):
             macro_from_micro = self.instance.external.macro_from_micro[i]
-            input_objects = tuple(mapping[macro_from_micro[inp]] for inp in stream.inputs)
+            input_objects = tuple(self.mapping[macro_from_micro[inp]] for inp in stream.inputs)
             instance = stream.get_instance(input_objects)
-            output_objects = tuple(mapping[macro_from_micro[out]] for out in stream.outputs)
+            output_objects = tuple(self.mapping[macro_from_micro[out]] for out in stream.outputs)
             results.append(StreamResult(instance, output_objects))
         return results
 

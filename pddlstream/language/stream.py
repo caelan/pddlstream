@@ -146,7 +146,7 @@ class StreamResult(Result):
     def mapping(self):
         if self._mapping is None:
             self._mapping = get_mapping(self.external.outputs, self.output_objects)
-            self._mapping.update(self.instance.get_mapping())
+            self._mapping.update(self.instance.mapping)
         return self._mapping
     def get_mapping(self):
         return self.mapping
@@ -158,7 +158,7 @@ class StreamResult(Result):
     @property
     def certified(self):
         if self._certified is None:
-            self._certified = substitute_expression(self.external.certified, self.get_mapping())
+            self._certified = substitute_expression(self.external.certified, self.mapping)
         return self._certified
     def get_certified(self):
         return self.certified
@@ -234,7 +234,7 @@ class StreamInstance(Instance):
         if self._generator is not None:
             return
         input_values = self.get_input_values()
-        if self.external.is_fluent(): # self.fluent_facts
+        if self.external.is_fluent: # self.fluent_facts
             self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
         else:
             self._generator = self.external.gen_fn(*input_values)
@@ -314,13 +314,13 @@ class StreamInstance(Instance):
         return self.opt_results
 
     def get_blocked_fact(self):
-        if self.external.is_fluent():
+        if self.external.is_fluent:
             assert self._axiom_predicate is not None
             return Fact(self._axiom_predicate, self.input_objects)
         return Fact(self.external.blocked_predicate, self.input_objects)
 
     def _disable_fluent(self, evaluations, domain):
-        assert self.external.is_fluent()
+        assert self.external.is_fluent
         if self.successful or (self._axiom_predicate is not None):
             return
         self.disabled = True
@@ -340,7 +340,7 @@ class StreamInstance(Instance):
         domain.axioms.append(self._disabled_axiom)
 
     def _disable_negated(self, evaluations):
-        assert self.external.is_negated()
+        assert self.external.is_negated
         if self.successful:
             return
         self.disabled = True
@@ -349,9 +349,9 @@ class StreamInstance(Instance):
     def disable(self, evaluations, domain):
         #assert not self.disabled
         #super(StreamInstance, self).disable(evaluations, domain)
-        if self.external.is_fluent():
+        if self.external.is_fluent:
             self._disable_fluent(evaluations, domain)
-        elif self.external.is_negated():
+        elif self.external.is_negated:
             self._disable_negated(evaluations)
         else:
             self.disabled = True
@@ -412,35 +412,31 @@ class Stream(External):
         self.disabled_instances = [] # For tracking disabled axioms
         self.stream_fact = Fact('_{}'.format(name), concatenate(inputs, outputs)) # TODO: just add to certified?
 
-        if self.is_negated():
+        if self.is_negated:
             if self.outputs:
                 raise ValueError('Negated streams cannot have outputs: {}'.format(self.outputs))
             #assert len(self.certified) == 1 # TODO: is it okay to have more than one fact?
             for certified in self.certified:
                 if not (set(self.inputs) <= set(get_args(certified))):
                     raise ValueError('Negated streams must have certified facts including all input parameters')
-
     #def reset(self):
     #    super(Stream, self).reset()
     #    self.disabled_instances = []
-
     def is_test(self):
         return not self.outputs
-
+    @property
     def is_fluent(self):
         return self.fluents
-
+    @property
     def is_negated(self):
         return self.info.negate
-
+    @property
+    def is_special(self):
+        return self.is_fluent or self.is_negated
     def get_complexity(self, num_calls):
-        #if self.is_negated():
+        #if self.is_negated:
         #    return INF
         return 1 + num_calls
-
-    def is_special(self):
-        return self.is_fluent() or self.is_negated()
-
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)

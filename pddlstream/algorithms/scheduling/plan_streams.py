@@ -118,7 +118,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     # TODO: node_from_atom is a subset of opt_evaluations (only missing functions)
     real_task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain))
     opt_task = task_from_domain_problem(domain, get_problem(opt_evaluations, goal_expression, domain))
-    negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated()}
+    negative_from_name = {external.blocked_predicate: external for external in negative if external.is_negated}
     real_states, full_plan = recover_negative_axioms(
         real_task, opt_task, axiom_plans, action_plan, negative_from_name)
     function_plan = compute_function_plan(opt_evaluations, action_plan)

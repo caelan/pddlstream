@@ -26,7 +26,7 @@ from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memor
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated(), externals))
+    negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated, externals))
     return negative_predicates + negated_streams
 
 def partition_externals(externals, verbose=False):

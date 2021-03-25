@@ -117,7 +117,7 @@ class Result(object):
     def get_effort(self, **kwargs):
         if not self.optimistic:
             return 0  # Unit efforts?
-        if self.external.is_negated():
+        if self.external.is_negated:
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
@@ -155,8 +155,8 @@ class Instance(object):
     @property
     def domain(self):
         if self._domain is None:
-            #self._domain = substitute_expression(self.external.domain, self.get_mapping())
-            self._domain = tuple(substitute_fact(atom, self.get_mapping())
+            #self._domain = substitute_expression(self.external.domain, self.mapping)
+            self._domain = tuple(substitute_fact(atom, self.mapping)
                                  for atom in self.external.domain)
         return self._domain
 
@@ -266,10 +266,13 @@ class External(Performance):
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+    @property
     def is_fluent(self):
         raise NotImplementedError()
+    @property
     def is_negated(self):
         raise NotImplementedError()
+    @property
     def is_special(self):
         return False
     def get_complexity(self, num_calls):

@@ -70,7 +70,7 @@ def check_problem(domain, streams, obj_from_constant):
 
 def set_unit_costs(domain):
     # Cost of None becomes zero if metric = True
-    set_cost_scale(1)
+    #set_cost_scale(1)
     for action in domain.actions:
         action.cost = make_cost(1)
 
@@ -154,9 +154,9 @@ def optimizer_conditional_effects(domain, externals):
     #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
     # TODO: extend this to predicates
     if UNIVERSAL_TO_CONDITIONAL:
-        negative_streams = list(filter(lambda e: e.is_negated(), externals))
+        negative_streams = list(filter(lambda e: e.is_negated, externals))
     else:
-        negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated(), externals))
+        negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated, externals))
     negative_from_predicate = get_predicate_map(negative_streams)
     if not negative_from_predicate:
         return
