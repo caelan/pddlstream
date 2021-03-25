@@ -233,7 +233,8 @@ def identify_non_producers(externals):
     non_producers = set(externals) - producers
     for external in non_producers:
         external.num_opt_fns = 0
-        if AUTOMATICALLY_NEGATE and isinstance(external, Stream) and external.is_test and not external.is_negated:
+        if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
+                and external.is_test and not external.is_negated and external.could_succeed():
             # TODO: could instead only negate if in a negative axiom
             external.info.negate = True
             print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))

@@ -221,7 +221,7 @@ def dump_pddlstream(pddlstream_problem):
 
 ##################################################
 
-def main(negate=True):
+def main():
     # TODO: side grasps (horizontal gripper, one finger, forklift)
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
@@ -237,10 +237,10 @@ def main(negate=True):
         's-grasp': StreamInfo(defer_fn=defer_fn),
         's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
-        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, negate=negate), # defer_fn |  defer_unbound
+        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
-        'gurobi-cfree': StreamInfo(eager=False, negate=negate),
+        'gurobi-cfree': StreamInfo(eager=False, negate=True),
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),
     }

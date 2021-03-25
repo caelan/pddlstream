@@ -228,6 +228,9 @@ class Performance(object):
             return self._estimate_overhead()
         return self.info.overhead
 
+    def could_succeed(self):
+        return self.get_p_success() > 0
+
     def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
         if self.info.effort is None:
             p_success = self.get_p_success()
