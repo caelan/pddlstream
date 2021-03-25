@@ -65,12 +65,12 @@ class Object(object):
 
 ##################################################
 
-class UniqueOptValue(namedtuple('UniqueOptValue', ['instance', 'sequence_index', 'output_index'])):
+class UniqueOptValue(namedtuple('UniqueOptTuple', ['instance', 'sequence_index', 'output_index'])):
     @property
     def parameter(self):
         return self.instance.external.outputs[self.output_index]
 
-class SharedOptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
+class SharedOptValue(namedtuple('SharedOptTuple', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
     def values(self):
         return tuple(obj.value for obj in self.input_objects)

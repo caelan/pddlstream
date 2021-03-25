@@ -298,7 +298,8 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     temporal_plan = None
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
     with Verbose(verbose=debug):
-        instantiated = instantiate_task(task_from_domain_problem(stream_domain, problem))
+        task = task_from_domain_problem(stream_domain, problem)
+        instantiated = instantiate_task(task)
     if instantiated is None:
         return instantiated, None, temporal_plan, INF
 
@@ -312,6 +313,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
     # TODO: the action unsatisfiable conditions are pruned
     with Verbose(debug):
         sas_task = sas_from_instantiated(instantiated)
+        #sas_task.metric = task.use_min_cost_metric
         sas_task.metric = True
 
     # TODO: apply renaming to hierarchy as well
