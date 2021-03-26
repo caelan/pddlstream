@@ -3,7 +3,8 @@ from collections import namedtuple, deque
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, sample_topological_sort
+from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, \
+    sample_topological_sort
 
 # TODO: should I use the product of all future probabilities?
 
@@ -32,7 +33,7 @@ Stats = namedtuple('Stats', ['p_success', 'overhead'])
 # Extract streams required to do one action
 # Compute streams that strongly depend on these. Evaluate these.
 # Execute the full prefix of the plan
-# Make the first action cheaper if uses something that doesn't need to rexpand
+# Make the first action cheaper if uses something that doesn't need to re-expand
 # How to do this with shared objects?
 # Just do the same thing but make the cost 1 if a shared object
 
@@ -49,6 +50,7 @@ def get_future_p_successes(stream_plan):
     return descendants_map
 
 def get_stream_stats(result, negate=False):
+    # TODO: can just do on the infos themselves
     sign = -1 if negate else +1
     return Stats(
         #p_success=result.instance.get_p_success(),
@@ -69,13 +71,6 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
 
 ##################################################
 
-# TODO: include context here as a weak constraint
-# TODO: actions as a weak constraint
-# TODO: works in the absence of partial orders
-# TODO: actions are extremely unlikely to work
-# TODO: can give actions extreme priority
-# TODO: can also more manually reorder
-
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
 def compute_pruning_orders(vertices, stats_fn):
@@ -90,8 +85,10 @@ def compute_pruning_orders(vertices, stats_fn):
     return effort_orders
 
 def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
+    # TODO: include context here as a weak constraint
+    # TODO: works in the absence of partial orders
+    # TODO: can also more manually reorder
     # 2^N rather than N!
-    # TODO: can just do on the infos themselves
     effort_orders = set()
     if prune:
         effort_orders.update(compute_pruning_orders(vertices, stats_fn))
@@ -100,14 +97,16 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
     # TODO: can break ties with index on action plan to prioritize doing the temporally first things
 
     # TODO: could the greedy strategy lead to premature choices
-    # TODO: this starts to blow up
+    # TODO: this starts to blow up - group together similar streams (e.g. collision streams) to decrease size
+    # TODO: key grouping concern are partial orders and ensuring feasibility (isomorphism)
+    # TODO: flood-fill cheapest as soon as something that has no dependencies has been found
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
     subproblems = {subset: Subproblem(cost=0, head=None, subset=None)}
     while queue:
         if store.is_terminated():
             return vertices
-        subset = queue.popleft() # TODO: greedy version of this
+        subset = queue.popleft() # TODO: greedy/weighted A* version of this (heuristic is next cheapest stream)
         applied = set()
         for v in priority_ordering:
             if greedy and applied:
@@ -139,13 +138,21 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
 
 ##################################################
 
-def reorder_stream_plan(store, stream_plan, **kwargs):
+def dummy_reorder_stream_plan(store, stream_plan, **kwargs):
+    return stream_plan
+
+def random_reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
-    # TODO: stats fn
     return sample_topological_sort(stream_plan, get_partial_orders(stream_plan))
 
-def reorder_stream_plan_3awef(store, stream_plan, **kwargs):
+def greedy_reorder_stream_plan(store, stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return stream_plan
+    return topological_sort(stream_plan, get_partial_orders(stream_plan),
+                            priority_fn=lambda stream: get_stream_stats(stream).overhead)
+
+def reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     indices = range(len(stream_plan))

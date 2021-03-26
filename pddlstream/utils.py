@@ -401,7 +401,7 @@ def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
 
     visited = set()
     reverse_order = []
-    for v0 in vertices:
+    for v0 in sorted(vertices, key=priority_fn, reverse=True):
         if not incoming_edges[v0]:
             result = dfs([v0], visited)
             if result is None:
