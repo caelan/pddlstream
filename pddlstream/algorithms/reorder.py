@@ -5,7 +5,7 @@ from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, \
-    sample_topological_sort
+    sample_topological_sort, dijkstra, is_acyclic
 
 # TODO: should I use the product of all future probabilities?
 
@@ -21,6 +21,7 @@ def get_partial_orders(stream_plan, init_facts=set()):
             if isinstance(stream1, StreamResult) and \
                     (set(stream1.output_objects) & stream2.instance.get_objects()):
                 partial_orders.add((stream1, stream2))
+    assert is_acyclic(stream_plan, partial_orders)
     return partial_orders
 
 def get_stream_plan_components(external_plan):
@@ -174,6 +175,7 @@ def reorder_stream_plan(store, stream_plan, **kwargs):
     # TODO: these are special because they don't enable any downstream access to another stream
     #sources = {stream_plan[index] for index in indices if not in_stream_orders[index]}
     #sinks = {stream_plan[index] for index in indices if not out_stream_orders[index]} # Contains collision checks
+    #print(dijkstra(sources, get_partial_orders(stream_plan)))
 
     #stats_fn = get_stream_stats
     stats_fn = lambda idx: get_stream_stats(stream_plan[idx])

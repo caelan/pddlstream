@@ -11,7 +11,7 @@ import cProfile
 import pstats
 import io
 
-from collections import defaultdict, deque, Counter
+from collections import defaultdict, deque, Counter, namedtuple
 from heapq import heappush, heappop
 
 import numpy as np
@@ -370,6 +370,8 @@ def adjacent_from_edges(edges):
         undirected_edges[v2].add(v1)
     return undirected_edges
 
+##################################################
+
 def is_valid_topological_sort(vertices, orders, solution):
     if Counter(vertices) != Counter(solution):
         return False
@@ -440,6 +442,18 @@ def sample_topological_sort(vertices, orders):
     priorities = {v: random.random() for v in vertices}
     return topological_sort(vertices, orders, priority_fn=priorities.get)
 
+def transitive_closure(vertices, orders):
+    # Warshall's algorithm
+    closure = set(orders)
+    for k in vertices:
+        for i in vertices:
+            for j in vertices:
+                if ((i, j) not in closure) and ((i, k) in closure) and ((k, j) in closure):
+                    closure.add((i, j))
+    return closure
+
+##################################################
+
 def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
     cluster = []
@@ -479,15 +493,30 @@ def get_connected_components(vertices, edges):
             clusters.append([v for v in vertices if v in cluster])
     return clusters
 
-def transitive_closure(vertices, orders):
-    # Warshall's algorithm
-    closure = set(orders)
-    for k in vertices:
-        for i in vertices:
-            for j in vertices:
-                if ((i, j) not in closure) and ((i, k) in closure) and ((k, j) in closure):
-                    closure.add((i, j))
-    return closure
+##################################################
+
+SearchNode = namedtuple('Node', ['g', 'parent'])
+
+def dijkstra(sources, edges):
+    if not isinstance(edges, dict):
+        edges = {edge: 1 for edge in edges}
+    _, outgoing_edges = neighbors_from_orders(edges)
+    visited = {}
+    queue = []
+    for v0 in sources:
+        visited[v0] = SearchNode(g=0, parent=None)
+        queue.append(HeapElement(visited[v0].g, v0))
+
+    while queue:
+        current_g, current_v = heappop(queue)
+        if visited[current_v].g < current_g:
+            continue
+        for next_v in outgoing_edges[current_v]:
+            next_g = current_g + edges[(current_v, next_v)]
+            if (next_v not in visited) or (next_g < visited[next_v].g):
+                visited[next_v] = SearchNode(next_g, current_v)
+                heappush(queue, HeapElement(next_g, next_v))
+    return visited
 
 ##################################################
 
