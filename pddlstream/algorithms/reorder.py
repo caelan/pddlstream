@@ -1,4 +1,5 @@
 from collections import namedtuple, deque
+from itertools import combinations
 
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
@@ -74,14 +75,14 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
 def compute_pruning_orders(vertices, stats_fn):
+    # TODO: reason about pairs that don't have a (transitive) ordering
     dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
     effort_orders = set()
-    for i, v1 in enumerate(vertices):
-        for v2 in vertices[i + 1:]:
-            if dominates(v1, v2):
-                effort_orders.add((v1, v2))  # Includes equality
-            elif dominates(v2, v1):
-                effort_orders.add((v2, v1))
+    for v1, v2 in combinations(vertices, r=2):
+        if dominates(v1, v2):
+            effort_orders.add((v1, v2))  # Includes equality
+        elif dominates(v2, v1):
+            effort_orders.add((v2, v1))
     return effort_orders
 
 def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
@@ -89,26 +90,29 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
     # TODO: works in the absence of partial orders
     # TODO: can also more manually reorder
     # 2^N rather than N!
-    effort_orders = set()
+    effort_orders = set() # 1 cheaper than 2
     if prune:
         effort_orders.update(compute_pruning_orders(vertices, stats_fn))
-    _, out_priority_orders = neighbors_from_orders(effort_orders)
-    priority_ordering = topological_sort(vertices, effort_orders)[::-1]
+    _, out_priority_orders = neighbors_from_orders(effort_orders) # more expensive
+    priority_ordering = topological_sort(vertices, effort_orders)[::-1] # most expensive to cheapest
     # TODO: can break ties with index on action plan to prioritize doing the temporally first things
 
     # TODO: could the greedy strategy lead to premature choices
     # TODO: this starts to blow up - group together similar streams (e.g. collision streams) to decrease size
     # TODO: key grouping concern are partial orders and ensuring feasibility (isomorphism)
-    # TODO: flood-fill cheapest as soon as something that has no dependencies has been found
+    # TODO: flood-fill cheapest as soon as something that has no future dependencies has been found
+    # TODO: do the forward version to take advantage of sink vertices
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
     subproblems = {subset: Subproblem(cost=0, head=None, subset=None)}
-    while queue:
+    while queue: # searches backward from last to first
         if store.is_terminated():
             return vertices
         subset = queue.popleft() # TODO: greedy/weighted A* version of this (heuristic is next cheapest stream)
         applied = set()
-        for v in priority_ordering:
+        # TODO: roll-out more than one step to cut the horizon
+        # TODO: compute a heuristic that's the best case affordances from subsequent streams
+        for v in priority_ordering: # most expensive first
             if greedy and applied:
                 break
             if (v not in subset) and valid_head_fn(v, subset) and not (out_priority_orders[v] & applied):
@@ -155,6 +159,7 @@ def greedy_reorder_stream_plan(store, stream_plan, **kwargs):
 def reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
+    # TODO: use the negative output (or overhead) as a bound
     indices = range(len(stream_plan))
     index_from_stream = dict(zip(stream_plan, indices))
     stream_orders = get_partial_orders(stream_plan)
@@ -165,6 +170,10 @@ def reorder_stream_plan(store, stream_plan, **kwargs):
     in_stream_orders, out_stream_orders = neighbors_from_orders(stream_orders)
     valid_combine = lambda v, subset: out_stream_orders[v] <= subset
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
+
+    # TODO: these are special because they don't enable any downstream access to another stream
+    #sources = {stream_plan[index] for index in indices if not in_stream_orders[index]}
+    #sinks = {stream_plan[index] for index in indices if not out_stream_orders[index]} # Contains collision checks
 
     #stats_fn = get_stream_stats
     stats_fn = lambda idx: get_stream_stats(stream_plan[idx])

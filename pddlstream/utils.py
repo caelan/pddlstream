@@ -479,6 +479,16 @@ def get_connected_components(vertices, edges):
             clusters.append([v for v in vertices if v in cluster])
     return clusters
 
+def transitive_closure(vertices, orders):
+    # Warshall's algorithm
+    closure = set(orders)
+    for k in vertices:
+        for i in vertices:
+            for j in vertices:
+                if ((i, j) not in closure) and ((i, k) in closure) and ((k, j) in closure):
+                    closure.add((i, j))
+    return closure
+
 ##################################################
 
 def is_hashable(value):
