@@ -164,13 +164,16 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
         return stream_plan
     stream_orders = get_partial_orders(stream_plan)
     reversed_orders = {(s2, s1) for s1, s2 in stream_orders}
-    in_stream_orders, _ = neighbors_from_orders(reversed_orders)
+    in_stream_orders, out_stream_orders = neighbors_from_orders(reversed_orders)
     sources = {stream for stream in stream_plan if not in_stream_orders[stream]}
     output_sources = {stream for stream in sources if stream.external.has_outputs}
     #visited = dijkstra(output_sources, reversed_orders)
     #distances = {stream: node.g for stream, node in visited.items()}
     distances = layer_sort(set(stream_plan) - (sources - output_sources), reversed_orders)
-    # There's a could be later aspect to this, when is the first time something is needed
+    for stream in stream_plan:
+        if stream not in distances:
+            distances[stream] = min([distances[s] for s in out_stream_orders[stream]], default=INF)
+    # TODO: sort by the external type: test, stream, fluent, function, ...
     reverse_order = topological_sort(stream_plan, reversed_orders,
                                      priority_fn=lambda s: distances[s] if s in distances else INF)
     return reverse_order[::-1]
