@@ -370,8 +370,49 @@ def adjacent_from_edges(edges):
         undirected_edges[v2].add(v1)
     return undirected_edges
 
+def is_valid_topological_sort(vertices, orders, solution):
+    if Counter(vertices) != Counter(solution):
+        return False
+    index_from_vertex = {v: i for i, v in enumerate(solution)}
+    for v1, v2 in orders:
+        if index_from_vertex[v1] >= index_from_vertex[v2]:
+            return False
+    return True
+
+def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # TODO: DFS for all topological sorts
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+
+    def dfs(history, visited):
+        reverse_ordering = []
+        v1 = history[-1]
+        if v1 in visited:
+            return reverse_ordering
+        visited.add(v1)
+        for v2 in sorted(outgoing_edges[v1], key=priority_fn, reverse=True):
+            if v2 in history:
+                return None # Contains a cycle
+            result = dfs(history + [v2], visited)
+            if result is None:
+                return None
+            reverse_ordering.extend(result)
+        reverse_ordering.append(v1)
+        return reverse_ordering
+
+    visited = set()
+    reverse_order = []
+    for v0 in vertices:
+        if not incoming_edges[v0]:
+            result = dfs([v0], visited)
+            if result is None:
+                return None
+            reverse_order.extend(result)
+
+    ordering = reverse_order[::-1]
+    assert(is_valid_topological_sort(vertices, orders, ordering))
+    return ordering
+
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     ordering = []
     queue = []
@@ -385,7 +426,19 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
                 heappush(queue, HeapElement(priority_fn(v2), v2))
+    if len(ordering) != len(vertices):
+        return None
+    assert is_valid_topological_sort(vertices, orders, ordering)
     return ordering
+
+def is_acyclic(vertices, orders):
+    return topological_sort(vertices, orders) is not None
+
+def sample_topological_sort(vertices, orders):
+    # https://stackoverflow.com/questions/38551057/random-topological-sorting-with-uniform-distribution-in-near-linear-time
+    # https://www.geeksforgeeks.org/all-topological-sorts-of-a-directed-acyclic-graph/
+    priorities = {v: random.random() for v in vertices}
+    return topological_sort(vertices, orders, priority_fn=priorities.get)
 
 def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)

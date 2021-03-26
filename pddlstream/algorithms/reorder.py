@@ -3,9 +3,7 @@ from collections import namedtuple, deque
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components
-
-import gc
+from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, sample_topological_sort
 
 # TODO: should I use the product of all future probabilities?
 
@@ -29,6 +27,8 @@ def get_stream_plan_components(external_plan):
 
 ##################################################
 
+Stats = namedtuple('Stats', ['p_success', 'overhead'])
+
 # Extract streams required to do one action
 # Compute streams that strongly depend on these. Evaluate these.
 # Execute the full prefix of the plan
@@ -48,9 +48,14 @@ def get_future_p_successes(stream_plan):
             descendants_map[s1] *= descendants_map[s2]
     return descendants_map
 
-def get_stream_stats(result):
-    #return result.instance.get_p_success(), result.instance.get_overhead()
-    return result.instance.external.get_p_success(), result.instance.external.get_overhead()
+def get_stream_stats(result, negate=False):
+    sign = -1 if negate else +1
+    return Stats(
+        #p_success=result.instance.get_p_success(),
+        #overhead=sign*result.instance.get_overhead(),
+        p_success=result.instance.external.get_p_success(),
+        overhead=sign*result.instance.external.get_overhead(),
+    )
 
 def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
     # TODO: prioritize cost functions as they can prune when we have a better plan
@@ -73,26 +78,32 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
 
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
+def compute_pruning_orders(vertices, stats_fn):
+    dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
+    effort_orders = set()
+    for i, v1 in enumerate(vertices):
+        for v2 in vertices[i + 1:]:
+            if dominates(v1, v2):
+                effort_orders.add((v1, v2))  # Includes equality
+            elif dominates(v2, v1):
+                effort_orders.add((v2, v1))
+    return effort_orders
+
 def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, greedy=False):
     # 2^N rather than N!
     # TODO: can just do on the infos themselves
-    dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
     effort_orders = set()
     if prune:
-        for i, v1 in enumerate(vertices):
-            for v2 in vertices[i+1:]:
-                if dominates(v1, v2):
-                    effort_orders.add((v1, v2)) # Includes equality
-                elif dominates(v2, v1):
-                    effort_orders.add((v2, v1))
+        effort_orders.update(compute_pruning_orders(vertices, stats_fn))
     _, out_priority_orders = neighbors_from_orders(effort_orders)
     priority_ordering = topological_sort(vertices, effort_orders)[::-1]
+    # TODO: can break ties with index on action plan to prioritize doing the temporally first things
 
     # TODO: could the greedy strategy lead to premature choices
     # TODO: this starts to blow up
     subset = frozenset()
     queue = deque([subset]) # Acyclic because subsets
-    subproblems = {subset: Subproblem(0, None, None)}
+    subproblems = {subset: Subproblem(cost=0, head=None, subset=None)}
     while queue:
         if store.is_terminated():
             return vertices
@@ -106,7 +117,7 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
                 new_subset = frozenset([v]) | subset
                 p_success, overhead = stats_fn(v)
                 new_cost = overhead + p_success*subproblems[subset].cost
-                subproblem = Subproblem(new_cost, v, subset)  # Adds new element to the front
+                subproblem = Subproblem(cost=new_cost, head=v, subset=subset)  # Adds new element to the front
                 if new_subset not in subproblems:
                     queue.append(new_subset)
                     subproblems[new_subset] = subproblem
@@ -131,6 +142,12 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
 def reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
+    # TODO: stats fn
+    return sample_topological_sort(stream_plan, get_partial_orders(stream_plan))
+
+def reorder_stream_plan_3awef(store, stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return stream_plan
     indices = range(len(stream_plan))
     index_from_stream = dict(zip(stream_plan, indices))
     stream_orders = get_partial_orders(stream_plan)
@@ -141,9 +158,10 @@ def reorder_stream_plan(store, stream_plan, **kwargs):
     in_stream_orders, out_stream_orders = neighbors_from_orders(stream_orders)
     valid_combine = lambda v, subset: out_stream_orders[v] <= subset
     #valid_combine = lambda v, subset: in_stream_orders[v] & subset
+
     #stats_fn = get_stream_stats
     stats_fn = lambda idx: get_stream_stats(stream_plan[idx])
     ordering = dynamic_programming(store, nodes, valid_combine, stats_fn, **kwargs)
+    #import gc
     #gc.collect()
-    ordering = [stream_plan[index] for index in ordering]
-    return ordering
+    return [stream_plan[index] for index in ordering]

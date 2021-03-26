@@ -109,6 +109,18 @@ def instantiate_optimizer_axioms(instantiated, domain, results):
 
 ##################################################
 
+def recover_partial_orders(stream_plan, node_from_atom):
+    # Useful to recover the correct DAG
+    partial_orders = set()
+    for child in stream_plan:
+        # TODO: account for fluent objects
+        for fact in child.get_domain():
+            parent = node_from_atom[fact].result
+            if parent is not None:
+                partial_orders.add((parent, child))
+    #stream_plan = topological_sort(stream_plan, partial_orders)
+    return partial_orders
+
 def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_expression, domain, node_from_atom,
                         action_plan, axiom_plans, negative, replan_step):
     # Universally quantified conditions are converted into negative axioms
@@ -173,16 +185,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
                 last_from_fact[domain_fact] = min(last_from_stream[result], last_from_fact.get(domain_fact, INF))
     stream_plan.extend(function_plan)
 
-    # Useful to recover the correct DAG
-    partial_orders = set()
-    for child in stream_plan:
-        # TODO: account for fluent objects
-        for fact in child.get_domain():
-            parent = node_from_atom[fact].result
-            if parent is not None:
-                partial_orders.add((parent, child))
-    #stream_plan = topological_sort(stream_plan, partial_orders)
-
+    partial_orders = recover_partial_orders(stream_plan, node_from_atom)
     bound_objects = set()
     for result in stream_plan:
         if (last_from_stream[result] == 0) or not result.is_deferrable(bound_objects=bound_objects):
@@ -247,8 +250,7 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
 
     # TODO: the returned facts have the same side-effect bug as above
     # TODO: annotate when each preimage fact is used
-    preimage_facts = {fact_from_fd(l) for l in full_preimage
-                      if (l.predicate != EQ) and not l.negated}
+    preimage_facts = {fact_from_fd(l) for l in full_preimage if (l.predicate != EQ) and not l.negated}
     for negative_result in negative_plan: # TODO: function_plan
         preimage_facts.update(negative_result.get_certified())
     for result in eager_plan:
