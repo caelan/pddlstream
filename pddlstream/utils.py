@@ -372,7 +372,11 @@ def adjacent_from_edges(edges):
 
 ##################################################
 
+def filter_orders(vertices, orders):
+    return [order for order in orders if all(v in vertices for v in order)]
+
 def is_valid_topological_sort(vertices, orders, solution):
+    orders = filter_orders(vertices, orders)
     if Counter(vertices) != Counter(solution):
         return False
     index_from_vertex = {v: i for i, v in enumerate(solution)}
@@ -383,6 +387,7 @@ def is_valid_topological_sort(vertices, orders, solution):
 
 def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
     # TODO: DFS for all topological sorts
+    orders = filter_orders(vertices, orders)
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
 
     def dfs(history, visited):
@@ -415,6 +420,7 @@ def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
     return ordering
 
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    orders = filter_orders(vertices, orders)
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     ordering = []
     queue = []
@@ -433,6 +439,25 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
     assert is_valid_topological_sort(vertices, orders, ordering)
     return ordering
 
+def layer_sort(vertices, orders): # priority_fn=lambda v: 0
+    # TODO: more efficient hypergraph/layer distance (h_max)
+    orders = filter_orders(vertices, orders)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    visited = {}
+    queue = []
+    for v in vertices:
+        if not incoming_edges[v]:
+            visited[v] = 0
+            heappush(queue, HeapElement(visited[v], v))
+    while queue:
+        g, v1 = heappop(queue)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1) # TODO: non-uniform cost function for max
+            if not incoming_edges[v2] and (v2 not in visited):
+                visited[v2] = g + 1
+                heappush(queue, HeapElement(visited[v2], v2))
+    return visited
+
 def is_acyclic(vertices, orders):
     return topological_sort(vertices, orders) is not None
 
@@ -444,6 +469,7 @@ def sample_topological_sort(vertices, orders):
 
 def transitive_closure(vertices, orders):
     # Warshall's algorithm
+    orders = filter_orders(vertices, orders)
     closure = set(orders)
     for k in vertices:
         for i in vertices:
@@ -483,6 +509,7 @@ def get_descendants(source, edges):
     return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
 
 def get_connected_components(vertices, edges):
+    vertices = filter_orders(vertices, edges)
     undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()

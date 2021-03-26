@@ -5,7 +5,7 @@ from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, \
-    sample_topological_sort, dijkstra, is_acyclic
+    sample_topological_sort, dijkstra, is_acyclic, layer_sort
 
 # TODO: should I use the product of all future probabilities?
 
@@ -167,9 +167,12 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
     in_stream_orders, _ = neighbors_from_orders(reversed_orders)
     sources = {stream for stream in stream_plan if not in_stream_orders[stream]}
     output_sources = {stream for stream in sources if stream.external.has_outputs}
-    distances = dijkstra(output_sources, reversed_orders)
-    reverse_order = topological_sort(stream_plan, reversed_orders, # TODO: hypergraph/layer distance (h_max)
-                                     priority_fn=lambda s: distances[s].g if s in distances else INF)
+    #visited = dijkstra(output_sources, reversed_orders)
+    #distances = {stream: node.g for stream, node in visited.items()}
+    distances = layer_sort(set(stream_plan) - (sources - output_sources), reversed_orders)
+    # There's a could be later aspect to this, when is the first time something is needed
+    reverse_order = topological_sort(stream_plan, reversed_orders,
+                                     priority_fn=lambda s: distances[s] if s in distances else INF)
     return reverse_order[::-1]
 
 def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
