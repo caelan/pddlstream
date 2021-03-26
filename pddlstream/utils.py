@@ -497,7 +497,7 @@ def get_connected_components(vertices, edges):
 
 SearchNode = namedtuple('Node', ['g', 'parent'])
 
-def dijkstra(sources, edges):
+def dijkstra(sources, edges, op=sum): # sum | max
     if not isinstance(edges, dict):
         edges = {edge: 1 for edge in edges}
     _, outgoing_edges = neighbors_from_orders(edges)
@@ -512,7 +512,7 @@ def dijkstra(sources, edges):
         if visited[current_v].g < current_g:
             continue
         for next_v in outgoing_edges[current_v]:
-            next_g = current_g + edges[(current_v, next_v)]
+            next_g = op([current_g, edges[(current_v, next_v)]])
             if (next_v not in visited) or (next_g < visited[next_v].g):
                 visited[next_v] = SearchNode(next_g, current_v)
                 heappush(queue, HeapElement(next_g, next_v))
