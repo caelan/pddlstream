@@ -260,6 +260,20 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
+    @property
+    def tiebreaker(self):
+        raise NotImplementedError()
+    def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
+        # TODO: infer other properties from use in the context of a stream plan
+        num_inputs = len(self.inputs)
+        #num_domain = len(self.domain)
+        #num_outputs = int(self.has_outputs)
+        return (num_fluents, num_outputs, not is_function, num_inputs)
+
+        #num_outputs = len(self.outputs)
+        #num_certified = len(self.certified)
+        #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
+        #return overhead
 
 ##################################################
 

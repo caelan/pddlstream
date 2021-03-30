@@ -134,6 +134,9 @@ class Function(External):
     def get_complexity(self, num_calls):
         #return 1 + num_calls
         return 0
+    @property
+    def tiebreaker(self):
+        return self.get_tiebreaker(is_function=True)
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 

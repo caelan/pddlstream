@@ -447,9 +447,13 @@ class Stream(External):
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)
         return self.instances[key]
-
-    # TODO: method that converts a stream into a test stream
-
+    @property
+    def tiebreaker(self):
+        return self.get_tiebreaker(num_outputs=len(self.outputs), num_certified=len(self.certified),
+                                   num_fluents=len(self.fluents))
+    def as_test_stream(self):
+        # TODO: method that converts a stream into a test stream (possibly from ss)
+        raise NotImplementedError()
     def __repr__(self):
         return '{}:{}->{}'.format(self.name, self.inputs, self.outputs)
 

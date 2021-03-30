@@ -159,23 +159,40 @@ def greedy_reorder_stream_plan(store, stream_plan, **kwargs):
     return topological_sort(stream_plan, get_partial_orders(stream_plan),
                             priority_fn=lambda stream: get_stream_stats(stream).overhead)
 
+def dump_layers(distances):
+    streams_from_layer = {}
+    for stream, layer in distances.items():
+        streams_from_layer.setdefault(layer, []).append(stream)
+    for layer, streams in streams_from_layer.items():
+        print(layer, sorted(streams, key=lambda s: s.external.tiebreaker, reverse=True))
+    return streams_from_layer
+
 def layer_reorder_stream_plan(store, stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     stream_orders = get_partial_orders(stream_plan)
     reversed_orders = {(s2, s1) for s1, s2 in stream_orders}
     in_stream_orders, out_stream_orders = neighbors_from_orders(reversed_orders)
-    sources = {stream for stream in stream_plan if not in_stream_orders[stream]}
+    sources = {stream for stream in stream_plan if not in_stream_orders[stream]} # In the reversed DAG
     output_sources = {stream for stream in sources if stream.external.has_outputs}
+    test_sources = sources - output_sources
     #visited = dijkstra(output_sources, reversed_orders)
     #distances = {stream: node.g for stream, node in visited.items()}
-    distances = layer_sort(set(stream_plan) - (sources - output_sources), reversed_orders)
+    distances = layer_sort(set(stream_plan) - test_sources, reversed_orders)
+
+    # TODO: take into account argument overlap
     for stream in stream_plan:
         if stream not in distances:
-            distances[stream] = min([distances[s] for s in out_stream_orders[stream]], default=INF)
-    # TODO: sort by the external type: test, stream, fluent, function, ...
-    reverse_order = topological_sort(stream_plan, reversed_orders,
-                                     priority_fn=lambda s: distances[s] if s in distances else INF)
+            distances[stream] = min([distances[s] - 1 for s in out_stream_orders[stream]], default=INF)
+
+    #priority_fn = lambda s: distances[s] if s in distances else INF
+    #priority_fn = lambda s: s.external.tiebreaker # Need to reverse
+    sorted_streams = sorted(stream_plan, key=lambda s: s.external.tiebreaker, reverse=True)
+    #priority_fn = sorted_streams.index
+    priority_fn = lambda s: (not s.external.has_outputs, distances[s], sorted_streams.index(s))
+
+    #dump_layers(distances)
+    reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
     return reverse_order[::-1]
 
 def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
@@ -205,4 +222,5 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     #gc.collect()
     return [stream_plan[index] for index in ordering]
 
+# TODO: toggle based on p_success and overhead
 reorder_stream_plan = layer_reorder_stream_plan # optimal_reorder_stream_plan
