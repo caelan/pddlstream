@@ -183,7 +183,7 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
     # TODO: take into account argument overlap
     for stream in stream_plan:
         if stream not in distances:
-            distances[stream] = min([distances[s] - 1 for s in out_stream_orders[stream]], default=INF)
+            distances[stream] = min([INF] + [distances[s] - 1 for s in out_stream_orders[stream]])
 
     #priority_fn = lambda s: distances[s] if s in distances else INF
     #priority_fn = lambda s: s.external.tiebreaker # Need to reverse
