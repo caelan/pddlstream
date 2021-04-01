@@ -4,13 +4,16 @@ from collections import namedtuple
 from copy import deepcopy
 
 from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
-from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate, fd_from_fact
-from pddlstream.language.constants import Or, And, is_parameter, Equal, Not, str_from_plan, EQ, Imply
+from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate, \
+    fd_from_fact
+from pddlstream.language.constants import Or, And, is_parameter, Not, str_from_plan, EQ
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, \
     get_ancestors, get_descendants
 
 OrderedSkeleton = namedtuple('OrderedSkeleton', ['actions', 'orders']) # TODO: AND/OR tree
+
+INTERNAL_PREFIX = '_' # TODO: possibly apply elsewhere
 
 WILD = '*'
 ASSIGNED_PREDICATE = '{}assigned'
@@ -62,7 +65,7 @@ def to_obj(value):
     return Object.from_value(value)
 
 def get_internal_prefix(internal):
-    return '_' if internal else ''
+    return INTERNAL_PREFIX if internal else ''
 
 def is_constant(arg):
     return not is_parameter(arg) and (arg != WILD)

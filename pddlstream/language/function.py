@@ -45,7 +45,7 @@ class FunctionResult(Result):
     def is_successful(self):
         return True
     def __repr__(self):
-        return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
+        return '{}={}'.format(str_from_head(self.instance.head), self.value)
 
 class FunctionInstance(Instance):
     _Result = FunctionResult
@@ -56,10 +56,8 @@ class FunctionInstance(Instance):
     @property
     def head(self):
         if self._head is None:
-            self._head = substitute_expression(self.external.head, self.get_mapping())
+            self._head = substitute_expression(self.external.head, self.mapping)
         return self._head
-    def get_head(self):
-        return self.head
     @property
     def value(self):
         assert len(self.history) == 1
@@ -100,7 +98,7 @@ class FunctionInstance(Instance):
         self.opt_results = [self._Result(self, opt_value, optimistic=True)]
         return self.opt_results
     def __repr__(self):
-        return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
+        return '{}=?{}'.format(str_from_head(self.head), self.external.codomain.__name__)
 
 class Function(External):
     """
@@ -127,11 +125,18 @@ class Function(External):
     @property
     def function(self):
         return get_prefix(self.head)
+    @property
+    def has_outputs(self):
+        return False
+    @property
+    def is_negated(self):
+        return False
     def get_complexity(self, num_calls):
         #return 1 + num_calls
         return 0
-    def is_negated(self):
-        return False
+    @property
+    def tiebreaker(self):
+        return self.get_tiebreaker(is_function=True)
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 
@@ -140,7 +145,7 @@ class Function(External):
 class PredicateResult(FunctionResult):
     def get_certified(self):
         # TODO: cache these results
-        expression = self.instance.get_head()
+        expression = self.instance.head
         return [expression if self.value else Not(expression)]
     def is_successful(self):
         opt_value = self.external.opt_fn(*self.instance.get_input_values())
@@ -171,6 +176,7 @@ class Predicate(Function):
     @property
     def predicate(self):
         return self.function
+    @property
     def is_negated(self):
         return True
 

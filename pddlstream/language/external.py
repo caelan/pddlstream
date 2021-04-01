@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fa
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten, INF
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping
 
 DEBUG = 'debug'
 
@@ -17,7 +17,7 @@ def select_inputs(instance, inputs):
     external = instance.external
     assert set(inputs) <= set(external.inputs)
     mapping = get_mapping(external.inputs, instance.input_objects)
-    return tuple(mapping[inp] for inp in inputs)
+    return safe_apply_mapping(inputs, mapping)
 
 def get_defer_any_unbound(unique=False):
     def defer_any_unbound(result, bound_objects=set(), *args, **kwargs):
@@ -65,59 +65,47 @@ class Result(object):
         self.opt_index = opt_index
         self.call_index = call_index
         self.optimistic = optimistic
-
     @property
     def external(self):
         return self.instance.external
-
     @property
     def info(self):
         return self.external.info
-
     @property
     def name(self):
         return self.external.name
-
     @property
     def input_objects(self):
         return self.instance.input_objects
-
+    @property
+    def domain(self):
+        return self.instance.domain
     def is_refined(self):
-        return self.opt_index == 0 # TODO: base on output objects instead?
-
+        return self.opt_index == 0 # TODO: base on output objects instead
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
-
     def get_domain(self):
         return self.instance.get_domain()
-
     def get_certified(self):
         raise NotImplementedError()
-
     def get_components(self):
         return [self]
-
     def get_unsatisfiable(self):
         return [self.get_components()]
-
     def get_action(self):
         raise NotImplementedError()
-
     def remap_inputs(self, bindings):
         raise NotImplementedError()
-
     def is_successful(self):
         raise NotImplementedError()
-
     def compute_complexity(self, evaluations):
         # Should be constant
         return compute_complexity(evaluations, self.get_domain()) + \
                self.external.get_complexity(self.call_index)
-
     def get_effort(self, **kwargs):
         if not self.optimistic:
             return 0  # Unit efforts?
-        if self.external.is_negated():
+        if self.external.is_negated:
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
@@ -136,11 +124,9 @@ class Instance(object):
         self._mapping = None
         self._domain = None
         self.reset()
-
     @property
     def info(self):
         return self.external.info
-
     @property
     def mapping(self):
         if self._mapping is None:
@@ -148,33 +134,23 @@ class Instance(object):
             #for constant in self.external.constants: # TODO: no longer needed
             #    self._mapping[constant] = Object.from_name(constant)
         return self._mapping
-
-    def get_mapping(self):
-        return self.mapping
-
     @property
     def domain(self):
         if self._domain is None:
-            #self._domain = substitute_expression(self.external.domain, self.get_mapping())
-            self._domain = tuple(substitute_fact(atom, self.get_mapping())
+            #self._domain = substitute_expression(self.external.domain, self.mapping)
+            self._domain = tuple(substitute_fact(atom, self.mapping)
                                  for atom in self.external.domain)
         return self._domain
-
     def get_domain(self):
         return self.domain
-
     def get_objects(self):
         return set(self.input_objects)
-
     def get_input_values(self):
         return values_from_objects(self.input_objects)
-
     #def is_first_call(self): # TODO: use in streams
     #    return self.online_calls == 0
-    #
     #def has_previous_success(self):
     #    return self.online_success != 0
-
     def reset(self):
         #self.enable(evaluations={}, domain=None)
         self.disabled = False
@@ -182,6 +158,12 @@ class Instance(object):
         self.num_calls = 0
         self.enumerated = False
         self.successful = False
+    def is_refined(self):
+        return self.opt_index == 0
+    def refine(self):
+        if not self.is_refined():
+            self.opt_index -= 1
+        return self.opt_index
 
     def next_results(self, verbose=False):
         raise NotImplementedError()
@@ -258,10 +240,16 @@ class External(Performance):
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+    @property
+    def has_outputs(self):
+        raise NotImplementedError()
+    @property
     def is_fluent(self):
         raise NotImplementedError()
+    @property
     def is_negated(self):
         raise NotImplementedError()
+    @property
     def is_special(self):
         return False
     def get_complexity(self, num_calls):
@@ -272,6 +260,20 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
+    @property
+    def tiebreaker(self):
+        raise NotImplementedError()
+    def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
+        # TODO: infer other properties from use in the context of a stream plan
+        num_inputs = len(self.inputs)
+        #num_domain = len(self.domain)
+        #num_outputs = int(self.has_outputs)
+        return (num_fluents, num_outputs, not is_function, num_inputs)
+
+        #num_outputs = len(self.outputs)
+        #num_certified = len(self.certified)
+        #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
+        #return overhead
 
 ##################################################
 

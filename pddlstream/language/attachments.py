@@ -27,7 +27,7 @@ def has_attachments(domain):
 
 def compile_fluents_as_attachments(domain, externals):
     import pddl
-    state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent(), externals)) # is_special
+    state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent, externals)) # is_special
     if not state_streams:
         return externals
 
@@ -96,7 +96,7 @@ def get_attachment_test(action_instance):
             #idx_from_param = {p.name: i for i, p in enumerate(action_instance.action.parameters)}
             param_from_out = remap_certified(literal, stream)
             result = results[0] # Arbitrary
-            out_from_obj = invert_dict(result.get_mapping())
+            out_from_obj = invert_dict(result.mapping)
             for obj in result.output_objects:
                 param = param_from_out[out_from_obj[obj]]
                 action_instance.var_mapping[param] = obj.pddl

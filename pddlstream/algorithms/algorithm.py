@@ -18,6 +18,7 @@ from pddlstream.language.stream import parse_stream, Stream, StreamInstance
 from pddlstream.utils import find_unique, get_mapping, INF
 
 UNIVERSAL_TO_CONDITIONAL = False
+AUTOMATICALLY_NEGATE = True
 
 # TODO: rename to parsing
 
@@ -31,6 +32,7 @@ def parse_constants(domain, constant_map):
         value = constant_map.get(constant.name, constant.name)
         obj_from_constant[constant.name] = Object(value, name=constant.name) # TODO: remap names
         # TODO: add object predicate
+
     for name in constant_map:
         for constant in domain.constants:
             if constant.name == name:
@@ -47,6 +49,7 @@ def check_problem(domain, streams, obj_from_constant):
                 raise ValueError('Parameter [{}] for action [{}] is not unique'.format(p.name, action.name))
         # TODO: check that no undeclared parameters & constants
         #action.dump()
+
     undeclared_predicates = set()
     for stream in streams:
         # TODO: domain.functions
@@ -68,7 +71,7 @@ def check_problem(domain, streams, obj_from_constant):
 
 def set_unit_costs(domain):
     # Cost of None becomes zero if metric = True
-    set_cost_scale(1)
+    #set_cost_scale(1)
     for action in domain.actions:
         action.cost = make_cost(1)
 
@@ -84,7 +87,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     #reset_globals() # Prevents use of satisfaction.py
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
 
-    domain = parse_domain(domain_pddl)
+    domain = parse_domain(domain_pddl) # TODO: normalize here
     #domain = domain_pddl
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
@@ -111,6 +114,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     parse_goal(goal_exp, domain) # Just to check that it parses
 
     # TODO: refactor the following?
+    identify_non_producers(streams)
     compile_to_exogenous(evaluations, domain, streams)
     enforce_simultaneous(domain, streams)
     compile_fluent_streams(domain, streams)
@@ -151,9 +155,9 @@ def optimizer_conditional_effects(domain, externals):
     #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
     # TODO: extend this to predicates
     if UNIVERSAL_TO_CONDITIONAL:
-        negative_streams = list(filter(lambda e: e.is_negated(), externals))
+        negative_streams = list(filter(lambda e: e.is_negated, externals))
     else:
-        negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated(), externals))
+        negative_streams = list(filter(lambda e: isinstance(e, ConstraintStream) and e.is_negated, externals))
     negative_from_predicate = get_predicate_map(negative_streams)
     if not negative_from_predicate:
         return
@@ -212,16 +216,28 @@ def get_certified_predicates(external):
         return {get_prefix(external.head)}
     raise ValueError(external)
 
-def get_non_producers(externals):
-    # TODO: handle case where no domain conditions
+def identify_non_producers(externals):
+    # Streams that can be evaluated at the end as tests
     pairs = set()
     for external1 in externals:
         for external2 in externals:
+            # TODO: handle case where no domain conditions
             if get_certified_predicates(external1) & get_domain_predicates(external2):
+                # TODO: count intersection when arity of zero
                 pairs.add((external1, external2))
+                if external1.is_negated:
+                    raise ValueError('Stream [{}] can certify [{}] and thus cannot be negated'.format(
+                        external1.name, external2.name))
+
     producers = {e1 for e1, _ in pairs}
     non_producers = set(externals) - producers
-    # TODO: these are streams that be evaluated at the end as tests
+    for external in non_producers:
+        external.num_opt_fns = 0
+        if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
+                and external.is_test and not external.is_negated and external.could_succeed():
+            # TODO: could instead only negate if in a negative axiom
+            external.info.negate = True
+            print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))
     return non_producers
 
 ##################################################
@@ -260,7 +276,13 @@ def set_unit_efforts(externals):
         if external.get_effort() < INF:
             external.info.effort = 1
 
+NO_INFO = None
+RELATIONAL_INFO = 'relational_info' # structural_info
+STATISTICS_INFO = 'statistics_info'
+
 def parse_stream_pddl(stream_pddl, stream_map, stream_info={}, unit_costs=False, unit_efforts=False):
+    if stream_info is None: # NO_INFO
+        stream_info = {}
     externals = []
     if stream_pddl is None:
         return externals # No streams

@@ -112,6 +112,9 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
 ##################################################
 
 def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwargs):
+    # TODO: actions as a weak constraint
+    # TODO: actions are extremely unlikely to work
+    # TODO: can give actions extreme priority
     if not is_plan(combined_plan):
         return combined_plan
     stream_plan, action_plan = separate_plan(combined_plan)

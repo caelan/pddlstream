@@ -11,7 +11,7 @@ import cProfile
 import pstats
 import io
 
-from collections import defaultdict, deque, Counter
+from collections import defaultdict, deque, Counter, namedtuple
 from heapq import heappush, heappop
 
 import numpy as np
@@ -115,8 +115,9 @@ def apply_mapping(sequence, mapping):
     return tuple(mapping.get(e, e) for e in sequence)
 
 
-#def safe_apply_mapping(sequence, mapping)
-#    return tuple(mapping[e] for e in sequence)
+def safe_apply_mapping(sequence, mapping):
+    # TODO: flip arguments order
+    return tuple(mapping[e] for e in sequence)
 
 
 def negate_test(test):
@@ -369,8 +370,57 @@ def adjacent_from_edges(edges):
         undirected_edges[v2].add(v1)
     return undirected_edges
 
+##################################################
+
+def filter_orders(vertices, orders):
+    return [order for order in orders if all(v in vertices for v in order)]
+
+def is_valid_topological_sort(vertices, orders, solution):
+    orders = filter_orders(vertices, orders)
+    if Counter(vertices) != Counter(solution):
+        return False
+    index_from_vertex = {v: i for i, v in enumerate(solution)}
+    for v1, v2 in orders:
+        if index_from_vertex[v1] >= index_from_vertex[v2]:
+            return False
+    return True
+
+def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # TODO: DFS for all topological sorts
+    orders = filter_orders(vertices, orders)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+
+    def dfs(history, visited):
+        reverse_ordering = []
+        v1 = history[-1]
+        if v1 in visited:
+            return reverse_ordering
+        visited.add(v1)
+        for v2 in sorted(outgoing_edges[v1], key=priority_fn, reverse=True):
+            if v2 in history:
+                return None # Contains a cycle
+            result = dfs(history + [v2], visited)
+            if result is None:
+                return None
+            reverse_ordering.extend(result)
+        reverse_ordering.append(v1)
+        return reverse_ordering
+
+    visited = set()
+    reverse_order = []
+    for v0 in sorted(vertices, key=priority_fn, reverse=True):
+        if not incoming_edges[v0]:
+            result = dfs([v0], visited)
+            if result is None:
+                return None
+            reverse_order.extend(result)
+
+    ordering = reverse_order[::-1]
+    assert(is_valid_topological_sort(vertices, orders, ordering))
+    return ordering
+
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
+    orders = filter_orders(vertices, orders)
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     ordering = []
     queue = []
@@ -384,7 +434,51 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
                 heappush(queue, HeapElement(priority_fn(v2), v2))
+    if len(ordering) != len(vertices):
+        return None
+    assert is_valid_topological_sort(vertices, orders, ordering)
     return ordering
+
+def layer_sort(vertices, orders): # priority_fn=lambda v: 0
+    # TODO: more efficient hypergraph/layer distance (h_max)
+    orders = filter_orders(vertices, orders)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    visited = {}
+    queue = []
+    for v in vertices:
+        if not incoming_edges[v]:
+            visited[v] = 0
+            heappush(queue, HeapElement(visited[v], v))
+    while queue:
+        g, v1 = heappop(queue)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1) # TODO: non-uniform cost function for max
+            if not incoming_edges[v2] and (v2 not in visited):
+                visited[v2] = g + 1
+                heappush(queue, HeapElement(visited[v2], v2))
+    return visited
+
+def is_acyclic(vertices, orders):
+    return topological_sort(vertices, orders) is not None
+
+def sample_topological_sort(vertices, orders):
+    # https://stackoverflow.com/questions/38551057/random-topological-sorting-with-uniform-distribution-in-near-linear-time
+    # https://www.geeksforgeeks.org/all-topological-sorts-of-a-directed-acyclic-graph/
+    priorities = {v: random.random() for v in vertices}
+    return topological_sort(vertices, orders, priority_fn=priorities.get)
+
+def transitive_closure(vertices, orders):
+    # Warshall's algorithm
+    orders = filter_orders(vertices, orders)
+    closure = set(orders)
+    for k in vertices:
+        for i in vertices:
+            for j in vertices:
+                if ((i, j) not in closure) and ((i, k) in closure) and ((k, j) in closure):
+                    closure.add((i, j))
+    return closure
+
+##################################################
 
 def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
@@ -415,6 +509,7 @@ def get_descendants(source, edges):
     return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
 
 def get_connected_components(vertices, edges):
+    vertices = filter_orders(vertices, edges)
     undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()
@@ -424,6 +519,31 @@ def get_connected_components(vertices, edges):
         if cluster:
             clusters.append([v for v in vertices if v in cluster])
     return clusters
+
+##################################################
+
+SearchNode = namedtuple('Node', ['g', 'parent'])
+
+def dijkstra(sources, edges, op=sum): # sum | max
+    if not isinstance(edges, dict):
+        edges = {edge: 1 for edge in edges}
+    _, outgoing_edges = neighbors_from_orders(edges)
+    visited = {}
+    queue = []
+    for v0 in sources:
+        visited[v0] = SearchNode(g=0, parent=None)
+        queue.append(HeapElement(visited[v0].g, v0))
+
+    while queue:
+        current_g, current_v = heappop(queue)
+        if visited[current_v].g < current_g:
+            continue
+        for next_v in outgoing_edges[current_v]:
+            next_g = op([current_g, edges[(current_v, next_v)]])
+            if (next_v not in visited) or (next_g < visited[next_v].g):
+                visited[next_v] = SearchNode(next_g, current_v)
+                heappush(queue, HeapElement(next_g, next_v))
+    return visited
 
 ##################################################
 

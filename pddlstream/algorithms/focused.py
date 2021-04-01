@@ -10,6 +10,7 @@ from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
+from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
@@ -25,7 +26,7 @@ from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memor
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
-    negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated(), externals))
+    negated_streams = list(filter(lambda s: isinstance(s, Stream) and s.is_negated, externals))
     return negative_predicates + negated_streams
 
 def partition_externals(externals, verbose=False):
@@ -128,7 +129,8 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
         else:
-            stream_plan, opt_plan, cost = INFEASIBLE, INFEASIBLE, INF
+            stream_plan, opt_plan, cost = OptSolution(INFEASIBLE, INFEASIBLE, INF) # TODO: apply elsewhere
+
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations

@@ -10,7 +10,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, ge
 from examples.pybullet.utils.pybullet_tools.pr2_problems import holding_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, get_pose, is_placement, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state
+    disconnect, wait_if_gui, get_joint_positions, enable_gravity, save_state, restore_state
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
 from pddlstream.utils import read, INF, get_file_path
@@ -147,13 +147,13 @@ def main(viewer=False, display=True, simulate=False, teleport=False):
         connect(use_gui=True)
         problem = problem_fn()  # TODO: way of doing this without reloading?
 
-    user_input('Execute?')
+    wait_if_gui('Execute?')
     commands = post_process(problem, plan)
     if simulate:
         control_commands(commands)
     else:
         apply_commands(State(), commands, time_step=0.01)
-    user_input('Finish?')
+    wait_if_gui('Finish?')
     disconnect()
 
 if __name__ == '__main__':
