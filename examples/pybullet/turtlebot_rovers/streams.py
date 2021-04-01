@@ -8,7 +8,8 @@ from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_l
     plan_joint_motion, get_sample_fn, get_distance_fn, get_collision_fn, check_initial_end, is_placement, \
     MAX_DISTANCE, get_extend_fn, wait_for_user, create_mesh, set_pose, get_link_pose, link_from_name, \
     remove_body, create_cylinder, get_distance, point_from_pose, Pose, Point, multiply, get_visual_data, get_pose, \
-    wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion
+    wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion, create_attachment, \
+    pose_from_pose2d, wait_if_gui, child_link_from_joint, get_link_name, Attachment
 from .problems import get_base_joints, get_joint_positions, KINECT_FRAME
 
 VIS_RANGE = 2
@@ -149,17 +150,41 @@ def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True):
 
 #######################################################
 
-def get_motion_fn(problem, custom_limits={}, collisions=True, teleport=False, **kwargs):
-    obstacles = problem.fixed if collisions else []
-    def test(rover, q1, q2):
+def get_motion_fn(problem, custom_limits={}, collisions=True, teleport=False, holonomic=False, **kwargs):
+    def test(rover, q1, q2, fluents=[]):
         if teleport:
             ht = Trajectory([q1, q2])
+            return (ht,)
+
+        base_link = child_link_from_joint(q1.joints[-1])
+        q1.assign()
+        attachments = []
+        movable = set()
+        for fluent in fluents:
+            predicate, args = fluent[0], fluent[1:]
+            if predicate == 'AtGrasp'.lower():
+                r, b, g = args
+                attachments.append(Attachment(rover, base_link, g.value, b))
+            elif predicate == 'AtPose'.lower():
+                b, p = args
+                assert b not in movable
+                p.assign()
+                movable.add(b)
+            # elif predicate == 'AtConf'.lower():
+            #     continue
+            else:
+                raise NotImplementedError(predicate)
+
+        obstacles = set(problem.fixed) | movable if collisions else []
+        q1.assign()
+        if holonomic:
+            path = plan_joint_motion(rover, q1.joints, q2.values, custom_limits=custom_limits,
+                                     attachments=attachments, obstacles=obstacles, self_collisions=False, **kwargs)
         else:
-            q1.assign()
             path = plan_nonholonomic_motion(rover, q1.joints, q2.values, custom_limits=custom_limits,
-                                            obstacles=obstacles, self_collisions=False, **kwargs)
-            if path is None:
-                return None
-            ht = create_trajectory(rover, q2.joints, path)
+                                            attachments=attachments, obstacles=obstacles, self_collisions=False, **kwargs)
+        if path is None:
+            return None
+        ht = create_trajectory(rover, q2.joints, path)
         return (ht,)
     return test

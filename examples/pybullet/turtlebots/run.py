@@ -18,7 +18,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, \
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
-    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui
+    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui, set_all_color
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
@@ -38,10 +38,6 @@ CHARGE_PER_TIME = 20 # percent / sec
 BURN_PER_TIME = 0
 #INITIAL_ENERGY = 0
 INITIAL_ENERGY = MAX_ENERGY
-
-def set_body_color(body, color):
-    for link in get_all_links(body):
-        set_color(body, color, link)
 
 def get_turtle_traj_aabb(traj):
     if not hasattr(traj, 'aabb'):
@@ -267,7 +263,7 @@ def problem_fn(n_robots=2, collisions=True):
             robot_z = stable_z(body, floor)
             set_point(body, Point(z=robot_z))
             set_base_conf(body, initial_confs[i])
-            set_body_color(body, COLOR_FROM_NAME[name])
+            set_all_color(body, COLOR_FROM_NAME[name])
 
     goals = [(+distance, -distance, 0),
              (+distance, +distance, 0)]

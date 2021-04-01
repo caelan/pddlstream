@@ -25,7 +25,7 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import And, print_solution
 from pddlstream.language.generator import from_test, from_fn, from_gen_fn
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, INF, get_file_path
+from pddlstream.utils import read, INF, get_file_path, Profiler
 
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/turtlebot
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/f10_racecar
@@ -180,9 +180,8 @@ def post_process(problem, plan, teleport=False):
             #attachments[r] = r
             new_commands = [Attach(r, arm=BASE_LINK, grasp=g, body=b)]
         elif name == 'place':
-            # TODO: make a drop all rocks
-            r, s = args
-            new_commands = [Detach(r, arm=BASE_LINK, body=attachments[r])]
+            r, q, b, p, g = args
+            new_commands = [Detach(r, arm=BASE_LINK, body=b)]
         elif name == 'move':
             r, q1, q2, t = args
             new_commands = [t]

@@ -84,7 +84,8 @@ def get_test_cfree_traj_pose(problem):
     return test
 
 
-def get_grasp_generator(problem):
+def get_grasp_generator(problem, epsilon=0.):
+    # TODO: compute distance for two orientations and then push away
     def gen(robot, body):
         link = link_from_name(robot, BASE_LINK)
         with BodySaver(robot):
@@ -95,14 +96,14 @@ def get_grasp_generator(problem):
         lower, upper = robot_aabb
         center, (diameter, height) = approximate_as_cylinder(body)
         _, _, z = get_point(body) # Assuming already placed stably
-        position = Point(x=upper[0] + diameter / 2., z=z)
+        position = Point(x=upper[0] + diameter / 2. + epsilon, z=z)
 
         for [scale] in halton_generator(d=1):
             yaw = scale*2*np.pi - np.pi
             quat = quat_from_euler(Euler(yaw=yaw))
             body_pose = (position, quat)
             robot_from_body = multiply(invert(robot_pose), body_pose)
-            grasp = Pose(body, robot_from_body)
+            grasp = Pose(body, robot_from_body) # TODO: grasp instead of pose
             yield (grasp,)
             #world_pose = multiply(get_link_pose(robot, link), robot_from_body)
             #set_pose(body, world_pose)

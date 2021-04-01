@@ -17,6 +17,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, wa
 ORANGE = (1, 0.5, 0, 1)
 
 def main():
+    # TODO: move to pybullet-planning for now
     parser = argparse.ArgumentParser()
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     args = parser.parse_args()

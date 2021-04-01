@@ -53,10 +53,14 @@ NegatedAtom = lambda head: Evaluation(head, False)
 ##################################################
 
 def And(*expressions):
+    if len(expressions) == 1:
+       return expressions[0]
     return (AND,) + tuple(expressions)
 
 
 def Or(*expressions):
+    if len(expressions) == 1:
+       return expressions[0]
     return (OR,) + tuple(expressions)
 
 
