@@ -177,14 +177,18 @@ def post_process(problem, plan, teleport=False):
             new_commands = [Vaporize(b)]
         elif name == 'pick':
             r, q, b, p, g = args
-            #attachments[r] = r
+            #attachments[b] = r
             new_commands = [Attach(r, arm=BASE_LINK, grasp=g, body=b)]
         elif name == 'place':
             r, q, b, p, g = args
+            #del attachments[b]
             new_commands = [Detach(r, arm=BASE_LINK, body=b)]
         elif name == 'move':
             r, q1, q2, t = args
             new_commands = [t]
+        # elif name == 'cook':
+        #     b, s = args
+        #     new_commands = []
         else:
             raise ValueError(name)
         print(i, name, args, new_commands)
