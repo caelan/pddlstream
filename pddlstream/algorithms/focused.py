@@ -40,11 +40,10 @@ def partition_externals(externals, verbose=False):
     return streams, functions, negative, optimizers
 
 def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
-                  max_time=INF, max_iterations=INF, max_memory=INF,
-                  initial_complexity=0, complexity_step=1,
-                  max_skeletons=INF, search_sample_ratio=0,
-                  bind=True, max_failures=0,
                   unit_costs=False, success_cost=INF,
+                  max_time=INF, max_iterations=INF, max_memory=INF,
+                  initial_complexity=0, complexity_step=1, # max_complexity=INF,
+                  max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                   visualize=False, verbose=True, **search_kwargs):
     """
@@ -53,6 +52,8 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param replan_actions: the actions declared to induce replanning for purpose of deferred stream evaluation
+    :param unit_costs: use unit action costs rather than numeric costs
+    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param max_time: the maximum amount of time to apply streams
     :param max_iterations: the maximum number of search iterations
     :param max_memory: the maximum amount of memory allowed to be used
@@ -62,8 +63,6 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     :param search_sample_ratio: the desired ratio of search time / sample time when max_skeletons!=None
     :param bind: whether to propagate parameter bindings when max_skeletons=None
     :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
-    :param unit_costs: use unit action costs rather than numeric costs
-    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
     :param max_effort: the maximum amount of effort to consider for streams
     :param effort_weight: a multiplier for stream effort compared to action costs
