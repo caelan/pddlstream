@@ -28,7 +28,8 @@ def create_parser():
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs') # --unit_costs
     # args = parser.parse_args()
     # print('Arguments:', args)
-    # TODO: search planner
+    # TODO: search planner, debug
+    # TODO: method that calls solve with args
     return parser
 
 ##################################################

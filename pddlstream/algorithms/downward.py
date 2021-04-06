@@ -83,17 +83,17 @@ SEARCH_OPTIONS = {
     # http://www.fast-downward.org/Doc/Evaluator
     # http://www.fast-downward.org/Doc/SearchEngine
 
-    # Optimal
-    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    # Optimal (when cost_type=NORMAL)
+    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
 
     # Suboptimal
-    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
     'ff-eager': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "eager_greedy([h],max_time=%s,bound=%s)"',
     'ff-eager-pref': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
@@ -153,7 +153,9 @@ if USE_CERBERUS:
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
-DEFAULT_PLANNER = 'ff-astar2' # TODO: default optimal & default suboptimal
+DEFAULT_CONSERVATIVE_PLANNER = 'ff-astar'
+DEFAULT_GREEDY_PLANNER = 'ff-astar2'
+DEFAULT_PLANNER = DEFAULT_GREEDY_PLANNER
 
 ##################################################
 

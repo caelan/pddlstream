@@ -4,9 +4,8 @@ from __future__ import print_function
 
 import os
 
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.utils import read
 from pddlstream.language.constants import print_solution, PDDLProblem
 
@@ -43,13 +42,14 @@ def get_problem():
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(focused=False, unit_costs=True, debug=False):
-    pddlstream_problem = get_problem()
+def solve_pddlstream(debug=False):
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
+    problem = get_problem()
     planner = 'lmcut-astar' # cerberus
-    if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, planner=planner, debug=debug)
-    else:
-        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs, planner=planner, debug=debug)
+    solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, planner=planner, debug=debug)
     print_solution(solution)
 
 ##################################################

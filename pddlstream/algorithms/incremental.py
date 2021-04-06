@@ -92,6 +92,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     # max_complexity = 0 => current
     # complexity_step = INF => exhaustive
     # success_cost = terminate_cost = decision_cost
+    # TODO: warning if optimizers are present
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory) # TODO: include other info here?
