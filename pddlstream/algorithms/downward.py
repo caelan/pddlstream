@@ -296,7 +296,18 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
 
 IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
-def task_from_domain_problem(domain, problem):
+def get_identical_atoms(objects):
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
+    init = []
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
+    return init
+
+def task_from_domain_problem(domain, problem, add_identical=True):
     # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
@@ -310,13 +321,9 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
-    # TODO: optimistically evaluate (not (= ?o1 ?o2))
-    for fd_obj in objects:
-        obj = obj_from_pddl(fd_obj.name)
-        if obj.is_unique():
-            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
-        else:
-            assert obj.is_shared()
+    if add_identical:
+        init.extend(get_identical_atoms(objects))
+
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)

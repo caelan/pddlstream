@@ -1,8 +1,9 @@
 from __future__ import print_function
 
+import os
 from collections import namedtuple
 
-from pddlstream.utils import INF, str_from_object
+from pddlstream.utils import INF, str_from_object, read
 
 EQ = '=' # xnor
 AND = 'and'
@@ -90,7 +91,6 @@ def Exists(args, expression):
 
 def ForAll(args, expression):
     return (FORALL, args, expression)
-
 
 ##################################################
 
@@ -221,3 +221,29 @@ def get_costs(objectives):
 
 def get_constraints(objectives):
     return [o for o in objectives if not is_cost(o)]
+
+##################################################
+
+DOMAIN_FILE = 'domain.pddl'
+PROBLEM_FILE = 'problem.pddl'
+STREAM_FILE = 'stream.pddl'
+PDDL_FILES = [DOMAIN_FILE, PROBLEM_FILE]
+PDDLSTREAM_FILES = [DOMAIN_FILE, STREAM_FILE]
+
+
+def read_relative(file, relative_path): # file=__file__
+    directory = os.path.dirname(file)
+    path = os.path.abspath(os.path.join(directory, relative_path))
+    return read(os.path.join(directory, path))
+
+
+def read_relative_dir(file, relative_dir='./', filenames=[]):
+    return [read_relative(file, os.path.join(relative_dir, filename)) for filename in filenames]
+
+
+def read_pddl_pair(file, **kwargs):
+    return read_relative_dir(file, filenames=PDDL_FILES, **kwargs)
+
+
+def read_pddlstream_pair(file, **kwargs):
+    return read_relative_dir(file, filenames=PDDLSTREAM_FILES, **kwargs)

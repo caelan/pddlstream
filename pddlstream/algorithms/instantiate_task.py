@@ -211,6 +211,7 @@ def sas_from_instantiated(instantiated_task):
         return unsolvable_sas_task("No relaxed solution")
     task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
 
+    # TODO: option to skip and just use binary variables
     with timers.timing("Computing fact groups", block=True):
         groups, mutex_groups, translation_key = fact_groups.compute_groups(
             task, atoms, reachable_action_params)
@@ -285,7 +286,7 @@ def sas_from_pddl(task, debug=False):
 def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     domain = parse_sequential_domain(domain_pddl)
     problem = parse_problem(domain, problem_pddl)
-    task = task_from_domain_problem(domain, problem)
+    task = task_from_domain_problem(domain, problem, add_identical=False)
     sas_task = sas_from_pddl(task)
     write_sas_task(sas_task, temp_dir)
     return task
