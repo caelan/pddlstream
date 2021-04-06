@@ -14,9 +14,22 @@ from pddlstream.utils import str_from_object, apply_mapping
 #from inspect import getargspec as get_arg_spec
 #from inspect import signature
 
+##################################################
+
+def add_opt_function(name, base_fn, stream_map, stream_info, constant=0., coefficient=1., **external_kwargs):
+    stream_fn = lambda *args, **kwargs: constant + coefficient*base_fn(*args, **kwargs)
+    opt_fn = lambda *args, **kwargs: constant
+    info = FunctionInfo(opt_fn=opt_fn, **external_kwargs)
+    stream_map[name] = stream_fn
+    stream_info[name] = info
+    return stream_info, info
+
+##################################################
+
 class FunctionInfo(ExternalInfo):
-    def __init__(self, opt_fn=None, **kwargs):
-        super(FunctionInfo, self).__init__(**kwargs)
+    _default_eager = True
+    def __init__(self, opt_fn=None, eager=_default_eager, **kwargs): # Setting eager=True as a heuristic
+        super(FunctionInfo, self).__init__(eager=eager, **kwargs)
         self.opt_fn = opt_fn
         #self.order = 0
 
@@ -142,6 +155,9 @@ class Function(External):
 
 ##################################################
 
+class PredicateInfo(ExternalInfo):
+    _default_eager = False
+
 class PredicateResult(FunctionResult):
     def get_certified(self):
         # TODO: cache these results
@@ -169,8 +185,8 @@ class Predicate(Function):
     _default_overhead = None
     #def is_negative(self):
     #    return self._Instance._opt_value is False
-    def __init__(self, *args):
-        super(Predicate, self).__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super(Predicate, self).__init__(*args, **kwargs)
         assert(self.info.opt_fn is None)
         self.blocked_predicate = self.name
     @property

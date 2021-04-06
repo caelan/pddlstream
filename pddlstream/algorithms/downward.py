@@ -204,12 +204,6 @@ def parse_sequential_domain(domain_pddl):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
     return domain
 
-def has_costs(domain):
-    for action in domain.actions:
-        if action.cost is not None:
-            return True
-    return False
-
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
                                  'objects', 'init', 'goal', 'use_metric', 'pddl'])
 
@@ -653,6 +647,17 @@ def make_cost(cost):
             symbol=get_prefix(cost), args=list(map(pddl_from_object, get_args(cost))))
     return pddl.Increase(fluent=fluent, expression=expression)
 
+def has_costs(domain):
+    for action in domain.actions:
+        if action.cost is not None:
+            return True
+    return False
+
+def set_unit_costs(domain):
+    # Cost of None becomes zero if metric = True
+    #set_cost_scale(1)
+    for action in domain.actions:
+        action.cost = make_cost(1)
 
 def make_action(name, parameters, preconditions, effects, cost=None):
     # Usually all parameters are external

@@ -1,15 +1,15 @@
-from collections import Counter
+from collections import Counter, defaultdict
 
 from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_lisp, parse_goal, make_cost, set_cost_scale, \
-    fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, Domain, has_costs
+from pddlstream.algorithms.downward import parse_lisp, parse_goal, fd_from_fact, get_conjunctive_parts, get_disjunctive_parts, \
+    has_costs, set_unit_costs
 from pddlstream.language.temporal import parse_domain, SimplifiedDomain
 from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.conversion import obj_from_value_expression, evaluation_from_fact, substitute_expression
+from pddlstream.language.conversion import obj_from_value_expression, substitute_expression
 from pddlstream.language.exogenous import compile_to_exogenous
 from pddlstream.language.external import DEBUG, External
-from pddlstream.language.fluent import compile_fluent_streams, get_predicate_map
+from pddlstream.language.fluent import get_predicate_map
 from pddlstream.language.function import parse_function, parse_predicate, Function
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import parse_optimizer, ConstraintStream, UNSATISFIABLE
@@ -20,7 +20,7 @@ from pddlstream.utils import find_unique, get_mapping, INF
 UNIVERSAL_TO_CONDITIONAL = False
 AUTOMATICALLY_NEGATE = True
 
-# TODO: rename to parsing
+# TODO: rename file to parsing
 
 def parse_constants(domain, constant_map):
     obj_from_constant = {}
@@ -69,12 +69,6 @@ def check_problem(domain, streams, obj_from_constant):
         print('Warning! Undeclared predicates: {}'.format(
             sorted(undeclared_predicates))) # Undeclared predicate: {}
 
-def set_unit_costs(domain):
-    # Cost of None becomes zero if metric = True
-    #set_cost_scale(1)
-    for action in domain.actions:
-        action.cost = make_cost(1)
-
 def reset_globals():
     # TODO: maintain these dictionaries in an object
     Object.reset()
@@ -113,11 +107,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     goal_exp = add_plan_constraints(constraints, domain, evaluations, goal_exp)
     parse_goal(goal_exp, domain) # Just to check that it parses
 
-    # TODO: refactor the following?
-    identify_non_producers(streams)
     compile_to_exogenous(evaluations, domain, streams)
-    enforce_simultaneous(domain, streams)
-    compile_fluent_streams(domain, streams)
     return evaluations, goal_exp, domain, streams
 
 ##################################################
@@ -150,6 +140,26 @@ def universal_to_conditional(action):
         new_parts.append(quant)
     action.precondition = pddl.Conjunction(new_parts)
 
+def process_conditional_effect(effect, negative_from_predicate):
+    import pddl
+    new_parts = []
+    stream_facts = []
+    for disjunctive in get_conjunctive_parts(effect.condition):
+        for literal in get_disjunctive_parts(disjunctive):
+            # TODO: assert only one disjunctive part
+            if isinstance(literal, pddl.Literal) and (literal.predicate in negative_from_predicate):
+                stream = negative_from_predicate[literal.predicate]
+                if not isinstance(stream, ConstraintStream):
+                    new_parts.append(literal)
+                    continue
+                certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
+                mapping = get_mapping(get_args(certified), literal.args)
+                stream_facts.append(fd_from_fact(substitute_expression(stream.stream_fact, mapping)))
+                # TODO: add the negated literal as precondition here?
+            else:
+                new_parts.append(literal)
+    return new_parts, stream_facts
+
 def optimizer_conditional_effects(domain, externals):
     import pddl
     #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
@@ -168,22 +178,7 @@ def optimizer_conditional_effects(domain, externals):
             if effect.literal.predicate != UNSATISFIABLE:
                 new_effects.append(effect)
                 continue
-            new_parts = []
-            stream_facts = []
-            for disjunctive in get_conjunctive_parts(effect.condition):
-                for literal in get_disjunctive_parts(disjunctive):
-                    # TODO: assert only one disjunctive part
-                    if isinstance(literal, pddl.Literal) and (literal.predicate in negative_from_predicate):
-                        stream = negative_from_predicate[literal.predicate]
-                        if not isinstance(stream, ConstraintStream):
-                            new_parts.append(literal)
-                            continue
-                        certified = find_unique(lambda f: get_prefix(f) == literal.predicate, stream.certified)
-                        mapping = get_mapping(get_args(certified), literal.args)
-                        stream_facts.append(fd_from_fact(substitute_expression(stream.stream_fact, mapping)))
-                        # TODO: add the negated literal as precondition here?
-                    else:
-                        new_parts.append(literal)
+            new_parts, stream_facts = process_conditional_effect(effect, negative_from_predicate)
             if not stream_facts:
                 new_effects.append(effect)
             for stream_fact in stream_facts:
@@ -217,7 +212,6 @@ def get_certified_predicates(external):
     raise ValueError(external)
 
 def identify_non_producers(externals):
-    # Streams that can be evaluated at the end as tests
     pairs = set()
     for external1 in externals:
         for external2 in externals:
@@ -229,12 +223,19 @@ def identify_non_producers(externals):
                     raise ValueError('Stream [{}] can certify [{}] and thus cannot be negated'.format(
                         external1.name, external2.name))
 
+    certifiers = defaultdict(set)
+    for external in externals:
+        for predicate in get_certified_predicates(external):
+            certifiers[predicate].add(external)
+
     producers = {e1 for e1, _ in pairs}
     non_producers = set(externals) - producers
     for external in non_producers:
-        external.num_opt_fns = 0
+        #if external.is_fluent:
+        #external.num_opt_fns = 0 # Streams that can be evaluated at the end as tests
         if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
-                and external.is_test and not external.is_negated and external.could_succeed():
+                and external.is_test and not external.is_negated and external.could_succeed() and \
+                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)):
             # TODO: could instead only negate if in a negative axiom
             external.info.negate = True
             print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))

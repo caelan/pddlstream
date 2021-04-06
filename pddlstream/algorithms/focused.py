@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.algorithms.algorithm import parse_problem, identify_non_producers, enforce_simultaneous
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
@@ -16,6 +16,7 @@ from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
+from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
 from pddlstream.algorithms.recover_optimizers import combine_optimizers
@@ -86,6 +87,10 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
+    identify_non_producers(externals)
+    enforce_simultaneous(domain, externals)
+    compile_fluent_streams(domain, externals)
+
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
@@ -183,7 +188,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         'search_time': search_time,
         # TODO: optimal, infeasible, etc...
     })
-    print('Summary:', str_from_object(summary)) # TODO: return the summary
+    print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
 
     write_stream_statistics(externals, verbose)
     return store.extract_solution()

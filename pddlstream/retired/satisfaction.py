@@ -2,11 +2,11 @@ from __future__ import print_function
 
 from collections import namedtuple
 
+from pddlstream.algorithms.meta import solve
+from pddlstream.algorithms.satisfaction import SatisfactionSolution
 from pddlstream.algorithms.constraints import to_constant, ORDER_PREDICATE, ASSIGNED_PREDICATE, \
     get_internal_prefix
 from pddlstream.algorithms.downward import make_action, make_domain, make_predicate
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import is_parameter, Not, PDDLProblem, MINIMIZE, NOT, partition_facts, get_costs, \
     get_constraints
 from pddlstream.language.conversion import get_prefix, get_args, obj_from_value_expression
@@ -127,15 +127,12 @@ def bindings_from_plan(problem, plan):
 
 ##################################################
 
-def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, incremental=False, **kwargs):
+def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, **kwargs):
     # TODO: prune set of streams based on constraints
     # TODO: investigate constraint satisfaction techniques for search instead
     # TODO: optimistic objects based on free parameters that prevent cycles
     # TODO: disallow creation of new parameters / certifying new facts
     problem = pddl_from_csp(stream_pddl, stream_map, init, constraints)
-    if incremental:
-        plan, cost, facts = solve_incremental(problem, **kwargs)
-    else:
-        plan, cost, facts = solve_focused(problem, **kwargs)
+    plan, cost, facts = solve(problem, **kwargs)
     bindings = bindings_from_plan(problem, plan)
-    return bindings, cost, facts
+    return SatisfactionSolution(bindings, cost, facts)
