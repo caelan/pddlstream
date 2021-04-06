@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from pddlstream.algorithms.focused import solve_focused
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_fn, from_constant, from_test, universe_test, empty_test
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, get_file_path, Profiler
@@ -59,17 +59,21 @@ def get_pddlstream():
 ##################################################
 
 def main(replan=True, defer=True):
-    pddlstream_problem = get_pddlstream()
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
+    problem = get_pddlstream()
 
     stream_info = {
         #'test-pose': StreamInfo(eager=True, p_success=0),
         'motion': StreamInfo(defer_fn=defer_unique if defer else never_defer),
     }
-
     replan_actions = {'pick'} if replan else set()
 
     with Profiler():
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, replan_actions=replan_actions)
+        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
+                         stream_info=stream_info, replan_actions=replan_actions)
     print_solution(solution)
 
 

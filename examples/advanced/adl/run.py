@@ -1,10 +1,8 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from __future__ import print_function
 
-from pddlstream.algorithms.focused import solve_focused
-
-from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, Or, print_solution
 
 DOMAIN_PDDL = """
@@ -94,15 +92,15 @@ PROBLEM_PDDL = """
 
 ##################################################
 
-def solve_pddlstream(focused=True):
-    problem_fn = get_problem1 # get_problem1 | get_problem2
-    pddlstream_problem = problem_fn()
-    print('Init:', pddlstream_problem.init)
-    print('Goal:', pddlstream_problem.goal)
-    if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=True)
-    else:
-        solution = solve_incremental(pddlstream_problem, unit_costs=True)
+def solve_pddlstream():
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
+    problem = get_problem1()
+    print('Init:', problem.init)
+    print('Goal:', problem.goal)
+    solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit)
     print_solution(solution)
     #print(*solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL))
 

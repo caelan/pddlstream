@@ -39,7 +39,7 @@ def partition_externals(externals, verbose=False):
             streams, functions, negative, optimizers))
     return streams, functions, negative, optimizers
 
-def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
+def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
                   max_time=INF, max_iterations=INF, max_memory=INF,
                   initial_complexity=0, complexity_step=1, # max_complexity=INF,
@@ -60,7 +60,7 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
     :param initial_complexity: the initial effort limit
     :param complexity_step: the increase in the effort limit after each failure
     :param max_skeletons: the maximum number of plan skeletons to consider (max_skeletons=None indicates not adaptive)
-    :param search_sample_ratio: the desired ratio of search time / sample time when max_skeletons!=None
+    :param search_sample_ratio: the desired ratio of sample time / search time when max_skeletons!=None
     :param bind: whether to propagate parameter bindings when max_skeletons=None
     :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
@@ -183,10 +183,12 @@ def solve_focused(problem, constraints=PlanConstraints(), stream_info={}, replan
         'search_time': search_time,
         # TODO: optimal, infeasible, etc...
     })
-    print(str_from_object(summary)) # TODO: return the summary
+    print('Summary:', str_from_object(summary)) # TODO: return the summary
 
     write_stream_statistics(externals, verbose)
     return store.extract_solution()
+
+solve_focused = solve_abstract # TODO: deprecate solve_focused
 
 ##################################################
 
@@ -201,8 +203,8 @@ def solve_focused_original(problem, fail_fast=False, **kwargs):
         using stream applications
     """
     max_failures = 0 if fail_fast else INF
-    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
-                         bind=False, max_failures=max_failures, **kwargs)
+    return solve_abstract(problem, max_skeletons=None, search_sample_ratio=None,
+                          bind=False, max_failures=max_failures, **kwargs)
 
 def solve_binding(problem, fail_fast=False, **kwargs):
     """
@@ -215,8 +217,8 @@ def solve_binding(problem, fail_fast=False, **kwargs):
         using stream applications
     """
     max_failures = 0 if fail_fast else INF
-    return solve_focused(problem, max_skeletons=None, search_sample_ratio=None,
-                         bind=True, max_failures=max_failures, **kwargs)
+    return solve_abstract(problem, max_skeletons=None, search_sample_ratio=None,
+                          bind=True, max_failures=max_failures, **kwargs)
 
 def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
     """
@@ -229,18 +231,18 @@ def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    return solve_focused(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-                         bind=None, max_failures=None, **kwargs)
+    return solve_abstract(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
+                          bind=None, max_failures=None, **kwargs)
 
-def solve_hierarchical(problem, search_sample_ratio=1, **kwargs):
+def solve_hierarchical(problem, **kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
-    :param search_sample_ratio: the desired ratio of search time / sample time
+    :param search_sample_ratio: the desired ratio of sample time / search time
     :param kwargs: keyword args for solve_focused
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    return solve_adaptive(problem, max_skeletons=1, search_sample_ratio=search_sample_ratio,
+    return solve_adaptive(problem, max_skeletons=1, search_sample_ratio=INF, # TODO: rename to sample_search_ratio
                           bind=None, max_failures=None, **kwargs)

@@ -1,3 +1,4 @@
+import argparse
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
@@ -13,8 +14,26 @@ from pddlstream.language.external import DEBUG
 from pddlstream.language.temporal import SimplifiedDomain
 from pddlstream.utils import elapsed_time, INF, Verbose
 
+FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
+ALGORITHMS = ['incremental'] + FOCUSED_ALGORITHMS
+DEFAULT_ALGORITHM = 'adaptive'
 
-def solve(problem, algorithm, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
+##################################################
+
+def create_parser():
+    # https://docs.python.org/3/library/argparse.html#the-add-argument-method
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--algorithm', type=str, default=DEFAULT_ALGORITHM, choices=ALGORITHMS, required=False,
+                        help='Specifies the PDDLStream algorithm to use')
+    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs') # --unit_costs
+    # args = parser.parse_args()
+    # print('Arguments:', args)
+    return parser
+
+##################################################
+
+def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
+          stream_info={}, replan_actions=set(),
           unit_costs=False, success_cost=INF,
           max_time=INF, max_iterations=INF, max_memory=INF,
           initial_complexity=0, complexity_step=1, max_complexity=INF,
@@ -32,7 +51,8 @@ def solve(problem, algorithm, constraints=PlanConstraints(), stream_info={}, rep
             verbose=verbose, **search_kwargs)
     if algorithm == 'abstract_focused': # meta_focused | meta_focused
         return solve_focused(
-            problem, constraints=constraints, stream_info=stream_info, replan_actions=replan_actions,
+            problem, constraints=constraints,
+            stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
             initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
@@ -42,7 +62,8 @@ def solve(problem, algorithm, constraints=PlanConstraints(), stream_info={}, rep
             visualize=visualize, verbose=verbose, **search_kwargs)
     if algorithm == 'focused':
         return solve_focused_original(
-            problem, constraints=constraints, stream_info=stream_info, replan_actions=replan_actions,
+            problem, constraints=constraints,
+            stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
             initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
@@ -52,7 +73,8 @@ def solve(problem, algorithm, constraints=PlanConstraints(), stream_info={}, rep
             visualize=visualize, verbose=verbose, **search_kwargs)
     if algorithm == 'binding':
         return solve_binding(
-            problem, constraints=constraints, stream_info=stream_info, replan_actions=replan_actions,
+            problem, constraints=constraints,
+            stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
             initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
@@ -62,7 +84,8 @@ def solve(problem, algorithm, constraints=PlanConstraints(), stream_info={}, rep
             visualize=visualize, verbose=verbose, **search_kwargs)
     if algorithm == 'adaptive':
         return solve_adaptive(
-            problem, constraints=constraints, stream_info=stream_info, replan_actions=replan_actions,
+            problem, constraints=constraints,
+            stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
             initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
