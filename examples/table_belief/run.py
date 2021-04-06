@@ -2,21 +2,20 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
-
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
 from examples.discrete_belief.run import revisit_mdp_cost
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import And, Equal, print_solution
-from pddlstream.utils import read, get_file_path, INF
+from pddlstream.language.constants import And, Equal, print_solution, PDDLProblem
+from pddlstream.utils import read, get_file_path, INF, Profiler
 
 ROOM = 'room'
 TABLE = 'table'
 SOUP = 'soup'
 GREEN = 'green'
 CLASSES = [ROOM, TABLE, SOUP, GREEN]
+GRASPABLE = [SOUP, GREEN]
+STACKABLE = [(TABLE, ROOM), (SOUP, TABLE), (GREEN, TABLE)]
+ARMS = ['left', 'right']
 
 def is_class(item, cl):
     assert(cl in CLASSES)
@@ -50,21 +49,18 @@ def pddlstream_from_belief(initial_belief):
                     init += [('FiniteScanCost', i2, item),
                              Equal(('ScanCost', i2, item), cost)]
 
-    graspable_classes = [SOUP, GREEN]
     for item in initial_belief:
         for cl in filter(lambda c: is_class(item, c), CLASSES):
             init += [('Class', item, cl)]
-            if cl in graspable_classes:
+            if cl in GRASPABLE:
                 init += [('Graspable', item)] # TODO: include hand?
 
-    stackable_classes = [(TABLE, ROOM), (SOUP, TABLE), (GREEN, TABLE)]
-    for cl1, cl2 in stackable_classes:
+    for cl1, cl2 in STACKABLE:
         for i1 in filter(lambda i: is_class(i, cl1), initial_belief):
             for i2 in filter(lambda i: is_class(i, cl2), initial_belief):
                 init += [('Stackable', i1, i2)]
 
-    arms = ['left', 'right']
-    for arm in arms:
+    for arm in ARMS:
         init += [('Arm', arm), ('HandEmpty', arm)]
 
     goal_literals = [('On', 'soup0', 'table1'), ('Registered', 'soup0'), ('HoldingClass', 'green')]
@@ -74,7 +70,7 @@ def pddlstream_from_belief(initial_belief):
     #goal_literals = [('HoldingClass', 'green'), ('HoldingClass', 'soup')]
     goal = And(*goal_literals)
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -113,6 +109,10 @@ def get_item_belief():
 ##################################################
 
 def main():
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
     uniform_rooms = UniformDist(['room0', OTHER])
     #uniform_tables = UniformDist(['table0', 'table1'])
     #uniform_tables = UniformDist(['table0', OTHER])
@@ -126,16 +126,13 @@ def main():
 
     pddlstream_problem = pddlstream_from_belief(initial_belief)
     _, _, _, _, init, goal = pddlstream_problem
-    print(sorted(init))
-    print(goal)
-    pr = cProfile.Profile()
-    pr.enable()
+    print('Init:', sorted(init))
+    print('Goal:', goal)
+
     planner = 'max-astar'
-    #solution = solve_incremental(pddlstream_problem, planner=planner, unit_costs=False)
-    solution = solve_focused(pddlstream_problem, planner=planner, unit_costs=False)
+    with Profiler(field='tottime', num=10):
+        solution = solve(pddlstream_problem, algorithm=args.algorithm, unit_costs=args.unit, planner=planner)
     print_solution(solution)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
 
 if __name__ == '__main__':
     main()
