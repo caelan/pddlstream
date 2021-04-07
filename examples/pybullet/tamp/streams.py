@@ -16,6 +16,16 @@ def move_cost_fn(t):
 
 #######################################################
 
+def get_cfree_pose_pose_test(collisions=True, **kwargs):
+    def test(b1, p1, b2, p2):
+        if not collisions or (b1 == b2):
+            return True
+        p1.assign()
+        p2.assign()
+        return not pairwise_collision(b1, b2, **kwargs) #, max_distance=0.001)
+    return test
+
+
 def get_cfree_approach_pose_test(problem, collisions=True):
     # TODO: apply this before inverse kinematics as well
     arm = 'left'
@@ -28,16 +38,6 @@ def get_cfree_approach_pose_test(problem, collisions=True):
             if pairwise_collision(b1, b2) or pairwise_collision(gripper, b2):
                 return False
         return True
-    return test
-
-
-def get_cfree_pose_pose_test(collisions=True):
-    def test(b1, p1, b2, p2):
-        if not collisions or (b1 == b2):
-            return True
-        p1.assign()
-        p2.assign()
-        return not pairwise_collision(b1, b2) #, max_distance=0.001)
     return test
 
 

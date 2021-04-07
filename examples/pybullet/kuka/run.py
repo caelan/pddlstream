@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet, \
     LockRenderer, has_gui
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen, from_test, universe_test
-from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object, negate_test
 from pddlstream.language.constants import print_solution, PDDLProblem
 from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     move_cost_fn
@@ -106,9 +106,9 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, grasp_name='top')
         'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
         'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
 
-        'test-cfree-pose-pose': from_test(universe_test), #get_cfree_pose_pose_test()),
+        'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test()),
         'test-cfree-approach-pose': from_test(universe_test), #get_cfree_approach_pose_test()),
-        'test-cfree-traj-pose': from_test(universe_test), #get_cfree_traj_pose_test()),
+        'test-cfree-traj-pose': from_test(negate_test(get_movable_collision_test())), #get_cfree_traj_pose_test()),
 
         'TrajCollision': get_movable_collision_test(),
     }
