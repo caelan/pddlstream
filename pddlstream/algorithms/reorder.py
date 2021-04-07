@@ -189,7 +189,7 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
     #priority_fn = lambda s: s.external.tiebreaker # Need to reverse
     sorted_streams = sorted(stream_plan, key=lambda s: s.external.tiebreaker, reverse=True)
     #priority_fn = sorted_streams.index
-    priority_fn = lambda s: (s.external.has_outputs, distances[s], sorted_streams.index(s))
+    priority_fn = lambda s: (not s.external.has_outputs, distances[s], sorted_streams.index(s))
 
     #dump_layers(distances)
     reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
@@ -230,4 +230,5 @@ def reorder_stream_plan(store, stream_plan, **kwargs):
         #print('Heuristic reordering:', stats)
         return layer_reorder_stream_plan(store, stream_plan, **kwargs)
     #print('Optimal reordering:', stats)
+    # TODO: could always run with heuristic estimates
     return optimal_reorder_stream_plan(store, stream_plan, **kwargs)
