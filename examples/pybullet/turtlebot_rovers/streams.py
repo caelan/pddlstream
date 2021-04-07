@@ -26,7 +26,7 @@ class Ray(Command):
     def apply(self, state, **kwargs):
         print(self.visual_data)
         with LockRenderer():
-            visual_id = visual_shape_from_data(self.visual_data[0])
+            visual_id = visual_shape_from_data(self.visual_data[0]) # TODO: TypeError: argument 5 must be str, not bytes
             cone = create_body(visual_id=visual_id)
             #cone = create_mesh(mesh, color=(0, 1, 0, 0.5))
             set_pose(cone, self.pose)
@@ -64,10 +64,11 @@ def get_cfree_ray_test(problem, collisions=True):
     return test
 
 
-def get_inv_vis_gen(problem, use_cone=True, max_attempts=25, max_range=VIS_RANGE, custom_limits={}, collisions=True):
+def get_inv_vis_gen(problem, use_cone=True, max_attempts=25, max_range=VIS_RANGE,
+                    custom_limits={}, collisions=True, teleport=False):
     base_range = (0, max_range)
     obstacles = problem.fixed if collisions else []
-    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=False)
+    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)
 
     def gen(rover, objective):
         base_joints = get_base_joints(rover)
@@ -122,9 +123,10 @@ def get_inv_com_gen(problem, **kwargs):
     return get_inv_vis_gen(problem, use_cone=False, max_range=COM_RANGE, **kwargs)
 
 
-def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True):
+def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True, teleport=False):
     obstacles = problem.fixed if collisions else []
-    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=False)
+    reachable_test = get_reachable_test(problem, custom_limits=custom_limits,
+                                        collisions=collisions, teleport=teleport)
 
     def gen(rover, rock):
         base_joints = get_base_joints(rover)

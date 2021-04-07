@@ -3,11 +3,9 @@
 from __future__ import print_function
 
 import argparse
-import cProfile
-import pstats
 import numpy as np
 
-from pddlstream.algorithms.meta import solve, create_parser
+#from pddlstream.algorithms.meta import solve, create_parser
 from examples.continuous_tamp.primitives import get_value_at_time
 from pddlstream.language.temporal import get_end, compute_duration
 from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
@@ -323,7 +321,8 @@ def main(teleport=False):
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=5*60, type=int, help='The max time')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -350,7 +349,7 @@ def main(teleport=False):
     success_cost = 0 if args.optimal else INF
     max_planner_time = 10
     with Profiler(field='tottime', num=25): # cumtime | tottime
-        with LockRenderer(False):
+        with LockRenderer(lock=not args.enable):
             # TODO: solution = solve_incremental(pddlstream_problem
             if args.algorithm == 'incremental':
                 solution = solve_incremental(pddlstream_problem,
@@ -375,13 +374,13 @@ def main(teleport=False):
 
     saver.restore()
     draw_edges(edges)
-
     state = BeliefState(namo_problem)
-    wait_for_user()
+
+    wait_for_user('Begin?')
     #time_step = None if teleport else 0.01
     #with VideoSaver('video.mp4'):
     display_plan(namo_problem, state, plan)
-    wait_for_user()
+    wait_for_user('Finish?')
     disconnect()
 
 if __name__ == '__main__':

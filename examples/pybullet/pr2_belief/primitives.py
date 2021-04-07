@@ -318,7 +318,7 @@ class Register(Command):
         mesh, _ = get_detection_cone(self.robot, self.body, camera_link=self.camera_frame, depth=self.max_depth)
         if mesh is None:
             wait_for_user()
-        assert(mesh is not None)
+        assert(mesh is not None) # TODO: is_visible_aabb(body_aabb, **kwargs)=False sometimes without collisions
         with LockRenderer():
             cone = create_mesh(mesh, color=apply_alpha(GREEN, 0.5))
             set_pose(cone, get_link_pose(self.robot, self.link))

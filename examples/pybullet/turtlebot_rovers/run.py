@@ -15,7 +15,7 @@ from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.pr2_belief.primitives import Register, Scan
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, get_bodies, RED, has_gui
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, get_bodies, RED, has_gui, remove_body
 from examples.pybullet.namo.stream import get_custom_limits as get_base_custom_limits
 
 from .problems import PROBLEMS, get_base_joints, KINECT_FRAME
@@ -83,11 +83,15 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
     stream_map = {
         'test-cfree-ray-conf': from_test(get_cfree_ray_test(problem, collisions=collisions)),
-        'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
-        'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits, collisions=collisions)),
-        'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits, collisions=collisions)),
+        'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits,
+                                                       collisions=collisions, teleport=teleport)),
+        'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits,
+                                                       collisions=collisions, teleport=teleport)),
+        'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits,
+                                                       collisions=collisions, teleport=teleport)),
         'sample-above': from_gen_fn(get_above_gen(problem, custom_limits=custom_limits, collisions=collisions)),
-        'sample-motion': from_fn(get_motion_fn(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)),
+        'sample-motion': from_fn(get_motion_fn(problem, custom_limits=custom_limits,
+                                               collisions=collisions, teleport=teleport)),
     }
     #stream_map = 'debug'
 
@@ -95,7 +99,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
 
 #######################################################
 
-def post_process(problem, plan, teleport=False):
+def post_process(problem, plan):
     if plan is None:
         return None
     commands = []
@@ -132,15 +136,17 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(teleport=False):
+def main():
     parser = create_parser()
     parser.add_argument('-problem', default='rovers1', help='The name of the problem to solve')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -154,7 +160,7 @@ def main(teleport=False):
     saver = WorldSaver()
     draw_base_limits(rovers_problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport)
     stream_info = {
         'test-cfree-ray-conf': StreamInfo(negate=True),
         'test-reachable': StreamInfo(p_success=1e-1),
@@ -175,15 +181,17 @@ def main(teleport=False):
 
     # TODO: need to accelerate samples here because of the failed test reachable
     with Profiler(field='tottime', num=25):
-        with LockRenderer(False):
+        with LockRenderer(lock=not args.enable):
             # TODO: option to only consider costs during local optimization
             solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
                              planner=planner, max_planner_time=max_planner_time, debug=False,
                              unit_costs=args.unit, success_cost=success_cost,
                              max_time=args.max_time, verbose=True,
                              unit_efforts=True, effort_weight=1,
-                             #bind=True, max_skeletons=None,
                              search_sample_ratio=search_sample_ratio)
+            for body in get_bodies():
+                if body not in saver.bodies:
+                    remove_body(body)
             saver.restore()
 
     print_solution(solution)
@@ -195,23 +203,16 @@ def main(teleport=False):
     # Maybe OpenRAVE didn't actually sample any joints...
     # http://openrave.org/docs/0.8.2/openravepy/examples.tutorial_iksolutions/
     with LockRenderer():
-        commands = post_process(rovers_problem, plan, teleport=teleport)
+        commands = post_process(rovers_problem, plan)
         saver.restore()
 
-    if not args.viewer:
-        disconnect()
-        connect(use_gui=True)
-        with LockRenderer():
-            with HideOutput():
-                problem_fn() # TODO: way of doing this without reloading?
-            saver.restore() # Assumes bodies are ordered the same way
-
+    wait_for_user('Begin?')
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if teleport else 0.01
+        time_step = None if args.teleport else 0.01
         apply_commands(BeliefState(rovers_problem), commands, time_step)
-    wait_for_user()
+    wait_for_user('Finish?')
     disconnect()
 
 if __name__ == '__main__':

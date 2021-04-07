@@ -53,6 +53,10 @@ NegatedAtom = lambda head: Evaluation(head, False)
 
 ##################################################
 
+def Output(*args):
+    return tuple(args)
+
+
 def And(*expressions):
     if len(expressions) == 1:
        return expressions[0]

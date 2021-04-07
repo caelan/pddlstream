@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet, \
     LockRenderer, has_gui
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
-from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object
 from pddlstream.language.constants import print_solution, PDDLProblem
 
 def get_fixed(robot, movable):
@@ -152,28 +152,28 @@ def postprocess_plan(plan):
 
 def main(teleport=False):
     parser = create_parser()
-    parser.add_argument('-viewer', action='store_true', help='enable viewer.')
-    parser.add_argument('-simulate', action='store_true', help='enable viewer.')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
     connect(use_gui=args.viewer)
     robot, names, movable = load_world()
-    saved_world = WorldSaver()
+    print('Objects:', names)
+    saver = WorldSaver()
     #dump_world()
 
     problem = pddlstream_from_problem(robot, movable=movable, teleport=teleport)
     _, _, _, stream_map, init, goal = problem
     print('Init:', init)
     print('Goal:', goal)
-    print('Streams:', stream_map.keys())
-    print('Synthesizers:', stream_map.keys())
-    print(names)
+    print('Streams:', str_from_object(set(stream_map)))
 
     with Profiler():
-        with LockRenderer():
+        with LockRenderer(lock=not args.enable):
             solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, success_cost=INF)
-            saved_world.restore()
+            saver.restore()
     print_solution(solution)
     plan, cost, evaluations = solution
     if (plan is None) or not has_gui():
@@ -188,7 +188,6 @@ def main(teleport=False):
         wait_for_user('Execute?')
         #command.step()
         command.refine(num_steps=10).execute(time_step=0.001)
-
     wait_for_user('Finish?')
     disconnect()
 
