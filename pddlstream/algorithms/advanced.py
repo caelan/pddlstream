@@ -143,7 +143,7 @@ def identify_non_producers(externals):
         #external.num_opt_fns = 0 # Streams that can be evaluated at the end as tests
         if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
                 and external.is_test and not external.is_negated and external.could_succeed() and \
-                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)):
+                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)): # TODO: not external.is_fluent?
             # TODO: could instead only negate if in a negative axiom
             external.info.negate = True
             print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))

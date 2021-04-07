@@ -15,7 +15,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     wait_for_user, remove_body, LockRenderer, get_bodies, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     create_cylinder, HideOutput, GREY, TAN, RED, set_point, Point, BLUE, has_gui
 from pddlstream.language.function import FunctionInfo
-from pddlstream.language.constants import And, print_solution
+from pddlstream.language.constants import And, print_solution, PDDLProblem
 from pddlstream.language.generator import from_test, from_fn, from_gen_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import read, INF, get_file_path, Profiler
@@ -143,7 +143,7 @@ def pddlstream_from_problem(problem):
     }
     #stream_map = 'debug'
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula)
 
 #######################################################
 
@@ -210,8 +210,8 @@ def main():
 
     pddlstream_problem = pddlstream_from_problem(problem)
     stream_info = {
-        'test-cfree-conf-pose': StreamInfo(negate=True, p_success=1e-2),
-        'test-cfree-traj-pose': StreamInfo(negate=True, p_success=1e-1),
+        'test-cfree-conf-pose': StreamInfo(p_success=1e-2),
+        'test-cfree-traj-pose': StreamInfo(p_success=1e-1),
         'compute-motion': StreamInfo(eager=True, p_success=0),
         'test-reachable': StreamInfo(eager=True),
         'Distance': FunctionInfo(eager=True),

@@ -12,7 +12,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_p
     disconnect, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
     get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
-from pddlstream.language.constants import Equal, AND, print_solution
+from pddlstream.language.constants import Equal, AND, print_solution, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, PartialInputs
@@ -160,7 +160,7 @@ def pddlstream_from_problem(problem, teleport=False):
     }
     # get_press_gen(problem, teleport=teleport)
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 #######################################################
 

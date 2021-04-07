@@ -53,8 +53,8 @@ def pddlstream_from_tamp(tamp_problem):
 
 def main():
     parser = argparse.ArgumentParser()
-
     tamp_problem, args = initialize(parser)
+
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
     dump_pddlstream(pddlstream_problem)
 

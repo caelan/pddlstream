@@ -9,7 +9,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
 
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.constants import And, print_solution
+from pddlstream.language.constants import And, print_solution, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path, Profiler
 from pddlstream.language.stream import StreamInfo
 
@@ -97,7 +97,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     }
     #stream_map = 'debug'
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula)
 
 #######################################################
 
@@ -162,10 +162,6 @@ def main():
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
-        #'test-cfree-pose-pose': StreamInfo(p_success=1e-2, negate=True),
-        'test-cfree-approach-pose': StreamInfo(p_success=1e-2, negate=True),
-        'test-cfree-traj-pose': StreamInfo(p_success=1e-1, negate=True), # TODO: this applies to arm and base trajs
-        'test-cfree-traj-grasp-pose': StreamInfo(negate=True),
     }
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)

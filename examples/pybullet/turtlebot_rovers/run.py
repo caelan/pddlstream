@@ -7,7 +7,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
     HideOutput, LockRenderer, wait_for_user
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.constants import And, print_solution, Exists
+from pddlstream.language.constants import And, print_solution, Exists, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path, Profiler
 from pddlstream.language.stream import StreamInfo
 
@@ -95,7 +95,7 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     }
     #stream_map = 'debug'
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal_formula)
 
 #######################################################
 
@@ -162,7 +162,7 @@ def main():
 
     pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport)
     stream_info = {
-        'test-cfree-ray-conf': StreamInfo(negate=True),
+        'test-cfree-ray-conf': StreamInfo(),
         'test-reachable': StreamInfo(p_success=1e-1),
         'obj-inv-visible': StreamInfo(),
         'com-inv-visible': StreamInfo(),

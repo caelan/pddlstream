@@ -63,12 +63,9 @@ def main():
 
     # TODO: maybe load problems as a domain explicitly
     problem = get_pddlstream_problem()
-    stream_info = {
-        #'test-feasible': StreamInfo(negate=True),
-    }
     #if args.algorithm not in FOCUSED_ALGORITHMS:
     #    raise RuntimeError('The {} algorithm does not support fluent streams'.format(args.algorithm))
-    solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, stream_info=stream_info)
+    solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit)
     print_solution(solution)
 
 if __name__ == '__main__':
