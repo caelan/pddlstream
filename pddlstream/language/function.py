@@ -120,12 +120,11 @@ class Function(External):
     """
     codomain = float # int | float
     _Instance = FunctionInstance
-    _default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
-    _default_overhead = None
+    #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     def __init__(self, head, fn, domain, info):
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
-            info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
+            info = FunctionInfo() #p_success=self._default_p_success)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
@@ -181,12 +180,12 @@ class Predicate(Function):
     """
     _Instance = PredicateInstance
     codomain = bool
-    _default_p_success = None
-    _default_overhead = None
     #def is_negative(self):
     #    return self._Instance._opt_value is False
-    def __init__(self, *args, **kwargs):
-        super(Predicate, self).__init__(*args, **kwargs)
+    def __init__(self, head, fn, domain, info):
+        if info is None:
+            info = PredicateInfo()
+        super(Predicate, self).__init__(head, fn, domain, info)
         assert(self.info.opt_fn is None)
         self.blocked_predicate = self.name
     @property
