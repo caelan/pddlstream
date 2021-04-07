@@ -18,8 +18,8 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
 from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, get_bodies, RED, has_gui, remove_body
 from examples.pybullet.namo.stream import get_custom_limits as get_base_custom_limits
 
-from .problems import PROBLEMS, get_base_joints, KINECT_FRAME
-from .streams import get_reachable_test, get_inv_vis_gen, get_inv_com_gen, \
+from examples.pybullet.turtlebot_rovers.problems import PROBLEMS, get_base_joints, KINECT_FRAME
+from examples.pybullet.turtlebot_rovers.streams import get_reachable_test, get_inv_vis_gen, get_inv_com_gen, \
     get_above_gen, get_motion_fn, get_cfree_ray_test, VIS_RANGE
 
 CLASSES = [

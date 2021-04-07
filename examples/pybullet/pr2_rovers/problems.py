@@ -7,7 +7,7 @@ from examples.pybullet.utils.pybullet_tools.utils import add_data_path, load_pyb
     stable_z, HUSKY_URDF, dump_body, wait_for_user, GREY, BLACK, RED, BLUE, BROWN, TAN
 from examples.pybullet.tamp.problems import sample_placements
 
-from turtlebot_rovers.problems import RoversProblem
+from examples.pybullet.turtlebot_rovers.problems import RoversProblem
 
 
 def problem1(n_rovers=1, n_objectives=1, n_rocks=2, n_soil=2, n_stores=1):

@@ -10,7 +10,7 @@ from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_l
     remove_body, create_cylinder, get_distance, point_from_pose, Pose, Point, multiply, get_visual_data, get_pose, \
     wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion, create_attachment, \
     pose_from_pose2d, wait_if_gui, child_link_from_joint, get_link_name, Attachment
-from .problems import get_base_joints, get_joint_positions, KINECT_FRAME
+from examples.pybullet.turtlebot_rovers.problems import get_base_joints, KINECT_FRAME
 
 VIS_RANGE = 2
 COM_RANGE = 2*VIS_RANGE

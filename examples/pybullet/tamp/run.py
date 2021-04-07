@@ -3,9 +3,6 @@
 from __future__ import print_function
 
 import argparse
-import os
-import sys
-sys.path.append(os.environ['PDDLSTREAM_PATH'])
 
 from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     get_cfree_traj_grasp_pose_test, BASE_CONSTANT, distance_fn, move_cost_fn
@@ -31,7 +28,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
 from examples.pybullet.pr2.run import post_process
 from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver
 
-from .problems import PROBLEMS
+from examples.pybullet.tamp.problems import PROBLEMS
 
 # TODO: collapse similar streams into a single stream when reodering
 

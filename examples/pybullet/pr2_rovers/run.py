@@ -4,16 +4,12 @@ from __future__ import print_function
 
 import argparse
 import cProfile
-import os
 import pstats
-import sys
-
-sys.path.append(os.environ['PDDLSTREAM_PATH'])
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_group_joints
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
-    HideOutput, LockRenderer, wait_for_user
+    HideOutput, LockRenderer, wait_for_user, RED
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
@@ -28,13 +24,11 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
 from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver
 from examples.pybullet.namo.stream import get_custom_limits as get_base_custom_limits
 
-from pr2_rovers.problems import PROBLEMS
-from pr2_rovers.streams import get_reachable_test, get_inv_vis_gen, get_inv_com_gen, get_above_gen, get_base_motion_fn, \
-    get_head_motion_fn
+from examples.pybullet.pr2_rovers.problems import PROBLEMS
+from examples.pybullet.pr2_rovers.streams import get_reachable_test, get_inv_vis_gen, get_inv_com_gen, get_above_gen, \
+    get_base_motion_fn, get_head_motion_fn
 
-CLASSES = [
-    'blue', 'red', 'rock', 'soil',
-]
+CLASSES = ['blue', 'red', 'rock', 'soil']
 
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/turtlebot
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/f10_racecar
@@ -166,7 +160,7 @@ def main(display=True, teleport=False):
     with HideOutput():
         problem = problem_fn()
     saver = WorldSaver()
-    draw_base_limits(problem.limits, color=(1, 0, 0))
+    draw_base_limits(problem.limits, color=RED)
 
     pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
     stream_info = {
