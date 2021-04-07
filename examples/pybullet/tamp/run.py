@@ -163,10 +163,12 @@ def main(verbose=True):
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
+
         'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
         'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
-        'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: this applies to arm and base trajs
+        'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: apply to arm and base trajs
         #'test-cfree-traj-grasp-pose': StreamInfo(verbose=verbose),
+
         'Distance': FunctionInfo(p_success=0.99, opt_fn=lambda q1, q2: BASE_CONSTANT),
         #'MoveCost': FunctionInfo(lambda t: BASE_CONSTANT),
     }
