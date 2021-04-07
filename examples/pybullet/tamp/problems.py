@@ -1,13 +1,6 @@
 from __future__ import print_function
 
-from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_table, Problem
-from examples.pybullet.utils.pybullet_tools.pr2_utils import get_other_arm, get_carry_conf, set_arm_conf, open_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
-    add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
-    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY
-
-import numpy as np
+from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision
 
 
 def sample_placements(body_surfaces, obstacles=None, min_distances={}):
