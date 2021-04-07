@@ -34,7 +34,23 @@
     :certified (HoldingMotion ?q1 ?t ?q2 ?o ?g)
   )
 
-  (:predicate (TrajCollision ?t ?o2 ?p2)
-    (and (Traj ?t) (Pose ?o2 ?p2))
+  (:stream test-cfree-pose-pose
+    :inputs (?o1 ?p1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
+    :certified (CFreePosePose ?o1 ?p1 ?o2 ?p2)
   )
+  (:stream test-cfree-approach-pose
+    :inputs (?o1 ?p1 ?g1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
+    :certified (CFreeApproachPose ?o1 ?p1 ?g1 ?o2 ?p2)
+  )
+  (:stream test-cfree-traj-pose
+    :inputs (?t ?o2 ?p2)
+    :domain (and (Traj ?t) (Pose ?o2 ?p2))
+    :certified (CFreeTrajPose ?t ?o2 ?p2)
+  )
+
+  ;(:predicate (TrajCollision ?t ?o2 ?p2)
+  ;  (and (Traj ?t) (Pose ?o2 ?p2))
+  ;)
 )
