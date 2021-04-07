@@ -3,8 +3,6 @@
 from __future__ import print_function
 
 import argparse
-import cProfile
-import pstats
 import random
 import numpy as np
 
@@ -15,7 +13,7 @@ from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.constants import And, PDDLProblem, print_solution
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.utils import read, INF, get_file_path, str_from_object, \
-    sorted_str_from_list, implies
+    sorted_str_from_list, implies, Profiler
 from examples.continuous_tamp.run import display_plan
 
 
@@ -138,23 +136,21 @@ def main():
     print('Constants:', str_from_object(pddlstream_problem.constant_map))
     print('Initial:', sorted_str_from_list(pddlstream_problem.init))
     print('Goal:', str_from_object(pddlstream_problem.goal))
-    pr = cProfile.Profile()
-    pr.enable()
+
     success_cost = 0 if args.optimal else INF
     planner = 'max-astar'
     #planner = 'ff-wastar1'
-    if args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem,
-                                     complexity_step=1, planner=planner,
-                                     unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=False)
-    else:
-        raise ValueError(args.algorithm)
+    with Profiler(field='cumtime', num=20):
+        if args.algorithm == 'incremental':
+            solution = solve_incremental(pddlstream_problem,
+                                         complexity_step=1, planner=planner,
+                                         unit_costs=args.unit, success_cost=success_cost,
+                                         max_time=args.max_time, verbose=False)
+        else:
+            raise ValueError(args.algorithm)
 
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     if plan is not None:
         display_plan(tamp_problem, plan)
 

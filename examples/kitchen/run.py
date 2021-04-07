@@ -7,11 +7,11 @@ instantiation.USE_RELATION = True
 from pddlstream.algorithms import refinement
 refinement.CONSTRAIN_PLANS = False
 
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import And, print_solution
 from pddlstream.language.stream import DEBUG
-from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import PDDLProblem
+#from pddlstream.algorithms.serialized import solve_serialized
+from pddlstream.language.constants import PDDLProblem, read_pddlstream_pair
 from pddlstream.utils import read, get_file_path, Profiler
 
 ROBOT = 'gripper'
@@ -59,9 +59,7 @@ def create_problem(initial_poses):
             ('TableSupport', pose),
         ]
 
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
-    stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
-
+    domain_pddl, stream_pddl = read_pddlstream_pair(__file__)
     constant_map = {}
     stream_map = DEBUG
 
@@ -76,6 +74,10 @@ def create_problem(initial_poses):
 # https://github.com/zi-w/Kitchen2D
 
 def main():
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
     initial_poses = {
         ROBOT: (0., 15., 0.),
         CUP: (7.5, 0., 0.),
@@ -88,9 +90,10 @@ def main():
 
     problem = create_problem(initial_poses)
     with Profiler(field='tottime'):
-        solver = solve_focused # solve_focused | solve_serialized
-        solution = solver(problem, planner='ff-eager', unit_costs=True,
-                          unit_efforts=True, effort_weight=1, debug=False) # max_planner_time=5,
+        #solution = solve_serialized(problem, planner='ff-eager', unit_costs=args.unit,
+        #                            unit_efforts=True, effort_weight=1, debug=False) # max_planner_time=5,
+        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, planner='ff-eager',
+                         unit_efforts=True, effort_weight=1, debug=False) # max_planner_time=5,
         print_solution(solution)
 
 if __name__ == '__main__':

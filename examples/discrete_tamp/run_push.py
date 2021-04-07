@@ -6,9 +6,8 @@ import math
 import os
 import numpy as np
 
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, Fact
+from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, Fact, PDDLProblem
 from pddlstream.language.generator import from_test, from_list_fn
 from pddlstream.language.stream import WildOutput
 from pddlstream.utils import read, safe_zip
@@ -109,7 +108,7 @@ def pddlstream_from_tamp(tamp_problem):
         'distance': distance_fn,
     }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -127,20 +126,18 @@ def get_shift_one_problem(n_blocks=2, n_poses=MAX_COLS):
 
 ##################################################
 
-def main(focused=True, unit_costs=False):
+def main():
+    parser = create_parser()
+    args = parser.parse_args()
+    print('Arguments:', args)
+
     problem_fn = get_shift_one_problem # get_shift_one_problem | get_shift_all_problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
-    stream_info = {
-        # TODO: be careful when negate=False. Might produce a colliding solution
-        'test-cfree': StreamInfo(negate=True),
-    }
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    if focused:
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, unit_costs=unit_costs)
-    else:
-        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs)
+    solution = solve(pddlstream_problem, algorithm=args.algorithm, unit_costs=args.unit)
+
     print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:

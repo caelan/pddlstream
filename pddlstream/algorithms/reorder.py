@@ -1,4 +1,4 @@
-from collections import namedtuple, deque
+from collections import namedtuple, deque, Counter
 from itertools import combinations
 
 from pddlstream.language.constants import is_plan
@@ -51,7 +51,7 @@ def get_future_p_successes(stream_plan):
             descendants_map[s1] *= descendants_map[s2]
     return descendants_map
 
-def get_stream_stats(result, negate=False):
+def get_stream_stats(result, negate=False): # negate=True is for the "worst-case" ordering
     # TODO: can just do on the infos themselves
     sign = -1 if negate else +1
     return Stats(
@@ -222,5 +222,13 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     #gc.collect()
     return [stream_plan[index] for index in ordering]
 
-# TODO: toggle based on p_success and overhead
-reorder_stream_plan = layer_reorder_stream_plan # optimal_reorder_stream_plan
+def reorder_stream_plan(store, stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return stream_plan
+    stats = Counter(get_stream_stats(result) for result in stream_plan)
+    if len(stats) <= 1:
+        #print('Heuristic reordering:', stats)
+        return layer_reorder_stream_plan(store, stream_plan, **kwargs)
+    #print('Optimal reordering:', stats)
+    # TODO: could always run with heuristic estimates
+    return optimal_reorder_stream_plan(store, stream_plan, **kwargs)

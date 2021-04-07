@@ -34,7 +34,7 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
     #    axiom.dump()
     return solution
 
-def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
+def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_kwargs):
     # TODO: combine with solve_from_task
     #return solve_tfd(domain_pddl, problem_pddl)
     start_time = time()
@@ -42,7 +42,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
         write_pddl(domain_pddl, problem_pddl, temp_dir)
         #run_translate(temp_dir, verbose)
         translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
-        solution = run_search(temp_dir, debug=debug, **search_args)
+        solution = run_search(temp_dir, debug=debug, **search_kwargs)
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime:', time() - start_time)

@@ -505,7 +505,7 @@ def convert_parameters(parameters):
 SIMPLE_TEMPLATE = '{}-{}'
 
 def simple_from_durative_action(durative_actions, fluents):
-    from pddlstream.algorithms.algorithm import get_predicates
+    from pddlstream.algorithms.advanced import get_predicates
     import pddl
     simple_actions = {}
     for action in durative_actions:

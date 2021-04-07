@@ -1,9 +1,9 @@
 import os
 import sys
 
-from pddlstream.algorithms.algorithm import get_predicates
+from pddlstream.algorithms.advanced import get_predicates
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
-    pddl_from_instance, DEFAULT_MAX_TIME
+    pddl_from_instance, DEFAULT_MAX_TIME, get_cost_scale
 from pddlstream.language.object import Object
 from pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.language.fluent import get_predicate_map, remap_certified
@@ -13,9 +13,17 @@ from pddlstream.utils import INF, invert_dict, get_mapping
 # Intuition: static facts about whether this state satisfies a condition
 # The state can be seen as a hidden parameter with a precondition that you are at it
 
-PYPLANNERS_VAR = 'PYPLANNERS_PATH'
-PLACEHOLDER = Object.from_value('~')
+# TODO: refactor to algorithms
 
+PYPLANNERS_VAR = 'PYPLANNERS_PATH'
+PLACEHOLDER_OBJ = Object.from_value('~')
+
+DEFAULT_PYPLANNER = {
+    'search': 'eager',
+    'evaluator': 'greedy',
+    'heuristic': 'ff',
+    'successors': 'all',
+}
 
 def get_pyplanners_path():
     return os.environ.get(PYPLANNERS_VAR, None)
@@ -24,10 +32,10 @@ def get_pyplanners_path():
 def has_attachments(domain):
     return any(getattr(action, 'attachments', {}) for action in domain.actions)
 
+##################################################
 
 def compile_fluents_as_attachments(domain, externals):
-    import pddl
-    state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent, externals)) # is_special
+    state_streams = set(filter(lambda e: isinstance(e, Stream) and e.is_fluent, externals)) # TODO: is_negated/is_special
     if not state_streams:
         return externals
 
@@ -38,7 +46,8 @@ def compile_fluents_as_attachments(domain, externals):
         raise NotImplementedError('Algorithm does not support fluent streams: {}'.format(
             [stream.name for stream in state_streams]))
 
-    domain.constants.append(make_object(PLACEHOLDER.pddl))
+    import pddl
+    domain.constants.append(make_object(PLACEHOLDER_OBJ.pddl))
     for action in domain.actions:
         for effect in action.effects:
             # TODO: conditional effects
@@ -59,7 +68,7 @@ def compile_fluents_as_attachments(domain, externals):
             mapping = remap_certified(literal, stream)
             assert mapping is not None
             action.attachments[literal] = stream
-            preconditions.update(pddl.Atom(EQ, (mapping[out], PLACEHOLDER.pddl))
+            preconditions.update(pddl.Atom(EQ, (mapping[out], PLACEHOLDER_OBJ.pddl))
                                  for out in stream.outputs)
             preconditions.update(fd_from_fact(substitute_fact(fact, mapping))
                                  for fact in stream.domain)
@@ -125,14 +134,10 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     from strips.utils import solve_strips, default_derived_plan
     import pddl
 
-    default_planner = {
-        'search': 'eager',
-        'evaluator': 'greedy',
-        'heuristic': 'ff',
-        'successors': 'all',
-    }
+    # TODO: PLUSONE costs
+    pyplanner = dict(DEFAULT_PYPLANNER)
     if isinstance(planner, dict):
-        default_planner.update(planner)
+        pyplanner.update(planner)
 
     py_actions = []
     for action in instantiated.actions:
@@ -167,9 +172,11 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
                     if isinstance(atom, pddl.Atom) and (atom in fluents))
 
     plan, state_space = solve_strips(initial, goal, py_actions, py_axioms,
-                                     max_time=max_planner_time, max_cost=max_cost, **default_planner)
+                                     max_time=max_planner_time, max_cost=max_cost, **pyplanner)
     if plan is None:
         return None, INF
     actions = [pddl_from_instance(action.fd_action) for action in plan]
     #print(actions)
-    return actions, plan.cost
+    cost = plan.cost / get_cost_scale()
+
+    return actions, cost

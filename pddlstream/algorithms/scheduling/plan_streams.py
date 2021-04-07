@@ -21,7 +21,7 @@ from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
-from pddlstream.algorithms.algorithm import UNIVERSAL_TO_CONDITIONAL
+from pddlstream.algorithms.advanced import UNIVERSAL_TO_CONDITIONAL
 from pddlstream.language.constants import Not, get_prefix, EQ, FAILED, OptPlan, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
     fact_from_evaluation, transform_plan_args, transform_action_args, obj_from_pddl

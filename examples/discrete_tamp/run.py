@@ -2,20 +2,16 @@
 
 from __future__ import print_function
 
-import argparse
 import os
-
 import numpy as np
 
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.discrete_tamp.primitives import GRASP, collision_test, distance_fn, DiscreteTAMPState, \
     get_shift_one_problem
 from examples.discrete_tamp.viewer import DiscreteTAMPViewer, COLORS
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
 # from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution
+from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, PDDLProblem
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import user_input, read, INF
 
 
@@ -64,7 +60,7 @@ def pddlstream_from_tamp(tamp_problem):
         'distance': distance_fn,
     }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -79,7 +75,6 @@ def draw_state(viewer, state, colors):
         pose = state.conf - GRASP
         r, c = pose[::-1]
         viewer.draw_block(r, c, name=state.holding, color=colors[state.holding])
-
 
 def apply_action(state, action):
     conf, holding, block_poses = state
@@ -118,28 +113,20 @@ def apply_plan(tamp_problem, plan):
 ##################################################
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = create_parser()
     #parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
-    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     args = parser.parse_args()
     print('Arguments:', args)
 
-    problem_fn = get_shift_one_problem  # get_shift_one_problem | get_shift_all_problem
+    problem_fn = get_shift_one_problem  # get_shift_one_problem | get_shift_all_problem # TODO: use --problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 
-    stream_info = {
-        'test-cfree': StreamInfo(negate=True),
-    }
     pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    if args.algorithm == 'focused':
-        #solution = solve_serialized(pddlstream_problem, planner='max-astar', unit_costs=args.unit, stream_info=stream_info)
-        solution = solve_focused(pddlstream_problem, unit_costs=args.unit, stream_info=stream_info, debug=False)
-    elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, unit_costs=args.unit, complexity_step=INF) #max_complexity=0)
-    else:
-        raise ValueError(args.algorithm)
+    #solution = solve_serialized(pddlstream_problem, planner='max-astar', unit_costs=args.unit)
+    solution = solve(pddlstream_problem, algorithm=args.algorithm, unit_costs=args.unit, debug=False,
+                     #complexity_step=INF, max_complexity=0,
+                    )
 
     print_solution(solution)
     plan, cost, evaluations = solution

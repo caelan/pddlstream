@@ -14,7 +14,7 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, dump_world, ge
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant
 from pddlstream.utils import read, INF, get_file_path
-from pddlstream.language.constants import print_solution
+from pddlstream.language.constants import print_solution, PDDLProblem
 
 from examples.pybullet.pr2.run import post_process
 
@@ -95,7 +95,7 @@ def pddlstream_from_problem(problem, teleport=False, movable_collisions=False):
     }
     # get_press_gen(problem, teleport=teleport)
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 #######################################################
 

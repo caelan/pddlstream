@@ -265,7 +265,7 @@ class Profiler(Saver):
             return None
         stream = None
         #stream = io.StringIO()
-        stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field)
+        stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field) # TODO: print multiple
         stats.print_stats(self.num)
         return stats
 

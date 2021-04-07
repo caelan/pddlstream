@@ -119,7 +119,7 @@ class WildOutput(object):
 
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
-                 verbose=True, **kwargs):
+                 verbose=True, **kwargs): # TODO: set negate to None to express no user preference
         # TODO: could change frequency/priority for the incremental algorithm
         super(StreamInfo, self).__init__(**kwargs)
         # TODO: call this an abstraction instead
@@ -376,6 +376,8 @@ class Stream(External):
         self.outputs = tuple(outputs)
         self.certified = tuple(map(convert_constants, certified))
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
+        self.fluents = fluents
+        #self.fluents = [] if gen_fn == DEBUG else fluents
 
         for p, c in Counter(self.outputs).items():
             if not is_parameter(p):
@@ -393,7 +395,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
-        self.num_opt_fns = 0 if self.is_test else 1 # Always unique if no outputs
+        self.num_opt_fns = 0 if self.is_special else 1 # TODO: is_negated or is_special
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             #self.info.opt_gen_fn.register(self)
             if self.info.opt_gen_fn.unique:
@@ -401,8 +403,6 @@ class Stream(External):
         #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
         #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
 
-        self.fluents = fluents
-        #self.fluents = [] if gen_fn == DEBUG else fluents
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
         else:

@@ -14,9 +14,22 @@ from pddlstream.utils import str_from_object, apply_mapping
 #from inspect import getargspec as get_arg_spec
 #from inspect import signature
 
+##################################################
+
+def add_opt_function(name, base_fn, stream_map, stream_info, constant=0., coefficient=1., **external_kwargs):
+    stream_fn = lambda *args, **kwargs: constant + coefficient*base_fn(*args, **kwargs)
+    opt_fn = lambda *args, **kwargs: constant
+    info = FunctionInfo(opt_fn=opt_fn, **external_kwargs)
+    stream_map[name] = stream_fn
+    stream_info[name] = info
+    return stream_info, info
+
+##################################################
+
 class FunctionInfo(ExternalInfo):
-    def __init__(self, opt_fn=None, **kwargs):
-        super(FunctionInfo, self).__init__(**kwargs)
+    _default_eager = True
+    def __init__(self, opt_fn=None, eager=_default_eager, **kwargs): # Setting eager=True as a heuristic
+        super(FunctionInfo, self).__init__(eager=eager, **kwargs)
         self.opt_fn = opt_fn
         #self.order = 0
 
@@ -107,12 +120,11 @@ class Function(External):
     """
     codomain = float # int | float
     _Instance = FunctionInstance
-    _default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
-    _default_overhead = None
+    #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     def __init__(self, head, fn, domain, info):
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
-            info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
+            info = FunctionInfo() #p_success=self._default_p_success)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
@@ -142,6 +154,9 @@ class Function(External):
 
 ##################################################
 
+class PredicateInfo(FunctionInfo):
+    _default_eager = False
+
 class PredicateResult(FunctionResult):
     def get_certified(self):
         # TODO: cache these results
@@ -165,12 +180,12 @@ class Predicate(Function):
     """
     _Instance = PredicateInstance
     codomain = bool
-    _default_p_success = None
-    _default_overhead = None
     #def is_negative(self):
     #    return self._Instance._opt_value is False
-    def __init__(self, *args):
-        super(Predicate, self).__init__(*args)
+    def __init__(self, head, fn, domain, info):
+        if info is None:
+            info = PredicateInfo()
+        super(Predicate, self).__init__(head, fn, domain, info)
         assert(self.info.opt_fn is None)
         self.blocked_predicate = self.name
     @property

@@ -83,17 +83,17 @@ SEARCH_OPTIONS = {
     # http://www.fast-downward.org/Doc/Evaluator
     # http://www.fast-downward.org/Doc/SearchEngine
 
-    # Optimal
-    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    # Optimal (when cost_type=NORMAL)
+    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
 
     # Suboptimal
-    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
     'ff-eager': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "eager_greedy([h],max_time=%s,bound=%s)"',
     'ff-eager-pref': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
@@ -153,7 +153,9 @@ if USE_CERBERUS:
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
-DEFAULT_PLANNER = 'ff-astar2' # TODO: default optimal & default suboptimal
+DEFAULT_CONSERVATIVE_PLANNER = 'ff-astar'
+DEFAULT_GREEDY_PLANNER = 'ff-astar2'
+DEFAULT_PLANNER = DEFAULT_GREEDY_PLANNER
 
 ##################################################
 
@@ -203,12 +205,6 @@ def parse_sequential_domain(domain_pddl):
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
     return domain
-
-def has_costs(domain):
-    for action in domain.actions:
-        if action.cost is not None:
-            return True
-    return False
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
                                  'objects', 'init', 'goal', 'use_metric', 'pddl'])
@@ -300,7 +296,18 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
 
 IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
-def task_from_domain_problem(domain, problem):
+def get_identical_atoms(objects):
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
+    init = []
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
+    return init
+
+def task_from_domain_problem(domain, problem, add_identical=True):
     # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
@@ -314,13 +321,9 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
-    # TODO: optimistically evaluate (not (= ?o1 ?o2))
-    for fd_obj in objects:
-        obj = obj_from_pddl(fd_obj.name)
-        if obj.is_unique():
-            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
-        else:
-            assert obj.is_shared()
+    if add_identical:
+        init.extend(get_identical_atoms(objects))
+
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)
@@ -653,6 +656,17 @@ def make_cost(cost):
             symbol=get_prefix(cost), args=list(map(pddl_from_object, get_args(cost))))
     return pddl.Increase(fluent=fluent, expression=expression)
 
+def has_costs(domain):
+    for action in domain.actions:
+        if action.cost is not None:
+            return True
+    return False
+
+def set_unit_costs(domain):
+    # Cost of None becomes zero if metric = True
+    #set_cost_scale(1)
+    for action in domain.actions:
+        action.cost = make_cost(1)
 
 def make_action(name, parameters, preconditions, effects, cost=None):
     # Usually all parameters are external

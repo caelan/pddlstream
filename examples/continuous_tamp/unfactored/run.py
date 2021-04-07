@@ -12,7 +12,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import user_input, read, INF, get_file_path, Profiler
-from pddlstream.language.constants import print_solution
+from pddlstream.language.constants import print_solution, PDDLProblem
 
 from copy import deepcopy
 
@@ -115,7 +115,7 @@ def pddlstream_from_tamp(tamp_problem):
     }
     #stream_map = 'debug'
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -156,8 +156,8 @@ def main(deterministic=False, unit_costs=True):
     with Profiler():
         solution = solve_incremental(pddlstream_problem, complexity_step=1, max_time=30,
                                      unit_costs=unit_costs, verbose=False)
-        print_solution(solution)
-        plan, cost, evaluations = solution
+    print_solution(solution)
+    plan, cost, evaluations = solution
     step_plan(tamp_problem, plan)
 
 if __name__ == '__main__':

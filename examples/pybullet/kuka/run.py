@@ -2,21 +2,20 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
-import argparse
-
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, BodyConf, Command, get_grasp_gen, \
     get_stable_gen, get_ik_fn, get_free_motion_gen, \
     get_holding_motion_gen, get_movable_collision_test
 from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, \
     Point, set_default_camera, stable_z, \
     BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
-    disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet
-from pddlstream.algorithms.focused import solve_focused, solve_adaptive
-from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen
-from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler
-from pddlstream.language.constants import print_solution
+    disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet, \
+    LockRenderer, has_gui
+from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen, from_test, universe_test
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object, negate_test
+from pddlstream.language.constants import print_solution, PDDLProblem
+from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
+    move_cost_fn, get_cfree_obj_approach_pose_test
 
 def get_fixed(robot, movable):
     rigid = [body for body in get_bodies() if body != robot]
@@ -106,10 +105,15 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, grasp_name='top')
         'inverse-kinematics': from_fn(get_ik_fn(robot, fixed, teleport)),
         'plan-free-motion': from_fn(get_free_motion_gen(robot, fixed, teleport)),
         'plan-holding-motion': from_fn(get_holding_motion_gen(robot, fixed, teleport)),
+
+        'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test()),
+        'test-cfree-approach-pose': from_test(get_cfree_obj_approach_pose_test()),
+        'test-cfree-traj-pose': from_test(negate_test(get_movable_collision_test())), #get_cfree_traj_pose_test()),
+
         'TrajCollision': get_movable_collision_test(),
     }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 
 #######################################################
@@ -153,42 +157,36 @@ def postprocess_plan(plan):
 
 #######################################################
 
-def main(display=True, teleport=False):
-    parser = argparse.ArgumentParser()  # Automatically includes help
-    parser.add_argument('-viewer', action='store_true', help='enable viewer.')
-    parser.add_argument('-simulate', action='store_true', help='enable viewer.')
+def main():
+    parser = create_parser()
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
+    parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
+    print('Arguments:', args)
 
     connect(use_gui=args.viewer)
     robot, names, movable = load_world()
-    saved_world = WorldSaver()
+    print('Objects:', names)
+    saver = WorldSaver()
     #dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(robot, movable=movable, teleport=teleport)
-    _, _, _, stream_map, init, goal = pddlstream_problem
+    problem = pddlstream_from_problem(robot, movable=movable, teleport=args.teleport)
+    _, _, _, stream_map, init, goal = problem
     print('Init:', init)
     print('Goal:', goal)
-    print('Streams:', stream_map.keys())
-    print('Synthesizers:', stream_map.keys())
-    print(names)
+    print('Streams:', str_from_object(set(stream_map)))
 
     with Profiler():
-        solution = solve_adaptive(pddlstream_problem, success_cost=INF)
+        with LockRenderer(lock=not args.enable):
+            solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, success_cost=INF)
+            saver.restore()
     print_solution(solution)
     plan, cost, evaluations = solution
-    if plan is None:
-        return
-
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
-
-    if not args.viewer: # TODO: how to reenable the viewer
-        disconnect()
-        connect(use_gui=True)
-        load_world()
-    else:
-        saved_world.restore()
 
     command = postprocess_plan(plan)
     if args.simulate:
@@ -198,7 +196,6 @@ def main(display=True, teleport=False):
         wait_for_user('Execute?')
         #command.step()
         command.refine(num_steps=10).execute(time_step=0.001)
-
     wait_for_user('Finish?')
     disconnect()
 

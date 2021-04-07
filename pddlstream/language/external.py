@@ -49,10 +49,9 @@ def convert_constants(fact):
 ##################################################
 
 class ExternalInfo(PerformanceInfo):
-    def __init__(self, eager=False, p_success=None, overhead=None, effort=None, defer_fn=never_defer):
-        super(ExternalInfo, self).__init__(p_success, overhead, effort)
+    def __init__(self, eager=False, defer_fn=never_defer, **kwargs):
+        super(ExternalInfo, self).__init__(**kwargs)
         # TODO: enable eager=True for inexpensive test streams by default
-        # TODO: make any info just a dict
         self.eager = eager
         self.defer_fn = defer_fn # Old syntax was defer=True
         #self.complexity_fn = complexity_fn
@@ -265,6 +264,7 @@ class External(Performance):
         raise NotImplementedError()
     def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
         # TODO: infer other properties from use in the context of a stream plan
+        # TODO: use num_certified (only those that are an another stream) instead of num_outputs?
         num_inputs = len(self.inputs)
         #num_domain = len(self.domain)
         #num_outputs = int(self.has_outputs)

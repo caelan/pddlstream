@@ -7,9 +7,7 @@ try:
 except ImportError:
     raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
 
-import argparse
-
-from pddlstream.algorithms.focused import solve_focused, solve_adaptive
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.algorithms.search import ABSTRIPSLayer
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
 from pddlstream.utils import read, get_file_path, Profiler
@@ -131,6 +129,7 @@ def pddlstream_from_state(state, teleport=False):
 
 #######################################################
 
+
 def post_process(state, plan, replan_obs=True, replan_base=False, look_move=False):
     if plan is None:
         return None
@@ -208,10 +207,11 @@ def post_process(state, plan, replan_obs=True, replan_base=False, look_move=Fals
 
 #######################################################
 
-def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=True):
+
+def plan_commands(state, args, profile=True, verbose=True):
     # TODO: could make indices into set of bodies to ensure the same...
     # TODO: populate the bodies here from state and not the real world
-    sim_world = connect(use_gui=viewer)
+    sim_world = connect(use_gui=args.viewer)
     #clone_world(client=sim_world)
     task = state.task
     robot_conf = get_configuration(task.robot)
@@ -221,12 +221,12 @@ def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=Tr
             robot = create_pr2(use_drake=USE_DRAKE_PR2)
         set_pose(robot, robot_pose)
         set_configuration(robot, robot_conf)
-    mapping = clone_world(client=sim_world, exclude=[task.robot])
+    mapping = clone_world(client=sim_world, exclude=[task.robot]) # TODO: TypeError: argument 5 must be str, not bytes
     assert all(i1 == i2 for i1, i2 in mapping.items())
     set_client(sim_world)
-    saved_world = WorldSaver() # StateSaver()
+    saver = WorldSaver() # StateSaver()
 
-    pddlstream_problem = pddlstream_from_state(state, teleport=teleport)
+    pddlstream_problem = pddlstream_from_state(state, teleport=args.teleport)
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', sorted(init, key=lambda f: f[0]))
     if verbose:
@@ -242,15 +242,16 @@ def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=Tr
     ]
 
     with Profiler(field='cumtime', num=10 if profile else None):
-        solution = solve_adaptive(pddlstream_problem, stream_info=stream_info, hierarchy=hierarchy, debug=False,
-                                  success_cost=MAX_COST, verbose=verbose)
+        solution = solve(pddlstream_problem, algorithm=args.algorithm, unit_costs=args.unit,
+                         stream_info=stream_info, hierarchy=hierarchy, debug=False,
+                         success_cost=MAX_COST, verbose=verbose)
         plan, cost, evaluations = solution
         if MAX_COST <= cost:
             plan = None
         print_solution(solution)
         print('Finite cost:', cost < MAX_COST)
         commands = post_process(state, plan)
-    saved_world.restore()
+    saver.restore()
     disconnect()
     return commands
 
@@ -258,12 +259,12 @@ def plan_commands(state, viewer=False, teleport=False, profile=False, verbose=Tr
 #######################################################
 
 def main(time_step=0.01):
-    parser = argparse.ArgumentParser()
-    #parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser = create_parser()
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
-    #parser.add_argument('-display', action='store_true', help='displays the solution')
-    # TODO: arugment for selecting prior
+    # TODO: argument for selecting prior
     args = parser.parse_args()
+    print('Arguments:', args)
 
     # TODO: nonuniform distribution to bias towards other actions
     # TODO: closed world and open world
@@ -295,7 +296,7 @@ def main(time_step=0.01):
         wait_for_user()
         #print({b: p.value for b, p in state.poses.items()})
         with ClientSaver():
-            commands = plan_commands(state, viewer=args.viewer)
+            commands = plan_commands(state, args)
         print()
         if commands is None:
             print('Failure!')

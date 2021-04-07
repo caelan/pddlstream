@@ -6,7 +6,7 @@ from examples.pybullet.utils.pybullet_tools.utils import add_data_path, load_pyb
     stable_z, HUSKY_URDF, load_model, TURTLEBOT_URDF, joints_from_names, \
     set_joint_positions, get_joint_positions, link_from_name, get_link_pose, draw_pose, wait_for_user, \
     get_center_extent, draw_aabb, get_aabb, HideOutput, GREY, BLACK, RED, BLUE, BROWN, TAN, GREEN, get_bodies
-from examples.pybullet.pr2.problems import sample_placements
+from examples.pybullet.tamp.problems import sample_placements
 
 BASE_JOINTS = ['x', 'y', 'theta']
 
