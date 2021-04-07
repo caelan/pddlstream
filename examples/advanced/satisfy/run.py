@@ -95,7 +95,7 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    problem_fn = problem3 # problem1 | problem2 | problem3
+    problem_fn = problem3 # problem1 | problem2 | problem3 # TODO: use --problem
     stream_pddl, stream_map, init, terms = problem_fn()
     #print('Init:', pddlstream_problem.init)
     #print('Goal:', pddlstream_problem.goal)

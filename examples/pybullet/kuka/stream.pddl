@@ -20,7 +20,7 @@
   (:stream plan-free-motion
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
-    :fluents (AtPose)
+    :fluents (AtPose) ; AtGrasp
     :outputs (?t)
     ;:certified (and (Traj ?t) (FreeMotion ?q1 ?t ?q2))
     :certified (FreeMotion ?q1 ?t ?q2)

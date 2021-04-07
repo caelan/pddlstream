@@ -3,7 +3,7 @@ import sys
 
 from pddlstream.algorithms.algorithm import get_predicates
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
-    pddl_from_instance, DEFAULT_MAX_TIME
+    pddl_from_instance, DEFAULT_MAX_TIME, get_cost_scale
 from pddlstream.language.object import Object
 from pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.language.fluent import get_predicate_map, remap_certified
@@ -12,6 +12,8 @@ from pddlstream.utils import INF, invert_dict, get_mapping
 
 # Intuition: static facts about whether this state satisfies a condition
 # The state can be seen as a hidden parameter with a precondition that you are at it
+
+# TODO: refactor to algorithms
 
 PYPLANNERS_VAR = 'PYPLANNERS_PATH'
 PLACEHOLDER_OBJ = Object.from_value('~')
@@ -132,6 +134,7 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     from strips.utils import solve_strips, default_derived_plan
     import pddl
 
+    # TODO: PLUSONE costs
     pyplanner = dict(DEFAULT_PYPLANNER)
     if isinstance(planner, dict):
         pyplanner.update(planner)
@@ -174,4 +177,6 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
         return None, INF
     actions = [pddl_from_instance(action.fd_action) for action in plan]
     #print(actions)
-    return actions, plan.cost
+    cost = plan.cost / get_cost_scale()
+
+    return actions, cost

@@ -118,7 +118,7 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    problem_fn = get_shift_one_problem  # get_shift_one_problem | get_shift_all_problem
+    problem_fn = get_shift_one_problem  # get_shift_one_problem | get_shift_all_problem # TODO: use --problem
     tamp_problem = problem_fn()
     print(tamp_problem)
 

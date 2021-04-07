@@ -236,6 +236,7 @@ def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
+    max_skeletons = INF if max_skeletons is None else max_skeletons
     return solve_abstract(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
                           bind=None, max_failures=None, **kwargs)
 

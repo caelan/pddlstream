@@ -7,6 +7,7 @@ import cProfile
 import pstats
 import numpy as np
 
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.continuous_tamp.primitives import get_value_at_time
 from pddlstream.language.temporal import get_end, compute_duration
 from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
@@ -18,16 +19,17 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, \
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
-    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui, set_all_color
+    link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui, set_all_color, has_gui
 
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo
+from pddlstream.language.function import FunctionInfo, PredicateInfo
 from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
 from pddlstream.language.generator import from_test, from_fn, negate_test
-from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range
+from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range, Profiler
 
+# TODO: rename to temporal
 
 TOP_LINK = 'plate_top_link'
 WEIGHTS = np.array([1, 1, 0])  # 1 / BASE_RESOLUTIONS
@@ -313,7 +315,8 @@ def display_plan(problem, state, plan, time_step=0.01, sec_per_step=0.005):
 
 #######################################################
 
-def main(display=True, teleport=False):
+def main(teleport=False):
+    #parser = create_parser()
     parser = argparse.ArgumentParser()
     parser.add_argument('-algorithm', default='incremental', help='Specifies the algorithm')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
@@ -322,78 +325,62 @@ def main(display=True, teleport=False):
     parser.add_argument('-t', '--max_time', default=5*60, type=int, help='The max time')
     parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
     args = parser.parse_args()
-    print(args)
+    print('Arguments:', args)
 
-    #problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
-    #if args.problem not in problem_fn_from_name:
-    #    raise ValueError(args.problem)
-    #problem_fn = problem_fn_from_name[args.problem]
     connect(use_gui=args.viewer)
     with HideOutput():
-        problem = problem_fn(collisions=not args.cfree)
+        namo_problem = problem_fn(collisions=not args.cfree)
     saver = WorldSaver()
-    draw_base_limits(problem.limits, color=RED)
+    draw_base_limits(namo_problem.limits, color=RED)
 
-    pddlstream, edges = pddlstream_from_problem(problem, teleport=teleport)
-    _, constant_map, _, stream_map, init, goal = pddlstream
+    pddlstream_problem, edges = pddlstream_from_problem(namo_problem, teleport=teleport)
+    _, constant_map, _, stream_map, init, goal = pddlstream_problem
     print('Constants:', constant_map)
     print('Init:', init)
     print('Goal:', goal)
 
-    success_cost = 0 if args.optimal else INF
-    max_planner_time = 10
-
     stream_info = {
         'compute-motion': StreamInfo(eager=True, p_success=0),
-        'ConfConfCollision': FunctionInfo(p_success=1, overhead=0.1),
-        'TrajConfCollision': FunctionInfo(p_success=1, overhead=1),
-        'TrajTrajCollision': FunctionInfo(p_success=1, overhead=10),
+        'ConfConfCollision': PredicateInfo(p_success=1, overhead=0.1),
+        'TrajConfCollision': PredicateInfo(p_success=1, overhead=1),
+        'TrajTrajCollision': PredicateInfo(p_success=1, overhead=10),
         'TrajDistance': FunctionInfo(eager=True), # Need to eagerly evaluate otherwise 0 duration (failure)
     }
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer(False):
-        if args.algorithm == 'incremental':
-            solution = solve_incremental(pddlstream,
+    success_cost = 0 if args.optimal else INF
+    max_planner_time = 10
+    with Profiler(field='tottime', num=25): # cumtime | tottime
+        with LockRenderer(False):
+            # TODO: solution = solve_incremental(pddlstream_problem
+            if args.algorithm == 'incremental':
+                solution = solve_incremental(pddlstream_problem,
+                                             max_planner_time=max_planner_time,
+                                             success_cost=success_cost, max_time=args.max_time,
+                                             start_complexity=INF,
+                                             verbose=True, debug=True)
+            elif args.algorithm == 'focused':
+                solution = solve_focused(pddlstream_problem, stream_info=stream_info,
                                          max_planner_time=max_planner_time,
                                          success_cost=success_cost, max_time=args.max_time,
-                                         start_complexity=INF,
+                                         max_skeletons=None, bind=True, max_failures=INF,
                                          verbose=True, debug=True)
-        elif args.algorithm == 'focused':
-            solution = solve_focused(pddlstream, stream_info=stream_info,
-                                      max_planner_time=max_planner_time,
-                                      success_cost=success_cost, max_time=args.max_time,
-                                      max_skeletons=None, bind=True, max_failures=INF,
-                                      verbose=True, debug=True)
-        else:
-            raise ValueError(args.algorithm)
+            else:
+                raise ValueError(args.algorithm)
 
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(25) # cumtime | tottime
-    if plan is None:
-        wait_for_user()
-        return
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
 
-    if not args.viewer:
-        disconnect()
-        connect(use_gui=True)
-        with LockRenderer():
-            with HideOutput():
-                problem_fn() # TODO: way of doing this without reloading?
-    saver.restore() # Assumes bodies are ordered the same way
+    saver.restore()
     draw_edges(edges)
 
-    state = BeliefState(problem)
+    state = BeliefState(namo_problem)
     wait_for_user()
     #time_step = None if teleport else 0.01
     #with VideoSaver('video.mp4'):
-    display_plan(problem, state, plan)
+    display_plan(namo_problem, state, plan)
     wait_for_user()
     disconnect()
 

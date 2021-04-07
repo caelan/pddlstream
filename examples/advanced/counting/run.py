@@ -81,7 +81,6 @@ def get_problem1(n=5):
 
 def main():
     parser = create_parser()
-    #parser.add_argument('-p', '--problem', default='blocked', help='The name of the problem to solve')
     args = parser.parse_args()
     print('Arguments:', args)
 

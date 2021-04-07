@@ -22,7 +22,7 @@ DEFAULT_ALGORITHM = 'adaptive'
 
 def create_parser():
     # https://docs.python.org/3/library/argparse.html#the-add-argument-method
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser() # Automatically includes help
     parser.add_argument('-a', '--algorithm', type=str, default=DEFAULT_ALGORITHM, choices=ALGORITHMS, required=False,
                         help='Specifies the PDDLStream algorithm to use')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs') # --unit_costs
@@ -43,6 +43,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
           unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
           visualize=False, verbose=True, **search_kwargs):
 
+    # TODO: print the arguments using locals()
     # TODO: could instead make common arguments kwargs but then they could have different default values
     if algorithm == 'incremental':
         return solve_incremental(
@@ -51,6 +52,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             max_iterations=max_iterations, max_time=max_time, max_memory=max_memory,
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             verbose=verbose, **search_kwargs)
+
     if algorithm == 'abstract_focused': # meta_focused | meta_focused
         return solve_focused(
             problem, constraints=constraints,
@@ -62,6 +64,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
+
     if algorithm == 'focused':
         return solve_focused_original(
             problem, constraints=constraints,
@@ -73,6 +76,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             fail_fast=(max_failures < INF), # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
+
     if algorithm == 'binding':
         return solve_binding(
             problem, constraints=constraints,
@@ -84,6 +88,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             fail_fast=(max_failures < INF), # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
+
     if algorithm == 'adaptive':
         return solve_adaptive(
             problem, constraints=constraints,

@@ -2,12 +2,9 @@
 
 from __future__ import print_function
 
-import argparse
-import cProfile
-import pstats
-
 import numpy as np
 
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.namo.stream import BASE_LINK, get_base_joints, set_base_conf, get_custom_limits, \
     get_test_cfree_conf_pose, get_test_cfree_traj_pose, get_grasp_generator, get_ik_fn, get_motion_fn, get_cost_fn, \
     create_vertices
@@ -15,12 +12,8 @@ from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, control_commands, Attach, Detach, \
     apply_commands, Command
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
-    wait_for_user, remove_body, \
-    LockRenderer, get_bodies, create_box, stable_z, load_model, TURTLEBOT_URDF, \
-    create_cylinder, HideOutput, GREY, TAN, RED, \
-    set_point, Point, BLUE
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
+    wait_for_user, remove_body, LockRenderer, get_bodies, create_box, stable_z, load_model, TURTLEBOT_URDF, \
+    create_cylinder, HideOutput, GREY, TAN, RED, set_point, Point, BLUE, has_gui
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import And, print_solution
 from pddlstream.language.generator import from_test, from_fn, from_gen_fn
@@ -101,7 +94,7 @@ def problem_fn(n_rovers=1, collisions=True):
 
 #######################################################
 
-def pddlstream_from_problem(problem, teleport=False):
+def pddlstream_from_problem(problem):
     # TODO: push and attach to movable objects
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -163,11 +156,11 @@ class Vaporize(Command):
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.body)
 
-def post_process(problem, plan, teleport=False):
+def post_process(problem, plan):
     if plan is None:
         return None
     commands = []
-    attachments = {}
+    #attachments = {}
     for i, (name, args) in enumerate(plan):
         if name == 'vaporize':
             if len(args) == 2:
@@ -197,31 +190,25 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False):
-    parser = argparse.ArgumentParser()
-    #parser.add_argument('-problem', default='rovers1', help='The name of the problem to solve')
-    parser.add_argument('-algorithm', default='focused', help='Specifies the algorithm')
+def main():
+    parser = create_parser()
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
-    parser.add_argument('-unit', action='store_true', help='Uses unit costs')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
-    print(args)
+    print('Arguments:', args)
 
-    #problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
-    #if args.problem not in problem_fn_from_name:
-    #    raise ValueError(args.problem)
-    #problem_fn = problem_fn_from_name[args.problem]
     connect(use_gui=args.viewer)
     with HideOutput():
         problem = problem_fn(collisions=not args.cfree)
     saver = WorldSaver()
     draw_base_limits(problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(problem)
     stream_info = {
         'test-cfree-conf-pose': StreamInfo(negate=True, p_success=1e-2),
         'test-cfree-traj-pose': StreamInfo(negate=True, p_success=1e-1),
@@ -238,54 +225,32 @@ def main(display=True, teleport=False):
     search_sample_ratio = 0
     max_planner_time = 10
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer(True):
-        if args.algorithm == 'focused':
-            solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                     planner=planner, max_planner_time=max_planner_time, debug=False,
-                                     unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=True,
-                                     unit_efforts=True, effort_weight=1,
-                                     bind=True, max_skeletons=None,
-                                     search_sample_ratio=search_sample_ratio)
-        elif args.algorithm == 'incremental':
-            solution = solve_incremental(pddlstream_problem,
-                                         planner=planner, max_planner_time=max_planner_time,
-                                         unit_costs=args.unit, success_cost=success_cost,
-                                         max_time=args.max_time, verbose=True)
-        else:
-            raise ValueError(args.algorithm)
-        saver.restore()
+    with Profiler(field='tottime', num=25): # cumtime | tottime
+        with LockRenderer(lock=not args.enable):
+            solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
+                             planner=planner, max_planner_time=max_planner_time, debug=False,
+                             unit_costs=args.unit, success_cost=success_cost,
+                             max_time=args.max_time, verbose=True,
+                             unit_efforts=True, effort_weight=1,
+                             bind=True, max_skeletons=None,
+                             search_sample_ratio=search_sample_ratio)
+            saver.restore()
 
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(25) # cumtime | tottime
-    if plan is None:
-        wait_for_user()
-        return
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
 
     with LockRenderer():
-        commands = post_process(problem, plan, teleport=teleport)
+        commands = post_process(problem, plan)
         saver.restore()  # Assumes bodies are ordered the same way
-    if not args.viewer:
-        disconnect()
-        connect(use_gui=True)
-        with LockRenderer():
-            with HideOutput():
-                problem_fn() # TODO: way of doing this without reloading?
-            saver.restore() # Assumes bodies are ordered the same way
 
     wait_for_user()
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if teleport else 0.01
-        apply_commands(BeliefState(problem), commands, time_step=time_step)
+        apply_commands(BeliefState(problem), commands, time_step=1e-2) # 1e-2 | None
     wait_for_user()
     disconnect()
 
