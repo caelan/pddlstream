@@ -38,7 +38,8 @@
   (:action move_base
     :parameters (?q1 ?q2 ?t)
     :precondition (and (BaseMotion ?q1 ?t ?q2)
-                       (AtBConf ?q1) (CanMove) (not (UnsafeBTraj ?t)))
+                       (AtBConf ?q1) (CanMove)
+                       (not (UnsafeBTraj ?t)))
     :effect (and (AtBConf ?q2)
                  (not (AtBConf ?q1)) (not (CanMove))
                  (increase (total-cost) (MoveCost ?t)))
@@ -50,6 +51,7 @@
   ;  :effect (and (AtAConf ?a ?q2)
   ;               (not (AtAConf ?a ?q1)))
   ;)
+
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
@@ -98,6 +100,6 @@
     (exists (?a ?q) (and (TrajArmCollision ?t ?a ?q)
                          (AtAConf ?a ?q)))
     (exists (?a ?o ?g) (and (TrajGraspCollision ?t ?a ?o ?g)
-                         (AtGrasp ?a ?o ?g)))
+                            (AtGrasp ?a ?o ?g)))
   ))
 )

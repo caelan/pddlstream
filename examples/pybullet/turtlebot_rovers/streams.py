@@ -11,6 +11,7 @@ from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_l
     wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion, create_attachment, \
     pose_from_pose2d, wait_if_gui, child_link_from_joint, get_link_name, Attachment
 from examples.pybullet.turtlebot_rovers.problems import get_base_joints, KINECT_FRAME
+from pddlstream.language.constants import Output
 
 VIS_RANGE = 2
 COM_RANGE = 2*VIS_RANGE
@@ -114,7 +115,7 @@ def get_inv_vis_gen(problem, use_cone=True, max_attempts=25, max_range=VIS_RANGE
                 continue
             print('Visibility attempts:', attempts)
             y = Ray(cone, rover, objective)
-            yield (bq, y)
+            yield Output(bq, y)
             #break
     return gen
 
@@ -144,7 +145,7 @@ def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True, te
                     continue
                 if not reachable_test(rover, bq):
                     continue
-                yield (bq,)
+                yield Output(bq)
                 break
             else:
                 yield None
@@ -156,7 +157,7 @@ def get_motion_fn(problem, custom_limits={}, collisions=True, teleport=False, ho
     def test(rover, q1, q2, fluents=[]):
         if teleport:
             ht = Trajectory([q1, q2])
-            return (ht,)
+            return Output(ht)
 
         base_link = child_link_from_joint(q1.joints[-1])
         q1.assign()
@@ -188,5 +189,5 @@ def get_motion_fn(problem, custom_limits={}, collisions=True, teleport=False, ho
         if path is None:
             return None
         ht = create_trajectory(rover, q2.joints, path)
-        return (ht,)
+        return Output(ht)
     return test

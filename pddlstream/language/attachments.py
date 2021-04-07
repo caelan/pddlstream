@@ -1,7 +1,7 @@
 import os
 import sys
 
-from pddlstream.algorithms.algorithm import get_predicates
+from pddlstream.algorithms.advanced import get_predicates
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
     pddl_from_instance, DEFAULT_MAX_TIME, get_cost_scale
 from pddlstream.language.object import Object

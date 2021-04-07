@@ -18,12 +18,13 @@ def move_cost_fn(t):
 
 def get_cfree_approach_pose_test(problem, collisions=True):
     # TODO: apply this before inverse kinematics as well
+    arm = 'left'
     gripper = problem.get_gripper()
     def test(b1, p1, g1, b2, p2):
         if not collisions or (b1 == b2):
             return True
         p2.assign()
-        for _ in iterate_approach_path(problem.robot, 'left', gripper, p1, g1, body=b1):
+        for _ in iterate_approach_path(problem.robot, arm, gripper, p1, g1, body=b1):
             if pairwise_collision(b1, b2) or pairwise_collision(gripper, b2):
                 return False
         return True
