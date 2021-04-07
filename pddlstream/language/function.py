@@ -154,7 +154,7 @@ class Function(External):
 
 ##################################################
 
-class PredicateInfo(ExternalInfo):
+class PredicateInfo(FunctionInfo):
     _default_eager = False
 
 class PredicateResult(FunctionResult):
