@@ -2,8 +2,6 @@
 
 from __future__ import print_function
 
-import argparse
-
 from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     get_cfree_traj_grasp_pose_test, BASE_CONSTANT, distance_fn, move_cost_fn
 
@@ -14,9 +12,9 @@ from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user
 from examples.pybullet.namo.stream import get_custom_limits
+
+from pddlstream.algorithms.meta import create_parser, solve
 from pddlstream.algorithms.common import SOLUTIONS
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
 from pddlstream.language.constants import Equal, And, print_solution, Exists, get_args, is_parameter, \
     get_parameter_name, PDDLProblem
@@ -26,7 +24,7 @@ from pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, State
 from examples.pybullet.pr2.run import post_process
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object
 
 from examples.pybullet.tamp.problems import PROBLEMS
 
@@ -127,19 +125,23 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
 
 #######################################################
 
-def main(display=True, teleport=False, verbose=True):
-    parser = argparse.ArgumentParser()
+def main(verbose=True):
+    # TODO: could work just on postprocessing
+    # TODO: try the other reachability database
+    # TODO: option to only consider costs during local optimization
+
+    parser = create_parser()
     parser.add_argument('-problem', default='packed', help='The name of the problem to solve')
-    parser.add_argument('-algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
-    parser.add_argument('-unit', action='store_true', help='Uses unit costs')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
-    print(args)
+    print('Arguments:', args)
 
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
@@ -157,7 +159,7 @@ def main(display=True, teleport=False, verbose=True):
     #    handles.append(draw_link_name(problem.robot, link))
     #wait_for_user()
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
@@ -171,36 +173,25 @@ def main(display=True, teleport=False, verbose=True):
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
-    #print('Streams:', stream_map.keys())
+    print('Streams:', str_from_object(set(stream_map)))
 
     success_cost = 0 if args.optimal else INF
     planner = 'ff-astar' if args.optimal else 'ff-wastar3'
     search_sample_ratio = 2
     max_planner_time = 10
-    # TODO: could work just on postprocessing
-
-    # TODO: option to only consider costs during local optimization
     # effort_weight = 0 if args.optimal else 1
     effort_weight = 1e-3 if args.optimal else 1
-    with Profiler(field='tottime', num=25): # cumtime | tottime
-        with LockRenderer(lock=False):
-            if args.algorithm == 'focused':
-                solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                         planner=planner, max_planner_time=max_planner_time, debug=False,
-                                         unit_costs=args.unit, success_cost=success_cost,
-                                         max_time=args.max_time, verbose=True,
-                                         unit_efforts=True, effort_weight=effort_weight,
-                                         #bind=True, max_skeletons=None,
-                                         search_sample_ratio=search_sample_ratio)
-            elif args.algorithm == 'incremental':
-                solution = solve_incremental(pddlstream_problem,
-                                             planner=planner, max_planner_time=max_planner_time,
-                                             unit_costs=args.unit, success_cost=success_cost,
-                                             max_time=args.max_time, verbose=True)
-            else:
-                raise ValueError(args.algorithm)
 
-    # TODO: try the other reachability database
+    with Profiler(field='tottime', num=25): # cumtime | tottime
+        with LockRenderer(lock=not args.enable):
+            solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
+                             planner=planner, max_planner_time=max_planner_time,
+                             unit_costs=args.unit, success_cost=success_cost,
+                             max_time=args.max_time, verbose=True, debug=False,
+                             unit_efforts=True, effort_weight=effort_weight,
+                             search_sample_ratio=search_sample_ratio)
+            saver.restore()
+
 
     cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
     for i, (cost, runtime) in enumerate(cost_over_time):
@@ -208,31 +199,20 @@ def main(display=True, teleport=False, verbose=True):
     #print(SOLUTIONS)
     print_solution(solution)
     plan, cost, evaluations = solution
-    if plan is None:
-        return
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
 
-    # Maybe openrave didn't actually sample any joints...
-    # http://openrave.org/docs/0.8.2/openravepy/examples.tutorial_iksolutions/
-    with LockRenderer():
-        commands = post_process(problem, plan, teleport=teleport)
-        saver.restore()  # Assumes bodies are ordered the same way
-    if not args.viewer:
-        disconnect()
-        connect(use_gui=True)
-        with LockRenderer():
-            with HideOutput():
-                problem_fn() # TODO: way of doing this without reloading?
-            saver.restore() # Assumes bodies are ordered the same way
+    with LockRenderer(lock=not args.enable):
+        commands = post_process(problem, plan, teleport=args.teleport)
+        saver.restore()
 
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
     wait_for_user()
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if teleport else 0.01
+        time_step = None if args.teleport else 0.01
         apply_commands(State(), commands, time_step)
     wait_for_user()
     disconnect()

@@ -43,16 +43,7 @@ def problem1(n_rovers=1, n_objectives=1, n_rocks=2, n_soil=2, n_stores=1):
     rovers = []
     for i in range(n_rovers):
         robot = create_pr2()
-
-        # camera_rgb_optical_frame
-        #robot = load_model(TURTLEBOT_URDF)
-        #robot_z = stable_z(robot, floor)
-        #print(robot_z)
-        #set_point(robot, Point(z=robot_z))
-
-        dump_body(robot)
-        wait_for_user()
-
+        dump_body(robot) # camera_rgb_optical_frame
         rovers.append(robot)
         set_group_conf(robot, 'base', rover_confs[i])
         for arm in ARM_NAMES:

@@ -2,19 +2,15 @@
 
 from __future__ import print_function
 
-import argparse
-import cProfile
-import pstats
-
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_group_joints
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
-    HideOutput, LockRenderer, wait_for_user, RED
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused
+    HideOutput, LockRenderer, wait_for_user, RED, has_gui
+
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.constants import And, print_solution
-from pddlstream.utils import read, INF, get_file_path
+from pddlstream.utils import read, INF, get_file_path, Profiler
 from pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.problems import BeliefState
@@ -138,19 +134,19 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False):
-    parser = argparse.ArgumentParser()
+def main():
+    parser = create_parser()
     parser.add_argument('-problem', default='problem1', help='The name of the problem to solve')
-    parser.add_argument('-algorithm', default='focused', help='Specifies the algorithm')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
-    parser.add_argument('-unit', action='store_true', help='Uses unit costs')
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
-    print(args)
+    print('Arguments:', args)
 
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
@@ -162,7 +158,7 @@ def main(display=True, teleport=False):
     saver = WorldSaver()
     draw_base_limits(problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
@@ -181,53 +177,31 @@ def main(display=True, teleport=False):
     search_sample_ratio = 1
     max_planner_time = 10
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer(True):
-        if args.algorithm == 'focused':
-            # TODO: option to only consider costs during local optimization
-            solution = solve_focused(pddlstream_problem, stream_info=stream_info,
-                                     planner=planner, max_planner_time=max_planner_time, debug=False,
+    with Profiler(field='cumtime', num=25): # cumtime | tottime
+        with LockRenderer(lock=not args.enable):
+            solution = solve(pddlstream_problem, stream_info=stream_info,
+                                     planner=planner, max_planner_time=max_planner_time,
                                      unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=True,
+                                     max_time=args.max_time, verbose=True, debug=False,
                                      unit_efforts=True, effort_weight=1,
-                                     #max_skeletons=1,
                                      search_sample_ratio=search_sample_ratio)
-        elif args.algorithm == 'incremental':
-            solution = solve_incremental(pddlstream_problem,
-                                         planner=planner, max_planner_time=max_planner_time,
-                                         unit_costs=args.unit, success_cost=success_cost,
-                                         max_time=args.max_time, verbose=True)
-        else:
-            raise ValueError(args.algorithm)
-
+            saver.restore()
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('cumtime').print_stats(25) # cumtime | tottime
-    if plan is None:
-        return
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
 
     # Maybe openrave didn't actually sample any joints...
     # http://openrave.org/docs/0.8.2/openravepy/examples.tutorial_iksolutions/
-    with LockRenderer():
-        commands = post_process(problem, plan, teleport=teleport)
-        saver.restore()  # Assumes bodies are ordered the same way
-    if not args.viewer:
-        disconnect()
-        connect(use_gui=True)
-        with LockRenderer():
-            with HideOutput():
-                problem_fn() # TODO: way of doing this without reloading?
-            saver.restore() # Assumes bodies are ordered the same way
+    with LockRenderer(lock=not args.enable):
+        commands = post_process(problem, plan, teleport=args.teleport)
+        saver.restore()
 
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if teleport else 0.01
+        time_step = None if args.teleport else 0.01
         apply_commands(BeliefState(problem), commands, time_step)
     wait_for_user()
     disconnect()

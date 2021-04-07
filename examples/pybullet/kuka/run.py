@@ -150,9 +150,10 @@ def postprocess_plan(plan):
 
 #######################################################
 
-def main(teleport=False):
+def main():
     parser = create_parser()
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
     parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
@@ -164,7 +165,7 @@ def main(teleport=False):
     saver = WorldSaver()
     #dump_world()
 
-    problem = pddlstream_from_problem(robot, movable=movable, teleport=teleport)
+    problem = pddlstream_from_problem(robot, movable=movable, teleport=args.telport)
     _, _, _, stream_map, init, goal = problem
     print('Init:', init)
     print('Goal:', goal)

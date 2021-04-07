@@ -1,6 +1,18 @@
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import iterate_approach_path
 from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance
 
+BASE_CONSTANT = 1
+BASE_VELOCITY = 0.25
+
+
+def distance_fn(q1, q2):
+    distance = get_distance(q1.values[:2], q2.values[:2])
+    return BASE_CONSTANT + distance / BASE_VELOCITY
+
+
+def move_cost_fn(t):
+    distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
+    return BASE_CONSTANT + distance / BASE_VELOCITY
 
 #######################################################
 
@@ -51,8 +63,7 @@ def get_cfree_traj_pose_test(problem, collisions=True):
 
 def get_cfree_traj_grasp_pose_test(problem, collisions=True):
     def test(c, a, b1, g, b2, p2):
-        return True
-
+        raise NotImplementedError()
         if not collisions or (b1 == b2):
             return True
         state = c.assign()
@@ -69,18 +80,3 @@ def get_cfree_traj_grasp_pose_test(problem, collisions=True):
                 return False
         return True
     return test
-
-#######################################################
-
-BASE_CONSTANT = 1
-BASE_VELOCITY = 0.25
-
-
-def distance_fn(q1, q2):
-    distance = get_distance(q1.values[:2], q2.values[:2])
-    return BASE_CONSTANT + distance / BASE_VELOCITY
-
-
-def move_cost_fn(t):
-    distance = t.distance(distance_fn=lambda q1, q2: get_distance(q1[:2], q2[:2]))
-    return BASE_CONSTANT + distance / BASE_VELOCITY
