@@ -113,7 +113,7 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
 
         'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
         'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
-        'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem, collisions=collisions)),
+        'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(robot, collisions=collisions)),
         #'test-cfree-traj-grasp-pose': from_test(get_cfree_traj_grasp_pose_test(problem, collisions=collisions)),
 
         #'MoveCost': move_cost_fn,
