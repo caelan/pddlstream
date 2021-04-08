@@ -10,7 +10,7 @@ from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
     disconnect, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
-    get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line
+    get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line, SEPARATOR
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen, from_test
 from pddlstream.language.constants import Equal, AND, print_solution, PDDLProblem
 from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object
@@ -260,6 +260,7 @@ def main(partial=False, defer=False, verbose=True):
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', str_from_object(set(stream_map)))
+    print(SEPARATOR)
 
     with Profiler():
         with LockRenderer(lock=not args.enable):
@@ -273,6 +274,7 @@ def main(partial=False, defer=False, verbose=True):
         disconnect()
         return
 
+    print(SEPARATOR)
     with LockRenderer(lock=not args.enable):
         commands = post_process(problem, plan)
         problem.remove_gripper()
