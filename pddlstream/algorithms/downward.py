@@ -285,6 +285,7 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
     problem_pddl = None
     if USE_FORBID:
         problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
@@ -323,6 +324,7 @@ def task_from_domain_problem(domain, problem, add_identical=True):
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
     if add_identical:
         init.extend(get_identical_atoms(objects))
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
 
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
