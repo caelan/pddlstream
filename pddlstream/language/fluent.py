@@ -1,5 +1,4 @@
 from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.conversion import pddl_from_object
 from pddlstream.language.exogenous import replace_literals
 from pddlstream.language.external import get_domain_predicates
 from pddlstream.language.stream import Stream
@@ -60,8 +59,8 @@ def compile_fluent_streams(domain, externals):
         blocked_literal = literal.__class__(stream.blocked_predicate, blocked_args).negate()
         if stream.is_negated:
             conditions = [blocked_literal]
-            conditions.extend(pddl.Atom(get_prefix(fact), safe_apply_mapping(get_args(fact), mapping))
-                              for fact in stream.domain) # fd_from_fact
+            conditions.extend(pddl.Atom(get_prefix(fact), safe_apply_mapping(get_args(fact), mapping)) # fd_from_fact
+                              for fact in stream.domain) # TODO: be careful when using imply
             return pddl.Conjunction(conditions) # TODO: prune redundant conditions
         return pddl.Conjunction([literal, blocked_literal])
 

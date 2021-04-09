@@ -369,10 +369,12 @@ def get_disjunctive_parts(condition):
 
 ##################################################
 
-#def normalize_domain_goal(domain, goal):
-#    task = pddl.Task(None, None, None, None, None,
-#                     None, None, [], goal, domain.actions, domain.axioms, None)
-#    normalize.normalize(task)
+def normalize_domain_goal(domain, goal_exp):
+    evaluations = []
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs=False)
+    task = task_from_domain_problem(domain, problem)
+    normalize.normalize(task)
+    return task
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
