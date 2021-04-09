@@ -252,10 +252,9 @@ class External(Performance):
     def is_special(self):
         return False
     def get_complexity(self, num_calls):
-        # if not self.is_special: has_outputs # TODO: could make all tests have zero because they don't add args
-        #     return 0
-        #return num_calls + 1
-        raise NotImplementedError()
+        if self.is_special or not self.has_outputs:
+            return 0
+        return num_calls + 1
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
         assert len(input_objects) == len(self.inputs)

@@ -143,9 +143,6 @@ class Function(External):
     @property
     def is_negated(self):
         return False
-    def get_complexity(self, num_calls):
-        #return 1 + num_calls
-        return 0
     @property
     def tiebreaker(self):
         return self.get_tiebreaker(is_function=True)

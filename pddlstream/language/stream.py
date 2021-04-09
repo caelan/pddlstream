@@ -437,10 +437,6 @@ class Stream(External):
     @property
     def is_special(self):
         return self.is_fluent or self.is_negated
-    def get_complexity(self, num_calls):
-        if self.is_special: # is_test
-           return 0
-        return 1 + num_calls
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)
