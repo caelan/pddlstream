@@ -44,7 +44,7 @@ def partition_externals(externals, verbose=False):
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
                   max_time=INF, max_iterations=INF, max_memory=INF,
-                  initial_complexity=0, complexity_step=1, # max_complexity=INF,
+                  initial_complexity=0, complexity_step=1, max_complexity=INF,
                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                   visualize=False, verbose=True, **search_kwargs):
@@ -53,27 +53,35 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
-    :param replan_actions: the actions declared to induce replanning for purpose of deferred stream evaluation
+    :param replan_actions: the actions declared to induce replanning for the purpose of deferred stream evaluation
+
     :param unit_costs: use unit action costs rather than numeric costs
-    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
-    :param max_time: the maximum amount of time to apply streams
+    :param success_cost: the exclusive (strict) upper bound on plan cost to successfully terminate
+
+    :param max_time: the maximum runtime
     :param max_iterations: the maximum number of search iterations
-    :param max_memory: the maximum amount of memory allowed to be used
-    :param initial_complexity: the initial effort limit
-    :param complexity_step: the increase in the effort limit after each failure
-    :param max_skeletons: the maximum number of plan skeletons to consider (max_skeletons=None indicates not adaptive)
+    :param max_memory: the maximum amount of memory
+
+    :param initial_complexity: the initial stream complexity limit
+    :param complexity_step: the increase in the stream complexity limit per iteration
+    :param max_complexity: the maximum stream complexity limit
+
+    :param max_skeletons: the maximum number of plan skeletons (max_skeletons=None indicates not adaptive)
     :param search_sample_ratio: the desired ratio of sample time / search time when max_skeletons!=None
-    :param bind: whether to propagate parameter bindings when max_skeletons=None
+    :param bind: if True, propagates parameter bindings when max_skeletons=None
     :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
+
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
-    :param max_effort: the maximum amount of effort to consider for streams
+    :param max_effort: the maximum amount of stream effort
     :param effort_weight: a multiplier for stream effort compared to action costs
-    :param reorder: if True, stream plans are reordered to minimize the expected sampling overhead
-    :param visualize: if True, it draws the constraint network and stream plan as a graphviz file
-    :param verbose: if True, this prints the result of each stream application
+    :param reorder: if True, reorder stream plans to minimize the expected sampling overhead
+
+    :param visualize: if True, draw the constraint network and stream plan as a graphviz file
+    :param verbose: if True, print the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
+
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
-        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        (or None), cost is the cost of the plan (INF if no plan), and evaluations is init expanded
         using stream applications
     """
     # TODO: select whether to search or sample based on expected success rates
@@ -107,7 +115,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     assert implies(has_optimizers, use_skeletons)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
-    while (not store.is_terminated()) and (num_iterations < max_iterations):
+    while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         start_time = time.time()
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?

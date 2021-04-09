@@ -2,7 +2,7 @@ from collections import Counter
 
 from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
 from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_lisp, parse_goal, has_costs, set_unit_costs
+from pddlstream.algorithms.downward import parse_lisp, parse_goal, has_costs, set_unit_costs, normalize_domain_goal
 from pddlstream.language.temporal import parse_domain, SimplifiedDomain
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression
@@ -99,9 +99,9 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
         _ = {name: Object(value, name=name) for name, value in constant_map.items()}
         return evaluations, goal_exp, domain, streams
 
-    #normalize_domain_goal(domain, goal_expression)
     goal_exp = add_plan_constraints(constraints, domain, evaluations, goal_exp)
     parse_goal(goal_exp, domain) # Just to check that it parses
+    normalize_domain_goal(domain, goal_exp) # TODO: does not normalize goal_exp
 
     compile_to_exogenous(evaluations, domain, streams)
     return evaluations, goal_exp, domain, streams

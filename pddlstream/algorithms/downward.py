@@ -285,6 +285,7 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     # TODO: this doesn't include =
     init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
     problem_pddl = None
     if USE_FORBID:
         problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
@@ -323,6 +324,7 @@ def task_from_domain_problem(domain, problem, add_identical=True):
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
     if add_identical:
         init.extend(get_identical_atoms(objects))
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
 
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
@@ -369,13 +371,25 @@ def get_disjunctive_parts(condition):
 
 ##################################################
 
-#def normalize_domain_goal(domain, goal):
-#    task = pddl.Task(None, None, None, None, None,
-#                     None, None, [], goal, domain.actions, domain.axioms, None)
-#    normalize.normalize(task)
+def normalize_domain_goal(domain, goal_exp):
+    evaluations = []
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs=False)
+    task = task_from_domain_problem(domain, problem)
+    normalize.normalize(task)
+    return task
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
+    """
+    Runs FastDownward's search phase on translated SAS+ problem TRANSLATE_OUTPUT
+    :param temp_dir: the directory for temporary FastDownward input and output files
+    :param planner: a keyword for the FastDownward search configuration in SEARCH_OPTIONS
+    :param max_planner_time: the maximum runtime of FastDownward
+    :param max_cost: the maximum FastDownward plan cost
+    :param debug: If True, print the FastDownward search output
+    :return: a tuple (plan, cost) where plan is a sequence of PDDL actions
+        (or None) and cost is the cost of the plan (INF if no plan)
+    """
     max_time = convert_value(max_planner_time)
     max_cost = convert_value(scale_cost(max_cost))
     start_time = time()

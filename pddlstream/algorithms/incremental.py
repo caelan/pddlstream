@@ -76,17 +76,23 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
     :param constraints: PlanConstraints on the set of legal solutions
-    :param max_time: the maximum amount of time to apply streams
-    :param max_iterations: the maximum amount of search iterations
-    :param initial_complexity: the stream complexity on the first iteration
-    :param complexity_step: the increase in the complexity limit after each iteration
-    :param max_complexity: the maximum stream complexity
+
     :param unit_costs: use unit action costs rather than numeric costs
-    :param success_cost: an exclusive (strict) upper bound on plan cost to terminate
-    :param verbose: if True, this prints the result of each stream application
+    :param success_cost: the exclusive (strict) upper bound on plan cost to successfully terminate
+
+    :param max_time: the maximum runtime
+    :param max_iterations: the maximum number of search iterations
+    :param max_memory: the maximum amount of memory
+
+    :param initial_complexity: the initial stream complexity limit
+    :param complexity_step: the increase in the stream complexity limit per iteration
+    :param max_complexity: the maximum stream complexity limit
+
+    :param verbose: if True, print the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
+
     :return: a tuple (plan, cost, evaluations) where plan is a sequence of actions
-        (or None), cost is the cost of the plan, and evaluations is init but expanded
+        (or None), cost is the cost of the plan (INF if no plan), and evaluations is init expanded
         using stream applications
     """
     # max_complexity = 0 => current
@@ -103,7 +109,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     complexity_limit = initial_complexity
     instantiator = Instantiator(static_externals, evaluations)
     num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
-    while not store.is_terminated() and (num_iterations <= max_iterations) and (complexity_limit <= max_complexity):
+    while not store.is_terminated() and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
         print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Solved: {} | Cost: {} | Time: {:.3f}'.format(
             num_iterations, complexity_limit, num_calls, len(evaluations),

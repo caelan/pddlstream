@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-import pddl.conditions
 from pddlstream.algorithms.downward import fd_from_fact, get_conjunctive_parts, get_disjunctive_parts
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import substitute_expression
