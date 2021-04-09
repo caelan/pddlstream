@@ -376,6 +376,16 @@ def get_disjunctive_parts(condition):
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
+    """
+    Runs FastDownward's search phase on translated SAS+ problem TRANSLATE_OUTPUT
+    :param temp_dir: the directory for temporary FastDownward input and output files
+    :param planner: a keyword for the FastDownward search configuration in SEARCH_OPTIONS
+    :param max_planner_time: the maximum runtime of FastDownward
+    :param max_cost: the maximum FastDownward plan cost
+    :param debug: If True, print the FastDownward search output
+    :return: a tuple (plan, cost) where plan is a sequence of PDDL actions
+        (or None) and cost is the cost of the plan (INF if no plan)
+    """
     max_time = convert_value(max_planner_time)
     max_cost = convert_value(scale_cost(max_cost))
     start_time = time()

@@ -39,8 +39,10 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
           unit_costs=False, success_cost=INF,
           max_time=INF, max_iterations=INF, max_memory=INF,
           initial_complexity=0, complexity_step=1, max_complexity=INF,
-          max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
+          max_skeletons=INF, search_sample_ratio=0, max_failures=0,
           unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
+          #temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[],
+          #planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False
           visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem generically using one of the available algorithms
@@ -61,7 +63,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
     :param max_skeletons: the maximum number of plan skeletons (max_skeletons=None indicates not adaptive)
     :param search_sample_ratio: the desired ratio of sample time / search time when max_skeletons!=None
-    :param bind: if True, propagates parameter bindings when max_skeletons=None
     :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
 
     :param unit_efforts: use unit stream efforts rather than estimated numeric efforts
@@ -88,27 +89,28 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             verbose=verbose, **search_kwargs)
 
-    if algorithm == 'abstract_focused': # meta_focused | meta_focused
-        return solve_focused(
-            problem, constraints=constraints,
-            stream_info=stream_info, replan_actions=replan_actions,
-            unit_costs=unit_costs, success_cost=success_cost,
-            max_time=INF, max_iterations=INF, max_memory=INF,
-            initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
-            max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-            bind=bind, max_failures=max_failures,
-            unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
-            visualize=visualize, verbose=verbose, **search_kwargs)
+    # if algorithm == 'abstract_focused': # meta_focused | meta_focused
+    #     return solve_focused(
+    #         problem, constraints=constraints,
+    #         stream_info=stream_info, replan_actions=replan_actions,
+    #         unit_costs=unit_costs, success_cost=success_cost,
+    #         max_time=INF, max_iterations=INF, max_memory=INF,
+    #         initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
+    #         max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
+    #         bind=bind, max_failures=max_failures,
+    #         unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
+    #         visualize=visualize, verbose=verbose, **search_kwargs)
 
+    fail_fast = (max_failures < INF)
     if algorithm == 'focused':
         return solve_focused_original(
             problem, constraints=constraints,
             stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
-            initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
+            initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             #max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-            fail_fast=(max_failures < INF), # bind=bind, max_failures=max_failures,
+            fail_fast=fail_fast, # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
 
@@ -118,9 +120,9 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
-            initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
+            initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             #max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-            fail_fast=(max_failures < INF), # bind=bind, max_failures=max_failures,
+            fail_fast=fail_fast, # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
 
@@ -130,7 +132,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             stream_info=stream_info, replan_actions=replan_actions,
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=INF, max_iterations=INF, max_memory=INF,
-            initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
+            initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
             #bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
@@ -139,7 +141,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
 ##################################################
 
-def restart(problem, planner_fn, max_time=INF, max_restarts=0):
+def restart(problem, planner_fn, max_time=INF, max_restarts=0, abort=False):
     # TODO: iteratively lower the cost bound
     # TODO: a sequence of different planner configurations
     # TODO: reset objects and/or streams
