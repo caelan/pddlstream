@@ -4,14 +4,15 @@ import time
 from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd
 from pddlstream.algorithms.incremental import solve_incremental, process_stream_queue
 from pddlstream.algorithms.focused import solve_focused, solve_focused_original, solve_binding, solve_adaptive
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
 from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.language.constants import is_plan, Certificate, PDDLProblem
+from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, get_args
+from pddlstream.language.conversion import values_from_objects
 from pddlstream.language.external import DEBUG
-from pddlstream.language.temporal import SimplifiedDomain
+from pddlstream.language.temporal import SimplifiedDomain, parse_domain
 from pddlstream.utils import elapsed_time, INF, Verbose
 
 FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
@@ -161,6 +162,18 @@ def restart(problem, planner_fn, max_time=INF, max_restarts=0, abort=False):
 
 ##################################################
 
+def create_actionless_problem(problem, use_streams=False, new_goal=None):
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    if not use_streams:
+        stream_pddl = None
+    if new_goal is None:
+        new_goal = goal
+    domain = parse_domain(domain_pddl) # TODO: Constant map value @base not mentioned in domain :constants
+    domain.actions[:] = [] # No actions
+    return PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, new_goal)
+
+##################################################
+
 def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, max_time=INF, verbose=False, **search_kwargs):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
@@ -197,3 +210,78 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     # if is_plan(plan):
     #     store.add_plan(plan, cost)
     # return store.extract_solution()
+
+##################################################
+
+def iterate_subgoals(goals, axiom_from_effect):
+    necessary = set()
+    possible = set()
+    for goal in goals:
+        if goal in axiom_from_effect:
+            necessary.update(set.intersection(*[set(axiom.condition) for axiom in axiom_from_effect[goal]]))
+            #print(len(axiom_from_effect[goal]) == 1)  # Universal
+            for axiom in axiom_from_effect[goal]:
+                possible.update(axiom.condition)  # Add goal as well?
+        else:
+            necessary.add(goal)
+    print('Necessary:', necessary)
+    print('Possible:', possible - necessary)
+    return possible
+
+
+def recurse_subgoals(goals, axiom_from_effect):
+    possible = set()
+
+    def recurse(goal):
+        if goal in possible:
+            return
+        possible.add(goal)
+        if goal in axiom_from_effect:
+            for axiom in axiom_from_effect[goal]:
+                for subgoal in axiom.condition:
+                    recurse(subgoal)
+
+    for goal in goals:
+        recurse(goal)
+
+    possible = sorted([subgoal for subgoal in possible if not subgoal.predicate.startswith('new-axiom')],
+                      key=lambda g: g.predicate)
+
+    print('Possible:', list(map(fact_from_fd, possible)))
+    return possible
+
+
+def analyze_goal(problem):
+    # domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    # stream_map = DEBUG
+    # relaxed_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
+    # solution = solve_incremental(relaxed_problem, unit_costs=False, start_complexity=INF)
+    # print_solution(solution)
+    # plan, cost, certificate = solution
+
+    # from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
+    instantiated = examine_instantiated(problem, unit_costs=False)
+    if instantiated is None:
+        return None
+
+    #print('Axioms:', instantiated.axioms)
+    axiom_from_effect = {}
+    for axiom in instantiated.axioms:  # TODO: recursively expand
+        axiom.dump()
+        axiom_from_effect.setdefault(axiom.effect, []).append(axiom)
+
+    # TODO: could also remove fluents and instantiate given the initial state
+    # Or don't remove but assume that they hold but are fluent
+    #possible = iterate_subgoals(instantiated.goal_list, axiom_from_effect)
+    possible = recurse_subgoals(instantiated.goal_list, axiom_from_effect)
+
+    # TODO: decompose into simplified components
+    new_init = []
+    for literal in possible:
+        fact = fact_from_fd(literal)
+        predicate = get_prefix(fact)
+        args = values_from_objects(get_args(fact))
+        if predicate == 'on':
+            obj, surface, link = args
+            new_init.append(('Stackable', obj, surface, link))
+    return new_init
