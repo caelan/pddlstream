@@ -8,8 +8,7 @@ from pddlstream.language.conversion import Certificate, Object, \
     transform_plan_args, value_from_evaluation
 from pddlstream.language.constants import PDDLProblem, Action, get_function, get_prefix, print_solution, AND, get_args, And
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
-    get_action_instances, apply_action, fact_from_fd, evaluation_from_fd, \
-    conditions_hold, has_costs, get_fluents
+    get_action_instances, apply_action, fact_from_fd, evaluation_from_fd, get_fluents
 from pddlstream.algorithms.common import evaluations_from_init
 
 import pddl

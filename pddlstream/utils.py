@@ -590,3 +590,10 @@ def read_pddl(this_file, pddl_filename):
 
 def lowercase(*strings):
     return [string.lower() for string in strings]
+
+
+def str_eq(s1, s2, ignore_case=True):
+    if ignore_case:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    return s1 == s2

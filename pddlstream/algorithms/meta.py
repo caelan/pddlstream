@@ -9,8 +9,9 @@ from pddlstream.algorithms.incremental import solve_incremental, process_stream_
 from pddlstream.algorithms.focused import solve_focused, solve_focused_original, solve_binding, solve_adaptive
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
 from pddlstream.algorithms.instantiation import Instantiator
+from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
 from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, get_args
-from pddlstream.language.conversion import values_from_objects
+from pddlstream.language.conversion import values_from_objects, value_from_obj_expression, NOT
 from pddlstream.language.external import DEBUG
 from pddlstream.language.temporal import SimplifiedDomain, parse_domain
 from pddlstream.utils import elapsed_time, INF, Verbose
@@ -174,7 +175,8 @@ def create_actionless_problem(problem, use_streams=False, new_goal=None):
 
 ##################################################
 
-def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, max_time=INF, verbose=False, **search_kwargs):
+def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, max_time=INF,
+                         verbose=False, debug=False, **search_kwargs):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
     stream_map = DEBUG
@@ -189,10 +191,9 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     #results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit=INF) #, **effort_args)
 
     instantiator = Instantiator(externals, evaluations)
-    process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
+    process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose) # TODO: optimistic instead
 
     #plan, cost = solve_finite(evaluations, goal_exp, domain, max_cost=max_cost, **search_args)
-    debug = False
     assert not isinstance(domain, SimplifiedDomain)
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
@@ -200,18 +201,14 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
         instantiated = instantiate_task(task)
         if instantiated is None:
             return None
+        instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
         instantiated = convert_instantiated(instantiated)
     return instantiated
-
-    #max_cost = min(store.best_cost, constraints.max_cost)
     # sas_task = sas_from_pddl(task, debug=debug)
-    # pddl_plan, cost = abstrips_solve_from_task(sas_task, max_cost=max_cost, debug=debug, **search_args)
-    # plan = obj_from_pddl_plan(pddl_plan)
-    # if is_plan(plan):
-    #     store.add_plan(plan, cost)
-    # return store.extract_solution()
 
 ##################################################
+
+INTERNAL_AXIOM = 'new-axiom'
 
 def iterate_subgoals(goals, axiom_from_effect):
     necessary = set()
@@ -243,45 +240,31 @@ def recurse_subgoals(goals, axiom_from_effect):
 
     for goal in goals:
         recurse(goal)
-
-    possible = sorted([subgoal for subgoal in possible if not subgoal.predicate.startswith('new-axiom')],
-                      key=lambda g: g.predicate)
-
-    print('Possible:', list(map(fact_from_fd, possible)))
     return possible
 
 
 def analyze_goal(problem):
-    # domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
-    # stream_map = DEBUG
-    # relaxed_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
-    # solution = solve_incremental(relaxed_problem, unit_costs=False, start_complexity=INF)
-    # print_solution(solution)
-    # plan, cost, certificate = solution
-
     # from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
     instantiated = examine_instantiated(problem, unit_costs=False)
     if instantiated is None:
         return None
 
+    # TODO: axiom_rules.handle_axioms(...)
+    print('Goals:', instantiated.goal_list)
     #print('Axioms:', instantiated.axioms)
     axiom_from_effect = {}
-    for axiom in instantiated.axioms:  # TODO: recursively expand
-        axiom.dump()
+    for axiom in instantiated.axioms:
+        #axiom = reinstantiate_axiom(axiom)
+        #axiom.dump()
         axiom_from_effect.setdefault(axiom.effect, []).append(axiom)
 
     # TODO: could also remove fluents and instantiate given the initial state
     # Or don't remove but assume that they hold but are fluent
     #possible = iterate_subgoals(instantiated.goal_list, axiom_from_effect)
     possible = recurse_subgoals(instantiated.goal_list, axiom_from_effect)
-
-    # TODO: decompose into simplified components
-    new_init = []
-    for literal in possible:
-        fact = fact_from_fd(literal)
-        predicate = get_prefix(fact)
-        args = values_from_objects(get_args(fact))
-        if predicate == 'on':
-            obj, surface, link = args
-            new_init.append(('Stackable', obj, surface, link))
-    return new_init
+    possible = sorted([subgoal for subgoal in possible if not subgoal.predicate.startswith('new-axiom')],
+                      key=lambda g: g.predicate)
+    possible = list(map(fact_from_fd, possible))
+    possible = list(map(value_from_obj_expression, possible))
+    print('Possible:', possible)
+    return possible # TODO: decompose into simplified components

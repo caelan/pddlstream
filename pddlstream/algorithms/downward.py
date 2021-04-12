@@ -672,7 +672,7 @@ def make_cost(cost):
 
 def has_costs(domain):
     for action in domain.actions:
-        if action.cost is not None:
+        if (action.cost is not None) or (action.cost == 0):
             return True
     return False
 

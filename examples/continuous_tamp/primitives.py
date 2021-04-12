@@ -4,6 +4,8 @@ import numpy as np
 import string
 import random
 
+from pddlstream.utils import str_eq
+
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
 BLOCK_HEIGHT = BLOCK_WIDTH
@@ -143,13 +145,6 @@ def get_pose_gen(regions):
                 break
             yield (p,)
     return gen_fn
-
-
-def str_eq(s1, s2, ignore_case=True):
-    if ignore_case:
-        s1 = s1.lower()
-        s2 = s2.lower()
-    return s1 == s2
 
 
 def interpolate(waypoints, velocity=1):
