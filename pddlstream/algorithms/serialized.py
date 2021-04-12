@@ -1,19 +1,17 @@
 from __future__ import print_function
 
-from pddlstream.utils import INF, elapsed_time, find, user_input, Verbose, str_from_object
+from pddlstream.utils import INF, Verbose, str_from_object, SEPARATOR
 from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.conversion import Certificate, Object, \
-    obj_from_value_expression, fact_from_evaluation, evaluation_from_fact, value_from_obj_expression, \
     transform_plan_args, value_from_evaluation
-from pddlstream.language.constants import PDDLProblem, Action, get_function, get_prefix, print_solution, AND, get_args, And
+from pddlstream.language.constants import PDDLProblem, get_function, get_prefix, print_solution, AND, get_args, And, Solution
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
-    get_action_instances, apply_action, fact_from_fd, evaluation_from_fd, get_fluents
+    get_action_instances, apply_action, evaluation_from_fd, get_fluents
 from pddlstream.algorithms.common import evaluations_from_init
 
 import pddl
 
-SEPARATOR = '\n' + 80*'-'  + '\n'
 
 def serialize_goal(goal):
     if get_prefix(goal) == AND:
@@ -83,7 +81,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         if local_plan is None:
             # TODO: replan upon failure
             global_certificate = Certificate(all_facts={}, preimage_facts=None)
-            return None, INF, global_certificate
+            return Solution(None, INF, global_certificate)
 
         if retain_facts:
             state = local_certificate.all_facts

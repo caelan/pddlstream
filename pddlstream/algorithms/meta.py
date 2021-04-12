@@ -10,11 +10,11 @@ from pddlstream.algorithms.focused import solve_focused, solve_focused_original,
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
-from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, get_args
+from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, get_args, Solution
 from pddlstream.language.conversion import values_from_objects, value_from_obj_expression, NOT
 from pddlstream.language.external import DEBUG
 from pddlstream.language.temporal import SimplifiedDomain, parse_domain
-from pddlstream.utils import elapsed_time, INF, Verbose
+from pddlstream.utils import elapsed_time, INF, Verbose, irange, SEPARATOR
 
 FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
 ALGORITHMS = ['incremental'] + FOCUSED_ALGORITHMS
@@ -49,6 +49,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
     """
     Solves a PDDLStream problem generically using one of the available algorithms
     :param problem: a PDDLStream problem
+    :param algorithm: a PDDLStream algorithm name
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param replan_actions: the actions declared to induce replanning for the purpose of deferred stream evaluation
@@ -143,23 +144,28 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
 ##################################################
 
-def restart(problem, planner_fn, max_time=INF, max_restarts=0, abort=False):
+def restart(problem, max_time=INF, max_restarts=INF, iteration_time=2*60, abort=True, **kwargs):
     # TODO: iteratively lower the cost bound
     # TODO: a sequence of different planner configurations
     # TODO: reset objects and/or streams
 
     assert max_restarts >= 0
     start_time = time.time()
-    for attempt in range(1+max_restarts):
+    for attempt in irange(1+max_restarts):
+        iteration_start_time = time.time()
         if elapsed_time(start_time) > max_time:
             break
-        solution = planner_fn(problem) # Or include the problem in the lambda
+        #solution = planner_fn(problem) # Or include the problem in the lambda
+        solution = solve(problem, max_time=min(iteration_time, max_time-elapsed_time(start_time)), **kwargs)
         plan, cost, certificate = solution
         if is_plan(plan):
             return solution
+        if abort and (elapsed_time(iteration_start_time) < iteration_time):
+            break
+        print(SEPARATOR)
 
     certificate = Certificate(all_facts=[], preimage_facts=[]) # TODO: aggregate
-    return None, INF, certificate
+    return Solution(None, INF, certificate)
 
 ##################################################
 

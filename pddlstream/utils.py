@@ -17,6 +17,7 @@ from heapq import heappush, heappop
 import numpy as np
 
 INF = float('inf')
+SEPARATOR = '\n' + 80*'-'  + '\n'
 
 try:
    user_input = raw_input
