@@ -51,6 +51,7 @@ class Instantiator(Sized): # Dynamic Instantiator
         for atom, node in evaluations.items():
             self.add_atom(atom, node.complexity)
         # TODO: revisit deque and add functions to front
+        # TODO: record the stream instances or results?
 
     #########################
 

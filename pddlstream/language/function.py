@@ -58,7 +58,9 @@ class FunctionResult(Result):
     def is_successful(self):
         return True
     def __repr__(self):
-        return '{}={}'.format(str_from_head(self.instance.head), self.value)
+        #from pddlstream.algorithms.downward import get_cost_scale
+        #value = math.log(self.value) # TODO: number of digits to display
+        return '{}={:.3f}'.format(str_from_head(self.instance.head), self.value)
 
 class FunctionInstance(Instance):
     _Result = FunctionResult
@@ -95,11 +97,13 @@ class FunctionInstance(Instance):
         start_calls = self.num_calls
         start_history = len(self.history)
         value = self._compute_output()
-        if (value is not False) and verbose:
-            print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
-                                       str_from_object(self.get_input_values()), value))
         new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
+
+        if (value is not False) and verbose:
+            # TODO: str(new_results[-1])
+            print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
+                                                         str_from_object(self.get_input_values()), value))
         if start_history < len(self.history):
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)

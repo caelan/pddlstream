@@ -234,7 +234,7 @@ def main():
         's-grasp': StreamInfo(defer_fn=defer_fn),
         's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
-        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False), # defer_fn |  defer_unbound
+        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, verbose=False), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(eager=False, defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True), # TODO: AttributeError: 'tuple' object has no attribute 'instance'

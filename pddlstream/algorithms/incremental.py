@@ -1,3 +1,5 @@
+from collections import Counter
+
 from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import add_facts, add_certified, SolutionStore, UNKNOWN_EVALUATION
 from pddlstream.algorithms.constraints import PlanConstraints
@@ -15,9 +17,34 @@ from pddlstream.utils import INF, Verbose, str_from_object
 
 UPDATE_STATISTICS = False
 
+def solve_temporal(evaluations, goal_exp, domain, debug=False, **kwargs):
+    assert isinstance(domain, SimplifiedDomain)
+    problem = get_problem_pddl(evaluations, goal_exp, domain.pddl)
+    return solve_tfd(domain.pddl, problem, debug=debug)
+
+def solve_sequential(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs)
+    task = task_from_domain_problem(domain, problem)
+    if has_attachments(domain):
+        with Verbose(debug):
+            instantiated = instantiate_task(task)
+        return solve_pyplanners(instantiated, **search_args)
+    sas_task = sas_from_pddl(task, debug=debug)
+    return abstrips_solve_from_task(sas_task, debug=debug, **search_args)
+
+def solve_finite(evaluations, goal_exp, domain, **kwargs):
+    if isinstance(domain, SimplifiedDomain):
+        pddl_plan, cost = solve_temporal(evaluations, goal_exp, domain, **kwargs)
+    else:
+        pddl_plan, cost = solve_sequential(evaluations, goal_exp, domain, **kwargs)
+    plan = obj_from_pddl_plan(pddl_plan)
+    return plan, cost
+
+##################################################
+
 def process_instance(instantiator, evaluations, instance, verbose=False): #, **complexity_args):
     if instance.enumerated:
-        return False
+        return []
     new_results, new_facts = instance.next_results(verbose=verbose)
     #remove_blocked(evaluations, instance, new_results)
     for result in new_results:
@@ -30,35 +57,27 @@ def process_instance(instantiator, evaluations, instance, verbose=False): #, **c
         instantiator.add_atom(evaluation, fact_complexity)
     if not instance.enumerated:
         instantiator.push_instance(instance)
-    return True
+    return new_results
 
-def solve_finite(evaluations, goal_exp, domain, unit_costs=False, debug=False, **search_args):
-    if isinstance(domain, SimplifiedDomain):
-        problem = get_problem_pddl(evaluations, goal_exp, domain.pddl)
-        pddl_plan, cost = solve_tfd(domain.pddl, problem, debug=debug)
-    else:
-        problem = get_problem(evaluations, goal_exp, domain, unit_costs)
-        task = task_from_domain_problem(domain, problem)
-        if has_attachments(domain):
-            with Verbose(debug):
-                instantiated = instantiate_task(task)
-            pddl_plan, cost = solve_pyplanners(instantiated, **search_args)
-        else:
-            sas_task = sas_from_pddl(task, debug=debug)
-            pddl_plan, cost = abstrips_solve_from_task(sas_task, debug=debug, **search_args)
-    plan = obj_from_pddl_plan(pddl_plan)
-    return plan, cost
-
-##################################################
-
-def process_stream_queue(instantiator, store, complexity_limit, **kwargs):
-    num_calls = 0
+def process_stream_queue(instantiator, store, complexity_limit=INF, verbose=False):
+    instances = []
+    results = []
+    num_successes = 0
     while not store.is_terminated() and instantiator and (instantiator.min_complexity() <= complexity_limit):
-        num_calls += process_instance(instantiator, store.evaluations, instantiator.pop_stream(), **kwargs)
-    return num_calls
+        instance = instantiator.pop_stream()
+        if instance.enumerated:
+            continue
+        instances.append(instance)
+        new_results = process_instance(instantiator, store.evaluations, instance, verbose=verbose)
+        results.extend(new_results)
+        num_successes += bool(new_results) # TODO: max_results?
+    if verbose:
+        print('Calls: {} | Successes: {} | Results: {} | Counts: {}'.format(
+            len(instances), num_successes, len(results), Counter(instance.external.name for instance in instances)))
+    return len(instances)
 
 # def retrace_stream_plan(store, domain, goal_expression):
-#     # TODO: retrace the stream plan used
+#     # TODO: retrace the stream plan that supports the plan to find the certificate
 #     if store.best_plan is None:
 #         return None
 #     assert not domain.axioms
@@ -66,6 +85,8 @@ def process_stream_queue(instantiator, store, complexity_limit, **kwargs):
 #     print(goal_expression)
 #     plan_preimage(store.best_plan, goal_expression)
 #     raise NotImplementedError()
+
+##################################################
 
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
