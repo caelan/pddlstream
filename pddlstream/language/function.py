@@ -145,11 +145,14 @@ class Function(External):
     def has_outputs(self):
         return False
     @property
+    def is_fluent(self):
+        return False
+    @property
     def is_negated(self):
         return False
     @property
-    def tiebreaker(self):
-        return self.get_tiebreaker(is_function=True)
+    def is_function(self):
+        return True
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 

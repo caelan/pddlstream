@@ -137,33 +137,29 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
 
 ##################################################
 
-def dummy_reorder_stream_plan(store, stream_plan, **kwargs):
+def dummy_reorder_stream_plan(stream_plan, **kwargs):
     return stream_plan
 
-def random_reorder_stream_plan(store, stream_plan, **kwargs):
+def random_reorder_stream_plan(stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     return sample_topological_sort(stream_plan, get_partial_orders(stream_plan))
 
-def greedy_reorder_stream_plan(store, stream_plan, **kwargs):
+def greedy_reorder_stream_plan(stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     return topological_sort(stream_plan, get_partial_orders(stream_plan),
                             priority_fn=lambda stream: get_stream_stats(stream).overhead)
-
-def sort_results(results):
-    # Most to least expensive
-    return sorted(results, key=Result.effort_heuristic, reverse=True)
 
 def dump_layers(distances):
     streams_from_layer = {}
     for stream, layer in distances.items():
         streams_from_layer.setdefault(layer, []).append(stream)
     for layer, streams in streams_from_layer.items():
-        print(layer, sort_results(streams))
+        print(layer, sorted(streams, key=Result.stats_heuristic, reverse=True))
     return streams_from_layer
 
-def layer_reorder_stream_plan(store, stream_plan, **kwargs):
+def layer_reorder_stream_plan(stream_plan, **kwargs):
     if not is_plan(stream_plan):
         return stream_plan
     stream_orders = get_partial_orders(stream_plan)
@@ -180,11 +176,9 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
     for stream in stream_plan:
         if stream not in distances:
             distances[stream] = min([INF] + [distances[s] - 1 for s in out_stream_orders[stream]])
-
-    sorted_streams = sort_results(stream_plan)
-    priority_fn = lambda s: Score(not s.external.has_outputs, distances[s], sorted_streams.index(s))
-
     #dump_layers(distances)
+
+    priority_fn = lambda s: Score(not s.external.has_outputs, distances[s], -s.stats_heuristic())
     reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
     return reverse_order[::-1]
 
@@ -222,7 +216,7 @@ def reorder_stream_plan(store, stream_plan, **kwargs):
     stats = Counter(get_stream_stats(result) for result in stream_plan)
     if len(stats) <= 1:
         #print('Heuristic reordering:', stats)
-        return layer_reorder_stream_plan(store, stream_plan, **kwargs)
+        return layer_reorder_stream_plan(stream_plan, **kwargs)
     #print('Optimal reordering:', stats)
     # TODO: could always run with heuristic estimates
     return optimal_reorder_stream_plan(store, stream_plan, **kwargs)

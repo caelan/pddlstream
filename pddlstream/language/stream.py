@@ -433,13 +433,13 @@ class Stream(External):
         return not self.is_test
     @property
     def is_fluent(self):
-        return self.fluents
+        return bool(self.fluents)
     @property
     def is_negated(self):
         return self.info.negate
     @property
-    def is_special(self):
-        return self.is_fluent or self.is_negated
+    def is_function(self):
+        return False
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)
@@ -448,10 +448,6 @@ class Stream(External):
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)
         return self.instances[key]
-    @property
-    def tiebreaker(self):
-        return self.get_tiebreaker(num_outputs=len(self.outputs), num_certified=len(self.certified),
-                                   num_fluents=len(self.fluents))
     def as_test_stream(self):
         # TODO: method that converts a stream into a test stream (possibly from ss)
         raise NotImplementedError()

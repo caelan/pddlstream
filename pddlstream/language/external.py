@@ -108,16 +108,17 @@ class Result(object):
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
-    def success_heuristic(self):
-        num_fixed = sum(isinstance(obj, Object) for obj in self.input_objects)
-        return Score(-num_fixed, len(self.external.inputs))
-    def overhead_heuristic(self):
-        return self.external.tiebreaker
-    def effort_heuristic(self):
-        return self.overhead_heuristic() + self.success_heuristic()
-        # num_fluents, is_stream, has_outputs = self.overhead_heuristic()
-        # num_fixed, num_inputs = self.success_heuristic()
-        # return Score(num_fluents, has_outputs, is_stream, num_fixed, num_inputs)
+    def success_heuristic(self): # High is likely to succeed
+        # self.external.is_function
+        num_free = sum(isinstance(obj, OptimisticObject) for obj in self.input_objects)
+        return Score(num_free, -len(self.external.inputs)) # TODO: treat objects in the same domain as a unit
+    def overhead_heuristic(self): # Low is cheap
+        return self.external.overhead_heuristic()
+    def stats_heuristic(self): # Low is cheap and unlikely to succeed
+        #return self.overhead_heuristic() + self.success_heuristic()
+        return Score(self.overhead_heuristic(), self.success_heuristic())
+    def effort_heuristic(self): # Low is cheap and likely to succeed
+        return Score(self.overhead_heuristic(), -self.success_heuristic())
 
 ##################################################
 
@@ -260,7 +261,10 @@ class External(Performance):
         raise NotImplementedError()
     @property
     def is_special(self):
-        return False
+        return self.is_fluent or self.is_negated
+    @property
+    def is_function(self):
+        raise NotImplementedError()
     def get_complexity(self, num_calls):
         if self.is_special or not self.has_outputs:
             return 0
@@ -271,19 +275,12 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
-    @property
-    def tiebreaker(self):
-        # TODO: overhead heuristic
-        raise NotImplementedError()
-    def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
+    def overhead_heuristic(self): # Low is little overhead
         # TODO: infer other properties from use in the context of a stream plan
-        # TODO: use num_certified (only those that are an another stream) instead of num_outputs?
+        # TODO: use num_certified (only those that are in another stream) instead of num_outputs?
         #num_inputs = len(self.inputs)
         #num_domain = len(self.domain)
-        #num_outputs = int(self.has_outputs)
-        #num_outputs = len(self.outputs)
-        #num_certified = len(self.certified)
-        return Score(num_fluents, not is_function, self.has_outputs)
+        return Score(self.is_fluent, not self.is_function, self.has_outputs, len(self.inputs)) # structural/relational overhead
         #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
         #return overhead
 

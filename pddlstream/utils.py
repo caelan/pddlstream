@@ -311,6 +311,7 @@ class MockSet(object):
 
 class Score(object): # tuple
     def __init__(self, *args):
+        # TODO: convert to float
         #super(Score, self).__init__(args)
         self.values = tuple(args)
     def check_other(self, other):
@@ -318,9 +319,12 @@ class Score(object): # tuple
     def __lt__(self, other):
         assert self.check_other(other)
         return self.values < other.values
+    def __eq__(self, other):
+        assert self.check_other(other)
+        return self.values == other.values
     def __iter__(self):
         return iter(self.values)
-    def __neg__(self): # TODO: doublecheck
+    def __neg__(self):
         return self.__class__(*(type(value).__neg__(value) for value in self.values))
     def __add__(self, other):
         return self.__class__(*(self.values + other.values))
@@ -333,6 +337,8 @@ class HeapElement(object):
         self.value = value
     def __lt__(self, other):
         return self.key < other.key
+    def __eq__(self, other):
+        return self.key == other.key
     def __iter__(self):
         return iter([self.key, self.value])
     def __repr__(self):
@@ -447,7 +453,7 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
         if not incoming_edges[v]:
             heappush(queue, HeapElement(priority_fn(v), v))
     while queue:
-        value, v1 = heappop(queue)
+        priority, v1 = heappop(queue) # Lowest to highest
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)

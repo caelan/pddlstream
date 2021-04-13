@@ -51,7 +51,7 @@ def create_problem(tamp_problem):
             ('Block', b),
             ('Pose', b, p),
             ('AtPose', b, p),
-            ('Grasp', b, GRASP),
+            #('Grasp', b, GRASP),
         ]
 
     goal_literals = [] + \
