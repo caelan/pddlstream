@@ -303,13 +303,27 @@ class TmpCWD(Saver):
 
 ##################################################
 
+class Comparable(object):
+    def __lt__(self, other):
+        raise NotImplementedError()
+    def __eq__(self, other):
+        return not (self < other) and not (other < self)
+    def __ne__(self, other):
+        return (self < other) or (other < self)
+    def __gt__(self, other):
+        return other < self
+    def __ge__(self, other):
+        return not self < other
+    def __le__(self, other):
+        return not other < self
+
 class MockSet(object):
     def __init__(self, test=lambda item: True):
         self.test = test
     def __contains__(self, item):
         return self.test(item)
 
-class Score(object): # tuple
+class Score(Comparable): # tuple
     def __init__(self, *args):
         # TODO: convert to float
         #super(Score, self).__init__(args)
@@ -319,9 +333,6 @@ class Score(object): # tuple
     def __lt__(self, other):
         assert self.check_other(other)
         return self.values < other.values
-    def __eq__(self, other):
-        assert self.check_other(other)
-        return self.values == other.values
     def __iter__(self):
         return iter(self.values)
     def __neg__(self):
@@ -331,14 +342,12 @@ class Score(object): # tuple
     def __repr__(self):
         return '{}{}'.format(self.__class__.__name__, self.values)
 
-class HeapElement(object):
+class HeapElement(Comparable):
     def __init__(self, key, value):
         self.key = key
         self.value = value
     def __lt__(self, other):
         return self.key < other.key
-    def __eq__(self, other):
-        return self.key == other.key
     def __iter__(self):
         return iter([self.key, self.value])
     def __repr__(self):

@@ -168,7 +168,7 @@ def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=None, ab
         #solution = planner_fn(problem) # Or include the problem in the lambda
         solution = solve(problem, max_time=min(iteration_time, max_time-elapsed_time(start_time)), **kwargs)
         plan, cost, certificate = solution
-        if is_plan(plan):
+        if is_plan(plan): # TODO: INFEASIBLE
             return solution
         if abort and (elapsed_time(iteration_start_time) < iteration_time):
             break # TODO: return the cause of failure

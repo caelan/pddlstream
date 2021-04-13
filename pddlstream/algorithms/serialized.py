@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve_restart
+from pddlstream.algorithms.meta import solve_restart, solve
 from pddlstream.language.temporal import parse_domain
 from pddlstream.utils import INF, Verbose, str_from_object, SEPARATOR
 from pddlstream.algorithms.algorithm import parse_problem
@@ -8,7 +8,7 @@ from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.conversion import Certificate, Object, \
     transform_plan_args, value_from_evaluation
 from pddlstream.language.constants import PDDLProblem, get_function, get_prefix, print_solution, AND, get_args, And, \
-    Solution, Or
+    Solution, Or, is_plan
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
     get_action_instances, apply_action, evaluation_from_fd, get_fluents
 from pddlstream.algorithms.common import evaluations_from_init
@@ -132,6 +132,15 @@ def create_simplified_problem(problem, use_actions=False, use_streams=False, new
         domain.actions[:] = [] # No actions
     return PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, new_goal)
 
+
+def test_init_goal(problem, **kwargs):
+    problem = create_simplified_problem(problem, use_actions=False, use_streams=False, new_goal=None)
+    plan, cost, certificate = solve(problem, **kwargs)
+    assert not plan
+    is_goal = is_plan(plan)
+    return is_goal, certificate
+
+#######################################################
 
 def solve_all_goals(initial_problem, **kwargs):
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal_parts = initial_problem

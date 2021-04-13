@@ -236,6 +236,9 @@ class Performance(object):
         elif callable(self.info.effort):
             return 0  # This really is a bound on the effort
         return self.info.effort
+    def get_statistics(self, negate=False): # negate=True is for the "worst-case" ordering
+        sign = -1 if negate else +1
+        return Stats(p_success=self.get_p_success(), overhead=sign * self.get_overhead())
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.total_calls, self._estimate_p_success(), self._estimate_overhead()))
