@@ -4,21 +4,20 @@ import time
 from collections import defaultdict
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import SolutionStore, evaluations_from_init
+from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, fd_from_evaluations
-from pddlstream.algorithms.incremental import solve_incremental, process_stream_queue
-from pddlstream.algorithms.focused import solve_focused, solve_focused_original, solve_binding, solve_adaptive
+from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
-from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import optimistic_process_streams
 from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
-from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, get_args, Solution
-from pddlstream.language.conversion import values_from_objects, value_from_obj_expression, NOT, EQ
+from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, Solution
+from pddlstream.language.conversion import value_from_obj_expression, EQ
 from pddlstream.language.external import DEBUG
 from pddlstream.language.stream import PartialInputs
-from pddlstream.language.temporal import SimplifiedDomain, parse_domain
+from pddlstream.language.temporal import SimplifiedDomain
 from pddlstream.utils import elapsed_time, INF, Verbose, irange, SEPARATOR
 
 FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
@@ -149,10 +148,14 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
 ##################################################
 
-def restart(problem, max_time=INF, max_restarts=INF, iteration_time=2*60, abort=True, **kwargs):
+def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=None, abort=True, **kwargs):
     # TODO: iteratively lower the cost bound
     # TODO: a sequence of different planner configurations
     # TODO: reset objects and/or streams
+    if (max_restarts == 0) and (iteration_time is None):
+        iteration_time = INF
+    if iteration_time is None:
+        iteration_time = 2 * 60
 
     assert max_restarts >= 0
     start_time = time.time()
@@ -160,29 +163,18 @@ def restart(problem, max_time=INF, max_restarts=INF, iteration_time=2*60, abort=
         iteration_start_time = time.time()
         if elapsed_time(start_time) > max_time:
             break
+        if attempt >= 1:
+            print(SEPARATOR)
         #solution = planner_fn(problem) # Or include the problem in the lambda
         solution = solve(problem, max_time=min(iteration_time, max_time-elapsed_time(start_time)), **kwargs)
         plan, cost, certificate = solution
         if is_plan(plan):
             return solution
         if abort and (elapsed_time(iteration_start_time) < iteration_time):
-            break
-        print(SEPARATOR)
+            break # TODO: return the cause of failure
 
     certificate = Certificate(all_facts=[], preimage_facts=[]) # TODO: aggregate
     return Solution(None, INF, certificate)
-
-##################################################
-
-def create_actionless_problem(problem, use_streams=False, new_goal=None):
-    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
-    if not use_streams:
-        stream_pddl = None
-    if new_goal is None:
-        new_goal = goal
-    domain = parse_domain(domain_pddl) # TODO: Constant map value @base not mentioned in domain :constants
-    domain.actions[:] = [] # No actions
-    return PDDLProblem(domain, constant_map, stream_pddl, stream_map, init, new_goal)
 
 ##################################################
 
