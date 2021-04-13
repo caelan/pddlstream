@@ -269,6 +269,9 @@ def fd_from_evaluation(evaluation):
     expression = pddl.f_expression.NumericConstant(evaluation.value)
     return pddl.f_expression.Assign(fluent, expression)
 
+def fd_from_evaluations(evaluations):
+    return [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+
 ##################################################
 
 def parse_goal(goal_exp, domain):
@@ -283,7 +286,7 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     objects = objects_from_evaluations(evaluations)
     typed_objects = list({make_object(pddl_from_object(obj)) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
-    init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+    init = fd_from_evaluations(evaluations)
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
     #print('{} objects and {} atoms'.format(len(objects), len(init)))
     problem_pddl = None

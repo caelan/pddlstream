@@ -4,8 +4,8 @@ from pddlstream.algorithms.downward import fact_from_fd
 from pddlstream.algorithms.reorder import get_partial_orders
 from pddlstream.language.conversion import pddl_from_object
 from pddlstream.language.object import OptimisticObject, UniqueOptValue
-from pddlstream.utils import neighbors_from_orders, get_mapping
 from pddlstream.language.function import FunctionResult
+from pddlstream.utils import neighbors_from_orders, get_mapping, safe_zip
 
 def get_steps_from_stream(stream_plan, step_from_fact, node_from_atom):
     steps_from_stream = {}
@@ -50,8 +50,8 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
         for state_index in steps_from_stream[result]:
             new_output_objects = [
                 #OptimisticObject.from_opt(out.value, object())
-                OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), i))
-                for i, out in enumerate(result.output_objects)]
+                OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), name))
+                for name, out in safe_zip(result.external.outputs, result.output_objects)]
             if new_output_objects and (state_index < len(action_plan)):
                 # TODO: check that the objects aren't used in any effects
                 instance = copy.copy(action_plan[state_index])

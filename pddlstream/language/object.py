@@ -65,10 +65,11 @@ class Object(object):
 
 ##################################################
 
-class UniqueOptValue(namedtuple('UniqueOptTuple', ['instance', 'sequence_index', 'output_index'])):
+class UniqueOptValue(namedtuple('UniqueOptTuple', ['instance', 'sequence_index', 'output'])):
     @property
     def parameter(self):
-        return self.instance.external.outputs[self.output_index]
+        # return self.instance.external.outputs[self.output_index]
+        return self.output
 
 class SharedOptValue(namedtuple('SharedOptTuple', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
@@ -119,7 +120,8 @@ class OptimisticObject(object):
         self.index = len(OptimisticObject._obj_from_inputs)
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
             # TODO: instead just endow UniqueOptValue with a string function
-            parameter = self.param.instance.external.outputs[self.param.output_index]
+            #parameter = self.param.instance.external.outputs[self.param.output_index]
+            parameter = self.param.output
             prefix = get_parameter_name(parameter)[:PREFIX_LEN]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
             self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)

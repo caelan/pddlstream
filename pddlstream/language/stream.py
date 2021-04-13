@@ -11,7 +11,7 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
     parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -63,21 +63,24 @@ class PartialInputs(object):
     #    for _ in irange(stream_instance.num_optimistic):
     #        yield [tuple(SharedOptValue(self.stream.name, self.inputs, selected_objects, out)
     #                     for out in self.stream.outputs)]
-    def get_opt_gen_fn(self, stream_instance):
-        # TODO: just condition on the stream
-        stream = stream_instance.external
-        inputs = stream.inputs if self.unique else self.inputs
-        assert set(inputs) <= set(stream.inputs)
+    def get_opt_gen_fn(self, instance):
+        # TODO: just condition on the external
+        external = instance.external
+        inputs = external.inputs if self.unique else self.inputs
+        assert set(inputs) <= set(external.inputs)
         # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
             if not self.test(*input_values):
                 return
             # TODO: recover input_objects from input_values
-            selected_objects = select_inputs(stream_instance, inputs)
-            #for _ in irange(self.num):
-            for _ in irange(stream_instance.num_optimistic):
-                yield [tuple(SharedOptValue(stream.name, inputs, selected_objects, out)
-                             for out in stream.outputs)]
+            selected_objects = select_inputs(instance, inputs)
+            for idx in irange(instance.num_optimistic): # self.num
+                # if len(inputs) == len(external.inputs):
+                #     yield [tuple(UniqueOptValue(instance, idx, out)
+                #                  for out in external.outputs)]
+                # else:
+                yield [tuple(SharedOptValue(external.name, inputs, selected_objects, out)
+                             for out in external.outputs)]
         return gen_fn
     def __repr__(self):
         return repr(self.__dict__)
@@ -299,9 +302,9 @@ class StreamInstance(Instance):
             self._check_output_values(output_list)
             for i, output_values in enumerate(output_list):
                 output_objects = []
-                for output_index, value in enumerate(output_values):
+                for name, value in safe_zip(self.external.outputs, output_values):
                     # TODO: maybe record history of values here?
-                    unique = UniqueOptValue(self, len(self.opt_results), output_index) # object()
+                    unique = UniqueOptValue(self, len(self.opt_results), name) # object()
                     param = unique if (self.opt_index == 0) else value
                     output_objects.append(OptimisticObject.from_opt(value, param))
                 output_objects = tuple(output_objects)
