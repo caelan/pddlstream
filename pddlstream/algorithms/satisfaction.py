@@ -89,7 +89,7 @@ def dump_assignment(solution):
     bindings, cost, evaluations = solution
     print()
     print('Solved: {}'.format(bindings is not None))
-    print('Cost: {}'.format(cost))
+    print('Cost: {:.3f}'.format(cost))
     print('Total facts: {}'.format(len(evaluations)))
     print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations.all_facts))))) # preimage_facts
     if bindings is None:

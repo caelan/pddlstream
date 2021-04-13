@@ -3,9 +3,10 @@ from itertools import combinations
 
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
+from pddlstream.language.statistics import Stats
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import INF, implies, neighbors_from_orders, topological_sort, get_connected_components, \
-    sample_topological_sort, dijkstra, is_acyclic, layer_sort
+from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
+    sample_topological_sort, is_acyclic, layer_sort, Score
 
 # TODO: should I use the product of all future probabilities?
 
@@ -29,15 +30,6 @@ def get_stream_plan_components(external_plan):
     return get_connected_components(external_plan, partial_orders)
 
 ##################################################
-
-Stats = namedtuple('Stats', ['p_success', 'overhead'])
-
-# Extract streams required to do one action
-# Compute streams that strongly depend on these. Evaluate these.
-# Execute the full prefix of the plan
-# Make the first action cheaper if uses something that doesn't need to re-expand
-# How to do this with shared objects?
-# Just do the same thing but make the cost 1 if a shared object
 
 def get_future_p_successes(stream_plan):
     # TODO: should I use this instead of p_success in some places?
@@ -75,11 +67,13 @@ def compute_expected_cost(stream_plan, stats_fn=get_stream_stats):
 
 Subproblem = namedtuple('Subproblem', ['cost', 'head', 'subset'])
 
-def compute_pruning_orders(vertices, stats_fn):
+def compute_pruning_orders(results, stats_fn):
     # TODO: reason about pairs that don't have a (transitive) ordering
+    # TODO: partial orders make this heuristic not optimal
+    # TODO: use result.external.name
     dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in zip(stats_fn(v1), stats_fn(v2)))
     effort_orders = set()
-    for v1, v2 in combinations(vertices, r=2):
+    for v1, v2 in combinations(results, r=2):
         if dominates(v1, v2):
             effort_orders.add((v1, v2))  # Includes equality
         elif dominates(v2, v1):
@@ -143,8 +137,6 @@ def dynamic_programming(store, vertices, valid_head_fn, stats_fn, prune=True, gr
 
 ##################################################
 
-# TODO: replan flag to toggle different behaviors
-
 def dummy_reorder_stream_plan(store, stream_plan, **kwargs):
     return stream_plan
 
@@ -159,12 +151,16 @@ def greedy_reorder_stream_plan(store, stream_plan, **kwargs):
     return topological_sort(stream_plan, get_partial_orders(stream_plan),
                             priority_fn=lambda stream: get_stream_stats(stream).overhead)
 
+def sort_results(results):
+    # Most to least expensive
+    return sorted(results, key=Result.effort_heuristic, reverse=True)
+
 def dump_layers(distances):
     streams_from_layer = {}
     for stream, layer in distances.items():
         streams_from_layer.setdefault(layer, []).append(stream)
     for layer, streams in streams_from_layer.items():
-        print(layer, sorted(streams, key=lambda s: s.external.tiebreaker, reverse=True))
+        print(layer, sort_results(streams))
     return streams_from_layer
 
 def layer_reorder_stream_plan(store, stream_plan, **kwargs):
@@ -185,11 +181,8 @@ def layer_reorder_stream_plan(store, stream_plan, **kwargs):
         if stream not in distances:
             distances[stream] = min([INF] + [distances[s] - 1 for s in out_stream_orders[stream]])
 
-    #priority_fn = lambda s: distances[s] if s in distances else INF
-    #priority_fn = lambda s: s.external.tiebreaker # Need to reverse
-    sorted_streams = sorted(stream_plan, key=lambda s: s.external.tiebreaker, reverse=True)
-    #priority_fn = sorted_streams.index
-    priority_fn = lambda s: (not s.external.has_outputs, distances[s], sorted_streams.index(s))
+    sorted_streams = sort_results(stream_plan)
+    priority_fn = lambda s: Score(not s.external.has_outputs, distances[s], sorted_streams.index(s))
 
     #dump_layers(distances)
     reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
@@ -223,6 +216,7 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     return [stream_plan[index] for index in ordering]
 
 def reorder_stream_plan(store, stream_plan, **kwargs):
+    # TODO: replan flag to toggle different behaviors
     if not is_plan(stream_plan):
         return stream_plan
     stats = Counter(get_stream_stats(result) for result in stream_plan)

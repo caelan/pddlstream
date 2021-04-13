@@ -121,11 +121,12 @@ def solve_deferred(initial_problem, stream_info={}, unit_costs=False, unit_effor
 #######################################################
 
 def create_simplified_problem(problem, use_actions=False, use_streams=False, new_goal=None):
-    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    # TODO: check whether goal is a conjunction
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal_parts = problem
     if not use_streams:
         stream_pddl = None
     if new_goal is None:
-        new_goal = goal
+        new_goal = goal_parts
     domain = parse_domain(domain_pddl) # TODO: Constant map value @base not mentioned in domain :constants
     if not use_actions:
         domain.actions[:] = [] # No actions
@@ -142,7 +143,6 @@ def solve_all_goals(initial_problem, **kwargs):
 
 
 def solve_first_goal(initial_problem, **kwargs):
-    # TODO: refactor into pddlstream
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal_parts = initial_problem
 
     achieved_parts = []
@@ -171,10 +171,8 @@ def solve_first_goal(initial_problem, **kwargs):
 
 
 def solve_next_goal(initial_problem, serialize=True, **kwargs):
-    # TODO: compute achieved and ensure reachieve
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal_parts = initial_problem
     # TODO: store serialization state to ensure progress is made
-    # goal_formula = And(*task_parts, *reset_parts)
     # goal_formula = And(Or(*task_parts), *reset_parts) # TODO: still possibly having the disjunctive goal issue
     indices = list(range(0, len(goal_parts), 1)) if serialize else [len(goal_parts)]
     for i in indices:
@@ -189,6 +187,6 @@ def solve_next_goal(initial_problem, serialize=True, **kwargs):
         plan, _, _ = solution
         if plan is None:
             return solution
-        if len(plan) >= 1:
+        if (i == len(indices) - 1) or (len(plan) >= 1):
             return solution
     return Solution(plan=[], cost=0, certificate=[])

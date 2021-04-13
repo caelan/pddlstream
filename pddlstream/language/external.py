@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fa
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score
 
 DEBUG = 'debug'
 
@@ -108,6 +108,16 @@ class Result(object):
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
+    def success_heuristic(self):
+        num_fixed = sum(isinstance(obj, Object) for obj in self.input_objects)
+        return Score(-num_fixed, len(self.external.inputs))
+    def overhead_heuristic(self):
+        return self.external.tiebreaker
+    def effort_heuristic(self):
+        return self.overhead_heuristic() + self.success_heuristic()
+        # num_fluents, is_stream, has_outputs = self.overhead_heuristic()
+        # num_fixed, num_inputs = self.success_heuristic()
+        # return Score(num_fluents, has_outputs, is_stream, num_fixed, num_inputs)
 
 ##################################################
 
@@ -263,17 +273,17 @@ class External(Performance):
         return self.instances[input_objects]
     @property
     def tiebreaker(self):
+        # TODO: overhead heuristic
         raise NotImplementedError()
     def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
         # TODO: infer other properties from use in the context of a stream plan
         # TODO: use num_certified (only those that are an another stream) instead of num_outputs?
-        num_inputs = len(self.inputs)
+        #num_inputs = len(self.inputs)
         #num_domain = len(self.domain)
         #num_outputs = int(self.has_outputs)
-        return (num_fluents, num_outputs, not is_function, num_inputs)
-
         #num_outputs = len(self.outputs)
         #num_certified = len(self.certified)
+        return Score(num_fluents, not is_function, self.has_outputs)
         #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
         #return overhead
 
