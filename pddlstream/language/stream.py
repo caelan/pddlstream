@@ -467,7 +467,7 @@ def create_equality_stream():
                   info=StreamInfo(eager=True), fluents=[])
 
 def create_inequality_stream():
-    from pddlstream.algorithms.downward import IDENTICAL
+    #from pddlstream.algorithms.downward import IDENTICAL
     return Stream(name='inequality', gen_fn=from_test(lambda o1, o2: o1 != o2),
                   inputs=['?o1', '?o2'], domain=[('Object', '?o1'), ('Object', '?o2')],
                   outputs=[], certified=[('=', '?o1', '?o2')],

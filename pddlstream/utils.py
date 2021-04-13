@@ -309,6 +309,23 @@ class MockSet(object):
     def __contains__(self, item):
         return self.test(item)
 
+class Score(object): # tuple
+    def __init__(self, *args):
+        #super(Score, self).__init__(args)
+        self.values = tuple(args)
+    def check_other(self, other):
+        return isinstance(other, Score) and (len(self.values) == len(other.values))
+    def __lt__(self, other):
+        assert self.check_other(other)
+        return self.values < other.values
+    def __iter__(self):
+        return iter(self.values)
+    def __neg__(self): # TODO: doublecheck
+        return self.__class__(*(type(value).__neg__(value) for value in self.values))
+    def __add__(self, other):
+        return self.__class__(*(self.values + other.values))
+    def __repr__(self):
+        return '{}{}'.format(self.__class__.__name__, self.values)
 
 class HeapElement(object):
     def __init__(self, key, value):
@@ -430,7 +447,7 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
         if not incoming_edges[v]:
             heappush(queue, HeapElement(priority_fn(v), v))
     while queue:
-        v1 = heappop(queue).value
+        value, v1 = heappop(queue)
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)

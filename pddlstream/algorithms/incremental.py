@@ -132,7 +132,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     num_calls += process_stream_queue(instantiator, store, complexity_limit, verbose=verbose)
     while not store.is_terminated() and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
-        print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Solved: {} | Cost: {} | Time: {:.3f}'.format(
+        print('Iteration: {} | Complexity: {} | Calls: {} | Evaluations: {} | Solved: {} | Cost: {:.3f} | Time: {:.3f}'.format(
             num_iterations, complexity_limit, num_calls, len(evaluations),
             store.has_solution(), store.best_cost, store.elapsed_time()))
         plan, cost = solve_finite(evaluations, goal_expression, domain,
