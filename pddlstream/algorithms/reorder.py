@@ -6,7 +6,7 @@ from itertools import combinations
 
 from pddlstream.language.constants import is_plan
 from pddlstream.language.external import Result
-from pddlstream.language.statistics import Stats, Performance
+from pddlstream.language.statistics import Stats, Performance, EPSILON
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
     sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip, randomize
@@ -138,12 +138,12 @@ def dummy_reorder_stream_plan(stream_plan, **kwargs):
     return stream_plan
 
 def random_reorder_stream_plan(stream_plan, **kwargs):
-    if not is_plan(stream_plan):
+    if not stream_plan:
         return stream_plan
     return sample_topological_sort(stream_plan, get_partial_orders(stream_plan))
 
 def greedy_reorder_stream_plan(stream_plan, **kwargs):
-    if not is_plan(stream_plan):
+    if not stream_plan:
         return stream_plan
     return topological_sort(stream_plan, get_partial_orders(stream_plan),
                             priority_fn=lambda s: s.get_statistics().overhead)
@@ -170,14 +170,15 @@ def compute_distances(stream_plan):
     distances = layer_sort(set(stream_plan) - test_sources, reversed_orders)
 
     # TODO: take into account argument overlap
+    max_distance = max([0] + list(distances.values()))
     for stream in stream_plan:
         if stream not in distances:
-            distances[stream] = min([INF] + [distances[s] - 1 for s in out_stream_orders[stream]])
+            distances[stream] = min([max_distance] + [distances[s] - 1 for s in out_stream_orders[stream]])
     #dump_layers(distances)
     return distances
 
 def layer_reorder_stream_plan(stream_plan, **kwargs):
-    if not is_plan(stream_plan):
+    if not stream_plan:
         return stream_plan
     stream_orders = get_partial_orders(stream_plan)
     reversed_orders = {(s2, s1) for s1, s2 in stream_orders}
@@ -186,14 +187,30 @@ def layer_reorder_stream_plan(stream_plan, **kwargs):
     reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
     return reverse_order[::-1]
 
-def merge_probs(results):
-    return {result: result.external.get_statistics() for result in results}
+def compute_statistics(stream_plan, bias=True):
+    stats_from_stream = {result: result.external.get_statistics() for result in stream_plan}
+    if not bias:
+        return stats_from_stream
+    distances = compute_distances(stream_plan)
+    max_distance = max(distances.values())
+    for result in stream_plan:
+        p_success, overhead = stats_from_stream[result]
+        if result.external.has_outputs:
+            # TODO: is_function, number of free inputs, etc.
+            overhead += EPSILON*(max_distance - distances[result] + 1)
+        else:
+            p_success *= EPSILON
+        stats_from_stream[result] = Stats(p_success, overhead)
+    return stats_from_stream
 
 ##################################################
 
-def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
-    if not is_plan(stream_plan):
+def optimal_reorder_stream_plan(store, stream_plan, stats_from_stream=None, **kwargs):
+    if not stream_plan:
         return stream_plan
+    if stats_from_stream is None:
+        stats_from_stream = compute_statistics(stream_plan)
+
     # TODO: use the negative output (or overhead) as a bound
     indices = range(len(stream_plan))
     index_from_stream = dict(zip(stream_plan, indices))
@@ -211,10 +228,10 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     #sinks = {stream_plan[index] for index in indices if not out_stream_orders[index]} # Contains collision checks
     #print(dijkstra(sources, get_partial_orders(stream_plan)))
 
-    stats_fn = lambda idx: stream_plan[idx].external.get_statistics()
-    #tiebreaker_fn = lambda idx: stream_plan[idx].stats_heuristic()
-    tiebreaker_fn = lambda *args: 0
+    stats_fn = lambda idx: stats_from_stream[stream_plan[idx]]
+    #tiebreaker_fn = lambda *args: 0
     #tiebreaker_fn = lambda *args: random.random() # TODO: cyclic
+    tiebreaker_fn = lambda idx: stream_plan[idx].stats_heuristic()
     ordering = dynamic_programming(store, nodes, valid_combine, stats_fn=stats_fn, tiebreaker_fn=tiebreaker_fn, **kwargs)
     #import gc
     #gc.collect()
@@ -222,14 +239,16 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
 
 ##################################################
 
-def reorder_stream_plan(store, stream_plan, **kwargs):
-    # TODO: replan flag to toggle different behaviors
-    if not is_plan(stream_plan):
+def reorder_stream_plan(store, stream_plan, algorithm='optimal', **kwargs):
+    if not stream_plan:
         return stream_plan
-    stats = Counter(result.external.get_statistics() for result in stream_plan)
-    if len(stats) <= 1:
+    stats_from_stream = compute_statistics(stream_plan)
+    #stats = Counter(stats_from_stream.values())
+    #if len(stats) <= 1:
+    if algorithm == 'layer':
         #print('Heuristic reordering:', stats)
         return layer_reorder_stream_plan(stream_plan, **kwargs)
-    #print('Optimal reordering:', stats)
-    # TODO: could always run with heuristic estimates
-    return optimal_reorder_stream_plan(store, stream_plan, **kwargs)
+    if algorithm == 'optimal':
+        #print('Optimal reordering:', stats)
+        return optimal_reorder_stream_plan(store, stream_plan, stats_from_stream, **kwargs)
+    raise NotImplementedError(algorithm)
