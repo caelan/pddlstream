@@ -86,7 +86,7 @@ def get_test_cfree_traj_pose(problem):
     return test
 
 
-def get_grasp_generator(problem, epsilon=0., theta_interval=(0., 0.), draw=False):
+def get_grasp_generator(problem, epsilon=0., theta_interval=(0., 0.), use_halton=True, draw=False, **kwargs):
     # TODO: compute distance for two orientations and then push away
     def gen(robot, body):
         link = link_from_name(robot, BASE_LINK)
@@ -104,7 +104,7 @@ def get_grasp_generator(problem, epsilon=0., theta_interval=(0., 0.), draw=False
         distance = radius + diameter / 2. + epsilon
         _, _, z = get_point(body) # Assuming already placed stably
 
-        for [scale] in unit_generator(d=1, use_halton=True):
+        for [scale] in unit_generator(d=1, use_halton=use_halton):
             #theta = PI # 0 | PI
             theta = random.uniform(*theta_interval)
             position = np.append(distance * unit_from_theta(theta=theta), [z]) # TODO: halton
