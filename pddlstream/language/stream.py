@@ -167,7 +167,7 @@ class StreamResult(Result):
         return StreamAction(self.name, self.input_objects, self.output_objects)
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
-        #if not any(o in bindings for o in self.instance.get_objects()):
+        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
         #    return self
         input_objects = apply_mapping(self.input_objects, bindings)
         fluent_facts = [substitute_fact(f, bindings) for f in self.instance.fluent_facts]
@@ -225,7 +225,7 @@ class StreamInstance(Instance):
         return self._Result(self, tuple(output_objects), opt_index=opt_index,
                             call_index=call_index, list_index=list_index, optimistic=optimistic)
 
-    def get_objects(self): # TODO: lazily compute
+    def get_all_input_objects(self): # TODO: lazily compute
         return set(self.input_objects) | {o for f in self.fluent_facts for o in get_args(f)}
 
     def get_fluent_values(self):

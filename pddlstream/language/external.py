@@ -155,7 +155,7 @@ class Instance(object):
         return self._domain
     def get_domain(self):
         return self.domain
-    def get_objects(self):
+    def get_all_input_objects(self):
         return set(self.input_objects)
     def get_input_values(self):
         return values_from_objects(self.input_objects)

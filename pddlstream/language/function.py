@@ -50,7 +50,7 @@ class FunctionResult(Result):
     def get_action(self):
         return FunctionAction(self.name, self.input_objects)
     def remap_inputs(self, bindings):
-        #if not any(o in bindings for o in self.instance.get_objects()):
+        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
         #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)

@@ -11,19 +11,34 @@ from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
     sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip, randomize
 
-def get_partial_orders(stream_plan, init_facts=set()):
-    # TODO: use partial orders just from objects in some places
-    achieved_facts = set(init_facts) # TODO: achieved objects
+def get_output_objects(result):
+    if isinstance(result, StreamResult):
+        return result.output_objects
+    return tuple()
+
+def get_object_orders(stream_plan):
+    # TODO: check that only one result per output object
+    partial_orders = set()
+    for i, stream1 in enumerate(stream_plan):
+        for stream2 in stream_plan[i+1:]:
+            if set(get_output_objects(stream1)) & stream2.instance.get_all_input_objects():
+                partial_orders.add((stream1, stream2))
+    return partial_orders
+
+def get_fact_orders(stream_plan, init_facts=set()):
+    achieved_facts = set(init_facts)
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
         new_facts = set(stream1.get_certified()) - achieved_facts
-        achieved_facts.update(new_facts)
         for stream2 in stream_plan[i+1:]: # Prevents circular
             if new_facts & set(stream2.instance.get_domain()):
                 partial_orders.add((stream1, stream2))
-            if isinstance(stream1, StreamResult) and \
-                    (set(stream1.output_objects) & stream2.instance.get_objects()):
-                partial_orders.add((stream1, stream2))
+        achieved_facts.update(new_facts)
+    return partial_orders
+
+def get_partial_orders(stream_plan, **kwargs):
+    partial_orders = get_object_orders(stream_plan) | \
+                     get_fact_orders(stream_plan, **kwargs)
     assert is_acyclic(stream_plan, partial_orders)
     return partial_orders
 

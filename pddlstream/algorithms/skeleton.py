@@ -6,37 +6,39 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
+from pddlstream.algorithms.reorder import get_output_objects
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.stream import StreamResult
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
 PRUNE_BINDINGS = True
 
 # TODO: prioritize bindings using effort
 # TODO: use complexity rather than attempts for ordering
-Priority = namedtuple('Priority', ['attempts', 'remaining', 'cost']) # TODO: FIFO
+Priority = namedtuple('Priority', ['not_best', 'attempts', 'remaining', 'cost']) # TODO: FIFO
 
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
-def compute_affected(stream_plan, index):
+def compute_affected_downstream(stream_plan, index):
+    # TODO: affected upstream
     affected_indices = [index]
     if len(stream_plan) <= index:
-        return Affected(affected_indices, False)
+        return Affected(affected_indices, has_cost=False)
     # TODO: if the cost is pruned, then add everything that contributes, not just the last function
     result = stream_plan[index]
     has_cost = type(result) is FunctionResult
-    output_objects = set(result.output_objects) if isinstance(result, StreamResult) else set()
-    if output_objects: # TODO: should do conditions instead
-        for index2 in range(index + 1, len(stream_plan)):
-            result2 = stream_plan[index2]
-            if set(result2.instance.input_objects) & output_objects:
-                if isinstance(result2, StreamResult):
-                    output_objects.update(result2.output_objects)
-                affected_indices.append(index2)
-                has_cost |= type(result2) is FunctionResult
+    output_objects = set(get_output_objects(result))
+    if not output_objects: # TODO: should I do conditions instead?
+        return Affected(affected_indices, has_cost)
+    for index2 in range(index + 1, len(stream_plan)):
+        result2 = stream_plan[index2]
+        if output_objects & result2.instance.get_all_input_objects():
+            output_objects.update(get_output_objects(result2))
+            affected_indices.append(index2)
+            has_cost |= (type(result2) is FunctionResult)
     return Affected(affected_indices, has_cost)
 
 class Skeleton(object):
@@ -49,9 +51,15 @@ class Skeleton(object):
         self.cost = cost
         self.best_binding = None
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0)
-        self.affected_indices = [compute_affected(self.stream_plan, index)
+        self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
         # TODO: compute this all at once via hashing
+    def update_best(self, binding):
+        if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
+                ((self.best_binding.index == binding.index) and (self.best_binding.cost < binding.cost)):
+            self.best_binding = binding
+            return True
+        return False
 
 ##################################################
 
@@ -66,11 +74,10 @@ class Binding(object):
         self._result = False
         self.attempts = 0
         self.calls = 0
-        if (self.skeleton.best_binding is None) or (self.skeleton.best_binding.index < self.index):
-            self.skeleton.best_binding = self
         self.complexity = None
         self.max_history = max(self.history) if self.history else 0
         #self.parent_complexity = parent_complexity
+        self.skeleton.update_best(self)
     @property
     def result(self):
         if self._result is False:
@@ -127,8 +134,9 @@ class Binding(object):
     def get_element(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         # TODO: include the complexity here as well
+        is_best = self.skeleton.best_binding is self
         remaining = len(self.skeleton.stream_plan) - self.index
-        priority = Priority(self.attempts, remaining, self.cost)
+        priority = Priority(not is_best, self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
     def post_order(self):
         for child in self.children:
@@ -175,13 +183,14 @@ class SkeletonQueue(Sized):
         binding.complexity = None
 
     def _process_binding(self, binding):
-        is_new = False
+        readd = is_new = False
         if binding.is_dominated():
-            return False, is_new
+            return readd, is_new
         if binding.is_bound():
             action_plan = bind_action_plan(binding.skeleton.action_plan, binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
-            return False, True
+            is_new = True
+            return readd, is_new
         binding.attempts += 1
         instance = binding.result.instance
         if PRUNE_BINDINGS and not binding.do_evaluate():
@@ -211,18 +220,17 @@ class SkeletonQueue(Sized):
         while self.is_active():
             # TODO: break if the complexity limit is exceeded
             key, _ = self.queue[0]
-            if max_attempts < key.attempts:
+            if key.not_best or (max_attempts < key.attempts):
                 break
             self._process_root()
 
-    def process_until_new(self, complexity_limit):
+    def process_until_new(self, complexity_limit, print_frequency=1.):
         # TODO: process the entire queue once instead
         print('Sampling until new output values')
         is_new = False
         attempts = 0
-        print_frequency = 1.0
         last_time = time.time()
-        standy = []
+        standby = []
         while self.is_active() and (not is_new):
             attempts += 1
             key, binding = heappop(self.queue)
@@ -230,7 +238,7 @@ class SkeletonQueue(Sized):
             if readd is True:
                 heappush(self.queue, binding.get_element())
             elif readd is None:
-                standy.append(binding)
+                standby.append(binding)
             #is_new |= self._process_root()
             self.greedily_process(complexity_limit)
             if print_frequency <= elapsed_time(last_time):
@@ -238,7 +246,7 @@ class SkeletonQueue(Sized):
                     len(self.queue), attempts, elapsed_time(last_time)))
                 last_time = time.time()
         if is_new:
-            for binding in standy:
+            for binding in standby:
                 heappush(self.queue, binding.get_element())
         return is_new
 
@@ -280,8 +288,7 @@ class SkeletonQueue(Sized):
         remaining_time = max_time - elapsed_time(start_time)
         print('Remaining sampling time: {:.3f} seconds'.format(remaining_time))
         self.timed_process(complexity_limit, remaining_time)
-        # TODO: accelerate the best bindings
-        #self.accelerate_best_bindings()
+        #self.accelerate_best_bindings() # TODO: accelerate the best bindings
         return True
 
     def __len__(self):
