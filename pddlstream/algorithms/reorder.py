@@ -11,9 +11,8 @@ from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
     sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip, randomize
 
-# TODO: should I use the product of all future probabilities?
-
 def get_partial_orders(stream_plan, init_facts=set()):
+    # TODO: use partial orders just from objects in some places
     achieved_facts = set(init_facts) # TODO: achieved objects
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
@@ -239,12 +238,20 @@ def optimal_reorder_stream_plan(store, stream_plan, stats_from_stream=None, **kw
 
 ##################################################
 
-def reorder_stream_plan(store, stream_plan, algorithm='optimal', **kwargs):
+def reorder_stream_plan(store, stream_plan, algorithm=None, **kwargs):
     if not stream_plan:
         return stream_plan
     stats_from_stream = compute_statistics(stream_plan)
-    #stats = Counter(stats_from_stream.values())
-    #if len(stats) <= 1:
+    stats = Counter(stats_from_stream.values())
+    if algorithm is None:
+        algorithm = 'layer' if len(stats) <= 1 else 'optimal'
+
+    if algorithm == 'dummy':
+        return dummy_reorder_stream_plan(stream_plan, **kwargs)
+    if algorithm == 'random':
+        return random_reorder_stream_plan(stream_plan, **kwargs)
+    if algorithm == 'greedy':
+        return greedy_reorder_stream_plan(stream_plan, **kwargs)
     if algorithm == 'layer':
         #print('Heuristic reordering:', stats)
         return layer_reorder_stream_plan(stream_plan, **kwargs)

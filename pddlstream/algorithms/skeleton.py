@@ -159,6 +159,21 @@ class SkeletonQueue(Sized):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
         heappush(self.queue, skeleton.root.get_element())
 
+    def _new_bindings(self, binding):
+        instance = binding.result.instance
+        for call_idx in range(binding.calls, instance.num_calls):
+            for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
+                if new_result.is_successful():
+                    new_mapping = update_bindings(binding.mapping, binding.result, new_result)
+                    new_cost = update_cost(binding.cost, binding.result, new_result)
+                    new_history = binding.history + [call_idx]
+                    new_binding = Binding(binding.skeleton, new_cost, new_history, new_mapping, binding.index + 1)
+                    binding.children.append(new_binding)
+                    heappush(self.queue, new_binding.get_element())
+        binding.calls = instance.num_calls
+        binding.attempts = max(binding.attempts, binding.calls)
+        binding.complexity = None
+
     def _process_binding(self, binding):
         is_new = False
         if binding.is_dominated():
@@ -181,18 +196,7 @@ class SkeletonQueue(Sized):
         if binding.up_to_date():
             new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable)
             is_new = bool(new_results)
-        for call_idx in range(binding.calls, instance.num_calls):
-            for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
-                if new_result.is_successful():
-                    new_mapping = update_bindings(binding.mapping, binding.result, new_result)
-                    new_cost = update_cost(binding.cost, binding.result, new_result)
-                    new_history = binding.history + [call_idx]
-                    new_binding = Binding(binding.skeleton, new_cost, new_history, new_mapping, binding.index + 1)
-                    binding.children.append(new_binding)
-                    heappush(self.queue, new_binding.get_element())
-        binding.calls = instance.num_calls
-        binding.attempts = max(binding.attempts, binding.calls)
-        binding.complexity = None
+        self._new_bindings(binding)
         readd = not instance.enumerated
         return readd, is_new
 
@@ -267,7 +271,7 @@ class SkeletonQueue(Sized):
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
-        elif stream_plan is INFEASIBLE and not self.process_until_new(complexity_limit):
+        elif (stream_plan is INFEASIBLE) and not self.process_until_new(complexity_limit):
             # Move this after process_complexity
             return False
         #if not is_plan(stream_plan):

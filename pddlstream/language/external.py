@@ -52,6 +52,7 @@ class ExternalInfo(PerformanceInfo):
     def __init__(self, eager=False, defer_fn=never_defer, **kwargs):
         super(ExternalInfo, self).__init__(**kwargs)
         # TODO: enable eager=True for inexpensive test streams by default
+        # TODO: change p_success and overhead if it's a function or test stream
         self.eager = eager
         self.defer_fn = defer_fn # Old syntax was defer=True
         #self.complexity_fn = complexity_fn
