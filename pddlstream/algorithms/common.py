@@ -20,7 +20,7 @@ UNKNOWN_EVALUATION = 'unknown'
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 
-SOLUTIONS = []
+SOLUTIONS = [] # TODO: remove global variable
 
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
@@ -92,8 +92,8 @@ def add_facts(evaluations, facts, **kwargs):
     return new_evaluations
 
 
-def add_certified(evaluations, result):
-    complexity = result.compute_complexity(evaluations)
+def add_certified(evaluations, result, **kwargs):
+    complexity = result.compute_complexity(evaluations, **kwargs)
     return add_facts(evaluations, result.get_certified(), result=result, complexity=complexity)
 
 
@@ -105,13 +105,13 @@ def evaluations_from_init(init):
     return evaluations
 
 
-def compute_complexity(evaluations, facts):
+def compute_complexity(evaluations, facts, complexity_op=COMPLEXITY_OP):
     if not facts:
         return 0
-    return COMPLEXITY_OP(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
+    return complexity_op(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
 
 
-def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
+def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):
         return INF
     # TODO: difference between a result having a particular complexity and the next result having something
@@ -125,7 +125,7 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
                 fact_complexity = evaluations[evaluation].complexity
             else:
                 fact_complexity = optimistic_facts[fact]
-            result_complexity = COMPLEXITY_OP(result_complexity, fact_complexity)
+            result_complexity = complexity_op(result_complexity, fact_complexity)
         if stream_calls is None:
             result_complexity += result.instance.num_calls + 1
         elif i < len(stream_calls):
@@ -135,7 +135,7 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
         for fact in result.get_certified():
             if fact not in optimistic_facts:
                 optimistic_facts[fact] = result_complexity
-        total_complexity = COMPLEXITY_OP(total_complexity, result_complexity)
+        total_complexity = complexity_op(total_complexity, result_complexity)
     return total_complexity
 
 

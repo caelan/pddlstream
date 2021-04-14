@@ -9,17 +9,14 @@ from pddlstream.algorithms.disabled import process_instance, update_bindings, up
 from pddlstream.algorithms.reorder import get_output_objects
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
 PRUNE_BINDINGS = True
 
-# TODO: prioritize bindings using effort
-# TODO: use complexity rather than attempts for ordering
-Priority = namedtuple('Priority', ['not_best', 'attempts', 'remaining', 'cost']) # TODO: FIFO
-
 # TODO: automatically set the opt level to be zero for any streams that are bound here?
 
+# TODO: prioritize bindings using effort
+Priority = namedtuple('Priority', ['not_best', 'complexity', 'attempts', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
 def compute_affected_downstream(stream_plan, index):
@@ -86,25 +83,26 @@ class Binding(object):
             else:
                 self._result = None
         return self._result
-    def is_bound(self):
+    @property
+    def is_fully_bound(self):
         return self.result is None
     #@property
     #def complexity(self):
     #    # This does a plan linearization version of complexity
     #    return self.parent_complexity + self.calls
     def up_to_date(self):
-        if self.is_bound():
+        if self.is_fully_bound:
             return True
         #if PRUNE_BINDINGS:
         #    return self.result.instance.num_calls <= self.attempts
         #else:
         return self.calls == self.result.instance.num_calls
     def compute_complexity(self):
-        if self.is_bound():
+        if self.is_fully_bound:
             return 0
         # TODO: intelligently compute/cache this
         if self.complexity is None:
-            full_history = self.history + [self.calls]
+            full_history = self.history + [self.calls] # TODO: include the full history or just the relevant history
             self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations,
                                                      self.skeleton.stream_plan, full_history)
         #raw_input('Complexity: {} {}'.format(self.result, complexity))
@@ -133,10 +131,10 @@ class Binding(object):
         return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_element(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
-        # TODO: include the complexity here as well
         is_best = self.skeleton.best_binding is self
+        complexity = self.compute_complexity()
         remaining = len(self.skeleton.stream_plan) - self.index
-        priority = Priority(not is_best, self.attempts, remaining, self.cost)
+        priority = Priority(not is_best, complexity, self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
     def post_order(self):
         for child in self.children:
@@ -172,21 +170,22 @@ class SkeletonQueue(Sized):
         for call_idx in range(binding.calls, instance.num_calls):
             for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
                 if new_result.is_successful():
-                    new_mapping = update_bindings(binding.mapping, binding.result, new_result)
                     new_cost = update_cost(binding.cost, binding.result, new_result)
                     new_history = binding.history + [call_idx]
-                    new_binding = Binding(binding.skeleton, new_cost, new_history, new_mapping, binding.index + 1)
+                    new_mapping = update_bindings(binding.mapping, binding.result, new_result)
+                    new_index = binding.index + 1
+                    new_binding = Binding(binding.skeleton, new_cost, new_history, new_mapping, new_index)
                     binding.children.append(new_binding)
                     heappush(self.queue, new_binding.get_element())
         binding.calls = instance.num_calls
         binding.attempts = max(binding.attempts, binding.calls)
-        binding.complexity = None
+        binding.complexity = None # Forces re-computation
 
     def _process_binding(self, binding):
         readd = is_new = False
         if binding.is_dominated():
             return readd, is_new
-        if binding.is_bound():
+        if binding.is_fully_bound:
             action_plan = bind_action_plan(binding.skeleton.action_plan, binding.mapping)
             self.store.add_plan(action_plan, binding.cost)
             is_new = True
@@ -194,7 +193,7 @@ class SkeletonQueue(Sized):
         binding.attempts += 1
         instance = binding.result.instance
         if PRUNE_BINDINGS and not binding.do_evaluate():
-            # TODO: causes redudant plan skeletons to be identified (along with complexity using attempts instead of calls)
+            # TODO: causes redundant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to re-enable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
             #if instance.enumerated:
