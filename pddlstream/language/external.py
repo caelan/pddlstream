@@ -4,7 +4,7 @@ from pddlstream.algorithms.common import compute_complexity
 from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fact
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
+from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD, Stats
 from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score
 
 DEBUG = 'debug'
@@ -117,6 +117,7 @@ class Result(object):
     def stats_heuristic(self): # Low is cheap and unlikely to succeed
         #return self.overhead_heuristic() + self.success_heuristic()
         return Score(self.overhead_heuristic(), self.success_heuristic())
+        #return Stats(self.overhead_heuristic(), self.success_heuristic())
     def effort_heuristic(self): # Low is cheap and likely to succeed
         return Score(self.overhead_heuristic(), -self.success_heuristic())
 

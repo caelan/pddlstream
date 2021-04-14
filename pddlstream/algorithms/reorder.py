@@ -1,4 +1,5 @@
 import time
+import random
 
 from collections import namedtuple, deque, Counter
 from itertools import combinations
@@ -8,7 +9,7 @@ from pddlstream.language.external import Result
 from pddlstream.language.statistics import Stats, Performance
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
-    sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip
+    sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip, randomize
 
 # TODO: should I use the product of all future probabilities?
 
@@ -66,7 +67,7 @@ def compute_pruning_orders(results, stats_fn=Performance.get_statistics, tiebrea
     dominates = lambda v1, v2: all(s1 <= s2 for s1, s2 in safe_zip(stats_fn(v1), stats_fn(v2))) \
                                and tiebreaker_fn(v1) <= tiebreaker_fn(v2)
     effort_orders = set()
-    for v1, v2 in combinations(results, r=2):
+    for v1, v2 in combinations(results, r=2): # randomize
         if dominates(v1, v2):
             effort_orders.add((v1, v2))  # Includes equality
         elif dominates(v2, v1):
@@ -157,9 +158,7 @@ def dump_layers(distances):
         print(layer, sorted(streams, key=Result.stats_heuristic, reverse=True))
     return streams_from_layer
 
-def layer_reorder_stream_plan(stream_plan, **kwargs):
-    if not is_plan(stream_plan):
-        return stream_plan
+def compute_distances(stream_plan):
     stream_orders = get_partial_orders(stream_plan)
     reversed_orders = {(s2, s1) for s1, s2 in stream_orders}
     in_stream_orders, out_stream_orders = neighbors_from_orders(reversed_orders)
@@ -175,10 +174,20 @@ def layer_reorder_stream_plan(stream_plan, **kwargs):
         if stream not in distances:
             distances[stream] = min([INF] + [distances[s] - 1 for s in out_stream_orders[stream]])
     #dump_layers(distances)
+    return distances
 
+def layer_reorder_stream_plan(stream_plan, **kwargs):
+    if not is_plan(stream_plan):
+        return stream_plan
+    stream_orders = get_partial_orders(stream_plan)
+    reversed_orders = {(s2, s1) for s1, s2 in stream_orders}
+    distances = compute_distances(stream_plan)
     priority_fn = lambda s: Score(not s.external.has_outputs, distances[s], -s.stats_heuristic())
     reverse_order = topological_sort(stream_plan, reversed_orders, priority_fn=priority_fn)
     return reverse_order[::-1]
+
+def merge_probs(results):
+    return {result: result.external.get_statistics() for result in results}
 
 ##################################################
 
@@ -191,7 +200,7 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     stream_orders = get_partial_orders(stream_plan)
     stream_orders = {(index_from_stream[s1], index_from_stream[s2]) for s1, s2 in stream_orders}
     #nodes = stream_plan
-    nodes = indices
+    nodes = indices # TODO: are indices much faster
 
     in_stream_orders, out_stream_orders = neighbors_from_orders(stream_orders)
     valid_combine = lambda v, subset: out_stream_orders[v] <= subset
@@ -203,7 +212,9 @@ def optimal_reorder_stream_plan(store, stream_plan, **kwargs):
     #print(dijkstra(sources, get_partial_orders(stream_plan)))
 
     stats_fn = lambda idx: stream_plan[idx].external.get_statistics()
-    tiebreaker_fn = lambda idx: stream_plan[idx].stats_heuristic()
+    #tiebreaker_fn = lambda idx: stream_plan[idx].stats_heuristic()
+    tiebreaker_fn = lambda *args: 0
+    #tiebreaker_fn = lambda *args: random.random() # TODO: cyclic
     ordering = dynamic_programming(store, nodes, valid_combine, stats_fn=stats_fn, tiebreaker_fn=tiebreaker_fn, **kwargs)
     #import gc
     #gc.collect()
