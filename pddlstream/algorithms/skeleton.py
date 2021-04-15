@@ -13,7 +13,7 @@ from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
 PRUNE_BINDINGS = True
 
-# TODO: automatically set the opt level to be zero for any streams that are bound here?
+# TODO: automatically set the opt level to be zero for any streams that are bound?
 
 # TODO: prioritize bindings using effort
 Priority = namedtuple('Priority', ['not_best', 'complexity', 'attempts', 'remaining', 'cost']) # TODO: FIFO
@@ -40,9 +40,8 @@ def compute_affected_downstream(stream_plan, index):
 
 class Skeleton(object):
     def __init__(self, queue, stream_plan, action_plan, cost):
-        self.index = len(queue.skeletons)
-        queue.skeletons.append(self)
         self.queue = queue
+        self.index = len(self.queue.skeletons)
         self.stream_plan = stream_plan
         self.action_plan = action_plan
         self.cost = cost
@@ -55,6 +54,8 @@ class Skeleton(object):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
                 ((self.best_binding.index == binding.index) and (self.best_binding.cost < binding.cost)):
             self.best_binding = binding
+            #print('Skeleton {} | Progress: {} | New best: {}'.format(
+            #    self.index, self.best_binding.index, self.best_binding))
             return True
         return False
 
@@ -69,8 +70,8 @@ class Binding(object):
         self.index = index
         self.children = []
         self._result = False
-        self.attempts = 0
-        self.calls = 0
+        self.attempts = 0 # The number of times _process_binding has been called
+        self.calls = 0 # The index for result_history
         self.complexity = None
         self.max_history = max(self.history) if self.history else 0
         #self.parent_complexity = parent_complexity
@@ -132,7 +133,9 @@ class Binding(object):
     def get_element(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         is_best = self.skeleton.best_binding is self
-        complexity = self.compute_complexity()
+        #complexity = self.attempts
+        #complexity = self.compute_complexity()
+        complexity = self.compute_complexity() + (self.attempts - self.calls) # TODO: check this
         remaining = len(self.skeleton.stream_plan) - self.index
         priority = Priority(not is_best, complexity, self.attempts, remaining, self.cost)
         return HeapElement(priority, self)
@@ -142,7 +145,7 @@ class Binding(object):
                 yield binding
         yield self
     def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.result)
+        return '{}(skeleton={}, {})'.format(self.__class__.__name__, self.skeleton.index, self.result)
 
 ##################################################
 
@@ -158,11 +161,15 @@ class SkeletonQueue(Sized):
         self.enabled_bindings = set()
         self.disable = disable
 
+    def __len__(self):
+        return len(self.queue)
+
     def is_active(self):
         return self.queue and (not self.store.is_terminated())
 
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
+        self.skeletons.append(skeleton)
         heappush(self.queue, skeleton.root.get_element())
 
     def _new_bindings(self, binding):
@@ -215,11 +222,13 @@ class SkeletonQueue(Sized):
             heappush(self.queue, binding.get_element())
         return is_new
 
-    def greedily_process(self, max_attempts=0):
+    #########################
+
+    def greedily_process(self, max_attempts=0, only_best=True):
         while self.is_active():
             # TODO: break if the complexity limit is exceeded
             key, _ = self.queue[0]
-            if key.not_best or (max_attempts < key.attempts):
+            if (only_best and key.not_best) or (max_attempts < key.attempts):
                 break
             self._process_root()
 
@@ -250,6 +259,7 @@ class SkeletonQueue(Sized):
         return is_new
 
     def process_complexity(self, complexity_limit):
+        raise NotImplementedError()
         # TODO: could copy the queue and filter instances that exceed complexity_limit
         #self.greedily_process(max_attempts=complexity_limit) # This isn't quite the complexity limit
         disabled_bindings = []
@@ -268,9 +278,12 @@ class SkeletonQueue(Sized):
 
     def timed_process(self, complexity_limit, max_time):
         start_time = time.time()
+        iterations = num_new = 0
         while self.is_active() and (elapsed_time(start_time) <= max_time):
-            self._process_root()
+            iterations += 1
+            num_new += self._process_root()
             self.greedily_process(complexity_limit)
+        print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0):
         # TODO: detect infeasibility when an intermediate stream fails
@@ -289,6 +302,3 @@ class SkeletonQueue(Sized):
         self.timed_process(complexity_limit, remaining_time)
         #self.accelerate_best_bindings() # TODO: accelerate the best bindings
         return True
-
-    def __len__(self):
-        return len(self.queue)

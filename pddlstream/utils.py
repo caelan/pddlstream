@@ -407,6 +407,7 @@ def adjacent_from_edges(edges):
 ##################################################
 
 def filter_orders(vertices, orders):
+    # TODO: rename to filter edges?
     return [order for order in orders if all(v in vertices for v in order)]
 
 def is_valid_topological_sort(vertices, orders, solution):
@@ -518,11 +519,13 @@ def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
     cluster = []
     queue = deque()
+
     def add_cluster(v):
-        if v not in processed:
-            processed.add(v)
-            cluster.append(v)
-            queue.append(v)
+        if v in processed:
+            return
+        processed.add(v)
+        cluster.append(v)
+        queue.append(v)
 
     for v0 in sources:
         add_cluster(v0)
@@ -543,11 +546,13 @@ def get_descendants(source, edges):
     return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
 
 def get_connected_components(vertices, edges):
-    vertices = filter_orders(vertices, edges)
+    edges = filter_orders(vertices, edges)
     undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()
     for v0 in vertices:
+        if v0 in processed:
+            continue
         cluster = grow_component({v0}, undirected_edges, processed)
         processed.update(cluster)
         if cluster:

@@ -179,6 +179,14 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+
+            # for s in skeleton_queue.skeletons:
+            #     # TODO: prune supersets
+            #     if (stream_plan is not None) and (frozenset(stream_plan) == frozenset(s.stream_plan)):
+            #         print(stream_plan)
+            #         print(skeleton_queue)
+            #         input()
+
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
             if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):

@@ -42,9 +42,16 @@ def get_partial_orders(stream_plan, **kwargs):
     assert is_acyclic(stream_plan, partial_orders)
     return partial_orders
 
+##################################################
+
 def get_stream_plan_components(external_plan):
     partial_orders = get_partial_orders(external_plan)
     return get_connected_components(external_plan, partial_orders)
+
+def dump_components(stream_plan):
+    for i, result in enumerate(stream_plan):
+        components = get_stream_plan_components(stream_plan[:i+1])
+        print(i, len(components), components)
 
 ##################################################
 
@@ -256,6 +263,7 @@ def optimal_reorder_stream_plan(store, stream_plan, stats_from_stream=None, **kw
 def reorder_stream_plan(store, stream_plan, algorithm=None, **kwargs):
     if not stream_plan:
         return stream_plan
+
     stats_from_stream = compute_statistics(stream_plan)
     stats = Counter(stats_from_stream.values())
     if algorithm is None:
