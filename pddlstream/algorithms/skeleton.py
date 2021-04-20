@@ -6,7 +6,7 @@ from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
-from pddlstream.algorithms.reorder import get_output_objects
+from pddlstream.algorithms.reorder import get_output_objects, get_object_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
@@ -19,11 +19,8 @@ Priority = namedtuple('Priority', ['not_best', 'complexity', 'attempts', 'remain
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
 def compute_affected_downstream(stream_plan, index):
-    # TODO: affected upstream
-    affected_indices = [index]
-    if len(stream_plan) <= index: # TODO: len(stream_plan) - 1?
-        return Affected(affected_indices, has_cost=False)
     # TODO: if the cost is pruned, then add everything that contributes, not just the last function
+    affected_indices = [index]
     result = stream_plan[index]
     has_cost = (type(result) is FunctionResult)
     output_objects = set(get_output_objects(result))
@@ -31,14 +28,15 @@ def compute_affected_downstream(stream_plan, index):
         return Affected(affected_indices, has_cost)
     for index2 in range(index + 1, len(stream_plan)):
         result2 = stream_plan[index2]
-        if output_objects & result2.instance.get_all_input_objects():
+        if output_objects & result2.instance.get_all_input_objects(): # TODO: get_object_orders
             output_objects.update(get_output_objects(result2))
             affected_indices.append(index2)
             has_cost |= (type(result2) is FunctionResult)
     return Affected(affected_indices, has_cost)
 
 def compute_affected_component(stream_plan, index):
-    pass
+    # TODO: affected upstream
+    raise NotImplementedError()
 
 ##################################################
 
@@ -139,6 +137,7 @@ class Binding(object):
         # TODO: update this online for speed purposes
         # TODO: store the result
         if self.is_dominated():
+            # Keep exploring down branches that contain a cost term
             return affected.has_cost
         if not self.children: # or type(self.result) == FunctionResult): # not self.attempts
             return self.index in affected.indices
@@ -156,6 +155,7 @@ class Binding(object):
         #priority = self.attempts
         #priority = self.compute_complexity()
         priority = self.compute_complexity() + (self.attempts - self.calls) # TODO: check this
+        # TODO: call_index
         remaining = len(self.skeleton.stream_plan) - self.index
         return Priority(not_best, priority, self.attempts, remaining, self.cost)
     def post_order(self):
@@ -353,7 +353,7 @@ class SkeletonQueue(Sized):
                 add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
         # TODO: AssertionError: Could not find instantiation for numeric expression: dist
 
-    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=True):
+    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=False):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)

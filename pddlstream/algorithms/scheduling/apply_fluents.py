@@ -52,7 +52,7 @@ def convert_fluent_streams(stream_plan, real_states, action_plan, step_from_fact
                 #OptimisticObject.from_opt(out.value, object())
                 OptimisticObject.from_opt(out.value, UniqueOptValue(result.instance, object(), name))
                 for name, out in safe_zip(result.external.outputs, result.output_objects)]
-            if new_output_objects and (state_index < len(action_plan)):
+            if new_output_objects and (state_index <= len(action_plan) - 1):
                 # TODO: check that the objects aren't used in any effects
                 instance = copy.copy(action_plan[state_index])
                 action_plan[state_index] = instance

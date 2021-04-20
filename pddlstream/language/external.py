@@ -269,6 +269,8 @@ class External(Performance):
     @property
     def is_function(self):
         raise NotImplementedError()
+    def is_cost(self):
+        return False
     def get_complexity(self, num_calls):
         if self.is_special or not self.has_outputs:
             return 0

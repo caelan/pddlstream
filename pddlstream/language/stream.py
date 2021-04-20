@@ -290,7 +290,7 @@ class StreamInstance(Instance):
         self.previous_outputs.update(new_objects) # Only counting new outputs as successes
         new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)
                        for list_index, output_objects in enumerate(new_objects)]
-        if start_history < len(self.history):
+        if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         new_facts = list(map(obj_from_value_expression, new_facts))
         self.successful |= any(r.is_successful() for r in new_results)
@@ -412,7 +412,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
-        self.num_opt_fns = 0 if self.is_special else 1 # TODO: is_negated or is_special
+        self.num_opt_fns = 0 if (self.is_test or self.is_special) else 1 # TODO: is_negated or is_special
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             #self.info.opt_gen_fn.register(self)
             if self.info.opt_gen_fn.unique:

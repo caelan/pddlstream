@@ -104,7 +104,7 @@ class FunctionInstance(Instance):
             # TODO: str(new_results[-1])
             print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
                                                          str_from_object(self.get_input_values()), value))
-        if start_history < len(self.history):
+        if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)
         return new_results, new_facts
@@ -126,6 +126,7 @@ class Function(External):
     _Instance = FunctionInstance
     #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     def __init__(self, head, fn, domain, info):
+        # TODO: function values that act as preconditions (cost must be below threshold)
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
             info = FunctionInfo() #p_success=self._default_p_success)
@@ -152,6 +153,9 @@ class Function(External):
         return False
     @property
     def is_function(self):
+        return True
+    @property
+    def is_cost(self):
         return True
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
@@ -198,6 +202,9 @@ class Predicate(Function):
     @property
     def is_negated(self):
         return True
+    @property
+    def is_cost(self):
+        return False
 
 ##################################################
 
