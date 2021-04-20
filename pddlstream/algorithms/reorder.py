@@ -218,6 +218,8 @@ def compute_statistics(stream_plan, bias=True):
         p_success, overhead = stats_from_stream[result]
         if result.external.has_outputs:
             # TODO: is_function, number of free inputs, etc.
+            # TODO: decrease p_success if fewer free inputs (or input streams)
+            # TODO: dynamic_programming seems to automatically order streams with fewer free ahead anyways
             overhead += EPSILON*(max_distance - distances[result] + 1)
         else:
             p_success *= EPSILON
@@ -238,7 +240,7 @@ def optimal_reorder_stream_plan(store, stream_plan, stats_from_stream=None, **kw
     stream_orders = get_partial_orders(stream_plan)
     stream_orders = {(index_from_stream[s1], index_from_stream[s2]) for s1, s2 in stream_orders}
     #nodes = stream_plan
-    nodes = indices # TODO: are indices much faster
+    nodes = indices # TODO: are indices actually much faster?
 
     in_stream_orders, out_stream_orders = neighbors_from_orders(stream_orders)
     valid_combine = lambda v, subset: out_stream_orders[v] <= subset
@@ -251,7 +253,7 @@ def optimal_reorder_stream_plan(store, stream_plan, stats_from_stream=None, **kw
 
     stats_fn = lambda idx: stats_from_stream[stream_plan[idx]]
     #tiebreaker_fn = lambda *args: 0
-    #tiebreaker_fn = lambda *args: random.random() # TODO: cyclic
+    #tiebreaker_fn = lambda *args: random.random() # TODO: introduces cycles
     tiebreaker_fn = lambda idx: stream_plan[idx].stats_heuristic()
     ordering = dynamic_programming(store, nodes, valid_combine, stats_fn=stats_fn, tiebreaker_fn=tiebreaker_fn, **kwargs)
     #import gc

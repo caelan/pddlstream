@@ -54,7 +54,7 @@ def reenable_disabled(evaluations, domain, disabled):
 def process_instance(store, domain, instance, disable=True):
     if instance.enumerated:
         return [], []
-    evaluations = store.evaluations
+    #evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
         instance.disable(store.evaluations, domain)
