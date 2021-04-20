@@ -152,10 +152,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
 
     summary = store.export_summary()
     summary.update({
-        # TODO: integrate into store
         'iterations': num_iterations,
         'complexity': complexity_limit,
-        # TODO: optimal, infeasible, etc...
     })
     print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
 

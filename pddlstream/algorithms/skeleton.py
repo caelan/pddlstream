@@ -4,7 +4,7 @@ import time
 from collections import namedtuple, Sized
 from heapq import heappush, heappop
 
-from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity
+from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
 from pddlstream.algorithms.reorder import get_output_objects
 from pddlstream.language.constants import is_plan, INFEASIBLE
@@ -51,7 +51,7 @@ class Skeleton(object):
         self.action_plan = action_plan
         self.cost = cost
         self.best_binding = None
-        self.root = Binding(self, self.cost, history=[], mapping={}, index=0)
+        self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
         # TODO: compute this all at once via hashing
@@ -63,22 +63,26 @@ class Skeleton(object):
             #    self.index, self.best_binding.index, self.best_binding))
             return True
         return False
-    def bind_stream_instance(self, index, mapping):
-        return self.stream_plan[index].remap_inputs(mapping)
-    def bind_stream_plan(self, mapping, stop=INF):
-        return [self.bind_stream(index, mapping) for index in range(min(stop, len(self.stream_plan)))]
+    def bind_stream_result(self, index, mapping):
+        return self.stream_plan[index].remap_inputs(mapping) # Has optimistic output objects
     def bind_action_plan(self, mapping):
         return bind_action_plan(self.action_plan, mapping)
 
 ##################################################
 
 class Binding(object):
-    def __init__(self, skeleton, cost, history, mapping, index):
+    def __init__(self, skeleton, cost, history, mapping, index, parent, parent_result):
+    #def __init__(self, skeleton, cost=0., history=[], mapping={}, index=0, parent=None):
         self.skeleton = skeleton
         self.cost = cost
         self.history = history
         self.mapping = mapping
         self.index = index
+        self.parent = parent
+        if self.parent is not None:
+            self.parent.children.append(self)
+        self.parent_result = parent_result
+
         self.children = []
         self._result = False
         self.attempts = 0 # The number of times _process_binding has been called
@@ -91,8 +95,8 @@ class Binding(object):
     def result(self):
         if self._result is False:
             self._result = None
-            if self.index < len(self.skeleton.stream_plan):
-                self._result = self.skeleton.bind_stream_instance(self.index, self.mapping)
+            if self.index <= len(self.skeleton.stream_plan) - 1:
+                self._result = self.skeleton.bind_stream_result(self.index, self.mapping)
         return self._result
     @property
     def is_fully_bound(self):
@@ -157,19 +161,27 @@ class Binding(object):
             for binding in child.post_order():
                 yield binding
         yield self
+    def get_ancestors(self):
+        if self.parent is not None:
+            for ancestor in self.parent.get_ancestors():
+                yield ancestor
+        yield self
+    def recover_bound_results(self):
+        return [binding.parent_result for binding in list(self.get_ancestors())[1:]]
     def update_bindings(self):
         new_bindings = []
         instance = self.result.instance
         for call_idx in range(self.calls, instance.num_calls):
             for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
                 if new_result.is_successful():
-                    new_binding = Binding(self.skeleton,
-                                          cost=update_cost(self.cost, self.result, new_result),
-                                          history=self.history + [call_idx],
-                                          mapping=update_bindings(self.mapping, self.result, new_result),
-                                          index=self.index + 1)
-                    self.children.append(new_binding)
-                    new_bindings.append(new_binding)
+                    new_bindings.append(Binding(
+                        skeleton=self.skeleton,
+                        cost=update_cost(self.cost, self.result, new_result),
+                        history=self.history + [call_idx],
+                        mapping=update_bindings(self.mapping, self.result, new_result),
+                        index=self.index + 1, # TODO: history instead of results_history
+                        parent=self,
+                        parent_result=new_result))
         self.calls = instance.num_calls
         self.attempts = max(self.attempts, self.calls)
         self.complexity = None # Forces re-computation
@@ -324,22 +336,14 @@ class SkeletonQueue(Sized):
 
     #########################
 
-    def accelerate_best_bindings(self):
+    def accelerate_best_bindings(self, **kwargs):
         # TODO: more generally reason about streams on several skeletons
         # TODO: reset the complexity values for old streams
         for skeleton in self.skeletons:
-            binding = skeleton.best_binding
-            if binding is None:
-                continue
-            for result in skeleton.bind_stream_plan(binding.mapping, stop=binding.index+1):
+            for result in skeleton.best_binding.recover_bound_results():
                 # TODO: just accelerate the facts within the plan preimage
-                print(result)
                 result.call_index = 0 # Pretends the fact was first
-                new_complexity = result.compute_complexity(self.evaluations)
-                for fact in result.get_certified():
-                    evaluation = evaluation_from_fact(fact)
-                    if new_complexity < self.evaluations[evaluation].complexity:
-                        self.evaluations[evaluation] = EvaluationNode(new_complexity, result)
+                add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=False):
         start_time = time.time()

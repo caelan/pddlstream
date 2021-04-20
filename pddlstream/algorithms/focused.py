@@ -227,7 +227,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         'skeletons': len(skeleton_queue.skeletons),
         'sample_time': sample_time,
         'search_time': search_time,
-        # TODO: optimal, infeasible, etc...
     })
     print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
 

@@ -62,27 +62,29 @@ class SolutionStore(object):
     def extract_solution(self):
         SOLUTIONS[:] = self.solutions
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
-    def export_summary(store): # TODO: log, status, etc...
+    def export_summary(self): # TODO: log, etc...
         # TODO: SOLUTIONS
+        #status = SUCCEEDED if self.is_solved() else FAILED # TODO: INFEASIBLE, OPTIMAL
         return {
-            'solved': store.is_solved(),
-            #'solved': store.has_solution(),
-            'solutions': len(store.solutions),
-            'cost': store.best_cost,
-            'length': get_length(store.best_plan),
-            'evaluations': len(store.evaluations),
-            'run_time': store.elapsed_time(),
-            'timeout': store.is_timeout(),
+            'solved': self.is_solved(),
+            #'solved': self.has_solution(),
+            'solutions': len(self.solutions),
+            'cost': self.best_cost,
+            'length': get_length(self.best_plan),
+            'evaluations': len(self.evaluations),
+            'run_time': self.elapsed_time(),
+            'timeout': self.is_timeout(),
+            #'status': status,
         }
 
 ##################################################
 
 def add_fact(evaluations, fact, result=INIT_EVALUATION, complexity=0):
     evaluation = evaluation_from_fact(fact)
-    if evaluation in evaluations:
-        return False
-    evaluations[evaluation] = EvaluationNode(complexity, result)
-    return True
+    if (evaluation not in evaluations) or (complexity < evaluations[evaluation].complexity):
+        evaluations[evaluation] = EvaluationNode(complexity, result)
+        return True
+    return False
 
 
 def add_facts(evaluations, facts, **kwargs):
@@ -106,6 +108,10 @@ def evaluations_from_init(init):
     return evaluations
 
 
+def combine_complexities(complexities, complexity_op=COMPLEXITY_OP):
+    return complexity_op([0] + list(complexities))
+
+
 def compute_complexity(evaluations, facts, complexity_op=COMPLEXITY_OP):
     if not facts:
         return 0
@@ -119,6 +125,7 @@ def optimistic_complexity(evaluations, optimistic_facts, fact):
     if evaluation in evaluations:
         return evaluations[evaluation].complexity
     return optimistic_facts[fact]
+
 
 def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):

@@ -99,9 +99,9 @@ class Result(object):
         raise NotImplementedError()
     def is_successful(self):
         raise NotImplementedError()
-    def compute_complexity(self, evaluations):
+    def compute_complexity(self, evaluations, **kwargs):
         # Should be constant
-        return compute_complexity(evaluations, self.get_domain()) + \
+        return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.call_index)
     def get_effort(self, **kwargs):
         if not self.optimistic:
@@ -203,9 +203,9 @@ class Instance(object):
             results.extend(self.results_history[index])
         return results
 
-    def compute_complexity(self, evaluations):
+    def compute_complexity(self, evaluations, **kwargs):
         # Will change as self.num_calls increases
-        return compute_complexity(evaluations, self.get_domain()) + \
+        return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.num_calls)
 
     def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
