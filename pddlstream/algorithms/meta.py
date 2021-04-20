@@ -88,6 +88,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
     # TODO: print the arguments using locals()
     # TODO: could instead make common arguments kwargs but then they could have different default values
+    # TODO: portfolios of PDDLStream algorithms
     if algorithm == 'incremental':
         return solve_incremental(
             problem=problem, constraints=constraints,

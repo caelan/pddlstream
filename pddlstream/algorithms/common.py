@@ -1,7 +1,7 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan, get_length
+from pddlstream.language.constants import is_plan, get_length, FAILED, INFEASIBLE
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
 from pddlstream.utils import INF, elapsed_time, check_memory
 
@@ -38,7 +38,8 @@ class SolutionStore(object):
         self.solutions = []
     @property
     def best_plan(self):
-        return self.solutions[-1].plan if self.solutions else None
+        # TODO: return INFEASIBLE if can prove no solution
+        return self.solutions[-1].plan if self.solutions else FAILED
     @property
     def best_cost(self):
         return self.solutions[-1].cost if self.solutions else INF
@@ -110,33 +111,33 @@ def compute_complexity(evaluations, facts, complexity_op=COMPLEXITY_OP):
         return 0
     return complexity_op(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
 
+##################################################
+
+def optimistic_complexity(evaluations, optimistic_facts, fact):
+    # TODO: take the min of the two
+    evaluation = evaluation_from_fact(fact)
+    if evaluation in evaluations:
+        return evaluations[evaluation].complexity
+    return optimistic_facts[fact]
 
 def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):
         return INF
     # TODO: difference between a result having a particular complexity and the next result having something
     optimistic_facts = {}
-    total_complexity = 0
+    result_complexities = []
     for i, result in enumerate(stream_plan):
-        result_complexity = 0
-        for fact in result.get_domain():
-            evaluation = evaluation_from_fact(fact)
-            if evaluation in evaluations:
-                fact_complexity = evaluations[evaluation].complexity
-            else:
-                fact_complexity = optimistic_facts[fact]
-            result_complexity = complexity_op(result_complexity, fact_complexity)
+        result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
+                                                 for fact in result.get_domain()])
         if stream_calls is None:
-            result_complexity += result.instance.num_calls + 1
-        elif i < len(stream_calls):
-            result_complexity += stream_calls[i] + 1
-        else:
-            result_complexity += 1
+            result_complexity += result.instance.num_calls
+        elif i <= len(stream_calls) - 1:
+            result_complexity += stream_calls[i]
+        result_complexities.append(result_complexity + 1)
         for fact in result.get_certified():
             if fact not in optimistic_facts:
                 optimistic_facts[fact] = result_complexity
-        total_complexity = complexity_op(total_complexity, result_complexity)
-    return total_complexity
+    return complexity_op([0] + result_complexities)
 
 
 def is_instance_ready(evaluations, instance):

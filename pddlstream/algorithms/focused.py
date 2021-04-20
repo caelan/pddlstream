@@ -24,8 +24,8 @@ from pddlstream.language.optimizer import ComponentStream
 from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
-from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object
+from pddlstream.language.stream import Stream, StreamResult
+from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object, safe_zip
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -41,6 +41,33 @@ def partition_externals(externals, verbose=False):
         print('Streams: {}\nFunctions: {}\nNegated: {}\nOptimizers: {}'.format(
             streams, functions, negative, optimizers))
     return streams, functions, negative, optimizers
+
+##################################################
+
+def recover_optimistic_outputs(stream_plan):
+    if not is_plan(stream_plan):
+        return stream_plan
+    new_mapping = {}
+    new_stream_plan = []
+    for result in stream_plan:
+        new_result = result.remap_inputs(new_mapping)
+        new_stream_plan.append(new_result)
+        if isinstance(new_result, StreamResult):
+            opt_result = new_result.instance.opt_results[0] # TODO: empty if disabled
+            new_mapping.update(safe_zip(new_result.output_objects, opt_result.output_objects))
+    return new_stream_plan
+
+def check_dominated(skeleton_queue, stream_plan):
+    if not is_plan(stream_plan):
+        return True
+    for skeleton in skeleton_queue.skeletons:
+        # TODO: has stream_plans and account for different output object values
+        if frozenset(stream_plan) <= frozenset(skeleton.stream_plan):
+            print(stream_plan)
+            print(skeleton.stream_plan)
+    raise NotImplementedError()
+
+##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
@@ -151,6 +178,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
+        #stream_plan = recover_optimistic_outputs(stream_plan)
         if reorder:
             # TODO: this blows up memory wise for long stream plans
             stream_plan = reorder_stream_plan(store, stream_plan)
@@ -182,13 +210,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
-
-            # for s in skeleton_queue.skeletons:
-            #     # TODO: prune supersets
-            #     if (stream_plan is not None) and (frozenset(stream_plan) == frozenset(s.stream_plan)):
-            #         print(stream_plan)
-            #         print(skeleton_queue)
-            #         input()
 
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF

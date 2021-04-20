@@ -37,9 +37,10 @@ def get_fact_orders(stream_plan, init_facts=set()):
         achieved_facts.update(new_facts)
     return partial_orders
 
-def get_partial_orders(stream_plan, **kwargs):
-    partial_orders = get_object_orders(stream_plan) | \
-                     get_fact_orders(stream_plan, **kwargs)
+def get_partial_orders(stream_plan, use_facts=True, **kwargs):
+    partial_orders = get_object_orders(stream_plan)
+    if use_facts:
+        partial_orders.update(get_fact_orders(stream_plan, **kwargs))
     assert is_acyclic(stream_plan, partial_orders)
     return partial_orders
 
