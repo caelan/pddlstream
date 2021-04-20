@@ -148,14 +148,13 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
 ##################################################
 
-def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=None, abort=True, **kwargs):
+def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=INF, abort=True, **kwargs):
     # TODO: iteratively lower the cost bound
     # TODO: a sequence of different planner configurations
     # TODO: reset objects and/or streams
-    if (max_restarts == 0) and (iteration_time is None):
-        iteration_time = INF
-    if iteration_time is None:
-        iteration_time = 2 * 60
+    if (max_restarts >= 1) and (iteration_time == INF):
+        iteration_time = min(2 * 60, iteration_time)
+    assert (max_restarts == 0) or (iteration_time != INF)
 
     assert max_restarts >= 0
     start_time = time.time()
@@ -166,11 +165,12 @@ def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=None, ab
         if attempt >= 1:
             print(SEPARATOR)
         #solution = planner_fn(problem) # Or include the problem in the lambda
-        solution = solve(problem, max_time=min(iteration_time, max_time-elapsed_time(start_time)), **kwargs)
+        remaining_time = min(iteration_time, max_time-elapsed_time(start_time))
+        solution = solve(problem, max_time=remaining_time, **kwargs)
         plan, cost, certificate = solution
         if is_plan(plan): # TODO: INFEASIBLE
             return solution
-        if abort and (elapsed_time(iteration_start_time) < iteration_time):
+        if abort and (elapsed_time(iteration_start_time) < remaining_time):
             break # TODO: return the cause of failure
 
     certificate = Certificate(all_facts=[], preimage_facts=[]) # TODO: aggregate
@@ -192,9 +192,9 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     # process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
     # results = [] # TODO: extract from process_stream_queue
 
-    for external in externals:
-        external.info.opt_gen_fn = PartialInputs(unique=True)
-        external.num_opt_fns = 0
+    # for external in externals:
+    #     external.info.opt_gen_fn = PartialInputs(unique=True)
+    #     external.num_opt_fns = 0
     results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
     evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
 
