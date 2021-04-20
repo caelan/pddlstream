@@ -348,9 +348,10 @@ class SkeletonQueue(Sized):
             for result in skeleton.best_binding.recover_bound_results():
                 # TODO: just accelerate the facts within the plan preimage
                 #print(result, result.compute_complexity(self.evaluations, **kwargs))
-                result.call_index = 1 # Pretends the fact was first
+                result.call_index = 0 # Pretends the fact was first
                 #print(result.compute_complexity(self.evaluations, **kwargs))
                 add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
+        # TODO: AssertionError: Could not find instantiation for numeric expression: dist
 
     def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=True):
         start_time = time.time()

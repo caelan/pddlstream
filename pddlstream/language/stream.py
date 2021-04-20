@@ -260,6 +260,20 @@ class StreamInstance(Instance):
             self.history.append(self._next_wild())
         return self.history[self.num_calls]
 
+    def dump_new_values(self, new_values=[]):
+        if (not new_values and VERBOSE_FAILURES) or \
+                (new_values and self.info.verbose):
+            print('iter={}, outs={}) {}:{}->{}'.format(
+                self.num_calls, len(new_values), self.external.name,
+                str_from_object(self.get_input_values()), str_from_object(new_values)))
+
+    def dump_new_facts(self, new_facts=[]):
+        if VERBOSE_WILD and new_facts:
+            # TODO: format all_new_facts
+            print('iter={}, facts={}) {}:{}->{}'.format(
+                self.num_calls, self.external.name, str_from_object(self.get_input_values()),
+                new_facts, len(new_facts)))
+
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
@@ -268,16 +282,8 @@ class StreamInstance(Instance):
         self._check_output_values(new_values)
         self._check_wild_facts(new_facts)
         if verbose:
-            if (not new_values and VERBOSE_FAILURES) or \
-                    (new_values and self.info.verbose):
-                print('iter={}, outs={}) {}:{}->{}'.format(
-                    self.num_calls, len(new_values), self.external.name,
-                    str_from_object(self.get_input_values()), str_from_object(new_values)))
-            if VERBOSE_WILD and new_facts:
-                # TODO: format all_new_facts
-                print('iter={}, facts={}) {}:{}->{}'.format(
-                    self.num_calls, self.external.name, str_from_object(self.get_input_values()),
-                    new_facts, len(new_facts)))
+            self.dump_new_values(new_values)
+            self.dump_new_facts(new_facts)
 
         objects = [objects_from_values(output_values) for output_values in new_values]
         new_objects = list(filter(lambda o: o not in self.previous_outputs, objects))
