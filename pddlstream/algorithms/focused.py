@@ -8,6 +8,7 @@ from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
+#from pddlstream.algorithms.downward import has_costs
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
@@ -88,17 +89,18 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # TODO: no optimizers during search with relaxed_stream_plan
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
+    # TODO: change the search algorithm and unit costs based on the best cost
     num_iterations = search_time = sample_time = eager_calls = 0
     complexity_limit = initial_complexity
-    # TODO: make effort_weight be a function of the current cost
-    # TODO: change the search algorithm and unit costs based on the best cost
-    eager_disabled = effort_weight is None  # No point if no stream effort biasing
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
     identify_non_producers(externals)
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)
+    # TODO: make effort_weight be a function of the current cost
+    # if (effort_weight is None) and not has_costs(domain):
+    #     effort_weight = 1
 
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
@@ -113,6 +115,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     use_skeletons = (max_skeletons is not None)
     has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
+    eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):

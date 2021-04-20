@@ -26,6 +26,7 @@ def get_object_orders(stream_plan):
     return partial_orders
 
 def get_fact_orders(stream_plan, init_facts=set()):
+    # TODO: explicitly recover this from plan_streams
     achieved_facts = set(init_facts)
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):

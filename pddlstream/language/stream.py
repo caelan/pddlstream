@@ -165,6 +165,10 @@ class StreamResult(Result):
         return self.certified
     def get_action(self):
         return StreamAction(self.name, self.input_objects, self.output_objects)
+    def get_optimistic(self):
+        index = 0
+        #index = self.call_index
+        return self.instance.opt_results[index]
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
         #if not any(o in bindings for o in self.instance.get_all_input_objects()):
@@ -219,10 +223,11 @@ class StreamInstance(Instance):
         self.num_optimistic = 1
 
     def get_result(self, output_objects, opt_index=None, list_index=None, optimistic=True):
+        # TODO: rename to create_result because not unique
         # TODO: ideally would increment a flag per stream for each failure
         call_index = self.num_calls
         #call_index = self.successes # Only counts iterations that return results for complexity
-        return self._Result(self, tuple(output_objects), opt_index=opt_index,
+        return self._Result(instance=self, output_objects=tuple(output_objects), opt_index=opt_index,
                             call_index=call_index, list_index=list_index, optimistic=optimistic)
 
     def get_all_input_objects(self): # TODO: lazily compute
@@ -290,28 +295,29 @@ class StreamInstance(Instance):
         return new_results, new_facts
 
     def next_optimistic(self):
-        # TODO: compute this just once and store
         if self.enumerated or self.disabled:
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real and not real verifications of things?
-        # TODO: reuse these?
+        # if self.opt_results: # self.out_results is not None:
+        #     return self.opt_results # TODO: reuse these?
         self.opt_results = []
         output_set = set()
-        for output_list in self.opt_gen_fn(*self.get_input_values()):
+        for output_list in self.opt_gen_fn(*self.get_input_values()): # TODO: support generators instead
             self._check_output_values(output_list)
             for i, output_values in enumerate(output_list):
+                call_index = len(self.opt_results)
                 output_objects = []
                 for name, value in safe_zip(self.external.outputs, output_values):
                     # TODO: maybe record history of values here?
-                    unique = UniqueOptValue(self, len(self.opt_results), name) # object()
+                    unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name) # object()
                     param = unique if (self.opt_index == 0) else value
                     output_objects.append(OptimisticObject.from_opt(value, param))
                 output_objects = tuple(output_objects)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
-                    self.opt_results.append(self._Result(self, output_objects, opt_index=self.opt_index,
-                                                         call_index=len(self.opt_results), list_index=0))
+                    self.opt_results.append(self._Result(instance=self, output_objects=output_objects,
+                                                         opt_index=self.opt_index, call_index=call_index, list_index=0))
         return self.opt_results
 
     def get_blocked_fact(self):

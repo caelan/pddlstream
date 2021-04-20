@@ -86,8 +86,10 @@ SEARCH_OPTIONS = {
     # Optimal (when cost_type=NORMAL)
     'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    #'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+    #             ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"', # cost_type=NORMAL
     'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
-                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"', # cost_type=PLUSONE
     'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=PLUSONE))"'
                  ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
 

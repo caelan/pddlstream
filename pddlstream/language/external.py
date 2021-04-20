@@ -81,6 +81,7 @@ class Result(object):
     def domain(self):
         return self.instance.domain
     def is_refined(self):
+        # TODO: result.opt_index is None
         return self.opt_index == 0 # TODO: base on output objects instead
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
@@ -132,7 +133,7 @@ class Instance(object):
         self.disabled = False # TODO: perform disabled using complexity
         self.history = [] # TODO: facts history
         self.results_history = []
-        self.opt_results = []
+        self.opt_results = [] # TODO: initialize as None
         self._mapping = None
         self._domain = None
         self.reset()
@@ -173,6 +174,7 @@ class Instance(object):
     def is_refined(self):
         return self.opt_index == 0
     def refine(self):
+        # TODO: could instead create a new Instance per opt_index
         if not self.is_refined():
             self.opt_index -= 1
         return self.opt_index

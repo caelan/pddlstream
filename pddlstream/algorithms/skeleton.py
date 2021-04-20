@@ -15,7 +15,6 @@ PRUNE_BINDINGS = True
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
-# TODO: prioritize bindings using effort
 Priority = namedtuple('Priority', ['not_best', 'complexity', 'attempts', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
@@ -145,6 +144,7 @@ class Binding(object):
     def do_evaluate(self):
         return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
     def get_priority(self):
+        # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         not_best = not self.is_best()
         #priority = self.attempts
@@ -184,14 +184,14 @@ STANDBY = None
 class SkeletonQueue(Sized):
     def __init__(self, store, domain, disable=True):
         self.store = store
-        self.evaluations = store.evaluations
         self.domain = domain
         self.skeletons = []
         self.queue = []
-        self.binding_from_key = {}
-        self.bindings_from_instance = {}
-        self.enabled_bindings = set()
         self.disable = disable
+
+    @property
+    def evaluations(self):
+        return self.store.evaluations
 
     def __len__(self):
         return len(self.queue)
@@ -200,6 +200,7 @@ class SkeletonQueue(Sized):
         return self.queue and (not self.store.is_terminated())
 
     def push_binding(self, binding):
+        # TODO: add to a separate queue if not active
         priority = binding.get_priority()
         element = HeapElement(priority, binding)
         heappush(self.queue, element)

@@ -33,13 +33,13 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
 
 ##################################################
 
-def create_problem(tamp_problem, hand_empty=False):
+def create_problem(tamp_problem, hand_empty=False, manipulate_cost=1.):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
     init = [
        #('Region', GROUND_NAME),
-       Equal(('Cost',), 0),
+       Equal(('Cost',), manipulate_cost),
        Equal((TOTAL_COST,), 0)] + \
            [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
@@ -270,6 +270,7 @@ def main():
     #planner = 'ff-wastar1'
     #effort_weight = 1.
     effort_weight = 1. / get_cost_scale()
+    #effort_weight = None
 
     with Profiler(field='cumtime', num=20):
         solution = solve(pddlstream_problem, algorithm=args.algorithm, constraints=constraints, stream_info=stream_info,

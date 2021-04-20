@@ -178,6 +178,11 @@ def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=INF, abo
 
 ##################################################
 
+def set_unique(externals):
+    for external in externals:
+        external.info.opt_gen_fn = PartialInputs(unique=True)
+        external.num_opt_fns = 0
+
 def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, verbose=False, debug=False):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
@@ -192,9 +197,7 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     # process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
     # results = [] # TODO: extract from process_stream_queue
 
-    # for external in externals:
-    #     external.info.opt_gen_fn = PartialInputs(unique=True)
-    #     external.num_opt_fns = 0
+    #set_unique(externals)
     results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
     evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
 
