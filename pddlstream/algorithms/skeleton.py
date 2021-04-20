@@ -64,7 +64,7 @@ class Skeleton(object):
             #    self.index, self.best_binding.index, self.best_binding))
             return True
         return False
-    def bind_stream(self, index, mapping):
+    def bind_stream_instance(self, index, mapping):
         return self.stream_plan[index].remap_inputs(mapping)
     def bind_stream_plan(self, mapping, stop=INF):
         return [self.bind_stream(index, mapping) for index in range(min(stop, len(self.stream_plan)))]
@@ -93,7 +93,7 @@ class Binding(object):
         if self._result is False:
             self._result = None
             if self.index < len(self.skeleton.stream_plan):
-                self._result = self.skeleton.bind_stream(self.index, self.mapping)
+                self._result = self.skeleton.bind_stream_instance(self.index, self.mapping)
         return self._result
     @property
     def is_fully_bound(self):
@@ -105,6 +105,8 @@ class Binding(object):
     #    return self.parent_complexity + self.calls
     def is_best(self):
         return self.skeleton.best_binding is self
+    def is_dominated(self):
+        return self.skeleton.queue.store.best_cost <= self.cost
     def up_to_date(self):
         if self.is_fully_bound:
             return True
@@ -128,8 +130,6 @@ class Binding(object):
         if (complexity_limit < self.max_history) or (complexity_limit < self.calls):
             return False
         return self.compute_complexity() <= complexity_limit
-    def is_dominated(self):
-        return self.skeleton.queue.store.best_cost <= self.cost
     def do_evaluate_helper(self, affected):
         # TODO: update this online for speed purposes
         # TODO: store the result
@@ -147,16 +147,33 @@ class Binding(object):
     def get_priority(self):
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
         not_best = not self.is_best()
-        #complexity = self.attempts
-        #complexity = self.compute_complexity()
-        complexity = self.compute_complexity() + (self.attempts - self.calls) # TODO: check this
+        #priority = self.attempts
+        #priority = self.compute_complexity()
+        priority = self.compute_complexity() + (self.attempts - self.calls) # TODO: check this
         remaining = len(self.skeleton.stream_plan) - self.index
-        return Priority(not_best, complexity, self.attempts, remaining, self.cost)
+        return Priority(not_best, priority, self.attempts, remaining, self.cost)
     def post_order(self):
         for child in self.children:
             for binding in child.post_order():
                 yield binding
         yield self
+    def update_bindings(self):
+        new_bindings = []
+        instance = self.result.instance
+        for call_idx in range(self.calls, instance.num_calls):
+            for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
+                if new_result.is_successful():
+                    new_binding = Binding(self.skeleton,
+                                          cost=update_cost(self.cost, self.result, new_result),
+                                          history=self.history + [call_idx],
+                                          mapping=update_bindings(self.mapping, self.result, new_result),
+                                          index=self.index + 1)
+                    self.children.append(new_binding)
+                    new_bindings.append(new_binding)
+        self.calls = instance.num_calls
+        self.attempts = max(self.attempts, self.calls)
+        self.complexity = None # Forces re-computation
+        return new_bindings
     def __repr__(self):
         return '{}(skeleton={}, {})'.format(self.__class__.__name__, self.skeleton.index, self.result)
 
@@ -187,26 +204,24 @@ class SkeletonQueue(Sized):
         element = HeapElement(priority, binding)
         heappush(self.queue, element)
 
+    def pop_binding(self):
+        priority, binding = heappop(self.queue)
+        #return binding
+        return priority, binding
+
+    def peak_binding(self):
+        if not self.queue:
+            return None
+        priority, binding = self.queue[0]
+        return priority, binding
+
     def new_skeleton(self, stream_plan, action_plan, cost):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
         self.skeletons.append(skeleton)
         self.push_binding(skeleton.root)
+        return skeleton
 
-    def _new_bindings(self, binding):
-        instance = binding.result.instance
-        for call_idx in range(binding.calls, instance.num_calls):
-            for new_result in instance.results_history[call_idx]: # TODO: don't readd if successful already
-                if new_result.is_successful():
-                    new_cost = update_cost(binding.cost, binding.result, new_result)
-                    new_history = binding.history + [call_idx]
-                    new_mapping = update_bindings(binding.mapping, binding.result, new_result)
-                    new_index = binding.index + 1
-                    new_binding = Binding(binding.skeleton, new_cost, new_history, new_mapping, new_index)
-                    binding.children.append(new_binding)
-                    self.push_binding(new_binding)
-        binding.calls = instance.num_calls
-        binding.attempts = max(binding.attempts, binding.calls)
-        binding.complexity = None # Forces re-computation
+    #########################
 
     def _process_binding(self, binding):
         readd = is_new = False
@@ -231,12 +246,13 @@ class SkeletonQueue(Sized):
         if binding.up_to_date():
             new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable)
             is_new = bool(new_results)
-        self._new_bindings(binding)
+        for new_binding in binding.update_bindings():
+            self.push_binding(new_binding)
         readd = not instance.enumerated
         return readd, is_new
 
     def _process_root(self):
-        key, binding = heappop(self.queue)
+        _, binding = self.pop_binding()
         readd, is_new = self._process_binding(binding)
         if readd is not False:
             self.push_binding(binding)
@@ -247,9 +263,9 @@ class SkeletonQueue(Sized):
     def greedily_process(self, max_attempts=1, only_best=True):
         while self.is_active():
             # TODO: break if the complexity limit is exceeded
-            key, binding = self.queue[0]
-            #print(binding.is_best() == not key.not_best) # TODO: update if stale
-            if (only_best and key.not_best) or (key.attempts >= max_attempts):
+            priority, binding = self.peak_binding()
+            #print(binding.is_best() == not priority.not_best) # TODO: update if stale
+            if (only_best and priority.not_best) or (priority.attempts >= max_attempts):
                 break
             self._process_root()
 
@@ -262,7 +278,7 @@ class SkeletonQueue(Sized):
         standby = []
         while self.is_active() and (not is_new):
             attempts += 1
-            key, binding = heappop(self.queue)
+            _, binding = self.pop_binding()
             readd, is_new = self._process_binding(binding)
             if readd is True:
                 self.push_binding(binding)
@@ -284,7 +300,7 @@ class SkeletonQueue(Sized):
         #self.greedily_process(max_attempts=complexity_limit) # This isn't quite the complexity limit
         disabled_bindings = []
         while self.is_active():
-            _, binding = heappop(self.queue)
+            _, binding = self.pop_binding()
             if binding.check_complexity(complexity_limit): # not binding.up_to_date() or
                 readd, _ = self._process_binding(binding)
                 if readd is True:
@@ -304,6 +320,8 @@ class SkeletonQueue(Sized):
             num_new += self._process_root()
             self.greedily_process(complexity_limit)
         print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
+
+    #########################
 
     def accelerate_best_bindings(self):
         # TODO: more generally reason about streams on several skeletons

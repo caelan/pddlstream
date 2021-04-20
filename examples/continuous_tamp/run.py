@@ -33,7 +33,7 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
 
 ##################################################
 
-def create_problem(tamp_problem):
+def create_problem(tamp_problem, hand_empty=False):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
@@ -77,6 +77,8 @@ def create_problem(tamp_problem):
             ('AtConf', r, q),
             ('HandEmpty', r),
         ]
+        if hand_empty:
+            goal_literals += [('HandEmpty', r)]
         if tamp_problem.goal_conf is not None:
             # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
@@ -263,6 +265,7 @@ def main():
     dump_pddlstream(pddlstream_problem)
 
     success_cost = 0 if args.optimal else INF
+    #planner = 'dijkstra'
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     #effort_weight = 1.

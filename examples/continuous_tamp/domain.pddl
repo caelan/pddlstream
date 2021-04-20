@@ -25,6 +25,7 @@
     (Holding ?r ?b)
     (HandEmpty ?r)
     (CanMove ?r)
+    (CanManipulate ?r)
     (Cooked ?b)
 
     ; Derived predicates
@@ -44,21 +45,26 @@
                        (AtConf ?r ?q1) (CanMove ?r) ; (not (UnsafeTraj ?t)))
                   )
     :effect (and (AtConf ?r ?q2)
+                 (CanManipulate ?r)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r))
                  (increase (total-cost) (Dist ?q1 ?q2))))
 
   (:action pick
     :parameters (?r ?b ?p ?g ?q)
     :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
-                       (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r))
+                       (AtConf ?r ?q) (AtPose ?b ?p) (HandEmpty ?r)
+                       ;(CanManipulate ?r)
+                  )
     :effect (and (AtGrasp ?r ?b ?g) (CanMove ?r)
                  (not (AtPose ?b ?p)) (not (HandEmpty ?r))
+                 (not (CanManipulate ?r))
                  (increase (total-cost) (Cost))))
 
   (:action place
     :parameters (?r ?b ?p ?g ?q)
     :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g)
                        (AtConf ?r ?q) (AtGrasp ?r ?b ?g)
+                       ;(CanManipulate ?r)
                        (not (UnsafePose ?b ?p))
                        (forall (?b2 ?p2) ; TODO: makes incremental slow
                          (imply (and (Pose ?b2 ?p2) (AtPose ?b2 ?p2))
@@ -66,6 +72,7 @@
                   )
     :effect (and (AtPose ?b ?p) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?b ?g))
+                 (not (CanManipulate ?r))
                  (increase (total-cost) (Cost)))
   )
 
