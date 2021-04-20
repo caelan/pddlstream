@@ -51,6 +51,7 @@ class Skeleton(object):
         self.action_plan = action_plan
         self.cost = cost
         self.best_binding = None
+        self.improved = False
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
@@ -61,6 +62,7 @@ class Skeleton(object):
             self.best_binding = binding
             #print('Skeleton {} | Progress: {} | New best: {}'.format(
             #    self.index, self.best_binding.index, self.best_binding))
+            self.improved = True
             return True
         return False
     def bind_stream_result(self, index, mapping):
@@ -340,19 +342,27 @@ class SkeletonQueue(Sized):
         # TODO: more generally reason about streams on several skeletons
         # TODO: reset the complexity values for old streams
         for skeleton in self.skeletons:
+            if not skeleton.improved:
+                continue
+            skeleton.improved = False
             for result in skeleton.best_binding.recover_bound_results():
                 # TODO: just accelerate the facts within the plan preimage
-                result.call_index = 0 # Pretends the fact was first
+                #print(result, result.compute_complexity(self.evaluations, **kwargs))
+                result.call_index = 1 # Pretends the fact was first
+                #print(result.compute_complexity(self.evaluations, **kwargs))
                 add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
 
-    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=False):
+    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=True):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
             self.greedily_process()
         elif (stream_plan is INFEASIBLE) and not self.process_until_new(complexity_limit):
             # Move this after process_complexity
-            return False
+            return INFEASIBLE
+        if not self.queue:
+            return True
+
         #if not is_plan(stream_plan):
         #    print('Complexity:', complexity_limit) # TODO: revisit this
         #    self.process_complexity(complexity_limit)

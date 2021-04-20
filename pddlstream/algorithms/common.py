@@ -1,7 +1,7 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan, get_length, FAILED, INFEASIBLE
+from pddlstream.language.constants import is_plan, get_length, FAILED #, INFEASIBLE, SUCCEEDED
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
 from pddlstream.utils import INF, elapsed_time, check_memory
 
@@ -136,11 +136,13 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexi
     for i, result in enumerate(stream_plan):
         result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
                                                  for fact in result.get_domain()])
+        num_calls = 0
         if stream_calls is None:
-            result_complexity += result.instance.num_calls
+            num_calls = result.instance.num_calls
         elif i <= len(stream_calls) - 1:
-            result_complexity += stream_calls[i]
-        result_complexities.append(result_complexity + 1)
+            num_calls = stream_calls[i]
+        result_complexity += result.external.get_complexity(num_calls)
+        result_complexities.append(result_complexity)
         for fact in result.get_certified():
             if fact not in optimistic_facts:
                 optimistic_facts[fact] = result_complexity
