@@ -84,6 +84,7 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     if unit_costs:
         set_unit_costs(domain)
     if not has_costs(domain):
+        # TODO: set effort_weight to 1 if no costs
         print('Warning! All actions have no cost. Recommend setting unit_costs=True')
     obj_from_constant = parse_constants(domain, constant_map) # Keep before parse_stream_pddl
 

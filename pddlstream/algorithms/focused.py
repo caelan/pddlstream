@@ -8,6 +8,7 @@ from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
+#from pddlstream.algorithms.downward import has_costs
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
@@ -23,8 +24,8 @@ from pddlstream.language.optimizer import ComponentStream
 from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
-from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object
+from pddlstream.language.stream import Stream, StreamResult
+from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object, safe_zip
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -40,6 +41,33 @@ def partition_externals(externals, verbose=False):
         print('Streams: {}\nFunctions: {}\nNegated: {}\nOptimizers: {}'.format(
             streams, functions, negative, optimizers))
     return streams, functions, negative, optimizers
+
+##################################################
+
+def recover_optimistic_outputs(stream_plan):
+    if not is_plan(stream_plan):
+        return stream_plan
+    new_mapping = {}
+    new_stream_plan = []
+    for result in stream_plan:
+        new_result = result.remap_inputs(new_mapping)
+        new_stream_plan.append(new_result)
+        if isinstance(new_result, StreamResult):
+            opt_result = new_result.instance.opt_results[0] # TODO: empty if disabled
+            new_mapping.update(safe_zip(new_result.output_objects, opt_result.output_objects))
+    return new_stream_plan
+
+def check_dominated(skeleton_queue, stream_plan):
+    if not is_plan(stream_plan):
+        return True
+    for skeleton in skeleton_queue.skeletons:
+        # TODO: has stream_plans and account for different output object values
+        if frozenset(stream_plan) <= frozenset(skeleton.stream_plan):
+            print(stream_plan)
+            print(skeleton.stream_plan)
+    raise NotImplementedError()
+
+##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
@@ -88,17 +116,18 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # TODO: no optimizers during search with relaxed_stream_plan
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
+    # TODO: change the search algorithm and unit costs based on the best cost
     num_iterations = search_time = sample_time = eager_calls = 0
     complexity_limit = initial_complexity
-    # TODO: make effort_weight be a function of the current cost
-    # TODO: change the search algorithm and unit costs based on the best cost
-    eager_disabled = effort_weight is None  # No point if no stream effort biasing
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
     identify_non_producers(externals)
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)
+    # TODO: make effort_weight be a function of the current cost
+    # if (effort_weight is None) and not has_costs(domain):
+    #     effort_weight = 1
 
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
@@ -113,6 +142,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     use_skeletons = (max_skeletons is not None)
     has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
+    eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
@@ -148,6 +178,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
         #                                       [s for s in synthesizers if not s.post_only])
+        #stream_plan = recover_optimistic_outputs(stream_plan)
         if reorder:
             # TODO: this blows up memory wise for long stream plans
             stream_plan = reorder_stream_plan(store, stream_plan)
@@ -179,6 +210,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+
             allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
             if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
@@ -195,7 +227,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         'skeletons': len(skeleton_queue.skeletons),
         'sample_time': sample_time,
         'search_time': search_time,
-        # TODO: optimal, infeasible, etc...
     })
     print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
 

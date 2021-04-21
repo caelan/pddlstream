@@ -1,18 +1,24 @@
 import argparse
 import time
 
+from collections import defaultdict
+
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.common import SolutionStore
+from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem
-from pddlstream.algorithms.incremental import solve_incremental, process_stream_queue
-from pddlstream.algorithms.focused import solve_focused, solve_focused_original, solve_binding, solve_adaptive
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, fd_from_evaluations
+from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
-from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.language.constants import is_plan, Certificate, PDDLProblem
+from pddlstream.algorithms.refinement import optimistic_process_streams
+from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
+from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
+from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, Solution
+from pddlstream.language.conversion import value_from_obj_expression, EQ
 from pddlstream.language.external import DEBUG
+from pddlstream.language.stream import PartialInputs
 from pddlstream.language.temporal import SimplifiedDomain
-from pddlstream.utils import elapsed_time, INF, Verbose
+from pddlstream.utils import elapsed_time, INF, Verbose, irange, SEPARATOR
 
 FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
 ALGORITHMS = ['incremental'] + FOCUSED_ALGORITHMS
@@ -47,6 +53,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
     """
     Solves a PDDLStream problem generically using one of the available algorithms
     :param problem: a PDDLStream problem
+    :param algorithm: a PDDLStream algorithm name
     :param constraints: PlanConstraints on the set of legal solutions
     :param stream_info: a dictionary from stream name to StreamInfo altering how individual streams are handled
     :param replan_actions: the actions declared to induce replanning for the purpose of deferred stream evaluation
@@ -81,6 +88,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
     # TODO: print the arguments using locals()
     # TODO: could instead make common arguments kwargs but then they could have different default values
+    # TODO: portfolios of PDDLStream algorithms
     if algorithm == 'incremental':
         return solve_incremental(
             problem=problem, constraints=constraints,
@@ -141,27 +149,42 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
 
 ##################################################
 
-def restart(problem, planner_fn, max_time=INF, max_restarts=0, abort=False):
+def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=INF, abort=True, **kwargs):
     # TODO: iteratively lower the cost bound
     # TODO: a sequence of different planner configurations
     # TODO: reset objects and/or streams
+    if (max_restarts >= 1) and (iteration_time == INF):
+        iteration_time = min(2 * 60, iteration_time)
+    assert (max_restarts == 0) or (iteration_time != INF)
 
     assert max_restarts >= 0
     start_time = time.time()
-    for attempt in range(1+max_restarts):
+    for attempt in irange(1+max_restarts):
+        iteration_start_time = time.time()
         if elapsed_time(start_time) > max_time:
             break
-        solution = planner_fn(problem) # Or include the problem in the lambda
+        if attempt >= 1:
+            print(SEPARATOR)
+        #solution = planner_fn(problem) # Or include the problem in the lambda
+        remaining_time = min(iteration_time, max_time-elapsed_time(start_time))
+        solution = solve(problem, max_time=remaining_time, **kwargs)
         plan, cost, certificate = solution
-        if is_plan(plan):
+        if is_plan(plan): # TODO: INFEASIBLE
             return solution
+        if abort and (elapsed_time(iteration_start_time) < remaining_time):
+            break # TODO: return the cause of failure
 
     certificate = Certificate(all_facts=[], preimage_facts=[]) # TODO: aggregate
-    return None, INF, certificate
+    return Solution(None, INF, certificate)
 
 ##################################################
 
-def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, max_time=INF, verbose=False, **search_kwargs):
+def set_unique(externals):
+    for external in externals:
+        external.info.opt_gen_fn = PartialInputs(unique=True)
+        external.num_opt_fns = 0
+
+def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, verbose=False, debug=False):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
     stream_map = DEBUG
@@ -169,17 +192,17 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
 
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
-    store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
-    #externals = compile_fluents_as_attachments(domain, externals) #
 
-    #from pddlstream.algorithms.refinement import iterative_plan_streams, optimistic_process_streams
-    #results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit=INF) #, **effort_args)
+    # store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
+    # instantiator = Instantiator(externals, evaluations)
+    # process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
+    # results = [] # TODO: extract from process_stream_queue
 
-    instantiator = Instantiator(externals, evaluations)
-    process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
+    #set_unique(externals)
+    results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
+    evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
 
     #plan, cost = solve_finite(evaluations, goal_exp, domain, max_cost=max_cost, **search_args)
-    debug = False
     assert not isinstance(domain, SimplifiedDomain)
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
@@ -187,13 +210,94 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
         instantiated = instantiate_task(task)
         if instantiated is None:
             return None
+        # TODO: reinstantiate actions?
+        instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
         instantiated = convert_instantiated(instantiated)
-    return instantiated
-
-    #max_cost = min(store.best_cost, constraints.max_cost)
+    return results, instantiated
     # sas_task = sas_from_pddl(task, debug=debug)
-    # pddl_plan, cost = abstrips_solve_from_task(sas_task, max_cost=max_cost, debug=debug, **search_args)
-    # plan = obj_from_pddl_plan(pddl_plan)
-    # if is_plan(plan):
-    #     store.add_plan(plan, cost)
-    # return store.extract_solution()
+
+##################################################
+
+INTERNAL_AXIOM = 'new-axiom'
+
+def iterate_subgoals(goals, axiom_from_effect):
+    necessary = set()
+    possible = set()
+    for goal in goals:
+        if goal in axiom_from_effect:
+            necessary.update(set.intersection(*[set(axiom.condition) for axiom in axiom_from_effect[goal]]))
+            #print(len(axiom_from_effect[goal]) == 1)  # Universal
+            for axiom in axiom_from_effect[goal]:
+                possible.update(axiom.condition)  # Add goal as well?
+        else:
+            necessary.add(goal)
+    print('Necessary:', necessary)
+    print('Possible:', possible - necessary)
+    return possible
+
+
+def recurse_subgoals(goals, condition_from_effect):
+    possible = set()
+
+    def recurse(goal):
+        if goal in possible:
+            return
+        possible.add(goal)
+        for condition in condition_from_effect[goal]:
+            recurse(condition)
+
+    for goal in goals:
+        recurse(goal)
+    return possible
+
+
+def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True):
+    # TODO: instantiate all goal partial states
+    # TODO: branch on actions, axioms, and streams
+    # TODO: remove actions/axioms that never could achieve a subgoal
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+    evaluations = evaluations_from_init(init)
+    init = set(fd_from_evaluations(evaluations))
+
+    # from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
+    results, instantiated = examine_instantiated(problem, unit_costs=False)
+    if instantiated is None:
+        return None
+    #optimistic_init = set(instantiated.task.init)
+
+    condition_from_effect = defaultdict(set)
+    if use_actions:
+        # TODO: selectively ignore some conditions (e.g. HandEmpty)
+        for action in instantiated.actions:
+            for conditional, effect in action.add_effects:
+                for condition in (action.precondition + conditional):
+                    condition_from_effect[effect].add(condition)
+            for conditional, effect in action.del_effects:
+                for condition in (action.precondition + conditional):
+                    condition_from_effect[effect.negate()].add(condition)
+    if use_axioms:
+        # TODO: axiom_rules.handle_axioms(...)
+        # print('Axioms:', instantiated.axioms)
+        for axiom in instantiated.axioms:
+            #axiom = reinstantiate_axiom(axiom)
+            #axiom.dump()
+            for condition in axiom.condition:
+                condition_from_effect[axiom.effect].add(condition)
+    if use_streams:
+        for result in results:
+            for effect in result.certified:
+                if get_prefix(effect) == EQ:
+                    continue
+                for condition in result.domain:
+                    condition_from_effect[fd_from_fact(effect)].add(fd_from_fact(condition))
+
+    print('Goals:', list(map(fact_from_fd, instantiated.goal_list)))
+    #all_subgoals = iterate_subgoals(instantiated.goal_list, axiom_from_effect)
+    all_subgoals = recurse_subgoals(instantiated.goal_list, condition_from_effect)
+    filtered_subgoals = [subgoal for subgoal in all_subgoals if subgoal in init]
+    external_subgoals = [value_from_obj_expression(fact_from_fd(subgoal))
+                         for subgoal in sorted(filtered_subgoals, key=lambda g: g.predicate)
+                         if not subgoal.predicate.startswith(INTERNAL_AXIOM)]
+    print('Initial:', external_subgoals)
+
+    return external_subgoals # TODO: decompose into simplified components

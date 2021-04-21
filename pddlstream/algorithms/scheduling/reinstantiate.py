@@ -6,23 +6,8 @@ from pddlstream.language.optimizer import UNSATISFIABLE
 import pddl
 import instantiate
 
-
-def reinstantiate_action(state, instance, negative_from_name={}):
-    # Recomputes the instances with without any pruned preconditions
-    # TODO: making the assumption that no negative derived predicates
-    action = instance.action
-    var_mapping = instance.var_mapping
-    init_facts = set()
-    fluent_facts = MockSet()
+def instantiate_unsatisfiable(state, action, var_mapping, negative_from_name={}):
     precondition = []
-    try:
-        action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
-    except pddl.conditions.Impossible:
-        return None
-    precondition = list(set(precondition))
-    effects = []
-    effect_from_literal = {literal: (cond, effect, effect_mapping)
-                           for cond, literal, effect, effect_mapping in instance.effect_mappings}
     for effect in action.effects:
         if effect.literal.predicate == UNSATISFIABLE:
             # Condition must be false for plan to succeed
@@ -44,9 +29,27 @@ def reinstantiate_action(state, instance, negative_from_name={}):
             for _, _, _, mapping in result:
                 for literal in negative:
                     new_literal = literal.rename_variables(mapping).negate()
-                    assert(not new_literal.free_variables())
+                    assert (not new_literal.free_variables())
                     precondition.append(new_literal)
+    return precondition
 
+def reinstantiate_action(state, instance, negative_from_name={}):
+    # Recomputes the instances with without any pruned preconditions
+    # TODO: making the assumption that no negative derived predicates
+    action = instance.action
+    var_mapping = instance.var_mapping
+    init_facts = set()
+    fluent_facts = MockSet()
+    precondition = []
+    try:
+        action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
+    except pddl.conditions.Impossible:
+        return None
+    precondition = list(set(precondition)) + instantiate_unsatisfiable(state, action, var_mapping, negative_from_name)
+
+    effects = []
+    effect_from_literal = {literal: (cond, effect, effect_mapping)
+                           for cond, literal, effect, effect_mapping in instance.effect_mappings}
     for literal in instance.applied_effects:
         cond, effect, effect_mapping = effect_from_literal[literal]
         if effect is None: # Stream effect
@@ -75,15 +78,15 @@ def reinstantiate_action_instances(task, old_instances, **kwargs):
     new_instances.append(get_goal_instance(task.goal)) # TODO: move this?
     return new_instances
 
+##################################################
 
-def reinstantiate_axiom_instances(old_instances):
-    init_facts = set()
-    fluent_facts = MockSet()
-    new_instances = []
-    for old_instance in old_instances:
-        axiom = old_instance.axiom
-        var_mapping = old_instance.var_mapping
-        new_instance = axiom.instantiate(var_mapping, init_facts, fluent_facts)
-        assert (new_instance is not None)
-        new_instances.append(new_instance)
-    return new_instances
+def reinstantiate_axiom(old_instance, init_facts=set(), fluent_facts=MockSet()):
+    axiom = old_instance.axiom
+    var_mapping = old_instance.var_mapping
+    new_instance = axiom.instantiate(var_mapping, init_facts, fluent_facts)
+    assert (new_instance is not None)
+    return new_instance
+
+
+def reinstantiate_axiom_instances(old_instances, **kwargs):
+    return [reinstantiate_axiom(old_instance, **kwargs) for old_instance in old_instances]

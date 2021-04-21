@@ -50,7 +50,7 @@ class FunctionResult(Result):
     def get_action(self):
         return FunctionAction(self.name, self.input_objects)
     def remap_inputs(self, bindings):
-        #if not any(o in bindings for o in self.instance.get_objects()):
+        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
         #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
@@ -58,7 +58,9 @@ class FunctionResult(Result):
     def is_successful(self):
         return True
     def __repr__(self):
-        return '{}={}'.format(str_from_head(self.instance.head), self.value)
+        #from pddlstream.algorithms.downward import get_cost_scale
+        #value = math.log(self.value) # TODO: number of digits to display
+        return '{}={:.3f}'.format(str_from_head(self.instance.head), self.value)
 
 class FunctionInstance(Instance):
     _Result = FunctionResult
@@ -95,12 +97,14 @@ class FunctionInstance(Instance):
         start_calls = self.num_calls
         start_history = len(self.history)
         value = self._compute_output()
-        if (value is not False) and verbose:
-            print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
-                                       str_from_object(self.get_input_values()), value))
         new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
-        if start_history < len(self.history):
+
+        if (value is not False) and verbose:
+            # TODO: str(new_results[-1])
+            print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
+                                                         str_from_object(self.get_input_values()), value))
+        if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)
         return new_results, new_facts
@@ -122,6 +126,7 @@ class Function(External):
     _Instance = FunctionInstance
     #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     def __init__(self, head, fn, domain, info):
+        # TODO: function values that act as preconditions (cost must be below threshold)
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
             info = FunctionInfo() #p_success=self._default_p_success)
@@ -141,11 +146,17 @@ class Function(External):
     def has_outputs(self):
         return False
     @property
+    def is_fluent(self):
+        return False
+    @property
     def is_negated(self):
         return False
     @property
-    def tiebreaker(self):
-        return self.get_tiebreaker(is_function=True)
+    def is_function(self):
+        return True
+    @property
+    def is_cost(self):
+        return True
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 
@@ -191,6 +202,9 @@ class Predicate(Function):
     @property
     def is_negated(self):
         return True
+    @property
+    def is_cost(self):
+        return False
 
 ##################################################
 

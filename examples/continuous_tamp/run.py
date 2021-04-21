@@ -33,13 +33,13 @@ from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get
 
 ##################################################
 
-def create_problem(tamp_problem):
+def create_problem(tamp_problem, hand_empty=False, manipulate_cost=1.):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
     init = [
        #('Region', GROUND_NAME),
-       Equal(('Cost',), 0),
+       Equal(('Cost',), manipulate_cost),
        Equal((TOTAL_COST,), 0)] + \
            [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
@@ -51,7 +51,7 @@ def create_problem(tamp_problem):
             ('Block', b),
             ('Pose', b, p),
             ('AtPose', b, p),
-            ('Grasp', b, GRASP),
+            #('Grasp', b, GRASP),
         ]
 
     goal_literals = [] + \
@@ -77,6 +77,8 @@ def create_problem(tamp_problem):
             ('AtConf', r, q),
             ('HandEmpty', r),
         ]
+        if hand_empty:
+            goal_literals += [('HandEmpty', r)]
         if tamp_problem.goal_conf is not None:
             # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
@@ -234,7 +236,7 @@ def main():
         's-grasp': StreamInfo(defer_fn=defer_fn),
         's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
-        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False), # defer_fn |  defer_unbound
+        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, verbose=False), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
         'dist': FunctionInfo(eager=False, defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
         'gurobi-cfree': StreamInfo(eager=False, negate=True), # TODO: AttributeError: 'tuple' object has no attribute 'instance'
@@ -263,10 +265,12 @@ def main():
     dump_pddlstream(pddlstream_problem)
 
     success_cost = 0 if args.optimal else INF
+    #planner = 'dijkstra'
     planner = 'max-astar'
     #planner = 'ff-wastar1'
     #effort_weight = 1.
     effort_weight = 1. / get_cost_scale()
+    #effort_weight = None
 
     with Profiler(field='cumtime', num=20):
         solution = solve(pddlstream_problem, algorithm=args.algorithm, constraints=constraints, stream_info=stream_info,

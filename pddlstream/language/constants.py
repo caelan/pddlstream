@@ -27,6 +27,7 @@ QUANTIFIERS = (FORALL, EXISTS)
 OBJECTIVES = (MINIMIZE, MAXIMIZE, INCREASE)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,) # + OBJECTIVES
 
+#SUCCEEDED = True # TODO: OPTIMAL
 FAILED = None
 INFEASIBLE = False
 
@@ -186,7 +187,7 @@ def print_solution(solution):
                             or isinstance(action, FunctionAction)])
     print()
     print('Solved: {}'.format(solved))
-    print('Cost: {}'.format(cost))
+    print('Cost: {:.3f}'.format(cost))
     print('Length: {}'.format(get_length(plan) - num_deferred))
     print('Deferred: {}'.format(num_deferred))
     print('Evaluations: {}'.format(len(evaluations)))

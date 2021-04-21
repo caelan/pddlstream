@@ -86,8 +86,10 @@ SEARCH_OPTIONS = {
     # Optimal (when cost_type=NORMAL)
     'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    #'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+    #             ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"', # cost_type=NORMAL
     'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
-                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"', # cost_type=PLUSONE
     'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=PLUSONE))"'
                  ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
 
@@ -269,6 +271,9 @@ def fd_from_evaluation(evaluation):
     expression = pddl.f_expression.NumericConstant(evaluation.value)
     return pddl.f_expression.Assign(fluent, expression)
 
+def fd_from_evaluations(evaluations):
+    return [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+
 ##################################################
 
 def parse_goal(goal_exp, domain):
@@ -283,7 +288,7 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     objects = objects_from_evaluations(evaluations)
     typed_objects = list({make_object(pddl_from_object(obj)) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
-    init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+    init = fd_from_evaluations(evaluations)
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
     #print('{} objects and {} atoms'.format(len(objects), len(init)))
     problem_pddl = None
@@ -672,7 +677,7 @@ def make_cost(cost):
 
 def has_costs(domain):
     for action in domain.actions:
-        if action.cost is not None:
+        if (action.cost is not None) or (action.cost == 0):
             return True
     return False
 

@@ -17,6 +17,7 @@ from heapq import heappush, heappop
 import numpy as np
 
 INF = float('inf')
+SEPARATOR = '\n' + 80*'-'  + '\n'
 
 try:
    user_input = raw_input
@@ -302,14 +303,46 @@ class TmpCWD(Saver):
 
 ##################################################
 
+class Comparable(object):
+    def __lt__(self, other):
+        raise NotImplementedError()
+    def __eq__(self, other):
+        return not (self < other) and not (other < self)
+    def __ne__(self, other):
+        return (self < other) or (other < self)
+    def __gt__(self, other):
+        return other < self
+    def __ge__(self, other):
+        return not self < other
+    def __le__(self, other):
+        return not other < self
+
 class MockSet(object):
     def __init__(self, test=lambda item: True):
         self.test = test
     def __contains__(self, item):
         return self.test(item)
 
+class Score(Comparable): # tuple
+    def __init__(self, *args):
+        # TODO: convert to float
+        #super(Score, self).__init__(args)
+        self.values = tuple(args)
+    def check_other(self, other):
+        return isinstance(other, Score) and (len(self.values) == len(other.values))
+    def __lt__(self, other):
+        assert self.check_other(other)
+        return self.values < other.values
+    def __iter__(self):
+        return iter(self.values)
+    def __neg__(self):
+        return self.__class__(*(type(value).__neg__(value) for value in self.values))
+    def __add__(self, other):
+        return self.__class__(*(self.values + other.values))
+    def __repr__(self):
+        return '{}{}'.format(self.__class__.__name__, self.values)
 
-class HeapElement(object):
+class HeapElement(Comparable):
     def __init__(self, key, value):
         self.key = key
         self.value = value
@@ -374,6 +407,7 @@ def adjacent_from_edges(edges):
 ##################################################
 
 def filter_orders(vertices, orders):
+    # TODO: rename to filter edges?
     return [order for order in orders if all(v in vertices for v in order)]
 
 def is_valid_topological_sort(vertices, orders, solution):
@@ -429,7 +463,7 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
         if not incoming_edges[v]:
             heappush(queue, HeapElement(priority_fn(v), v))
     while queue:
-        v1 = heappop(queue).value
+        priority, v1 = heappop(queue) # Lowest to highest
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)
@@ -485,11 +519,13 @@ def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
     cluster = []
     queue = deque()
+
     def add_cluster(v):
-        if v not in processed:
-            processed.add(v)
-            cluster.append(v)
-            queue.append(v)
+        if v in processed:
+            return
+        processed.add(v)
+        cluster.append(v)
+        queue.append(v)
 
     for v0 in sources:
         add_cluster(v0)
@@ -510,11 +546,13 @@ def get_descendants(source, edges):
     return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
 
 def get_connected_components(vertices, edges):
-    vertices = filter_orders(vertices, edges)
+    edges = filter_orders(vertices, edges)
     undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()
     for v0 in vertices:
+        if v0 in processed:
+            continue
         cluster = grow_component({v0}, undirected_edges, processed)
         processed.update(cluster)
         if cluster:
@@ -590,3 +628,10 @@ def read_pddl(this_file, pddl_filename):
 
 def lowercase(*strings):
     return [string.lower() for string in strings]
+
+
+def str_eq(s1, s2, ignore_case=True):
+    if ignore_case:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    return s1 == s2

@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 
-from collections import Counter
+from collections import Counter, namedtuple
 
 from pddlstream.language.constants import is_plan
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
@@ -12,7 +12,10 @@ SAVE_STATISTICS = True
 
 DATA_DIR = 'statistics/py{:d}/'
 DEFAULT_SEARCH_OVERHEAD = 1e2 # TODO: update this over time
+EPSILON = 1e-6
 # Can also include the overhead to process skeletons
+
+Stats = namedtuple('Stats', ['p_success', 'overhead'])
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
@@ -157,7 +160,7 @@ def hash_object(evaluations, obj):
 ##################################################
 
 class PerformanceInfo(object):
-    def __init__(self, p_success=1-1e-6, overhead=1e-6, effort=None, estimate=False):
+    def __init__(self, p_success=1-EPSILON, overhead=EPSILON, effort=None, estimate=False):
         # TODO: make info just a dict
         self.estimate = estimate
         if self.estimate:
@@ -233,6 +236,9 @@ class Performance(object):
         elif callable(self.info.effort):
             return 0  # This really is a bound on the effort
         return self.info.effort
+    def get_statistics(self, negate=False): # negate=True is for the "worst-case" ordering
+        sign = -1 if negate else +1
+        return Stats(p_success=self.get_p_success(), overhead=sign * self.get_overhead())
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.total_calls, self._estimate_p_success(), self._estimate_overhead()))

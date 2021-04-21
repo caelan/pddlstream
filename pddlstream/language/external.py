@@ -4,8 +4,8 @@ from pddlstream.algorithms.common import compute_complexity
 from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fact
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD
-from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping
+from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD, Stats
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score
 
 DEBUG = 'debug'
 
@@ -52,6 +52,7 @@ class ExternalInfo(PerformanceInfo):
     def __init__(self, eager=False, defer_fn=never_defer, **kwargs):
         super(ExternalInfo, self).__init__(**kwargs)
         # TODO: enable eager=True for inexpensive test streams by default
+        # TODO: change p_success and overhead if it's a function or test stream
         self.eager = eager
         self.defer_fn = defer_fn # Old syntax was defer=True
         #self.complexity_fn = complexity_fn
@@ -80,6 +81,7 @@ class Result(object):
     def domain(self):
         return self.instance.domain
     def is_refined(self):
+        # TODO: result.opt_index is None
         return self.opt_index == 0 # TODO: base on output objects instead
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
@@ -97,9 +99,9 @@ class Result(object):
         raise NotImplementedError()
     def is_successful(self):
         raise NotImplementedError()
-    def compute_complexity(self, evaluations):
+    def compute_complexity(self, evaluations, **kwargs):
         # Should be constant
-        return compute_complexity(evaluations, self.get_domain()) + \
+        return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.call_index)
     def get_effort(self, **kwargs):
         if not self.optimistic:
@@ -108,6 +110,18 @@ class Result(object):
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
+    def success_heuristic(self): # High is likely to succeed
+        # self.external.is_function
+        num_free = sum(isinstance(obj, OptimisticObject) for obj in self.input_objects)
+        return Score(num_free, -len(self.external.inputs)) # TODO: treat objects in the same domain as a unit
+    def overhead_heuristic(self): # Low is cheap
+        return self.external.overhead_heuristic()
+    def stats_heuristic(self): # Low is cheap and unlikely to succeed
+        #return self.overhead_heuristic() + self.success_heuristic()
+        return Score(self.overhead_heuristic(), self.success_heuristic())
+        #return Stats(self.overhead_heuristic(), self.success_heuristic())
+    def effort_heuristic(self): # Low is cheap and likely to succeed
+        return Score(self.overhead_heuristic(), -self.success_heuristic())
 
 ##################################################
 
@@ -119,7 +133,7 @@ class Instance(object):
         self.disabled = False # TODO: perform disabled using complexity
         self.history = [] # TODO: facts history
         self.results_history = []
-        self.opt_results = []
+        self.opt_results = [] # TODO: initialize as None
         self._mapping = None
         self._domain = None
         self.reset()
@@ -142,7 +156,7 @@ class Instance(object):
         return self._domain
     def get_domain(self):
         return self.domain
-    def get_objects(self):
+    def get_all_input_objects(self):
         return set(self.input_objects)
     def get_input_values(self):
         return values_from_objects(self.input_objects)
@@ -160,6 +174,7 @@ class Instance(object):
     def is_refined(self):
         return self.opt_index == 0
     def refine(self):
+        # TODO: could instead create a new Instance per opt_index
         if not self.is_refined():
             self.opt_index -= 1
         return self.opt_index
@@ -188,9 +203,9 @@ class Instance(object):
             results.extend(self.results_history[index])
         return results
 
-    def compute_complexity(self, evaluations):
+    def compute_complexity(self, evaluations, **kwargs):
         # Will change as self.num_calls increases
-        return compute_complexity(evaluations, self.get_domain()) + \
+        return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.num_calls)
 
     def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
@@ -250,6 +265,11 @@ class External(Performance):
         raise NotImplementedError()
     @property
     def is_special(self):
+        return self.is_fluent or self.is_negated
+    @property
+    def is_function(self):
+        raise NotImplementedError()
+    def is_cost(self):
         return False
     def get_complexity(self, num_calls):
         if self.is_special or not self.has_outputs:
@@ -261,19 +281,12 @@ class External(Performance):
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
-    @property
-    def tiebreaker(self):
-        raise NotImplementedError()
-    def get_tiebreaker(self, num_outputs=0, num_certified=0, num_fluents=0, is_function=False): # structural/relational overhead
+    def overhead_heuristic(self): # Low is little overhead
         # TODO: infer other properties from use in the context of a stream plan
-        # TODO: use num_certified (only those that are an another stream) instead of num_outputs?
-        num_inputs = len(self.inputs)
+        # TODO: use num_certified (only those that are in another stream) instead of num_outputs?
+        #num_inputs = len(self.inputs)
         #num_domain = len(self.domain)
-        #num_outputs = int(self.has_outputs)
-        return (num_fluents, num_outputs, not is_function, num_inputs)
-
-        #num_outputs = len(self.outputs)
-        #num_certified = len(self.certified)
+        return Score(self.is_fluent, not self.is_function, self.has_outputs, len(self.inputs)) # structural/relational overhead
         #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
         #return overhead
 

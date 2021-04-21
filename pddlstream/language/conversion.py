@@ -74,7 +74,7 @@ def list_from_conjunction(parent):
     clauses = dnf_from_positive_formula(parent)
     if not clauses:
         return clauses
-    if 1 < len(clauses):
+    if len(clauses) >= 2:
         raise ValueError('Formula {} has more than one conjunctive clauses'.format(parent))
     return clauses[0]
 

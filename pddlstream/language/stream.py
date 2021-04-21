@@ -11,7 +11,7 @@ from pddlstream.language.external import ExternalInfo, Result, Instance, Externa
     parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping
+from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -63,21 +63,24 @@ class PartialInputs(object):
     #    for _ in irange(stream_instance.num_optimistic):
     #        yield [tuple(SharedOptValue(self.stream.name, self.inputs, selected_objects, out)
     #                     for out in self.stream.outputs)]
-    def get_opt_gen_fn(self, stream_instance):
-        # TODO: just condition on the stream
-        stream = stream_instance.external
-        inputs = stream.inputs if self.unique else self.inputs
-        assert set(inputs) <= set(stream.inputs)
+    def get_opt_gen_fn(self, instance):
+        # TODO: just condition on the external
+        external = instance.external
+        inputs = external.inputs if self.unique else self.inputs
+        assert set(inputs) <= set(external.inputs)
         # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
             if not self.test(*input_values):
                 return
             # TODO: recover input_objects from input_values
-            selected_objects = select_inputs(stream_instance, inputs)
-            #for _ in irange(self.num):
-            for _ in irange(stream_instance.num_optimistic):
-                yield [tuple(SharedOptValue(stream.name, inputs, selected_objects, out)
-                             for out in stream.outputs)]
+            selected_objects = select_inputs(instance, inputs)
+            for idx in irange(instance.num_optimistic): # self.num
+                # if len(inputs) == len(external.inputs):
+                #     yield [tuple(UniqueOptValue(instance, idx, out)
+                #                  for out in external.outputs)]
+                # else:
+                yield [tuple(SharedOptValue(external.name, inputs, selected_objects, out)
+                             for out in external.outputs)]
         return gen_fn
     def __repr__(self):
         return repr(self.__dict__)
@@ -162,9 +165,13 @@ class StreamResult(Result):
         return self.certified
     def get_action(self):
         return StreamAction(self.name, self.input_objects, self.output_objects)
+    def get_optimistic(self):
+        index = 0
+        #index = self.call_index
+        return self.instance.opt_results[index]
     def remap_inputs(self, bindings):
         # TODO: speed this procedure up
-        #if not any(o in bindings for o in self.instance.get_objects()):
+        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
         #    return self
         input_objects = apply_mapping(self.input_objects, bindings)
         fluent_facts = [substitute_fact(f, bindings) for f in self.instance.fluent_facts]
@@ -216,13 +223,14 @@ class StreamInstance(Instance):
         self.num_optimistic = 1
 
     def get_result(self, output_objects, opt_index=None, list_index=None, optimistic=True):
+        # TODO: rename to create_result because not unique
         # TODO: ideally would increment a flag per stream for each failure
         call_index = self.num_calls
         #call_index = self.successes # Only counts iterations that return results for complexity
-        return self._Result(self, tuple(output_objects), opt_index=opt_index,
+        return self._Result(instance=self, output_objects=tuple(output_objects), opt_index=opt_index,
                             call_index=call_index, list_index=list_index, optimistic=optimistic)
 
-    def get_objects(self): # TODO: lazily compute
+    def get_all_input_objects(self): # TODO: lazily compute
         return set(self.input_objects) | {o for f in self.fluent_facts for o in get_args(f)}
 
     def get_fluent_values(self):
@@ -252,6 +260,20 @@ class StreamInstance(Instance):
             self.history.append(self._next_wild())
         return self.history[self.num_calls]
 
+    def dump_new_values(self, new_values=[]):
+        if (not new_values and VERBOSE_FAILURES) or \
+                (new_values and self.info.verbose):
+            print('iter={}, outs={}) {}:{}->{}'.format(
+                self.num_calls, len(new_values), self.external.name,
+                str_from_object(self.get_input_values()), str_from_object(new_values)))
+
+    def dump_new_facts(self, new_facts=[]):
+        if VERBOSE_WILD and new_facts:
+            # TODO: format all_new_facts
+            print('iter={}, facts={}) {}:{}->{}'.format(
+                self.num_calls, self.external.name, str_from_object(self.get_input_values()),
+                new_facts, len(new_facts)))
+
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
@@ -260,23 +282,15 @@ class StreamInstance(Instance):
         self._check_output_values(new_values)
         self._check_wild_facts(new_facts)
         if verbose:
-            if (not new_values and VERBOSE_FAILURES) or \
-                    (new_values and self.info.verbose):
-                print('iter={}, outs={}) {}:{}->{}'.format(
-                    self.num_calls, len(new_values), self.external.name,
-                    str_from_object(self.get_input_values()), str_from_object(new_values)))
-            if VERBOSE_WILD and new_facts:
-                # TODO: format all_new_facts
-                print('iter={}, facts={}) {}:{}->{}'.format(
-                    self.num_calls, self.external.name, str_from_object(self.get_input_values()),
-                    new_facts, len(new_facts)))
+            self.dump_new_values(new_values)
+            self.dump_new_facts(new_facts)
 
         objects = [objects_from_values(output_values) for output_values in new_values]
         new_objects = list(filter(lambda o: o not in self.previous_outputs, objects))
         self.previous_outputs.update(new_objects) # Only counting new outputs as successes
         new_results = [self.get_result(output_objects, list_index=list_index, optimistic=False)
                        for list_index, output_objects in enumerate(new_objects)]
-        if start_history < len(self.history):
+        if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         new_facts = list(map(obj_from_value_expression, new_facts))
         self.successful |= any(r.is_successful() for r in new_results)
@@ -287,28 +301,29 @@ class StreamInstance(Instance):
         return new_results, new_facts
 
     def next_optimistic(self):
-        # TODO: compute this just once and store
         if self.enumerated or self.disabled:
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real and not real verifications of things?
-        # TODO: reuse these?
+        # if self.opt_results: # self.out_results is not None:
+        #     return self.opt_results # TODO: reuse these?
         self.opt_results = []
         output_set = set()
-        for output_list in self.opt_gen_fn(*self.get_input_values()):
+        for output_list in self.opt_gen_fn(*self.get_input_values()): # TODO: support generators instead
             self._check_output_values(output_list)
             for i, output_values in enumerate(output_list):
+                call_index = len(self.opt_results)
                 output_objects = []
-                for output_index, value in enumerate(output_values):
+                for name, value in safe_zip(self.external.outputs, output_values):
                     # TODO: maybe record history of values here?
-                    unique = UniqueOptValue(self, len(self.opt_results), output_index) # object()
+                    unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name) # object()
                     param = unique if (self.opt_index == 0) else value
                     output_objects.append(OptimisticObject.from_opt(value, param))
                 output_objects = tuple(output_objects)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
-                    self.opt_results.append(self._Result(self, output_objects, opt_index=self.opt_index,
-                                                         call_index=len(self.opt_results), list_index=0))
+                    self.opt_results.append(self._Result(instance=self, output_objects=output_objects,
+                                                         opt_index=self.opt_index, call_index=call_index, list_index=0))
         return self.opt_results
 
     def get_blocked_fact(self):
@@ -397,7 +412,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
         assert callable(self.gen_fn)
-        self.num_opt_fns = 0 if self.is_special else 1 # TODO: is_negated or is_special
+        self.num_opt_fns = 0 if (self.is_test or self.is_special) else 1 # TODO: is_negated or is_special
         if isinstance(self.info.opt_gen_fn, PartialInputs):
             #self.info.opt_gen_fn.register(self)
             if self.info.opt_gen_fn.unique:
@@ -430,13 +445,13 @@ class Stream(External):
         return not self.is_test
     @property
     def is_fluent(self):
-        return self.fluents
+        return bool(self.fluents)
     @property
     def is_negated(self):
         return self.info.negate
     @property
-    def is_special(self):
-        return self.is_fluent or self.is_negated
+    def is_function(self):
+        return False
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)
@@ -445,10 +460,6 @@ class Stream(External):
         if key not in self.instances:
             self.instances[key] = self._Instance(self, input_objects, fluent_facts)
         return self.instances[key]
-    @property
-    def tiebreaker(self):
-        return self.get_tiebreaker(num_outputs=len(self.outputs), num_certified=len(self.certified),
-                                   num_fluents=len(self.fluents))
     def as_test_stream(self):
         # TODO: method that converts a stream into a test stream (possibly from ss)
         raise NotImplementedError()
@@ -464,7 +475,7 @@ def create_equality_stream():
                   info=StreamInfo(eager=True), fluents=[])
 
 def create_inequality_stream():
-    from pddlstream.algorithms.downward import IDENTICAL
+    #from pddlstream.algorithms.downward import IDENTICAL
     return Stream(name='inequality', gen_fn=from_test(lambda o1, o2: o1 != o2),
                   inputs=['?o1', '?o2'], domain=[('Object', '?o1'), ('Object', '?o2')],
                   outputs=[], certified=[('=', '?o1', '?o2')],

@@ -111,7 +111,7 @@ def extract_disabled_clusters(queue, full_cluster=False):
         #cluster_plans = [skeleton.stream_plan]
         cluster_plans = get_stream_plan_components(skeleton.stream_plan)
         binding = skeleton.best_binding
-        if not binding.is_bound():
+        if not binding.is_fully_bound:
             # TODO: block if cost sensitive to possibly get cheaper solutions
             cluster_plans = current_failed_cluster(binding) if full_cluster else current_failure_contributors(binding)
         for cluster_plan in cluster_plans:

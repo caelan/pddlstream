@@ -1,7 +1,7 @@
 import time
 from collections import namedtuple, OrderedDict
 
-from pddlstream.language.constants import is_plan, get_length
+from pddlstream.language.constants import is_plan, get_length, FAILED #, INFEASIBLE, SUCCEEDED
 from pddlstream.language.conversion import evaluation_from_fact, obj_from_value_expression, revert_solution
 from pddlstream.utils import INF, elapsed_time, check_memory
 
@@ -20,7 +20,7 @@ UNKNOWN_EVALUATION = 'unknown'
 EvaluationNode = namedtuple('EvaluationNode', ['complexity', 'result'])
 Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 
-SOLUTIONS = []
+SOLUTIONS = [] # TODO: remove global variable
 
 class SolutionStore(object):
     def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
@@ -38,7 +38,8 @@ class SolutionStore(object):
         self.solutions = []
     @property
     def best_plan(self):
-        return self.solutions[-1].plan if self.solutions else None
+        # TODO: return INFEASIBLE if can prove no solution
+        return self.solutions[-1].plan if self.solutions else FAILED
     @property
     def best_cost(self):
         return self.solutions[-1].cost if self.solutions else INF
@@ -61,27 +62,29 @@ class SolutionStore(object):
     def extract_solution(self):
         SOLUTIONS[:] = self.solutions
         return revert_solution(self.best_plan, self.best_cost, self.evaluations)
-    def export_summary(store): # TODO: log, status, etc...
+    def export_summary(self): # TODO: log, etc...
         # TODO: SOLUTIONS
+        #status = SUCCEEDED if self.is_solved() else FAILED # TODO: INFEASIBLE, OPTIMAL
         return {
-            'solved': store.is_solved(),
-            #'solved': store.has_solution(),
-            'solutions': len(store.solutions),
-            'cost': store.best_cost,
-            'length': get_length(store.best_plan),
-            'evaluations': len(store.evaluations),
-            'run_time': store.elapsed_time(),
-            'timeout': store.is_timeout(),
+            'solved': self.is_solved(),
+            #'solved': self.has_solution(),
+            'solutions': len(self.solutions),
+            'cost': self.best_cost,
+            'length': get_length(self.best_plan),
+            'evaluations': len(self.evaluations),
+            'run_time': self.elapsed_time(),
+            'timeout': self.is_timeout(),
+            #'status': status,
         }
 
 ##################################################
 
 def add_fact(evaluations, fact, result=INIT_EVALUATION, complexity=0):
     evaluation = evaluation_from_fact(fact)
-    if evaluation in evaluations:
-        return False
-    evaluations[evaluation] = EvaluationNode(complexity, result)
-    return True
+    if (evaluation not in evaluations) or (complexity < evaluations[evaluation].complexity):
+        evaluations[evaluation] = EvaluationNode(complexity, result)
+        return True
+    return False
 
 
 def add_facts(evaluations, facts, **kwargs):
@@ -92,8 +95,8 @@ def add_facts(evaluations, facts, **kwargs):
     return new_evaluations
 
 
-def add_certified(evaluations, result):
-    complexity = result.compute_complexity(evaluations)
+def add_certified(evaluations, result, **kwargs):
+    complexity = result.compute_complexity(evaluations, **kwargs)
     return add_facts(evaluations, result.get_certified(), result=result, complexity=complexity)
 
 
@@ -105,38 +108,45 @@ def evaluations_from_init(init):
     return evaluations
 
 
-def compute_complexity(evaluations, facts):
+def combine_complexities(complexities, complexity_op=COMPLEXITY_OP):
+    return complexity_op([0] + list(complexities))
+
+
+def compute_complexity(evaluations, facts, complexity_op=COMPLEXITY_OP):
     if not facts:
         return 0
-    return COMPLEXITY_OP(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
+    return complexity_op(evaluations[evaluation_from_fact(fact)].complexity for fact in facts)
+
+##################################################
+
+def optimistic_complexity(evaluations, optimistic_facts, fact):
+    # TODO: take the min of the two
+    evaluation = evaluation_from_fact(fact)
+    if evaluation in evaluations:
+        return evaluations[evaluation].complexity
+    return optimistic_facts[fact]
 
 
-def stream_plan_complexity(evaluations, stream_plan, stream_calls=None):
+def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):
         return INF
     # TODO: difference between a result having a particular complexity and the next result having something
     optimistic_facts = {}
-    total_complexity = 0
+    result_complexities = []
     for i, result in enumerate(stream_plan):
-        result_complexity = 0
-        for fact in result.get_domain():
-            evaluation = evaluation_from_fact(fact)
-            if evaluation in evaluations:
-                fact_complexity = evaluations[evaluation].complexity
-            else:
-                fact_complexity = optimistic_facts[fact]
-            result_complexity = COMPLEXITY_OP(result_complexity, fact_complexity)
+        result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
+                                                 for fact in result.get_domain()])
+        num_calls = 0
         if stream_calls is None:
-            result_complexity += result.instance.num_calls + 1
-        elif i < len(stream_calls):
-            result_complexity += stream_calls[i] + 1
-        else:
-            result_complexity += 1
+            num_calls = result.instance.num_calls
+        elif i <= len(stream_calls) - 1:
+            num_calls = stream_calls[i]
+        result_complexity += result.external.get_complexity(num_calls)
+        result_complexities.append(result_complexity)
         for fact in result.get_certified():
             if fact not in optimistic_facts:
                 optimistic_facts[fact] = result_complexity
-        total_complexity = COMPLEXITY_OP(total_complexity, result_complexity)
-    return total_complexity
+    return complexity_op([0] + result_complexities)
 
 
 def is_instance_ready(evaluations, instance):

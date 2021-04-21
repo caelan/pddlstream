@@ -59,6 +59,7 @@ def add_stream_efforts(node_from_atom, instantiated, effort_weight, **kwargs):
         extract_stream_plan(node_from_atom, facts, stream_plan)
         effort = compute_plan_effort(stream_plan, **kwargs)
         instance.cost += scale_cost(effort_weight*effort)
+        # TODO: store whether it uses shared/unique outputs and prune too expensive streams
         #efforts.append(effort)
     #print(min(efforts), efforts)
 
