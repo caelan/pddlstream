@@ -40,7 +40,7 @@ Most notably, it adheres to PDDL conventions and syntax whenever possible and co
 ## Installation
 
 ```
-$ git clone https://github.com/caelan/pddlstream.git
+$ git clone --recursive https://github.com/caelan/pddlstream.git
 $ cd pddlstream
 pddlstream$ git submodule update --init --recursive
 pddlstream$ ./FastDownward/build.py release64
@@ -58,6 +58,11 @@ My FastDownward "fork" is several years old. If you have trouble compiling FastD
 
 PDDLStream actively supports python2.7 as well as the most recent version of python3.
 <!--(many robotics applications still require python2.7)-->
+
+Make sure to recursively update **pddlstream**'s submodules when pulling new commits.
+```
+pddlstream$ git pull --recurse-submodules
+```
 
 ## Examples
 
