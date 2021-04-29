@@ -197,7 +197,7 @@ Best-first heuristic search algorithms, which automatically derive heursitics in
 ### FastDownward
 
 **pddlstream** comes pre-packaged with [FastDownward](http://www.fast-downward.org/), a prolific library that contains many best-first heuristic search PDDL planning algorithms.
-I've preconfigured a small number of effective and general search algorithms in [SEARCH_OPTIONS](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L81) and roughly ranked them in order of least lazy (lowest cost) to most lazy (lowest runtime):
+I've preconfigured a small number of effective and general search algorithms in [SEARCH_OPTIONS](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L81), which can be toggled using the keyword argument [planner=?](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L391). I've roughly ranked them in order of least lazy (lowest cost) to most lazy (lowest runtime):
 * [Dijkstra/Uniform-Cost Search (UCS)](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L87) - optimal but slowest
 * [hmax A*](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L91) - optimal but slow
 * [lmcut A*](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L93) - optimal but slow
