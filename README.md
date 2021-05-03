@@ -37,10 +37,10 @@ Most notably, it adheres to PDDL conventions and syntax whenever possible and co
 ## Installation
 
 ```
-$ git clone https://github.com/caelan/pddlstream.git
+$ git clone --recursive --branch downward https://github.com/caelan/pddlstream.git
 $ cd pddlstream
 $ git submodule update --init --recursive
-$ ./FastDownward/build.py
+$ ./downward/build.py
 ```
 
 If `./FastDownward/build.py` fails, install FastDownward's dependencies using your package manager:
