@@ -7,7 +7,7 @@ from pddlstream.language.constants import get_prefix, is_plan, get_args
 from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.optimizer import ComponentStream, OptimizerStream
-from pddlstream.utils import neighbors_from_orders, get_mapping
+from pddlstream.utils import neighbors_from_orders, get_mapping, safe_apply_mapping
 
 CLUSTER = True
 
@@ -89,8 +89,8 @@ def retrace_instantiation(fact, streams, evaluations, free_parameters, visited_f
                     # Can lead to incorrect ordering
                     continue
 
-                input_objects = tuple(mapping[p] for p in stream.inputs)
-                output_objects = tuple(mapping[p] for p in stream.outputs)
+                input_objects = safe_apply_mapping(stream.inputs, mapping)
+                output_objects = safe_apply_mapping(stream.outputs, mapping)
                 if not all(out in free_parameters for out in output_objects):
                     # Can only bind if free
                     continue

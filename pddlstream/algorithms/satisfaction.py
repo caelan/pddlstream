@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import time
-from collections import Counter
+from collections import Counter, namedtuple
 
 from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
 from pddlstream.algorithms.common import SolutionStore
@@ -20,6 +20,11 @@ from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
+
+SatisfactionProblem = namedtuple('SatisfactionProblem', ['stream_pddl', 'stream_map', 'init', 'terms'])
+SatisfactionSolution = namedtuple('SatisfactionSolution', ['bindings', 'cost', 'facts'])
+
+##################################################
 
 def obj_from_existential_expression(parent): # obj_from_value_expression
     return replace_expression(parent, lambda o: OptimisticObject
@@ -84,7 +89,7 @@ def dump_assignment(solution):
     bindings, cost, evaluations = solution
     print()
     print('Solved: {}'.format(bindings is not None))
-    print('Cost: {}'.format(cost))
+    print('Cost: {:.3f}'.format(cost))
     print('Total facts: {}'.format(len(evaluations)))
     print('Fact counts: {}'.format(str_from_object(Counter(map(get_prefix, evaluations.all_facts))))) # preimage_facts
     if bindings is None:
@@ -113,7 +118,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     # TODO: use a CSP solver instead of a planner internally
     # TODO: max_iterations?
     if not terms:
-        return {}, 0, init
+        return SatisfactionSolution({}, 0, init)
     constraints, negated, functions = partition_facts(set(map(obj_from_existential_expression, terms)))
     if not costs:
         functions = []
@@ -128,7 +133,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     plan_skeleton = [Assignment(free_parameters)]
     cost = get_optimistic_cost(function_plan)
     if max_cost < cost:
-        return None, INF, init
+        return SatisfactionSolution(None, INF, init)
     # TODO: detect connected components
     # TODO: eagerly evaluate fully bound constraints
 
@@ -183,4 +188,4 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     write_stream_statistics(externals, verbose)
     action_plan, cost, facts = revert_solution(store.best_plan, store.best_cost, evaluations)
     bindings = bindings_from_plan(plan_skeleton, action_plan)
-    return bindings, cost, facts
+    return SatisfactionSolution(bindings, cost, facts)

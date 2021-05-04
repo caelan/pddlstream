@@ -11,12 +11,13 @@ import cProfile
 import pstats
 import io
 
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Counter, namedtuple
 from heapq import heappush, heappop
 
 import numpy as np
 
 INF = float('inf')
+SEPARATOR = '\n' + 80*'-'  + '\n'
 
 try:
    user_input = raw_input
@@ -115,8 +116,9 @@ def apply_mapping(sequence, mapping):
     return tuple(mapping.get(e, e) for e in sequence)
 
 
-#def safe_apply_mapping(sequence, mapping)
-#    return tuple(mapping[e] for e in sequence)
+def safe_apply_mapping(sequence, mapping):
+    # TODO: flip arguments order
+    return tuple(mapping[e] for e in sequence)
 
 
 def negate_test(test):
@@ -260,9 +262,11 @@ class Profiler(Saver):
         return self.pr
     def restore(self):
         self.pr.disable()
+        if self.num is None:
+            return None
         stream = None
         #stream = io.StringIO()
-        stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field)
+        stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field) # TODO: print multiple
         stats.print_stats(self.num)
         return stats
 
@@ -299,14 +303,46 @@ class TmpCWD(Saver):
 
 ##################################################
 
+class Comparable(object):
+    def __lt__(self, other):
+        raise NotImplementedError()
+    def __eq__(self, other):
+        return not (self < other) and not (other < self)
+    def __ne__(self, other):
+        return (self < other) or (other < self)
+    def __gt__(self, other):
+        return other < self
+    def __ge__(self, other):
+        return not self < other
+    def __le__(self, other):
+        return not other < self
+
 class MockSet(object):
     def __init__(self, test=lambda item: True):
         self.test = test
     def __contains__(self, item):
         return self.test(item)
 
+class Score(Comparable): # tuple
+    def __init__(self, *args):
+        # TODO: convert to float
+        #super(Score, self).__init__(args)
+        self.values = tuple(args)
+    def check_other(self, other):
+        return isinstance(other, Score) and (len(self.values) == len(other.values))
+    def __lt__(self, other):
+        assert self.check_other(other)
+        return self.values < other.values
+    def __iter__(self):
+        return iter(self.values)
+    def __neg__(self):
+        return self.__class__(*(type(value).__neg__(value) for value in self.values))
+    def __add__(self, other):
+        return self.__class__(*(self.values + other.values))
+    def __repr__(self):
+        return '{}{}'.format(self.__class__.__name__, self.values)
 
-class HeapElement(object):
+class HeapElement(Comparable):
     def __init__(self, key, value):
         self.key = key
         self.value = value
@@ -319,24 +355,25 @@ class HeapElement(object):
 
 ##################################################
 
-def sorted_str_from_list(obj):
-    return '[{}]'.format(', '.join(sorted(str_from_object(item) for item in obj)))
+def sorted_str_from_list(obj, **kwargs):
+    return '[{}]'.format(', '.join(sorted(str_from_object(item, **kwargs) for item in obj)))
 
-def str_from_object(obj):  # str_object
+def str_from_object(obj, ndigits=None):  # str_object
     if type(obj) in [list]: #, np.ndarray):
-        return '[{}]'.format(', '.join(str_from_object(item) for item in obj))
+        return '[{}]'.format(', '.join(str_from_object(item, ndigits) for item in obj))
     if type(obj) == tuple:
-        return '({})'.format(', '.join(str_from_object(item) for item in obj))
+        return '({})'.format(', '.join(str_from_object(item, ndigits) for item in obj))
     #if isinstance(obj, dict):
-    if type(obj) in [dict, defaultdict]:
-        return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key), str_from_object(obj[key])) \
-                                  for key in sorted(obj.keys(), key=lambda k: str_from_object(k))))
+    if type(obj) in [dict, defaultdict, Counter]:
+        return '{{{}}}'.format(', '.join('{}: {}'.format(str_from_object(key, ndigits), str_from_object(obj[key], ndigits)) \
+                                  for key in sorted(obj.keys(), key=lambda k: str_from_object(k, ndigits))))
     if type(obj) in [set, frozenset]:
-        return '{{{}}}'.format(', '.join(sorted(str_from_object(item) for item in obj)))
-    #if type(obj) in (float, np.float64):
-    #    obj = round(obj, 3)
-    #    if obj == 0: obj = 0  # NOTE - catches -0.0 bug
-    #    return '%.3f' % obj
+        return '{{{}}}'.format(', '.join(sorted(str_from_object(item, ndigits) for item in obj)))
+    if (ndigits is not None) and (type(obj) in [float, np.float64]):
+        obj = round(obj, ndigits=ndigits)
+        if obj == 0.:
+            obj = 0.  # NOTE - catches -0.0 bug
+        return '{0:.{1}f}'.format(obj, ndigits)
     #if isinstance(obj, types.FunctionType):
     #    return obj.__name__
     return str(obj)
@@ -367,8 +404,58 @@ def adjacent_from_edges(edges):
         undirected_edges[v2].add(v1)
     return undirected_edges
 
+##################################################
+
+def filter_orders(vertices, orders):
+    # TODO: rename to filter edges?
+    return [order for order in orders if all(v in vertices for v in order)]
+
+def is_valid_topological_sort(vertices, orders, solution):
+    orders = filter_orders(vertices, orders)
+    if Counter(vertices) != Counter(solution):
+        return False
+    index_from_vertex = {v: i for i, v in enumerate(solution)}
+    for v1, v2 in orders:
+        if index_from_vertex[v1] >= index_from_vertex[v2]:
+            return False
+    return True
+
+def dfs_topological_sort(vertices, orders, priority_fn=lambda v: 0):
+    # TODO: DFS for all topological sorts
+    orders = filter_orders(vertices, orders)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+
+    def dfs(history, visited):
+        reverse_ordering = []
+        v1 = history[-1]
+        if v1 in visited:
+            return reverse_ordering
+        visited.add(v1)
+        for v2 in sorted(outgoing_edges[v1], key=priority_fn, reverse=True):
+            if v2 in history:
+                return None # Contains a cycle
+            result = dfs(history + [v2], visited)
+            if result is None:
+                return None
+            reverse_ordering.extend(result)
+        reverse_ordering.append(v1)
+        return reverse_ordering
+
+    visited = set()
+    reverse_order = []
+    for v0 in sorted(vertices, key=priority_fn, reverse=True):
+        if not incoming_edges[v0]:
+            result = dfs([v0], visited)
+            if result is None:
+                return None
+            reverse_order.extend(result)
+
+    ordering = reverse_order[::-1]
+    assert(is_valid_topological_sort(vertices, orders, ordering))
+    return ordering
+
 def topological_sort(vertices, orders, priority_fn=lambda v: 0):
-    # Can also do a DFS version
+    orders = filter_orders(vertices, orders)
     incoming_edges, outgoing_edges = neighbors_from_orders(orders)
     ordering = []
     queue = []
@@ -376,23 +463,69 @@ def topological_sort(vertices, orders, priority_fn=lambda v: 0):
         if not incoming_edges[v]:
             heappush(queue, HeapElement(priority_fn(v), v))
     while queue:
-        v1 = heappop(queue).value
+        priority, v1 = heappop(queue) # Lowest to highest
         ordering.append(v1)
         for v2 in outgoing_edges[v1]:
             incoming_edges[v2].remove(v1)
             if not incoming_edges[v2]:
                 heappush(queue, HeapElement(priority_fn(v2), v2))
+    if len(ordering) != len(vertices):
+        return None
+    assert is_valid_topological_sort(vertices, orders, ordering)
     return ordering
+
+def layer_sort(vertices, orders): # priority_fn=lambda v: 0
+    # TODO: more efficient hypergraph/layer distance (h_max)
+    orders = filter_orders(vertices, orders)
+    incoming_edges, outgoing_edges = neighbors_from_orders(orders)
+    visited = {}
+    queue = []
+    for v in vertices:
+        if not incoming_edges[v]:
+            visited[v] = 0
+            heappush(queue, HeapElement(visited[v], v))
+    while queue:
+        g, v1 = heappop(queue)
+        for v2 in outgoing_edges[v1]:
+            incoming_edges[v2].remove(v1) # TODO: non-uniform cost function for max
+            if not incoming_edges[v2] and (v2 not in visited):
+                visited[v2] = g + 1
+                heappush(queue, HeapElement(visited[v2], v2))
+    return visited
+
+def is_acyclic(vertices, orders):
+    return topological_sort(vertices, orders) is not None
+
+def sample_topological_sort(vertices, orders):
+    # https://stackoverflow.com/questions/38551057/random-topological-sorting-with-uniform-distribution-in-near-linear-time
+    # https://www.geeksforgeeks.org/all-topological-sorts-of-a-directed-acyclic-graph/
+    priorities = {v: random.random() for v in vertices}
+    return topological_sort(vertices, orders, priority_fn=priorities.get)
+
+def transitive_closure(vertices, orders):
+    # Warshall's algorithm
+    orders = filter_orders(vertices, orders)
+    closure = set(orders)
+    for k in vertices:
+        for i in vertices:
+            for j in vertices:
+                if ((i, j) not in closure) and ((i, k) in closure) and ((k, j) in closure):
+                    closure.add((i, j))
+    return closure
+
+##################################################
 
 def grow_component(sources, edges, disabled=set()):
     processed = set(disabled)
     cluster = []
     queue = deque()
+
     def add_cluster(v):
-        if v not in processed:
-            processed.add(v)
-            cluster.append(v)
-            queue.append(v)
+        if v in processed:
+            return
+        processed.add(v)
+        cluster.append(v)
+        queue.append(v)
 
     for v0 in sources:
         add_cluster(v0)
@@ -413,15 +546,43 @@ def get_descendants(source, edges):
     return set(breadth_first_search(source, outgoing_from_edges(edges))) - {source}
 
 def get_connected_components(vertices, edges):
+    edges = filter_orders(vertices, edges)
     undirected_edges = adjacent_from_edges(edges)
     clusters = []
     processed = set()
     for v0 in vertices:
+        if v0 in processed:
+            continue
         cluster = grow_component({v0}, undirected_edges, processed)
         processed.update(cluster)
         if cluster:
             clusters.append([v for v in vertices if v in cluster])
     return clusters
+
+##################################################
+
+SearchNode = namedtuple('Node', ['g', 'parent'])
+
+def dijkstra(sources, edges, op=sum): # sum | max
+    if not isinstance(edges, dict):
+        edges = {edge: 1 for edge in edges}
+    _, outgoing_edges = neighbors_from_orders(edges)
+    visited = {}
+    queue = []
+    for v0 in sources:
+        visited[v0] = SearchNode(g=0, parent=None)
+        queue.append(HeapElement(visited[v0].g, v0))
+
+    while queue:
+        current_g, current_v = heappop(queue)
+        if visited[current_v].g < current_g:
+            continue
+        for next_v in outgoing_edges[current_v]:
+            next_g = op([current_g, edges[(current_v, next_v)]])
+            if (next_v not in visited) or (next_g < visited[next_v].g):
+                visited[next_v] = SearchNode(next_g, current_v)
+                heappush(queue, HeapElement(next_g, next_v))
+    return visited
 
 ##################################################
 
@@ -467,3 +628,10 @@ def read_pddl(this_file, pddl_filename):
 
 def lowercase(*strings):
     return [string.lower() for string in strings]
+
+
+def str_eq(s1, s2, ignore_case=True):
+    if ignore_case:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    return s1 == s2

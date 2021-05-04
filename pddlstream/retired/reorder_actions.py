@@ -10,6 +10,12 @@ from pddlstream.language.external import Result
 from pddlstream.language.function import PredicateResult
 from pddlstream.utils import Verbose, MockSet, neighbors_from_orders
 
+# Extract streams required to do one action
+# Compute streams that strongly depend on these. Evaluate these.
+# Execute the full prefix of the plan
+# Make the first action cheaper if uses something that doesn't need to re-expand
+# How to do this with shared objects?
+# Just do the same thing but make the cost 1 if a shared object
 
 def get_stream_instances(stream_plan):
     import pddl
@@ -112,6 +118,9 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
 ##################################################
 
 def reorder_combined_plan(evaluations, combined_plan, action_info, domain, **kwargs):
+    # TODO: actions as a weak constraint
+    # TODO: actions are extremely unlikely to work
+    # TODO: can give actions extreme priority
     if not is_plan(combined_plan):
         return combined_plan
     stream_plan, action_plan = separate_plan(combined_plan)

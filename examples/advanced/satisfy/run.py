@@ -1,11 +1,13 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from __future__ import print_function
 
 import argparse
 
+from pddlstream.algorithms.meta import ALGORITHMS
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
+from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, \
+    SatisfactionSolution, SatisfactionProblem
 from pddlstream.language.generator import from_test, from_gen_fn, from_fn
 from pddlstream.language.stream import StreamInfo
 from pddlstream.utils import INF
@@ -69,18 +71,18 @@ def problem1():
     init = []
     terms = [('Integer', '?x1'), ('Large', '?x1'), ('Integer', '?x2'),
              ('minimize', ('Cost', '?x1')), ('minimize', ('Cost', '?x2'))]
-    return STREAM_PDDL, STREAM_MAP, init, terms
+    return SatisfactionProblem(STREAM_PDDL, STREAM_MAP, init, terms)
 
 def problem2():
     init = []
     terms = [('Sum', '?x1', '?x2', '?x3'), ('Positive', '?x1'), ('Negative', '?x2'),
              ('minimize', ('Cost', '?x3'))]
-    return STREAM_PDDL, STREAM_MAP, init, terms
+    return SatisfactionProblem(STREAM_PDDL, STREAM_MAP, init, terms)
 
 def problem3():
     init = []
     terms = [('Negative', '?x1'), ('Small', '?x1'), ('Positive', '?x2'), ('Large', '?x2')]
-    return STREAM_PDDL, STREAM_MAP, init, terms
+    return SatisfactionProblem(STREAM_PDDL, STREAM_MAP, init, terms)
 
 ##################################################
 
@@ -93,7 +95,7 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    problem_fn = problem3 # problem1 | problem2 | problem3
+    problem_fn = problem3 # problem1 | problem2 | problem3 # TODO: use --problem
     stream_pddl, stream_map, init, terms = problem_fn()
     #print('Init:', pddlstream_problem.init)
     #print('Goal:', pddlstream_problem.goal)
@@ -106,12 +108,9 @@ def main():
         # Alternatively, can make the second stream called work
     }
     success_cost = 0 if args.optimal else INF
-    if args.algorithm == 'focused':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, incremental=False,
+    if args.algorithm in ALGORITHMS:
+        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, algorithm=args.algorithm,
                                                  stream_info=info, max_time=args.max_time, success_cost=success_cost)
-    elif args.algorithm == 'incremental':
-        solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, incremental=True,
-                                                 max_time=args.max_time, success_cost=success_cost)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info=info, #unit_efforts=True,
                                            max_time=args.max_time, success_cost=success_cost)

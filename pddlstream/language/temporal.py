@@ -455,6 +455,7 @@ def convert_args(args):
 def convert_condition(condition):
     import pddl
     class_name = condition.__class__.__name__
+    # TODO: compare class_name to the pddl class name
     if class_name in ('Truth', 'FunctionComparison'):
         # TODO: currently ignoring numeric conditions
         return pddl.Truth()
@@ -504,7 +505,7 @@ def convert_parameters(parameters):
 SIMPLE_TEMPLATE = '{}-{}'
 
 def simple_from_durative_action(durative_actions, fluents):
-    from pddlstream.algorithms.algorithm import get_predicates
+    from pddlstream.algorithms.advanced import get_predicates
     import pddl
     simple_actions = {}
     for action in durative_actions:

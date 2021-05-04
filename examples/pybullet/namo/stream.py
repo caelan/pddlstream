@@ -1,13 +1,15 @@
 from itertools import islice, product
 
 import numpy as np
+import random
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import State, Pose, Conf, create_trajectory
 from examples.pybullet.utils.pybullet_tools.utils import get_subtree_aabb, link_from_name, joints_from_names, \
     get_joint_positions, set_joint_positions, joint_from_name, pairwise_collision, set_renderer, get_visual_data, \
-    add_line, wait_for_user, BodySaver, get_link_pose, approximate_as_cylinder, get_point, Point, halton_generator, \
+    add_line, wait_for_user, BodySaver, get_link_pose, approximate_as_cylinder, get_point, Point, unit_generator, \
     quat_from_euler, Euler, multiply, invert, base_values_from_pose, get_halton_sample_fn, get_collision_fn, \
-    MAX_DISTANCE, draw_point, get_base_distance_fn, get_extend_fn, get_distance
+    MAX_DISTANCE, draw_point, get_base_distance_fn, get_extend_fn, get_distance, set_pose, get_aabb_extent, \
+    unit_from_theta, draw_pose, get_pose, remove_handles, PI
 
 BASE_LINK = 'base_link'
 BASE_JOINTS = ['x', 'y', 'theta']
@@ -84,37 +86,48 @@ def get_test_cfree_traj_pose(problem):
     return test
 
 
-def get_grasp_generator(problem):
+def get_grasp_generator(problem, epsilon=0., theta_interval=(0., 0.), use_halton=True, draw=False, **kwargs):
+    # TODO: compute distance for two orientations and then push away
     def gen(robot, body):
         link = link_from_name(robot, BASE_LINK)
         with BodySaver(robot):
             set_base_conf(robot, np.zeros(3))
             robot_pose = get_link_pose(robot, link)
             robot_aabb = get_turtle_aabb(robot)
+            # _, upper = robot_aabb
+            # radius = upper[0]
+            extent = get_aabb_extent(robot_aabb)
+            radius = max(extent[:2]) / 2.
             #draw_aabb(robot_aabb)
-        lower, upper = robot_aabb
-        center, (diameter, height) = approximate_as_cylinder(body)
-        _, _, z = get_point(body) # Assuming already placed stably
-        position = Point(x=upper[0] + diameter / 2., z=z)
 
-        for [scale] in halton_generator(d=1):
-            yaw = scale*2*np.pi - np.pi
+        center, (diameter, height) = approximate_as_cylinder(body)
+        distance = radius + diameter / 2. + epsilon
+        _, _, z = get_point(body) # Assuming already placed stably
+
+        for [scale] in unit_generator(d=1, use_halton=use_halton):
+            #theta = PI # 0 | PI
+            theta = random.uniform(*theta_interval)
+            position = np.append(distance * unit_from_theta(theta=theta), [z]) # TODO: halton
+
+            yaw = scale*2*PI - PI
             quat = quat_from_euler(Euler(yaw=yaw))
             body_pose = (position, quat)
             robot_from_body = multiply(invert(robot_pose), body_pose)
-            grasp = Pose(body, robot_from_body)
+            grasp = Pose(body, robot_from_body) # TODO: grasp instead of pose
+            if draw:
+                world_pose = multiply(get_link_pose(robot, link), grasp.value)
+                set_pose(body, world_pose)
+                handles = draw_pose(get_pose(body), length=1)
+                wait_for_user()
+                remove_handles(handles)
+                #continue
             yield (grasp,)
-            #world_pose = multiply(get_link_pose(robot, link), robot_from_body)
-            #set_pose(body, world_pose)
-            #handles = draw_pose(get_pose(body), length=1)
-            #wait_for_user()
-            #for handle in handles:
-            #    remove_debug(handle)
     return gen
 
 
 def get_ik_fn(problem):
     def fn(robot, body, pose, grasp):
+        # TODO: reverse into the pick or place for differential drive
         joints = get_base_joints(robot)
         robot_pose = multiply(pose.value, invert(grasp.value))
         base_values = base_values_from_pose(robot_pose)
@@ -178,9 +191,10 @@ def get_motion_fn(problem, max_distance=0.45, weights=np.array([1, 1, 0]), resol
     return fn
 
 
-def get_cost_fn(problem):
+def get_cost_fn(problem, constant=0., coefficient=1.):
     def fn(r, q1, q2):
-        return get_distance(q1.values[:2], q2.values[:2])
+        xy_distance = get_distance(q1.values[:2], q2.values[:2])
+        return constant + coefficient*xy_distance
     return fn
 
 #######################################################

@@ -10,14 +10,16 @@ import random
 import numpy as np
 import time
 
+from itertools import product
+
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
     update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
+from pddlstream.algorithms.downward import get_cost_scale
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
@@ -26,18 +28,18 @@ from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, 
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.temporal import get_end, compute_duration, retime_plan
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
-    sorted_str_from_list, implies, inclusive_range
+    sorted_str_from_list, implies, inclusive_range, Profiler
 
 
 ##################################################
 
-def create_problem(tamp_problem):
+def create_problem(tamp_problem, hand_empty=False, manipulate_cost=1.):
     initial = tamp_problem.initial
     assert(not initial.holding)
 
     init = [
        #('Region', GROUND_NAME),
-       Equal(('Cost',), 0),
+       Equal(('Cost',), manipulate_cost),
        Equal((TOTAL_COST,), 0)] + \
            [('Stove', r) for r in STOVE_NAMES if r in tamp_problem.regions] + \
            [('Placeable', b, r) for b in initial.block_poses.keys()
@@ -49,22 +51,23 @@ def create_problem(tamp_problem):
             ('Block', b),
             ('Pose', b, p),
             ('AtPose', b, p),
-            ('Grasp', b, GRASP),
+            #('Grasp', b, GRASP),
         ]
 
     goal_literals = [] + \
                     [('Cooked', b) for b in tamp_problem.goal_cooked] # Placeable for the stove
     for b, r in tamp_problem.goal_regions.items():
-        if isinstance(r, str):
-            init += [('Region', r), ('Placeable', b, r)]
-            goal_literals += [('In', b, r)]
-        elif isinstance(r, list):
-            for region in r:
-                init += [('Region', region), ('Placeable', b, region)]
-            goal_literals.append(Or(*[('In', b, region) for region in r]))
-        else:
+        if isinstance(r, np.ndarray):
             init += [('Pose', b, r)]
             goal_literals += [('AtPose', b, r)]
+        else:
+            blocks = [b] if isinstance(b, str) else b
+            regions = [r] if isinstance(r, str) else r
+            conditions = []
+            for body, region in product(blocks, regions):
+                init += [('Region', region), ('Placeable', body, region)]
+                conditions += [('In', body, region)]
+            goal_literals.append(Or(*conditions))
 
     for r, q in initial.robot_confs.items():
         init += [
@@ -74,6 +77,8 @@ def create_problem(tamp_problem):
             ('AtConf', r, q),
             ('HandEmpty', r),
         ]
+        if hand_empty:
+            goal_literals += [('HandEmpty', r)]
         if tamp_problem.goal_conf is not None:
             # goal_literals += [('AtConf', tamp_problem.goal_conf)]
             goal_literals += [('AtConf', r, q)]
@@ -192,7 +197,6 @@ def initialize(parser):
     parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
     parser.add_argument('-n', '--number', default=2, type=int, help='The number of blocks')
     parser.add_argument('-p', '--problem', default='tight', help='The name of the problem to solve')
-    parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs')
     parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
 
     args = parser.parse_args()
@@ -219,8 +223,7 @@ def dump_pddlstream(pddlstream_problem):
 
 def main():
     # TODO: side grasps (horizontal gripper, one finger, forklift)
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+    parser = create_parser()
     parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
     parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
@@ -233,13 +236,15 @@ def main():
         's-grasp': StreamInfo(defer_fn=defer_fn),
         's-ik': StreamInfo(defer_fn=get_defer_all_unbound(inputs='?g')), # defer_fn | defer_unbound
         's-motion': StreamInfo(defer_fn=get_defer_any_unbound()),
-        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, negate=True), # defer_fn |  defer_unbound
+        't-cfree': StreamInfo(defer_fn=get_defer_any_unbound(), eager=False, verbose=False), # defer_fn |  defer_unbound
         't-region': StreamInfo(eager=True, p_success=0),  # bound_fn is None
-        'dist': FunctionInfo(defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
-        'gurobi-cfree': StreamInfo(eager=False, negate=True),
+        'dist': FunctionInfo(eager=False, defer_fn=get_defer_any_unbound(), opt_fn=lambda q1, q2: MOVE_COST),
+        'gurobi-cfree': StreamInfo(eager=False, negate=True), # TODO: AttributeError: 'tuple' object has no attribute 'instance'
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),
     }
+    #stream_info = {}
+
     hierarchy = [
         #ABSTRIPSLayer(pos_pre=['atconf']), #, horizon=1),
     ]
@@ -258,33 +263,25 @@ def main():
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
     dump_pddlstream(pddlstream_problem)
-    pr = cProfile.Profile()
-    pr.enable()
+
     success_cost = 0 if args.optimal else INF
+    #planner = 'dijkstra'
     planner = 'max-astar'
     #planner = 'ff-wastar1'
-    if args.algorithm == 'focused':
-        solver = solve_focused  # solve_focused | solve_serialized
-        solution = solver(pddlstream_problem, constraints=constraints, stream_info=stream_info,
-                          replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
-                          max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
-                          unit_costs=args.unit, success_cost=success_cost,
-                          unit_efforts=True, effort_weight=1,
-                          search_sample_ratio=1,
-                          #max_skeletons=None, bind=True,
-                          visualize=args.visualize)
-    elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, constraints=constraints,
-                                     complexity_step=2, planner=planner, hierarchy=hierarchy,
-                                     unit_costs=args.unit, success_cost=success_cost,
-                                     max_time=args.max_time, verbose=False)
-    else:
-        raise ValueError(args.algorithm)
+    #effort_weight = 1.
+    effort_weight = 1. / get_cost_scale()
+    #effort_weight = None
+
+    with Profiler(field='cumtime', num=20):
+        solution = solve(pddlstream_problem, algorithm=args.algorithm, constraints=constraints, stream_info=stream_info,
+                         replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
+                         max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
+                         unit_costs=args.unit, success_cost=success_cost,
+                         unit_efforts=True, effort_weight=effort_weight,
+                         search_sample_ratio=1, visualize=args.visualize) # TODO: solve_serialized
 
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('cumtime').print_stats(20)
     if plan is not None:
         display_plan(tamp_problem, retime_plan(plan))
 

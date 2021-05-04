@@ -173,7 +173,6 @@ class SkeletonQueue(Sized):
     # TODO: make an "action" for returning to the search (if it is the best decision)
     # TODO: could just maintain a list of active instances and sample/propagate
     # TODO: store bindings in a factored form that only combines when needed
-
     # TODO: update bindings given outcomes of eager streams
     # TODO: immediately evaluate eager streams in the queue
 
@@ -358,7 +357,7 @@ class SkeletonQueue(Sized):
         # Temporarily pop off the queue and then re-add
         # Domination occurs when no downstream skeleton that
         # Is it worth even doing the dynamic instantiation?
-        # IF some set fails where the output is an input
+        # If some set fails where the output is an input
         # Scale input
 
     def __len__(self):

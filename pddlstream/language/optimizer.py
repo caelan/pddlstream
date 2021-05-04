@@ -169,7 +169,7 @@ class OptimizerResult(StreamResult):
     def get_components(self):
         return self.external.stream_plan
     def get_objectives(self):
-        return substitute_expression(self.external.objectives, self.get_mapping())
+        return substitute_expression(self.external.objectives, self.mapping)
     def get_unsatisfiable(self):
         return self.instance.get_unsatisfiable()
 

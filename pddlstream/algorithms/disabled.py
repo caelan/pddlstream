@@ -54,13 +54,13 @@ def reenable_disabled(evaluations, domain, disabled):
 def process_instance(store, domain, instance, disable=True):
     if instance.enumerated:
         return [], []
-    evaluations = store.evaluations
+    #evaluations = store.evaluations
     new_results, new_facts = instance.next_results(verbose=store.verbose)
     if disable:
         instance.disable(store.evaluations, domain)
     for result in new_results:
         #add_certified(evaluations, result)  # TODO: only add if the fact is actually new?
-        complexity = INF if result.external.is_special() or not disable else \
+        complexity = INF if result.external.is_special or not disable else \
             result.compute_complexity(store.evaluations)
         add_facts(store.evaluations, result.get_certified(), result=result, complexity=complexity)
     if disable:
@@ -96,7 +96,7 @@ def process_stream_plan(store, domain, disabled, stream_plan, action_plan, cost,
         if bound_instance.enumerated or not is_instance_ready(store.evaluations, bound_instance):
             continue
         # TODO: could remove disabled and just use complexity_limit
-        new_results, new_facts = process_instance(store, domain, bound_instance)
+        new_results, new_facts = process_instance(store, domain, bound_instance) # TODO: bound_result
         num_wild += len(new_facts)
         if not bound_instance.enumerated:
             disabled.add(bound_instance)

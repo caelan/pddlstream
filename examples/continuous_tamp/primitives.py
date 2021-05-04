@@ -2,6 +2,9 @@ from collections import namedtuple
 
 import numpy as np
 import string
+import random
+
+from pddlstream.utils import str_eq
 
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2
@@ -122,8 +125,8 @@ def rejection_sample_placed(block_poses={}, block_regions={}, regions={}, max_at
     assert(not set(block_poses.keys()) & set(block_regions.keys()))
     for _ in range(max_attempts):
         placed = block_poses.copy()
-        remaining = block_regions.items()
-        np.random.shuffle(remaining)
+        remaining = list(block_regions.items())
+        random.shuffle(remaining)
         for b, r in remaining:
             p = rejection_sample_region(b, regions[r], placed)
             if p is None:
@@ -142,13 +145,6 @@ def get_pose_gen(regions):
                 break
             yield (p,)
     return gen_fn
-
-
-def str_eq(s1, s2, ignore_case=True):
-    if ignore_case:
-        s1 = s1.lower()
-        s2 = s2.lower()
-    return s1 == s2
 
 
 def interpolate(waypoints, velocity=1):
@@ -175,6 +171,8 @@ def plan_motion(q1, q2, fluents=[]):
             b, p = args
             assert b not in placed
             placed[b] = p
+        elif str_eq(predicate, 'AtConf'):
+            continue
         else:
             raise NotImplementedError(predicate)
 
@@ -200,6 +198,7 @@ TAMPProblem = namedtuple('TAMPProblem', ['initial', 'regions',
 
 GOAL_NAME = 'red'
 STOVE_NAME = 'stove'
+TABLE_NAME = 'table'
 
 INITIAL_CONF = np.array([-5, CARRY_Y + 1])
 #GOAL_CONF = None
@@ -324,7 +323,7 @@ def cook(n_blocks=2, n_goals=1, n_robots=1):
     # TODO: render using PyBullet
     regions = {
         GROUND_NAME: (-10, -5), # 'shelf'
-        'table': (-2, 2),
+        TABLE_NAME: (-2, 2),
         STOVE_NAME: (5, 10),
     }
 
@@ -337,10 +336,10 @@ def cook(n_blocks=2, n_goals=1, n_robots=1):
     other_blocks = set(blocks) - goal_cooked
 
     initial_regions = {block: GROUND_NAME for block in goal_blocks}
-    initial_regions.update({block: 'table' for block in other_blocks})
+    initial_regions.update({block: TABLE_NAME for block in other_blocks})
     block_poses = rejection_sample_placed(block_regions=initial_regions, regions=regions)
     initial = TAMPState(dict(zip(robots, confs)), {}, block_poses)
-    goal_regions = {block: 'table' for block in goal_cooked}
+    goal_regions = {block: TABLE_NAME for block in goal_cooked}
     #goal_regions = {}
     # TODO: draw table legs
     # TODO: stove top burners

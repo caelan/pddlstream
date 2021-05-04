@@ -24,5 +24,5 @@
     :certified (and (BTraj ?t) (BaseMotion ?q1 ?t ?q2))
   )
 
-  (:predicate (BTrajCollision ?t ?f1 ?q1 ?o1 ?p1 ?f2 ?q2 ?o2 ?p2))
+  (:predicate (BTrajCollision ?t ?f1 ?q1 ?o1 ?p1 ?f2 ?q2 ?o2 ?p2)) : TODO: domain conditions
 )

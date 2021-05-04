@@ -14,12 +14,11 @@ from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.serialized import SEPARATOR
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.language.object import DebugValue
 from pddlstream.language.statistics import load_data
 from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, value_or_id, INF
+from pddlstream.utils import read, get_file_path, value_or_id, INF, SEPARATOR
 
 
 def create_skeleton(robot, blocks, home=False):

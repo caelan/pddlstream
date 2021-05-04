@@ -1,21 +1,12 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from __future__ import print_function
 
-import os
-
 from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.utils import read
-from pddlstream.language.constants import get_length
-
-
-def read_pddl(filename):
-    directory = os.path.dirname(os.path.abspath(__file__))
-    return read(os.path.join(directory, filename))
+from pddlstream.language.constants import get_length, read_pddl_pair
 
 def main():
-    domain_pddl = read_pddl('domain.pddl')
-    problem_pddl = read_pddl('problem.pddl')
+    domain_pddl, problem_pddl = read_pddl_pair(__file__)
 
     plan, cost = solve_from_pddl(domain_pddl, problem_pddl)
     solved = plan is not None

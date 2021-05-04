@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 
-from collections import Counter
+from collections import Counter, namedtuple
 
 from pddlstream.language.constants import is_plan
 from pddlstream.utils import INF, read_pickle, ensure_dir, write_pickle, get_python_version
@@ -11,8 +11,11 @@ LOAD_STATISTICS = True
 SAVE_STATISTICS = True
 
 DATA_DIR = 'statistics/py{:d}/'
-DEFAULT_SEARCH_OVERHEAD = 10 # TODO: update this over time
+DEFAULT_SEARCH_OVERHEAD = 1e2 # TODO: update this over time
+EPSILON = 1e-6
 # Can also include the overhead to process skeletons
+
+Stats = namedtuple('Stats', ['p_success', 'overhead'])
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
@@ -157,12 +160,15 @@ def hash_object(evaluations, obj):
 ##################################################
 
 class PerformanceInfo(object):
-    def __init__(self, p_success, overhead, effort):
+    def __init__(self, p_success=1-EPSILON, overhead=EPSILON, effort=None, estimate=False):
+        # TODO: make info just a dict
+        self.estimate = estimate
+        if self.estimate:
+            p_success = overhead = effort = None
         if p_success is not None:
-            assert 0 <= p_success <= 1
+            assert 0. <= p_success <= 1.
         if overhead is not None:
-            # TODO: overhead should never be zero (always some tiny overhead)
-            assert 0 <= overhead
+            assert 0. <= overhead
         #if effort is not None:
         #    assert 0 <= effort
         self.p_success = p_success
@@ -182,65 +188,60 @@ class Performance(object):
         self.online_calls = 0
         self.online_overhead = 0.
         self.online_successes = 0
-
     @property
     def total_calls(self):
         return self.initial_calls + self.online_calls
-
     @property
     def total_overhead(self):
         return self.initial_overhead + self.online_overhead
-
     @property
     def total_successes(self):
         return self.initial_successes + self.online_successes
-
     def load_statistics(self, statistics):
         self.initial_calls = statistics['calls']
         self.initial_overhead = statistics['overhead']
         self.initial_successes = statistics['successes']
-
     def update_statistics(self, overhead, success):
         self.online_calls += 1
         self.online_overhead += overhead
         self.online_successes += success
-
     def _estimate_p_success(self, reg_p_success=1., reg_calls=1):
         # TODO: use prior from info instead?
         return safe_ratio(self.total_successes + reg_p_success * reg_calls,
                           self.total_calls + reg_calls,
                           undefined=reg_p_success)
-
     def _estimate_overhead(self, reg_overhead=1e-6, reg_calls=1):
         # TODO: use prior from info instead?
         return safe_ratio(self.total_overhead + reg_overhead * reg_calls,
                           self.total_calls + reg_calls,
                           undefined=reg_overhead)
-
     def get_p_success(self):
         # TODO: could precompute and store
         if self.info.p_success is None:
             return self._estimate_p_success()
         return self.info.p_success
-
     def get_overhead(self):
         if self.info.overhead is None:
             return self._estimate_overhead()
         return self.info.overhead
-
-    def get_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+    def could_succeed(self):
+        return self.get_p_success() > 0
+    def _estimate_effort(self, search_overhead=DEFAULT_SEARCH_OVERHEAD):
+        p_success = self.get_p_success()
+        return geometric_cost(self.get_overhead(), p_success) + \
+               (1 - p_success) * geometric_cost(search_overhead, p_success)
+    def get_effort(self, **kwargs):
         if self.info.effort is None:
-            p_success = self.get_p_success()
-            return geometric_cost(self.get_overhead(), p_success) + \
-                   (1 - p_success) * geometric_cost(search_overhead, p_success)
+            return self._estimate_effort(**kwargs)
         elif callable(self.info.effort):
             return 0  # This really is a bound on the effort
         return self.info.effort
-
+    def get_statistics(self, negate=False): # negate=True is for the "worst-case" ordering
+        sign = -1 if negate else +1
+        return Stats(p_success=self.get_p_success(), overhead=sign * self.get_overhead())
     def dump_total(self):
         print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.total_calls, self._estimate_p_success(), self._estimate_overhead()))
-
     def dump_online(self):
         if not self.online_calls:
             return

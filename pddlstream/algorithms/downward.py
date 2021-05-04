@@ -40,7 +40,9 @@ def find_build(fd_path):
     # TODO: could also just automatically compile
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./downward/build.py]')
 
+# TODO: check at runtime so users can use utils without FD
 FD_PATH = get_file_path(__file__, '../../downward/')
+#FD_PATH = get_file_path(__file__, '../../FastDownward/')
 TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
 FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')
 
@@ -71,24 +73,30 @@ GOAL_NAME = '@goal' # @goal-reachable
 
 ##################################################
 
-# TODO: be careful when doing costs. Might not be admissible if use plus one for heuristic
+# TODO: cost_type=PLUSONE can lead to suboptimality but often doesn't in practice due to COST_SCALE
 # TODO: modify parsing_functions to support multiple costs
 
 # bound (int): exclusive depth bound on g-values. Cutoffs are always performed according to the real cost.
 # (i.e. solutions must be strictly better than the bound)
 
 SEARCH_OPTIONS = {
-    # Optimal
-    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
-    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=NORMAL))"'
-                 ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    # See FastDownward's documentation for more configurations
+    # http://www.fast-downward.org/Doc/Evaluator
+    # http://www.fast-downward.org/Doc/SearchEngine
+
+    # Optimal (when cost_type=NORMAL)
+    'dijkstra': '--heuristic "h=blind(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
+    #'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+    #             ' --search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"', # cost_type=NORMAL
+    'max-astar': '--heuristic "h=hmax(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"', # cost_type=PLUSONE
+    'lmcut-astar': '--heuristic "h=lmcut(transform=adapt_costs(cost_type=PLUSONE))"'
+                 ' --search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
 
     # Suboptimal
-    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
-                '--search "astar(h,cost_type=NORMAL,max_time=%s,bound=%s)"',
+    'ff-astar': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                '--search "astar(h,cost_type=PLUSONE,max_time=%s,bound=%s)"',
     'ff-eager': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
                 '--search "eager_greedy([h],max_time=%s,bound=%s)"',
     'ff-eager-pref': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
@@ -102,27 +110,37 @@ SEARCH_OPTIONS = {
 
     'ff-eager-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "eager(tiebreaking([h, g()]),reopen_closed=false,'
-                         'cost_type=NORMAL,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
+                         'cost_type=PLUSONE,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
     'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
                          '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
-                         'randomize_successors=True,cost_type=NORMAL,max_time=%s,bound=%s)"',  # preferred=[h],
+                         'randomize_successors=True,cost_type=PLUSONE,max_time=%s,bound=%s)"',  # preferred=[h],
     # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
-    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" '
+    'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
-              'cost_type=NORMAL,max_time=%s,bound=%s)"',
+              'cost_type=PLUSONE,max_time=%s,bound=%s)"',
     # The key difference is that ehc resets the open list upon finding an improvement
 }
 # TODO: do I want to sort operators in FD hill-climbing search?
-# Greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
+# TODO: greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
 
 for w in range(1, 1+5):
-    SEARCH_OPTIONS['ff-wastar{}'.format(w)] = '--heuristic "h=ff(transform=adapt_costs(cost_type=NORMAL))" ' \
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={},' \
-                  'preferred_successors_first=true,cost_type=NORMAL,max_time=%s,bound=%s)"'.format(w)
-    SEARCH_OPTIONS['cea-wastar{}'.format(w)] = '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={},' \
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w)
+    SEARCH_OPTIONS.update({
+        # TODO: specify whether lazy or eager
+        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},' \
+                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+
+        'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},' \
+                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+
+        # http://www.fast-downward.org/Doc/SearchEngine#Eager_weighted_A.2A_search
+        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
+                                   '--search "eager(alt([single(sum([g(), weight(h,{w})])),' \
+                                            'single(sum([g(),weight(h,{w})]),pref_only=true)]),' \
+                                        'preferred=[h],cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+    })
 
 if USE_CERBERUS:
     # --internal-previous-portfolio-plans
@@ -138,7 +156,9 @@ if USE_CERBERUS:
 
 # TODO: throw a warning if max_planner_time is met
 DEFAULT_MAX_TIME = 30 # INF
-DEFAULT_PLANNER = 'ff-astar'
+DEFAULT_CONSERVATIVE_PLANNER = 'ff-astar'
+DEFAULT_GREEDY_PLANNER = 'ff-astar2'
+DEFAULT_PLANNER = DEFAULT_GREEDY_PLANNER
 
 ##################################################
 
@@ -155,17 +175,20 @@ def get_cost_scale():
 def set_cost_scale(cost_scale):
     pddl.f_expression.COST_SCALE = cost_scale
 
+def convert_value(value):
+    if value == INF:
+        return INFINITY
+    return int_ceil(value)
+
 def scale_cost(cost):
     if cost == INF:
         return INF
     return int_ceil(get_cost_scale() * float(cost))
 
-def convert_cost(cost):
-    if cost == INF:
-        return INFINITY
-    return int_ceil(cost)
+def get_min_unit():
+    return 1. / get_cost_scale()
 
-set_cost_scale(1e3) # TODO: make unit costs be equivalent to cost scale = 0
+set_cost_scale(cost_scale=1e3) # TODO: make unit costs be equivalent to cost scale = 0
 
 ##################################################
 
@@ -185,12 +208,6 @@ def parse_sequential_domain(domain_pddl):
     #    if (action.cost is not None) and isinstance(action.cost, pddl.Increase) and isinstance(action.cost.expression, pddl.NumericConstant):
     #        action.cost.expression.value = scale_cost(action.cost.expression.value)
     return domain
-
-def has_costs(domain):
-    for action in domain.actions:
-        if action.cost is not None:
-            return True
-    return False
 
 Problem = namedtuple('Problem', ['task_name', 'task_domain_name', 'task_requirements',
                                  'objects', 'init', 'goal', 'use_metric', 'pddl'])
@@ -255,6 +272,9 @@ def fd_from_evaluation(evaluation):
     expression = pddl.f_expression.NumericConstant(evaluation.value)
     return pddl.f_expression.Assign(fluent, expression)
 
+def fd_from_evaluations(evaluations):
+    return [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+
 ##################################################
 
 def parse_goal(goal_exp, domain):
@@ -269,8 +289,9 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     objects = objects_from_evaluations(evaluations)
     typed_objects = list({make_object(pddl_from_object(obj)) for obj in objects} - set(domain.constants))
     # TODO: this doesn't include =
-    init = [fd_from_evaluation(e) for e in evaluations if not is_negated_atom(e)]
+    init = fd_from_evaluations(evaluations)
     goal = pddl.Truth() if goal_exp is None else parse_goal(goal_exp, domain)
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
     problem_pddl = None
     if USE_FORBID:
         problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
@@ -282,7 +303,18 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
 
 IDENTICAL = "identical" # lowercase is critical (!= instead?)
 
-def task_from_domain_problem(domain, problem):
+def get_identical_atoms(objects):
+    # TODO: optimistically evaluate (not (= ?o1 ?o2))
+    init = []
+    for fd_obj in objects:
+        obj = obj_from_pddl(fd_obj.name)
+        if obj.is_unique():
+            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
+        else:
+            assert obj.is_shared()
+    return init
+
+def task_from_domain_problem(domain, problem, add_identical=True):
     # TODO: prune evaluation that aren't needed in actions
     #domain_name, domain_requirements, types, type_dict, constants, \
     #    predicates, predicate_dict, functions, actions, axioms = domain
@@ -296,13 +328,10 @@ def task_from_domain_problem(domain, problem):
         errmsg="error: duplicate object %r",
         finalmsg="please check :constants and :objects definitions")
     init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
-    # TODO: optimistically evaluate (not (= ?o1 ?o2))
-    for fd_obj in objects:
-        obj = obj_from_pddl(fd_obj.name)
-        if obj.is_unique():
-            init.append(pddl.Atom(IDENTICAL, (fd_obj.name, fd_obj.name)))
-        else:
-            assert obj.is_shared()
+    if add_identical:
+        init.extend(get_identical_atoms(objects))
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
+
     task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
                      domain.predicates, domain.functions, init, goal,
                      domain.actions, domain.axioms, use_metric)
@@ -348,15 +377,27 @@ def get_disjunctive_parts(condition):
 
 ##################################################
 
-#def normalize_domain_goal(domain, goal):
-#    task = pddl.Task(None, None, None, None, None,
-#                     None, None, [], goal, domain.actions, domain.axioms, None)
-#    normalize.normalize(task)
+def normalize_domain_goal(domain, goal_exp):
+    evaluations = []
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs=False)
+    task = task_from_domain_problem(domain, problem)
+    normalize.normalize(task)
+    return task
 
 def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME,
                max_cost=INF, debug=False):
-    max_time = convert_cost(max_planner_time)
-    max_cost = convert_cost(scale_cost(max_cost))
+    """
+    Runs FastDownward's search phase on translated SAS+ problem TRANSLATE_OUTPUT
+    :param temp_dir: the directory for temporary FastDownward input and output files
+    :param planner: a keyword for the FastDownward search configuration in SEARCH_OPTIONS
+    :param max_planner_time: the maximum runtime of FastDownward
+    :param max_cost: the maximum FastDownward plan cost
+    :param debug: If True, print the FastDownward search output
+    :return: a tuple (plan, cost) where plan is a sequence of PDDL actions
+        (or None) and cost is the cost of the plan (INF if no plan)
+    """
+    max_time = convert_value(max_planner_time)
+    max_cost = convert_value(scale_cost(max_cost))
     start_time = time()
     search = os.path.join(FD_BIN, SEARCH_COMMAND)
     if planner == 'cerberus':
@@ -635,6 +676,17 @@ def make_cost(cost):
             symbol=get_prefix(cost), args=list(map(pddl_from_object, get_args(cost))))
     return pddl.Increase(fluent=fluent, expression=expression)
 
+def has_costs(domain):
+    for action in domain.actions:
+        if (action.cost is not None) or (action.cost == 0):
+            return True
+    return False
+
+def set_unit_costs(domain):
+    # Cost of None becomes zero if metric = True
+    #set_cost_scale(1)
+    for action in domain.actions:
+        action.cost = make_cost(1)
 
 def make_action(name, parameters, preconditions, effects, cost=None):
     # Usually all parameters are external

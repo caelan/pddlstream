@@ -1,12 +1,11 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from __future__ import print_function
 
 from pddlstream.algorithms.search import solve_from_pddl
 from pddlstream.algorithms.focused import solve_focused
-
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import print_solution
+from pddlstream.language.constants import print_solution, PDDLProblem
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -74,15 +73,15 @@ def get_problem():
     ]
     goal =  ('on', 'a', 'b')
 
-    return DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(DOMAIN_PDDL, constant_map, stream_pddl, stream_map, init, goal)
 
-def solve_pddlstream(focused=True):
+def solve_pddlstream(focused=False, unit_costs=True, debug=False):
     pddlstream_problem = get_problem()
     if focused:
-        solution = solve_focused(pddlstream_problem, unit_costs=True)
+        solution = solve_focused(pddlstream_problem, unit_costs=unit_costs, debug=debug)
     else:
-        #solution = solve_exhaustive(pddlstream_problem, unit_costs=True)
-        solution = solve_incremental(pddlstream_problem, unit_costs=True)
+        #solution = solve_exhaustive(pddlstream_problem, unit_costs=unit_costs, debug=debug)
+        solution = solve_incremental(pddlstream_problem, unit_costs=unit_costs, debug=debug)
     print_solution(solution)
 
 ##################################################

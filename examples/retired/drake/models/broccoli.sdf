@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+<sdf version='1.6'>
+<model name="broccoli">
+  <link name="base_link">
+    <inertial>
+      <pose frame=''>0 0 0.05 0 0 0 </pose>
+      <mass>1.1</mass>
+      <inertia>
+        <ixx>0.0061</ixx>
+        <ixy>0</ixy>
+        <ixz>0</ixz>
+        <iyy>0.0066</iyy>
+        <iyz>0</iyz>
+        <izz>0.0013</izz>
+      </inertia>
+    </inertial>
+
+    <visual name='broccoli_visual'>
+      <pose frame=''>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder> 
+          <radius>0.025</radius>
+          <length>0.1</length>
+        </cylinder>
+      </geometry>
+      <material>
+        <diffuse>0 1 0 1</diffuse>
+      </material>
+    </visual>
+
+    <collision name='broccoli_collision'>
+      <pose frame=''>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder> 
+          <!--radius>0.025</radius>
+          <length>0.1</length-->
+          <radius>0.02</radius>
+          <length>0.095</length>
+        </cylinder>
+      </geometry>
+    </collision>
+
+    <collision name='point_collision1'>
+      <pose frame=''>0.025 0 0 0 0 0</pose>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision2'>
+      <pose frame=''>-0.025 0 0 0 0 0</pose>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision3'>
+      <pose frame=''>0 0.025 0 0 0 0</pose>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision4'>
+      <pose frame=''>0 -0.025 0 0 0 0</pose>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+
+    <!--collision name='point_collision5'>
+      <origin xyz="0.1 0.075 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision6'>
+      <origin xyz="0.1 -0.075 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision7'>
+      <origin xyz="-0.1 0.075 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision>
+    <collision name='point_collision8'>
+      <origin xyz="-0.1 -0.075 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere><radius>1e-7</radius></sphere>
+      </geometry>
+    </collision-->
+
+   </link>
+</model>
+</sdf>

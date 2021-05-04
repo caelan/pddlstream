@@ -2,26 +2,24 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
-import argparse
-
+from pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
     get_gripper_joints, GripperCommand, apply_commands, State
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
-    disconnect, user_input, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
-    get_distance, LockRenderer, get_min_limit, get_max_limit
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen
-from pddlstream.language.constants import Equal, AND, print_solution
-from pddlstream.utils import read, INF, get_file_path, find_unique
+    disconnect, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
+    get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line, SEPARATOR
+from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen, from_test
+from pddlstream.language.constants import Equal, AND, print_solution, PDDLProblem
+from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.language.object import SharedOptValue
+from pddlstream.language.external import defer_shared, never_defer
+from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
+    move_cost_fn
 from collections import namedtuple
 
 BASE_CONSTANT = 1
@@ -110,6 +108,7 @@ def opt_motion_fn(q1, q2):
 def pddlstream_from_problem(problem, teleport=False):
     robot = problem.robot
 
+    # TODO: integrate pr2 & tamp
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     constant_map = {}
@@ -157,14 +156,20 @@ def pddlstream_from_problem(problem, teleport=False):
         'sample-grasp': from_list_fn(get_grasp_gen(problem)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
         'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
+
+        'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test()),
+        'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem)),
+        'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem.robot)),
+
         'MoveCost': move_cost_fn,
-        'TrajPoseCollision': fn_from_constant(False),
-        'TrajArmCollision': fn_from_constant(False),
-        'TrajGraspCollision': fn_from_constant(False),
+
+        # 'TrajPoseCollision': fn_from_constant(False),
+        # 'TrajArmCollision': fn_from_constant(False),
+        # 'TrajGraspCollision': fn_from_constant(False),
     }
     # get_press_gen(problem, teleport=teleport)
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 #######################################################
 
@@ -214,12 +219,14 @@ def post_process(problem, plan, teleport=False):
 
 #######################################################
 
-def main(display=True, teleport=False, partial=False):
-    parser = argparse.ArgumentParser()
+def main(partial=False, defer=False, verbose=True):
+    parser = create_parser()
+    parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
-    #parser.add_argument('-display', action='store_true', help='displays the solution')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
+    print('Arguments:', args)
 
     connect(use_gui=args.viewer)
     problem_fn = cooking_problem
@@ -227,58 +234,60 @@ def main(display=True, teleport=False, partial=False):
     # cleaning_button_problem | cooking_button_problem
     with HideOutput():
         problem = problem_fn()
-    state_id = save_state()
-    #saved_world = WorldSaver()
+    #state_id = save_state()
+    saver = WorldSaver()
     #dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(problem, teleport=teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, teleport=args.teleport)
 
     stream_info = {
+        # 'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
+        # 'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
+        # 'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose),
+
+        'MoveCost': FunctionInfo(opt_move_cost_fn),
+    }
+    stream_info.update({
         'sample-pose': StreamInfo(PartialInputs('?r')),
         'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer=True),
-        'MoveCost': FunctionInfo(opt_move_cost_fn),
+        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer_fn=defer_shared if defer else never_defer),
     } if partial else {
         'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
         'inverse-kinematics': StreamInfo(from_fn(opt_ik_fn)),
         'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
-        'MoveCost': FunctionInfo(opt_move_cost_fn),
-    }
+    })
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
-    print('Streams:', stream_map.keys())
+    print('Streams:', str_from_object(set(stream_map)))
+    print(SEPARATOR)
 
-    pr = cProfile.Profile()
-    pr.enable()
-    with LockRenderer():
-        #solution = solve_incremental(pddlstream_problem, debug=True)
-        solution = solve_focused(pddlstream_problem, stream_info=stream_info, success_cost=INF, debug=False)
+    with Profiler():
+        with LockRenderer(lock=not args.enable):
+            solution = solve(pddlstream_problem, algorithm=args.algorithm, unit_costs=args.unit,
+                             stream_info=stream_info, success_cost=INF, verbose=True, debug=False)
+            saver.restore()
+
     print_solution(solution)
     plan, cost, evaluations = solution
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(10)
-    if plan is None:
-        return
-    if (not display) or (plan is None):
+    if (plan is None) or not has_gui():
         disconnect()
         return
 
-    with LockRenderer():
+    print(SEPARATOR)
+    with LockRenderer(lock=not args.enable):
         commands = post_process(problem, plan)
-    if args.viewer:
-        restore_state(state_id)
-    else:
-        disconnect()
-        connect(use_gui=True)
-        with HideOutput():
-            problem_fn() # TODO: way of doing this without reloading?
+        problem.remove_gripper()
+        saver.restore()
 
+    #restore_state(state_id)
+    saver.restore()
+    wait_if_gui('Execute?')
     if args.simulate:
         control_commands(commands)
     else:
         apply_commands(State(), commands, time_step=0.01)
-    user_input('Finish?')
+    wait_if_gui('Finish?')
     disconnect()
     # TODO: need to wrap circular joints
 

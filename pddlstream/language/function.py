@@ -14,9 +14,22 @@ from pddlstream.utils import str_from_object, apply_mapping
 #from inspect import getargspec as get_arg_spec
 #from inspect import signature
 
+##################################################
+
+def add_opt_function(name, base_fn, stream_map, stream_info, constant=0., coefficient=1., **external_kwargs):
+    stream_fn = lambda *args, **kwargs: constant + coefficient*base_fn(*args, **kwargs)
+    opt_fn = lambda *args, **kwargs: constant
+    info = FunctionInfo(opt_fn=opt_fn, **external_kwargs)
+    stream_map[name] = stream_fn
+    stream_info[name] = info
+    return stream_info, info
+
+##################################################
+
 class FunctionInfo(ExternalInfo):
-    def __init__(self, opt_fn=None, **kwargs):
-        super(FunctionInfo, self).__init__(**kwargs)
+    _default_eager = True
+    def __init__(self, opt_fn=None, eager=_default_eager, **kwargs): # Setting eager=True as a heuristic
+        super(FunctionInfo, self).__init__(eager=eager, **kwargs)
         self.opt_fn = opt_fn
         #self.order = 0
 
@@ -37,7 +50,7 @@ class FunctionResult(Result):
     def get_action(self):
         return FunctionAction(self.name, self.input_objects)
     def remap_inputs(self, bindings):
-        #if not any(o in bindings for o in self.instance.get_objects()):
+        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
         #    return self
         input_objects = apply_mapping(self.instance.input_objects, bindings)
         new_instance = self.external.get_instance(input_objects)
@@ -45,7 +58,9 @@ class FunctionResult(Result):
     def is_successful(self):
         return True
     def __repr__(self):
-        return '{}={}'.format(str_from_head(self.instance.get_head()), self.value)
+        #from pddlstream.algorithms.downward import get_cost_scale
+        #value = math.log(self.value) # TODO: number of digits to display
+        return '{}={:.3f}'.format(str_from_head(self.instance.head), self.value)
 
 class FunctionInstance(Instance):
     _Result = FunctionResult
@@ -56,10 +71,8 @@ class FunctionInstance(Instance):
     @property
     def head(self):
         if self._head is None:
-            self._head = substitute_expression(self.external.head, self.get_mapping())
+            self._head = substitute_expression(self.external.head, self.mapping)
         return self._head
-    def get_head(self):
-        return self.head
     @property
     def value(self):
         assert len(self.history) == 1
@@ -84,12 +97,14 @@ class FunctionInstance(Instance):
         start_calls = self.num_calls
         start_history = len(self.history)
         value = self._compute_output()
-        if (value is not False) and verbose:
-            print('{}) {}{}={}'.format(start_calls, get_prefix(self.external.head),
-                                       str_from_object(self.get_input_values()), value))
         new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
-        if start_history < len(self.history):
+
+        if (value is not False) and verbose:
+            # TODO: str(new_results[-1])
+            print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
+                                                         str_from_object(self.get_input_values()), value))
+        if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)
         return new_results, new_facts
@@ -100,7 +115,7 @@ class FunctionInstance(Instance):
         self.opt_results = [self._Result(self, opt_value, optimistic=True)]
         return self.opt_results
     def __repr__(self):
-        return '{}=?{}'.format(str_from_head(self.get_head()), self.external.codomain.__name__)
+        return '{}=?{}'.format(str_from_head(self.head), self.external.codomain.__name__)
 
 class Function(External):
     """
@@ -109,12 +124,12 @@ class Function(External):
     """
     codomain = float # int | float
     _Instance = FunctionInstance
-    _default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
-    _default_overhead = None
+    #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
     def __init__(self, head, fn, domain, info):
+        # TODO: function values that act as preconditions (cost must be below threshold)
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified
-            info = FunctionInfo(p_success=self._default_p_success, overhead=self._default_overhead)
+            info = FunctionInfo() #p_success=self._default_p_success)
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
@@ -127,20 +142,33 @@ class Function(External):
     @property
     def function(self):
         return get_prefix(self.head)
-    def get_complexity(self, num_calls):
-        #return 1 + num_calls
-        return 0
+    @property
+    def has_outputs(self):
+        return False
+    @property
+    def is_fluent(self):
+        return False
+    @property
     def is_negated(self):
         return False
+    @property
+    def is_function(self):
+        return True
+    @property
+    def is_cost(self):
+        return True
     def __repr__(self):
         return '{}=?{}'.format(str_from_head(self.head), self.codomain.__name__)
 
 ##################################################
 
+class PredicateInfo(FunctionInfo):
+    _default_eager = False
+
 class PredicateResult(FunctionResult):
     def get_certified(self):
         # TODO: cache these results
-        expression = self.instance.get_head()
+        expression = self.instance.head
         return [expression if self.value else Not(expression)]
     def is_successful(self):
         opt_value = self.external.opt_fn(*self.instance.get_input_values())
@@ -160,19 +188,23 @@ class Predicate(Function):
     """
     _Instance = PredicateInstance
     codomain = bool
-    _default_p_success = None
-    _default_overhead = None
     #def is_negative(self):
     #    return self._Instance._opt_value is False
-    def __init__(self, *args):
-        super(Predicate, self).__init__(*args)
+    def __init__(self, head, fn, domain, info):
+        if info is None:
+            info = PredicateInfo()
+        super(Predicate, self).__init__(head, fn, domain, info)
         assert(self.info.opt_fn is None)
         self.blocked_predicate = self.name
     @property
     def predicate(self):
         return self.function
+    @property
     def is_negated(self):
         return True
+    @property
+    def is_cost(self):
+        return False
 
 ##################################################
 

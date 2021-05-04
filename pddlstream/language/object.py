@@ -19,6 +19,7 @@ class Object(object):
         self.value = value
         self.index = len(Object._obj_from_name)
         if name is None:
+            #name = str(value) # TODO: use str for the name when possible
             name = '{}{}'.format(self._prefix, self.index)
         self.pddl = name
         self.stream_instance = stream_instance # TODO: store first created stream instance
@@ -64,16 +65,19 @@ class Object(object):
 
 ##################################################
 
-class UniqueOptValue(namedtuple('UniqueOptValue', ['instance', 'sequence_index', 'output_index'])):
+class UniqueOptValue(namedtuple('UniqueOptTuple', ['instance', 'sequence_index', 'output'])):
     @property
     def parameter(self):
-        return self.instance.external.outputs[self.output_index]
+        # return self.instance.external.outputs[self.output_index]
+        return self.output
 
-class SharedOptValue(namedtuple('OptValue', ['stream', 'inputs', 'input_objects', 'output'])):
+class SharedOptValue(namedtuple('SharedOptTuple', ['stream', 'inputs', 'input_objects', 'output'])):
     @property
     def values(self):
         return tuple(obj.value for obj in self.input_objects)
         #return values_from_objects(self.input_objects)
+
+##################################################
 
 class DebugValue(object): # TODO: could just do an object
     _output_counts = defaultdict(count)
@@ -93,6 +97,12 @@ class DebugValue(object): # TODO: could just do an object
         # Can also just return first letter of the prefix
         return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), self.index)
 
+class SharedDebugValue(namedtuple('SharedDebugValue', ['stream', 'output_parameter'])):
+    _prefix = '@' # $ | @
+    def __repr__(self):
+        index = hash(self.stream) % 1000
+        return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), index)
+
 ##################################################
 
 # TODO: just one object class or have Optimistic extend Object
@@ -110,7 +120,8 @@ class OptimisticObject(object):
         self.index = len(OptimisticObject._obj_from_inputs)
         if USE_OPT_STR and isinstance(self.param, UniqueOptValue):
             # TODO: instead just endow UniqueOptValue with a string function
-            parameter = self.param.instance.external.outputs[self.param.output_index]
+            #parameter = self.param.instance.external.outputs[self.param.output_index]
+            parameter = self.param.output
             prefix = get_parameter_name(parameter)[:PREFIX_LEN]
             var_index = next(self._count_from_prefix.setdefault(prefix, count()))
             self.repr_name = '{}{}{}'.format(OPT_PREFIX, prefix, var_index) #self.index)

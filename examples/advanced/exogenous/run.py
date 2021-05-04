@@ -2,22 +2,20 @@
 
 from __future__ import print_function
 
-import cProfile
-import pstats
 import numpy as np
-import argparse
 
 import pddlstream.language.exogenous as exogenous
 exogenous.EXOGENOUS_AXIOMS = True
 exogenous.REPLACE_STREAM = False
 
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_fn
 from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, get_file_path
-from pddlstream.language.constants import print_solution
+from pddlstream.utils import read, get_file_path, Profiler
+from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.language.external import defer_shared, never_defer
 #from pddlstream.language.exogenous import FutureValue
+#from examples.advanced.defer.run import ik_fn, motion_fn
 
 class Latent(object):
     pass
@@ -97,37 +95,30 @@ def pddlstream_from_belief():
     ]
     goal = ('Holding', block)
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
-def main(planner='max-astar', unit_costs=True):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--algorithm', default='focused', help='Specifies the algorithm')
+def main(planner='max-astar', defer=False):
+    parser = create_parser()
     args = parser.parse_args()
     print('Arguments:', args)
 
-    pddlstream_problem = pddlstream_from_belief()
-    _, _, _, _, init, goal = pddlstream_problem
+    problem = pddlstream_from_belief()
+    _, _, _, _, init, goal = problem
     print('Init:', sorted(init, key=lambda f: f[0]))
     print('Goal:', goal)
-    replan_actions = set()
-    #replan_actions = {'phone'}
+
     stream_info = {
-        'motion': StreamInfo(defer=True),
+        'motion': StreamInfo(defer_fn=defer_shared if defer else never_defer),
     }
 
-    pr = cProfile.Profile()
-    pr.enable()
-    if args.algorithm == 'focused':
-        solution = solve_focused(pddlstream_problem, replan_actions=replan_actions,
-                                 stream_info=stream_info, planner=planner, unit_costs=unit_costs)
-    elif args.algorithm == 'incremental':
-        solution = solve_incremental(pddlstream_problem, planner=planner, unit_costs=unit_costs)
-    else:
-        raise NotImplementedError(args.algorithm)
-    pr.disable()
-    pstats.Stats(pr).sort_stats('tottime').print_stats(5)
+    replan_actions = set()
+    #replan_actions = {'phone'}
+
+    with Profiler(field='tottime', num=5):
+        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, planner=planner,
+                         stream_info=stream_info, replan_actions=replan_actions)
     print_solution(solution)
 
 

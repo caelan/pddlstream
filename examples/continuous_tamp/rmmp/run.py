@@ -17,7 +17,7 @@ from examples.discrete_tamp.viewer import COLORS
 from pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.utils import user_input, read, INF, get_file_path, Profiler, randomize
-from pddlstream.language.constants import print_solution, Exists, And
+from pddlstream.language.constants import print_solution, Exists, And, PDDLProblem
 
 Mode = namedtuple('Mode', ['pose', 'frame'])
 
@@ -31,6 +31,8 @@ def test_state(problem, state):
     return True
 
 def sample_forward(problem):
+    regions = list(problem.regions.values())
+
     def gen(mode1):
         unattached = {block for block in mode1 if mode1[block].frame == GROUND}
         attached = set(mode1) - unattached
@@ -42,7 +44,7 @@ def sample_forward(problem):
             [block] = attached
             mode2 = mode1.copy()
             while True:
-                region = random.choice(problem.regions.values())
+                region = random.choice(regions)
                 pose = sample_region(block, region)
                 if pose is not None:
                     mode2[block] = Mode(pose, GROUND)
@@ -123,7 +125,7 @@ def pddlstream_from_tamp(tamp_problem):
         't-goal': from_test(test_goal_state(tamp_problem)),
     }
 
-    return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
+    return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
 ##################################################
 
@@ -142,31 +144,7 @@ def draw_conf(viewer, problem, conf):
     for block in problem.initial.block_poses:
         draw_block(viewer, block, conf[block], color=colors[block])
 
-##################################################
-
-# http://motion.cs.illinois.edu/papers/ijrr2011-MultiModal-preprint.pdf
-
-def main(deterministic=False, unit_costs=True):
-    np.set_printoptions(precision=2)
-    if deterministic:
-        seed = 0
-        np.random.seed(seed)
-    print('Seed:', get_random_seed())
-
-    problem_fn = tight  # get_tight_problem | get_blocked_problem
-    tamp_problem = problem_fn(n_blocks=2, n_goals=2, n_robots=1)
-    print(tamp_problem)
-
-    pddlstream_problem = pddlstream_from_tamp(tamp_problem)
-    with Profiler():
-        solution = solve_incremental(pddlstream_problem, complexity_step=1, max_time=30, planner='dijkstra',
-                                     unit_costs=unit_costs, verbose=False)
-        print_solution(solution)
-        plan, cost, evaluations = solution
-    if plan is None:
-        return
-
-    # TODO: might still be a planning bug
+def display_rmmp_plan(tamp_problem, plan):
     viewer = ContinuousTMPViewer(SUCTION_HEIGHT, tamp_problem.regions, title='Continuous TAMP')
     conf = conf_from_state(tamp_problem.initial)
     print()
@@ -184,6 +162,31 @@ def main(deterministic=False, unit_costs=True):
             user_input('Continue?')
     user_input('Finish?')
 
+##################################################
+
+# http://motion.cs.illinois.edu/papers/ijrr2011-MultiModal-preprint.pdf
+
+def main(deterministic=False, unit_costs=True):
+    np.set_printoptions(precision=2)
+    if deterministic:
+        seed = 0
+        np.random.seed(seed)
+    print('Seed:', get_random_seed())
+
+    problem_fn = tight  # get_tight_problem | get_blocked_problem
+    tamp_problem = problem_fn(n_blocks=2, n_goals=2, n_robots=1)
+    print(tamp_problem)
+
+    pddlstream_problem = pddlstream_from_tamp(tamp_problem)
+    with Profiler():
+        # TODO: might still be a planning bug
+        solution = solve_incremental(pddlstream_problem, complexity_step=1, max_time=30, planner='dijkstra',
+                                     unit_costs=unit_costs, verbose=False)
+    print_solution(solution)
+    plan, cost, evaluations = solution
+    if plan is None:
+        return
+    display_rmmp_plan(tamp_problem, plan)
 
 if __name__ == '__main__':
     main()
