@@ -199,6 +199,7 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     # results = [] # TODO: extract from process_stream_queue
 
     #set_unique(externals)
+    # domain.actions[:] = [] # TODO: only instantiate axioms
     results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
     evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
 
@@ -253,7 +254,6 @@ def recurse_subgoals(goals, condition_from_effect):
 
 def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True):
     # TODO: instantiate all goal partial states
-    # TODO: branch on actions, axioms, and streams
     # TODO: remove actions/axioms that never could achieve a subgoal
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     evaluations = evaluations_from_init(init)

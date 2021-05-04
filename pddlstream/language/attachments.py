@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 
 from pddlstream.algorithms.advanced import get_predicates
 from pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
@@ -8,7 +9,7 @@ from pddlstream.language.object import Object
 from pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.language.fluent import get_predicate_map, remap_certified
 from pddlstream.language.stream import Stream
-from pddlstream.utils import INF, invert_dict, get_mapping
+from pddlstream.utils import INF, invert_dict, get_mapping, safe_zip
 
 # Intuition: static facts about whether this state satisfies a condition
 # The state can be seen as a hidden parameter with a precondition that you are at it
@@ -85,16 +86,20 @@ def get_attachment_test(action_instance):
     from pddlstream.language.fluent import remap_certified
     # TODO: support for focused (need to resolve after binding)
     # TODO: ensure no OptimisticObjects
+    fd_action_from_state = {}
 
     def test(state):
-        # TODO: action parameters don't depend on the state
-        # TODO: counter for how many times the action has been remapped
-        if not hasattr(action_instance.action, 'attachments'):
+        if state in fd_action_from_state:
             return True
-        for literal, stream in action_instance.action.attachments.items():
+        #new_instance = action_instance
+        new_instance = copy.deepcopy(action_instance)
+        if not hasattr(action_instance.action, 'attachments'):
+            fd_action_from_state[state] = new_instance
+            return True
+        for literal, stream in new_instance.action.attachments.items():
             param_from_inp = remap_certified(literal, stream)
             input_objects = tuple(obj_from_pddl(
-                action_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
+                new_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
             stream_instance = get_fluent_instance(stream, input_objects, state)  # Output automatically cached
             results = stream_instance.first_results(num=1)
             #results = stream_instance.all_results()
@@ -108,12 +113,13 @@ def get_attachment_test(action_instance):
             out_from_obj = invert_dict(result.mapping)
             for obj in result.output_objects:
                 param = param_from_out[out_from_obj[obj]]
-                action_instance.var_mapping[param] = obj.pddl
+                new_instance.var_mapping[param] = obj.pddl
                 # idx = idx_from_param[param]
                 # args[1+idx] = obj.pddl
             #action_instance.name = '({})'.format(' '.join(args))
+        fd_action_from_state[state] = new_instance
         return True
-    return test
+    return test, fd_action_from_state
 
 
 def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF):
@@ -139,6 +145,7 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     if isinstance(planner, dict):
         pyplanner.update(planner)
 
+    fd_action_from_py_action = {}
     py_actions = []
     for action in instantiated.actions:
         #action.dump()
@@ -152,7 +159,7 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
             assert not condition
             py_action.effects.add(effect)
         py_action.cost = action.cost
-        py_action.test = get_attachment_test(action)
+        py_action.test, fd_action_from_py_action[py_action] = get_attachment_test(action)
         py_actions.append(py_action)
 
     py_axioms = []
@@ -175,7 +182,11 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
                                      max_time=max_planner_time, max_cost=max_cost, **pyplanner)
     if plan is None:
         return None, INF
-    actions = [pddl_from_instance(action.fd_action) for action in plan]
+
+    #fd_plan = [action.fd_action for action in plan.operators]
+    states = plan.get_states() # get_states | get_derived_states
+    fd_plan = [fd_action_from_py_action[action][state] for state, action in safe_zip(states[:-1], plan.operators)]
+    actions = [pddl_from_instance(action) for action in fd_plan]
     #print(actions)
     cost = plan.cost / get_cost_scale()
 

@@ -124,6 +124,7 @@ class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
                  verbose=True, **kwargs): # TODO: set negate to None to express no user preference
         # TODO: could change frequency/priority for the incremental algorithm
+        # TODO: maximum number of evaluations per iteration of adaptive
         super(StreamInfo, self).__init__(**kwargs)
         # TODO: call this an abstraction instead
         self.opt_gen_fn = PartialInputs() if opt_gen_fn is None else opt_gen_fn
@@ -305,8 +306,8 @@ class StreamInstance(Instance):
             return []
         # TODO: (potentially infinite) sequence of optimistic objects
         # TODO: how do I distinguish between real and not real verifications of things?
-        # if self.opt_results: # self.out_results is not None:
-        #     return self.opt_results # TODO: reuse these?
+        # if self.opt_results is not None:
+        #     return self.opt_results # TODO: reuse these (unless opt_index has changed)?
         self.opt_results = []
         output_set = set()
         for output_list in self.opt_gen_fn(*self.get_input_values()): # TODO: support generators instead
