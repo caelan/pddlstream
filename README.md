@@ -40,10 +40,10 @@ Most notably, it adheres to PDDL conventions and syntax whenever possible and co
 ## Installation
 
 ```
-~$ git clone https://github.com/caelan/pddlstream.git
-~$ cd pddlstream
-~/pddlstream$ git submodule update --init --recursive
-~/pddlstream$ ./FastDownward/build.py release64
+$ git clone --recursive https://github.com/caelan/pddlstream.git
+$ cd pddlstream
+pddlstream$ git submodule update --init --recursive
+pddlstream$ ./FastDownward/build.py release64
 ```
 
 If building fails, install FastDownward's dependencies using your package manager:
@@ -59,6 +59,11 @@ My FastDownward "fork" is several years old. If you have trouble compiling FastD
 PDDLStream actively supports python2.7 as well as the most recent version of python3.
 <!--(many robotics applications still require python2.7)-->
 
+Make sure to recursively update **pddlstream**'s submodules when pulling new commits.
+```
+pddlstream$ git pull --recurse-submodules
+```
+
 ## Examples
 
 This repository contains several robotic and non-robotic PDDLStream example domains.
@@ -71,14 +76,14 @@ $ pip install numpy pybullet
 ```
 
 Examples:
-* PR2 TAMP: `~/pddlstream$ python -m examples.pybullet.tamp.run`
-* PR2 Cleaning and Cooking: `~/pddlstream$ python -m examples.pybullet.pr2.run`
-* Turtlebot Rovers: `~/pddlstream$ python -m examples.pybullet.turtlebot_rovers.run`
-* PR2 Rovers: `~/pddlstream$ python -m examples.pybullet.pr2_rovers.run`
-* PR2 Planning and Execution: `~/pddlstream$ python -m examples.pybullet.pr2_belief.run`
-* Kuka Cleaning and Cooking: `~/pddlstream$ python -m examples.pybullet.kuka.run`
-* Turtlebot NAMO: `~/pddlstream$ python -m examples.pybullet.namo.run`
-* Turtlebot Multi-Robot: `~/pddlstream$ python -m examples.pybullet.turtlebots.run`
+* PR2 TAMP: `pddlstream$ python -m examples.pybullet.tamp.run`
+* PR2 Cleaning and Cooking: `pddlstream$ python -m examples.pybullet.pr2.run`
+* Turtlebot Rovers: `pddlstream$ python -m examples.pybullet.turtlebot_rovers.run`
+* PR2 Rovers: `pddlstream$ python -m examples.pybullet.pr2_rovers.run`
+* PR2 Planning and Execution: `pddlstream$ python -m examples.pybullet.pr2_belief.run`
+* Kuka Cleaning and Cooking: `pddlstream$ python -m examples.pybullet.kuka.run`
+* Turtlebot NAMO: `pddlstream$ python -m examples.pybullet.namo.run`
+* Turtlebot Multi-Robot: `pddlstream$ python -m examples.pybullet.turtlebots.run`
 
 <!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
 [<img src="https://img.youtube.com/vi/Uc0fogLsPMI/0.jpg" height="200">](https://www.youtube.com/watch?v=Uc0fogLsPMI)
@@ -99,37 +104,37 @@ $ sudo apt-get install python-tk
 ```
 
 Examples:
-* 1D Continuous TAMP: `~/pddlstream$ python -m examples.continuous_tamp.run`
-* 2D Motion Planning: `~/pddlstream$ python -m examples.motion.run`
-* Discrete TAMP: `~/pddlstream$ python -m examples.discrete_tamp.run`
-* Discrete TAMP with pushing: `~/pddlstream$ python -m examples.discrete_tamp.run`
+* 1D Continuous TAMP: `pddlstream$ python -m examples.continuous_tamp.run`
+* 2D Motion Planning: `pddlstream$ python -m examples.motion.run`
+* Discrete TAMP: `pddlstream$ python -m examples.discrete_tamp.run`
+* Discrete TAMP with pushing: `pddlstream$ python -m examples.discrete_tamp.run`
 
 <img src="images/discrete_tamp.png" height="100">&emsp;<img src="images/continuous_tamp.png" height="100">&emsp;<img src="images/motion.png" height="100">
 
 ### Pure Python
 
 Simple examples that can be run without additional dependencies:
-* Blocksworld: `~/pddlstream$ python -m examples.blocksworld.blocksworld`
-* Blocksworld with Derived Predicates: `~/pddlstream$ python -m examples.blocksworld.blocksworld_derived`
-* Discrete Belief Space: `~/pddlstream$ python -m examples.discrete_belief.run`
-* Kitchen (debug streams): `~/pddlstream$ python -m examples.kitchen.run`
-<!--* Discrete Belief: `~/pddlstream$ python -m examples.table_obs.run`-->
+* Blocksworld: `pddlstream$ python -m examples.blocksworld.blocksworld`
+* Blocksworld with Derived Predicates: `pddlstream$ python -m examples.blocksworld.blocksworld_derived`
+* Discrete Belief Space: `pddlstream$ python -m examples.discrete_belief.run`
+* Kitchen (debug streams): `pddlstream$ python -m examples.kitchen.run`
+<!--* Discrete Belief: `pddlstream$ python -m examples.table_obs.run`-->
 
 ### Advanced Functionality
 
 Test cases or advanced (and undocumented) functionality:
-* Action Description Language (ADL): `~/pddlstream$ python -m examples.adl.run`
-* Deferred streams (postponed evaluation): `~/pddlstream$ python -m examples.defer.run`
-* Exogenous streams (observations): `~/pddlstream$ python -m examples.exogenous.run`
-* Fluent streams (state constraints): `~/pddlstream$ python -m examples.fluent.run`
-* Constraint satisfaction: `~/pddlstream$ python -m examples.satisfy.run`
-* Wild streams (ad hoc certification): `~/pddlstream$ python -m examples.wild.run`
+* Action Description Language (ADL): `pddlstream$ python -m examples.adl.run`
+* Deferred streams (postponed evaluation): `pddlstream$ python -m examples.defer.run`
+* Exogenous streams (observations): `pddlstream$ python -m examples.exogenous.run`
+* Fluent streams (state constraints): `pddlstream$ python -m examples.fluent.run`
+* Constraint satisfaction: `pddlstream$ python -m examples.satisfy.run`
+* Wild streams (ad hoc certification): `pddlstream$ python -m examples.wild.run`
 
 ### International Planning Competition (IPC)
 
 Unmodified PDDL IPC examples solved using PDDLStream's modified translator:
-* Rovers: `~/pddlstream$ python -m examples.ipc.rovers.run`
-* Satellites: `~/pddlstream$ python -m examples.ipc.satellites.run`
+* Rovers: `pddlstream$ python -m examples.ipc.rovers.run`
+* Satellites: `pddlstream$ python -m examples.ipc.satellites.run`
 
 ## Applications
 
@@ -150,7 +155,8 @@ The meta procedure [solve(...)](https://github.com/caelan/pddlstream/blob/da1e52
 
 Property descriptions:
 * **Method**: the python function that calls the algorithm
-* **Negated streams**: whether the algorithm supports treating inverting test streams
+<!--* **Subroutine**: TBD-->
+* **Negated streams**: whether the algorithm supports inverting test streams
 * **Fluent streams**: whether the algorithm supports fluent streams that additionally condition on the fluent state
 * **Wild streams**: whether the algorithm supports streams that additionally can certify ad hoc facts
 <!--* **Semantic attachments (SA)**: TBD-->
@@ -187,6 +193,60 @@ Property descriptions:
 * **Wild streams**: supported 
 <!--* **Semantic attachments (SA)**: TBD-->
 
+## Search Subroutines
+
+Many (but not all) **pddlstream** algorithms have a discrete planning phase that can be implemented using any finite state-space search algorithm, such as Breadth-First Search (BFS) and Uniform-Cost Search (UCS).
+However, because **pddlstream** extends PDDL, this planning phase can also be implemented by state-of-the-art classical planning algorithms, which leverage the factored structure of action languages such as PDDL to vastly improve empirical planning efficiency.
+Best-first heuristic search algorithms, which automatically derive heursitics in a *domain-independent* manner, are one example class of these algorithms.
+
+### FastDownward
+
+**pddlstream** comes pre-packaged with [FastDownward](http://www.fast-downward.org/), a prolific library that contains many best-first heuristic search PDDL planning algorithms.
+I've preconfigured a small number of effective and general search algorithms in [SEARCH_OPTIONS](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L81), which can be toggled using the keyword argument [planner=?](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L391). I've roughly ranked them in order of least lazy (lowest cost) to most lazy (lowest runtime):
+* [Dijkstra/Uniform-Cost Search (UCS)](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L87) - optimal but slowest
+* [hmax A*](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L91) - optimal but slow
+* [lmcut A*](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L93) - optimal but slow
+* [ff eager astar](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L97)
+* [ff eager {1,...,5} weighted astar](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L138) - recommended (w=2)
+* [ff lazy {1,...,5} weighted astar](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L129)
+* [ff eager greedy](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L99)
+* [ff lazy greedy](https://github.com/caelan/pddlstream/blob/4914667a13a80831cadaf115a70938e9f93b021e/pddlstream/algorithms/downward.py#L103)
+
+The runtime of the discrete planning phase varies depending on the selected search algorithm.
+For many non-adversarial problems, these algorithms will either solve a problem instantenously or, if they aren't greedy enough, not terminate within 10 minutes.
+I recommend starting with a greedier configuration and moving torward a less greedy one if desired. 
+
+### Other PDDL Planners
+
+Any PDDL planning algorithm could be used in the place of [FastDownward](http://www.fast-downward.org/); however, a caveat is that some of these planners are only implemented to support a limited set of representational features (e.g. no conditional effects, no derived predicates, etc.), which can make both modeling more difficult and ultimately planning less efficient in many real-world (non-IPC) planning domains.
+While I heavily recommend [FastDownward](http://www.fast-downward.org/), some PDDL planners that I've interfaced with in the past with some success include:
+
+Classical Planners
+* [FastDownward](http://www.fast-downward.org/)
+* [FastForward](https://github.com/caelan/FastForward-X)
+* [pyplanners](https://github.com/caelan/pyplanners)
+* [Cerberus](https://github.com/ctpelok77/fd-red-black-postipc2018)
+* [LAPTK](https://github.com/LAPKT-dev/LAPKT-public/)
+* [YSHAP](https://github.com/nojhan/descarwin) <!--https://github.com/aldukeman/yahsp2-->
+<!--* [pyperplan](https://github.com/aibasel/pyperplan)-->
+<!-- https://github.mit.edu/caelan/stripstream/tree/master/stripstream/algorithms/search -->
+<!-- https://github.mit.edu/caelan/ss/tree/master/ss/algorithms -->
+
+Numeric Planners:
+* [Metric FF](https://github.com/caelan/Metric-FF)
+* [SMTPlan](https://github.com/KCL-Planning/SMTPlan)
+
+Temporal Planners:
+* [Temporal FastDownward](https://github.com/caelan/TemporalFastDownward)
+* [TPSHE](https://github.com/aig-upf/temporal-planning)
+
+Diverse Planners:
+* [Forbid Iterative](https://github.com/IBM/forbiditerative)
+* [kstar](https://github.com/ctpelok77/kstar)
+* [symk](https://github.com/speckdavid/symk)
+
+<!-- International Planning Competition (IPC) -->
+
 ## Resources
 
 * [Recent Talk](https://youtu.be/YfCh5qMYGuQ)
@@ -195,6 +255,7 @@ Property descriptions:
 * [PDDLStream Tutorial](https://web.mit.edu/caelan/www/presentations/6.881_19-11-12.pdf)
 * [Planning Domain Definition Language (PDDL)](http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html)
 * [Derived Predicates](https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html)
+* [FastDownward](http://www.fast-downward.org/)
 <!--* [PDDLStream Tutorial](https://web.mit.edu/caelan/www/presentations/6.881_TAMP.pdf)-->
 
 ## Retired
