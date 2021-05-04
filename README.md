@@ -39,8 +39,9 @@ Most notably, it adheres to PDDL conventions and syntax whenever possible and co
 
 ## Installation
 
+<!--$ git clone --recursive https://github.com/caelan/pddlstream.git-->
 ```
-$ git clone --recursive https://github.com/caelan/pddlstream.git
+$ git clone --recursive git@github.com:caelan/pddlstream.git
 $ cd pddlstream
 pddlstream$ git submodule update --init --recursive
 pddlstream$ ./FastDownward/build.py release64
