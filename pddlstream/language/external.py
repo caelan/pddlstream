@@ -133,7 +133,7 @@ class Instance(object):
         self.disabled = False # TODO: perform disabled using complexity
         self.history = [] # TODO: facts history
         self.results_history = []
-        self.opt_results = [] # TODO: initialize as None
+        self.opt_results = None
         self._mapping = None
         self._domain = None
         self.reset()
