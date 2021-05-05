@@ -162,7 +162,7 @@ def main():
     draw_base_limits(rovers_problem.limits, color=RED)
 
     pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport,
-                                                 holonomic=False, reversible=True)
+                                                 holonomic=False, reversible=True, use_aabb=True)
     stream_info = {
         'test-cfree-ray-conf': StreamInfo(),
         'test-reachable': StreamInfo(p_success=1e-1),

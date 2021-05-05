@@ -135,6 +135,7 @@ def pddlstream_from_problem(problem):
     stream_map = {
         'test-cfree-conf-pose': from_test(get_test_cfree_conf_pose(problem)),
         'test-cfree-traj-pose': from_test(get_test_cfree_traj_pose(problem)),
+        # TODO: sample pushes rather than picks/places
         'sample-grasp': from_gen_fn(get_grasp_generator(problem)),
         'compute-ik': from_fn(get_ik_fn(problem)),
         'compute-motion': from_fn(get_motion_fn(problem)),
@@ -191,7 +192,7 @@ def post_process(problem, plan):
 #######################################################
 
 def main():
-    parser = create_parser()
+    parser = create_parser(default_algorithm='binding')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
@@ -232,7 +233,6 @@ def main():
                              unit_costs=args.unit, success_cost=success_cost,
                              max_time=args.max_time, verbose=True,
                              unit_efforts=True, effort_weight=1,
-                             bind=True, max_skeletons=None,
                              search_sample_ratio=search_sample_ratio)
             saver.restore()
 

@@ -42,10 +42,10 @@ class Ray(Command):
         return '{}->{}'.format(self.start, self.end)
 
 
-def get_reachable_test(problem, **kwargs):
+def get_reachable_test(problem, iterations=10, **kwargs):
     initial_confs = {rover: Conf(rover, get_base_joints(rover))
                      for rover in problem.rovers}
-    motion_fn = get_motion_fn(problem, restarts=0, iterations=25, smooth=0, **kwargs)
+    motion_fn = get_motion_fn(problem, restarts=0, iterations=iterations, smooth=0, **kwargs)
     def test(rover, bq):
         bq0 = initial_confs[rover]
         result = motion_fn(rover, bq0, bq)

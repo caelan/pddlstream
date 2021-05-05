@@ -26,10 +26,10 @@ DEFAULT_ALGORITHM = 'adaptive'
 
 ##################################################
 
-def create_parser():
+def create_parser(default_algorithm=DEFAULT_ALGORITHM):
     # https://docs.python.org/3/library/argparse.html#the-add-argument-method
     parser = argparse.ArgumentParser() # Automatically includes help
-    parser.add_argument('-a', '--algorithm', type=str, default=DEFAULT_ALGORITHM, choices=ALGORITHMS, required=False,
+    parser.add_argument('-a', '--algorithm', type=str, default=default_algorithm, choices=ALGORITHMS, required=False,
                         help='Specifies the PDDLStream algorithm to use')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs') # --unit_costs
     # args = parser.parse_args()
