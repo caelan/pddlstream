@@ -73,7 +73,7 @@ This repository contains several robotic and non-robotic PDDLStream example doma
 
 Install PyBullet on OS X or Linux using: 
 ```
-$ pip install numpy pybullet
+$ pip install pybullet numpy scipy
 ```
 
 Examples:
@@ -103,8 +103,8 @@ See https://github.com/caelan/pybullet-planning for more information about my Py
 
 Install numpy and Python TKinter on Linux using: 
 ```
-$ pip install numpy
 $ sudo apt-get install python-tk
+$ pip install numpy
 ```
 
 Examples:
