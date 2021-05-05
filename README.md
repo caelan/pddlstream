@@ -83,7 +83,7 @@ Examples:
 * PR2 Rovers: `pddlstream$ python -m examples.pybullet.pr2_rovers.run`
 * PR2 Planning and Execution: `pddlstream$ python -m examples.pybullet.pr2_belief.run`
 * Kuka Cleaning and Cooking: `pddlstream$ python -m examples.pybullet.kuka.run`
-* Turtlebot NAMO: `pddlstream$ python -m examples.pybullet.namo.run`
+<!--* Turtlebot NAMO: `pddlstream$ python -m examples.pybullet.namo.run`-->
 <!--
 * Turtlebot Multi-Robot: `pddlstream$ python -m examples.pybullet.turtlebots.run`
 Requires Temporal FastDownward - https://github.com/caelan/TemporalFastDownward
