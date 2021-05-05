@@ -93,16 +93,15 @@ class Binding(object):
         #self.parent_complexity = parent_complexity
         self.skeleton.update_best(self)
     @property
+    def is_fully_bound(self):
+        return self.index == len(self.skeleton.stream_plan)
+    @property
     def result(self):
         if self._result is False:
             self._result = None
-            if self.index <= len(self.skeleton.stream_plan) - 1:
+            if not self.is_fully_bound:
                 self._result = self.skeleton.bind_stream_result(self.index, self.mapping)
         return self._result
-    @property
-    def is_fully_bound(self):
-        #return self.index >= len(self.skeleton.stream_plan)
-        return self.result is None
     #@property
     #def complexity(self):
     #    # This does a plan linearization version of complexity
@@ -262,8 +261,6 @@ class SkeletonQueue(Sized):
             # TODO: causes redundant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to re-enable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
-            #if instance.enumerated:
-            #    return False, is_new
             return STANDBY, is_new
         #if not is_instance_ready(self.evaluations, instance):
         #    raise RuntimeError(instance)
@@ -320,8 +317,10 @@ class SkeletonQueue(Sized):
 
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
-        print('Complexity:', complexity_limit)
         num_new = 0
+        if not self.is_active():
+            return num_new
+        print('Complexity:', complexity_limit)
         while self.is_active():
             _, binding = self.pop_binding()
             # TODO: move check_complexity

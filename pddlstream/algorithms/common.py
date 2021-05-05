@@ -133,7 +133,7 @@ def optimistic_complexity(evaluations, optimistic_facts, fact):
     return optimistic_facts[fact]
 
 
-def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexity_op=COMPLEXITY_OP):
+def stream_plan_complexity(evaluations, stream_plan, stream_calls, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):
         return INF
     # TODO: difference between a result having a particular complexity and the next result having something
@@ -142,11 +142,11 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls=None, complexi
     for i, result in enumerate(stream_plan):
         result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
                                                  for fact in result.get_domain()])
-        num_calls = 0
-        if stream_calls is None:
-            num_calls = result.instance.num_calls
-        elif i <= len(stream_calls) - 1:
-            num_calls = stream_calls[i]
+
+        # if stream_calls is None:
+        #     num_calls = result.instance.num_calls
+        # else:
+        num_calls = stream_calls[i]
         result_complexity += result.external.get_complexity(num_calls)
         result_complexities.append(result_complexity)
         for fact in result.get_certified():

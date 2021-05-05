@@ -78,8 +78,9 @@ def process_stream_queue(instantiator, store, complexity_limit=INF, verbose=Fals
         results.extend(new_results)
         num_successes += bool(new_results) # TODO: max_results?
     if verbose:
-        print('Calls: {} | Successes: {} | Results: {} | Counts: {}'.format(
-            len(instances), num_successes, len(results), Counter(instance.external.name for instance in instances)))
+        print('Eager Calls: {} | Successes: {} | Results: {} | Counts: {}'.format(
+            len(instances), num_successes, len(results),
+            str_from_object(Counter(instance.external.name for instance in instances))))
     return len(instances)
 
 # def retrace_stream_plan(store, domain, goal_expression):

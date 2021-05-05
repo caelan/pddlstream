@@ -155,8 +155,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
         if eager_disabled:
             push_disabled(eager_instantiator, disabled)
-        eager_calls += process_stream_queue(eager_instantiator, store,
-                                            complexity_limit=complexity_limit, verbose=verbose)
+        if eager_externals:
+            eager_calls += process_stream_queue(eager_instantiator, store,
+                                                complexity_limit=complexity_limit, verbose=verbose)
 
         ################
 
