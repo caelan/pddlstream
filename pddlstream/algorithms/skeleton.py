@@ -12,7 +12,7 @@ from pddlstream.language.function import FunctionResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
 GREEDY_VISITS = 0
-PRUNE_BINDINGS = True
+REQUIRE_DOWNSTREAM = True
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
@@ -30,7 +30,7 @@ def compute_affected_downstream(stream_plan, index):
     for index2 in range(index + 1, len(stream_plan)):
         result2 = stream_plan[index2]
         if output_objects & result2.instance.get_all_input_objects(): # TODO: get_object_orders
-            output_objects.update(get_output_objects(result2))
+            output_objects.update(get_output_objects(result2)) # TODO: just include directly affected?
             affected_indices.append(index2)
             has_cost |= (type(result2) is FunctionResult)
     return Affected(affected_indices, has_cost)
@@ -106,10 +106,15 @@ class Binding(object):
         return self.skeleton.best_binding is self
     def is_dominated(self):
         return self.skeleton.queue.store.best_cost <= self.cost
+    def is_enumerated(self):
+        return self.is_fully_bound or self.result.enumerated
+    def is_unsatisfied(self):
+        return not self.children
+
     def up_to_date(self):
         if self.is_fully_bound:
             return True
-        #if PRUNE_BINDINGS:
+        #if REQUIRE_DOWNSTREAM:
         #    return self.result.instance.num_calls <= self.visits
         #else:
         return self.calls == self.result.instance.num_calls
@@ -128,24 +133,23 @@ class Binding(object):
         if complexity_limit == INF:
             return True
         if any(calls > complexity_limit for calls in [self.max_history, self.calls]): # + self.history
-            # For efficiency purposes
+            # Check lower bounds for efficiency purposes
             return False
         return self.compute_complexity() <= complexity_limit
-    def do_evaluate_helper(self, affected):
-        # TODO: update this online for speed purposes
-        # TODO: store the result
+    def check_downstream_helper(self, affected):
         if self.is_dominated():
             # Keep exploring down branches that contain a cost term
             return affected.has_cost
-        if not self.children: # or type(self.result) == FunctionResult): # not self.visits
+        if self.is_unsatisfied(): # or type(self.result) == FunctionResult): # not self.visits
             return self.index in affected.indices
         # TODO: only prune functions here if the reset of the plan is feasible
-        #if not indices or (max(indices) < self.index):
+        #if not affected.indices or (max(affected.indices) < self.index):
+        #    # Cut branch for efficiency purposes
         #    return False
         # TODO: discard bindings that have been pruned by their cost
-        return any(binding.do_evaluate_helper(affected) for binding in self.children) # TODO: any or all
-    def do_evaluate(self):
-        return self.do_evaluate_helper(self.skeleton.affected_indices[self.index])
+        return any(binding.check_downstream_helper(affected) for binding in self.children) # TODO: any or all
+    def check_downstream(self):
+        return self.check_downstream_helper(self.skeleton.affected_indices[self.index])
     def get_priority(self):
         # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
@@ -254,7 +258,7 @@ class SkeletonQueue(Sized):
             return readd, is_new
         binding.visits += 1
         instance = binding.result.instance
-        if (PRUNE_BINDINGS and not binding.do_evaluate()):
+        if (REQUIRE_DOWNSTREAM and not binding.check_downstream()): # TODO: move check_complexity here
             # TODO: causes redundant plan skeletons to be identified (along with complexity using visits instead of calls)
             # Do I need to re-enable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
@@ -290,9 +294,11 @@ class SkeletonQueue(Sized):
         return num_new
 
     def process_until_new(self, print_frequency=1.):
-        # TODO: process the entire queue once instead
-        print('Sampling until new output values')
+        # TODO: process the entire queue for one pass instead
         num_new = 0
+        if not self.is_active():
+            return num_new
+        print('Sampling until new output values')
         iterations = 0
         last_time = time.time()
         while self.is_active() and (not num_new):
@@ -309,17 +315,16 @@ class SkeletonQueue(Sized):
                     len(self.queue), iterations, elapsed_time(last_time)))
                 last_time = time.time()
         self.readd_standby()
-        return num_new
+        return num_new + self.greedily_process()
 
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
         num_new = 0
         if not self.is_active():
             return num_new
-        print('Complexity:', complexity_limit)
+        print('Sampling while complexity <= {}'.format(complexity_limit))
         while self.is_active():
             _, binding = self.pop_binding()
-            # TODO: move check_complexity
             if binding.check_complexity(complexity_limit): # not binding.up_to_date() or
                 readd, is_new = self._process_binding(binding)
                 num_new += is_new
@@ -329,17 +334,21 @@ class SkeletonQueue(Sized):
                     continue
             self.standby.append(binding)
         self.readd_standby()
-        return num_new
+        return num_new + self.greedily_process()
         # TODO: increment the complexity level even more if nothing below in the queue
 
     def timed_process(self, max_time=INF, max_iterations=INF):
-        start_time = time.time()
+        # TODO: combine process methods into process_until
         iterations = num_new = 0
+        if not self.is_active():
+            return num_new
+        print('Sampling for up to {:.3f} seconds'.format(max_time)) #, max_iterations))
+        start_time = time.time()
         while self.is_active() and (elapsed_time(start_time) < max_time) and (iterations < max_iterations):
             iterations += 1
             num_new += self.process_root()
-        print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
-        return num_new
+        #print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
+        return num_new + self.greedily_process()
 
     #########################
 
@@ -369,11 +378,8 @@ class SkeletonQueue(Sized):
         if not self.queue:
             return FAILED
 
+        self.timed_process(max_time=(max_time - elapsed_time(start_time)))
         self.process_complexity(complexity_limit)
-        remaining_time = max_time - elapsed_time(start_time)
-        print('Allocated sampling time: {:.3f} | Remaining sampling time: {:.3f}'.format(max_time, remaining_time))
-        self.timed_process(remaining_time)
-        self.greedily_process()
         if accelerate:
            self.accelerate_best_bindings()
         return FAILED
