@@ -84,7 +84,10 @@ Examples:
 * PR2 Planning and Execution: `pddlstream$ python -m examples.pybullet.pr2_belief.run`
 * Kuka Cleaning and Cooking: `pddlstream$ python -m examples.pybullet.kuka.run`
 * Turtlebot NAMO: `pddlstream$ python -m examples.pybullet.namo.run`
+<!--
 * Turtlebot Multi-Robot: `pddlstream$ python -m examples.pybullet.turtlebots.run`
+Requires Temporal FastDownward - https://github.com/caelan/TemporalFastDownward
+-->
 
 <!--[![Kuka IIWA](https://img.youtube.com/vi/3HJrkgIGK7c/0.jpg)](https://www.youtube.com/watch?v=3HJrkgIGK7c)-->
 [<img src="https://img.youtube.com/vi/Uc0fogLsPMI/0.jpg" height="200">](https://www.youtube.com/watch?v=Uc0fogLsPMI)
@@ -115,21 +118,23 @@ Examples:
 ### Pure Python
 
 Simple examples that can be run without additional dependencies:
-* Blocksworld: `pddlstream$ python -m examples.blocksworld.blocksworld`
-* Blocksworld with Derived Predicates: `pddlstream$ python -m examples.blocksworld.blocksworld_derived`
-* Discrete Belief Space: `pddlstream$ python -m examples.discrete_belief.run`
+* Blocksworld: `pddlstream$ python -m examples.blocksworld.run`
+* Blocksworld with Derived Predicates: `pddlstream$ python -m examples.blocksworld.run_derived`
 * Kitchen (debug streams): `pddlstream$ python -m examples.kitchen.run`
-<!--* Discrete Belief: `pddlstream$ python -m examples.table_obs.run`-->
+
+<!--* Discrete Belief: `pddlstream$ python -m examples.table_obs.run`
+* Discrete Belief Space: `pddlstream$ python -m examples.discrete_belief.run`
+`$ pip install numpy scipy`-->
 
 ### Advanced Functionality
 
 Test cases or advanced (and undocumented) functionality:
-* Action Description Language (ADL): `pddlstream$ python -m examples.adl.run`
-* Deferred streams (postponed evaluation): `pddlstream$ python -m examples.defer.run`
-* Exogenous streams (observations): `pddlstream$ python -m examples.exogenous.run`
-* Fluent streams (state constraints): `pddlstream$ python -m examples.fluent.run`
-* Constraint satisfaction: `pddlstream$ python -m examples.satisfy.run`
-* Wild streams (ad hoc certification): `pddlstream$ python -m examples.wild.run`
+* Action Description Language (ADL): `pddlstream$ python -m examples.advanced.adl.run`
+* Deferred streams (postponed evaluation): `pddlstream$ python -m examples.advanced.defer.run`
+* Exogenous streams (observations): `pddlstream$ python -m examples.advanced.exogenous.run`
+* Fluent streams (state constraints): `pddlstream$ python -m examples.advanced.fluent.run`
+* Constraint satisfaction: `pddlstream$ python -m examples.advanced.satisfy.run`
+* Wild streams (ad hoc certification): `pddlstream$ python -m examples.advanced.wild.run`
 
 ### International Planning Competition (IPC)
 
