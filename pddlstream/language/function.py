@@ -94,7 +94,6 @@ class FunctionInstance(Instance):
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
-        start_calls = self.num_calls
         start_history = len(self.history)
         value = self._compute_output()
         new_results = [self._Result(self, value, optimistic=False)]
@@ -102,8 +101,9 @@ class FunctionInstance(Instance):
 
         if (value is not False) and verbose:
             # TODO: str(new_results[-1])
-            print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
-                                                         str_from_object(self.get_input_values()), value))
+            print('iter={}, outs={}) {}{}={:.3f}'.format(
+                self.get_iteration(), len(new_results), get_prefix(self.external.head),
+                str_from_object(self.get_input_values()), value))
         if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)

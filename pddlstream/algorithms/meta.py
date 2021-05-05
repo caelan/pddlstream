@@ -45,7 +45,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
           unit_costs=False, success_cost=INF,
           max_time=INF, max_iterations=INF, max_memory=INF,
           initial_complexity=0, complexity_step=1, max_complexity=INF,
-          max_skeletons=INF, search_sample_ratio=0, max_failures=0,
+          max_skeletons=INF, search_sample_ratio=1, max_failures=0,
           unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
           #temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[],
           #planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False

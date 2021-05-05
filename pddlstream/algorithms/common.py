@@ -36,6 +36,10 @@ class SolutionStore(object):
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
         self.solutions = []
+        self.sample_time = 0.
+    @property
+    def search_time(self):
+        return self.elapsed_time() - self.sample_time
     @property
     def best_plan(self):
         # TODO: return INFEASIBLE if can prove no solution
@@ -72,6 +76,8 @@ class SolutionStore(object):
             'cost': self.best_cost,
             'length': get_length(self.best_plan),
             'evaluations': len(self.evaluations),
+            'search_time': self.search_time,
+            'sample_time': self.sample_time,
             'run_time': self.elapsed_time(),
             'timeout': self.is_timeout(),
             #'status': status,

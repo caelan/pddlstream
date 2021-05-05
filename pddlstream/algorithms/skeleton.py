@@ -11,11 +11,12 @@ from pddlstream.language.constants import is_plan, INFEASIBLE
 from pddlstream.language.function import FunctionResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
+GREEDY_ATTEMPTS = 0
 PRUNE_BINDINGS = True
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
-Priority = namedtuple('Priority', ['not_best', 'complexity', 'attempts', 'remaining', 'cost']) # TODO: FIFO
+Priority = namedtuple('Priority', ['not_best', 'not_greedy', 'complexity', 'attempts', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
 def compute_affected_downstream(stream_plan, index):
@@ -151,13 +152,13 @@ class Binding(object):
     def get_priority(self):
         # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
-        not_best = not self.is_best()
+        greedy = (self.attempts <= GREEDY_ATTEMPTS)
         #priority = self.attempts
         #priority = self.compute_complexity()
         priority = self.compute_complexity() + (self.attempts - self.calls) # TODO: check this
         # TODO: call_index
         remaining = len(self.skeleton.stream_plan) - self.index
-        return Priority(not_best, priority, self.attempts, remaining, self.cost)
+        return Priority(not self.is_best(), not greedy, priority, self.attempts, remaining, self.cost)
     def post_order(self):
         for child in self.children:
             for binding in child.post_order():
@@ -368,7 +369,7 @@ class SkeletonQueue(Sized):
         #    print('Complexity:', complexity_limit) # TODO: revisit this
         #    self.process_complexity(complexity_limit)
         remaining_time = max_time - elapsed_time(start_time)
-        print('Remaining sampling time: {:.3f} seconds'.format(remaining_time))
+        print('Allocated sampling time: {:.3f} | Remaining sampling time: {:.3f}'.format(max_time, remaining_time))
         self.timed_process(complexity_limit, remaining_time)
         if accelerate:
            self.accelerate_best_bindings()

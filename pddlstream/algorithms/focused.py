@@ -25,7 +25,7 @@ from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import INF, elapsed_time, implies, user_input, check_memory, str_from_object, safe_zip
+from pddlstream.utils import INF, implies, str_from_object, safe_zip
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -140,13 +140,13 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     positive_externals = streams + functions + optimizers
     use_skeletons = (max_skeletons is not None)
+    #assert implies(use_skeletons, search_sample_ratio > 0)
     has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
     eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
-        start_time = time.time()
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
         if eager_disabled:
@@ -157,7 +157,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         print('\nIteration: {} | Complexity: {} | Skeletons: {} | Skeleton Queue: {} | Disabled: {} | Evaluations: {} | '
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
-            len(evaluations), eager_calls, store.best_cost, search_time, sample_time, store.elapsed_time()))
+            len(evaluations), eager_calls, store.best_cost, store.search_time, store.sample_time, store.elapsed_time()))
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       replan_actions=replan_actions, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
@@ -191,11 +191,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         if is_plan(stream_plan) and visualize:
             log_plans(stream_plan, action_plan, num_iterations)
             create_visualizations(evaluations, stream_plan, num_iterations)
-        search_time += elapsed_time(start_time)
 
         if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
             break
-        start_time = time.time()
         if not is_plan(stream_plan):
             complexity_limit += complexity_step
             if not eager_disabled:
@@ -211,24 +209,21 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
 
-            allocated_sample_time = (search_sample_ratio * search_time) - sample_time \
+            allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
                 if len(skeleton_queue.skeletons) <= max_skeletons else INF
             if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
                 break
         else:
             process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
                                 bind=bind, max_failures=max_failures)
-        sample_time += elapsed_time(start_time)
 
     summary = store.export_summary()
     summary.update({
         'iterations': num_iterations,
         'complexity': complexity_limit,
         'skeletons': len(skeleton_queue.skeletons),
-        'sample_time': sample_time,
-        'search_time': search_time,
     })
-    print('Summary: {}'.format(str_from_object(summary))) # TODO: return the summary
+    print('Summary: {}'.format(str_from_object(summary, ndigits=3))) # TODO: return the summary
 
     write_stream_statistics(externals, verbose)
     return store.extract_solution()

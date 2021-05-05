@@ -5,7 +5,7 @@ from pddlstream.language.constants import get_args, is_parameter, get_prefix, Fa
 from pddlstream.language.conversion import values_from_objects, substitute_fact, obj_from_value_expression
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT_SEARCH_OVERHEAD, Stats
-from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score
+from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score, INF
 
 DEBUG = 'debug'
 
@@ -154,6 +154,8 @@ class Instance(object):
             self._domain = tuple(substitute_fact(atom, self.mapping)
                                  for atom in self.external.domain)
         return self._domain
+    def get_iteration(self):
+        return INF if self.enumerated else self.num_calls
     def get_domain(self):
         return self.domain
     def get_all_input_objects(self):

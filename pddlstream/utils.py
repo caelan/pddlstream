@@ -635,3 +635,7 @@ def str_eq(s1, s2, ignore_case=True):
         s1 = s1.lower()
         s2 = s2.lower()
     return s1 == s2
+
+
+def clip(value, lower=-INF, upper=+INF):
+    return min(max(lower, value), upper)

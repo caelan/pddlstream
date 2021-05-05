@@ -265,14 +265,14 @@ class StreamInstance(Instance):
         if (not new_values and VERBOSE_FAILURES) or \
                 (new_values and self.info.verbose):
             print('iter={}, outs={}) {}:{}->{}'.format(
-                self.num_calls, len(new_values), self.external.name,
+                self.get_iteration(), len(new_values), self.external.name,
                 str_from_object(self.get_input_values()), str_from_object(new_values)))
 
     def dump_new_facts(self, new_facts=[]):
         if VERBOSE_WILD and new_facts:
             # TODO: format all_new_facts
             print('iter={}, facts={}) {}:{}->{}'.format(
-                self.num_calls, self.external.name, str_from_object(self.get_input_values()),
+                self.get_iteration(), self.external.name, str_from_object(self.get_input_values()),
                 new_facts, len(new_facts)))
 
     def next_results(self, verbose=False):
