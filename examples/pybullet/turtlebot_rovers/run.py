@@ -35,7 +35,7 @@ BASE_LINK = 'base_link'
 
 #######################################################
 
-def pddlstream_from_problem(problem, collisions=True, teleport=False):
+def pddlstream_from_problem(problem, collisions=True, **kwargs):
     # TODO: push and attach to movable objects
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -84,14 +84,15 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
     stream_map = {
         'test-cfree-ray-conf': from_test(get_cfree_ray_test(problem, collisions=collisions)),
         'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits,
-                                                       collisions=collisions, teleport=teleport)),
+                                                       collisions=collisions,  **kwargs)),
         'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits,
-                                                       collisions=collisions, teleport=teleport)),
+                                                       collisions=collisions,  **kwargs)),
         'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits,
-                                                       collisions=collisions, teleport=teleport)),
-        'sample-above': from_gen_fn(get_above_gen(problem, custom_limits=custom_limits, collisions=collisions)),
+                                                       collisions=collisions, **kwargs)),
+        'sample-above': from_gen_fn(get_above_gen(problem, custom_limits=custom_limits,
+                                                  collisions=collisions, **kwargs)),
         'sample-motion': from_fn(get_motion_fn(problem, custom_limits=custom_limits,
-                                               collisions=collisions, teleport=teleport)),
+                                               collisions=collisions, **kwargs)),
     }
     #stream_map = 'debug'
 
@@ -160,7 +161,8 @@ def main():
     saver = WorldSaver()
     draw_base_limits(rovers_problem.limits, color=RED)
 
-    pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport)
+    pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport,
+                                                 holonomic=False, reversible=True)
     stream_info = {
         'test-cfree-ray-conf': StreamInfo(),
         'test-reachable': StreamInfo(p_success=1e-1),

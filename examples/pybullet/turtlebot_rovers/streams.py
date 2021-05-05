@@ -66,10 +66,10 @@ def get_cfree_ray_test(problem, collisions=True):
 
 
 def get_inv_vis_gen(problem, use_cone=True, max_attempts=25, max_range=VIS_RANGE,
-                    custom_limits={}, collisions=True, teleport=False):
+                    custom_limits={}, collisions=True, **kwargs):
     base_range = (0, max_range)
     obstacles = problem.fixed if collisions else []
-    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, teleport=teleport)
+    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, **kwargs)
 
     def gen(rover, objective):
         base_joints = get_base_joints(rover)
@@ -124,10 +124,9 @@ def get_inv_com_gen(problem, **kwargs):
     return get_inv_vis_gen(problem, use_cone=False, max_range=COM_RANGE, **kwargs)
 
 
-def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True, teleport=False):
+def get_above_gen(problem, max_attempts=1, custom_limits={}, collisions=True, **kwargs):
     obstacles = problem.fixed if collisions else []
-    reachable_test = get_reachable_test(problem, custom_limits=custom_limits,
-                                        collisions=collisions, teleport=teleport)
+    reachable_test = get_reachable_test(problem, custom_limits=custom_limits, collisions=collisions, **kwargs)
 
     def gen(rover, rock):
         base_joints = get_base_joints(rover)
