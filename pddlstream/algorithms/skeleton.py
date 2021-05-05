@@ -54,6 +54,7 @@ class Skeleton(object):
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
+        #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
     def update_best(self, binding):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
@@ -90,7 +91,6 @@ class Binding(object):
         self.calls = 0 # The index for result_history
         self.complexity = None
         self.max_history = max(self.history) if self.history else 0
-        #self.parent_complexity = parent_complexity
         self.skeleton.update_best(self)
     @property
     def is_fully_bound(self):
@@ -102,10 +102,6 @@ class Binding(object):
             if not self.is_fully_bound:
                 self._result = self.skeleton.bind_stream_result(self.index, self.mapping)
         return self._result
-    #@property
-    #def complexity(self):
-    #    # This does a plan linearization version of complexity
-    #    return self.parent_complexity + self.calls
     def is_best(self):
         return self.skeleton.best_binding is self
     def is_dominated(self):
@@ -123,7 +119,7 @@ class Binding(object):
         # TODO: intelligently compute/cache this - store parent stream_plan_complexity or compute formula per skeleton
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
-            future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history)) # TODO: 0 or 1?
+            future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
             self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
@@ -132,6 +128,7 @@ class Binding(object):
         if complexity_limit == INF:
             return True
         if any(calls > complexity_limit for calls in [self.max_history, self.calls]): # + self.history
+            # For efficiency purposes
             return False
         return self.compute_complexity() <= complexity_limit
     def do_evaluate_helper(self, affected):
@@ -295,10 +292,10 @@ class SkeletonQueue(Sized):
     def process_until_new(self, print_frequency=1.):
         # TODO: process the entire queue once instead
         print('Sampling until new output values')
-        is_new = False
+        num_new = 0
         attempts = 0
         last_time = time.time()
-        while self.is_active() and (not is_new):
+        while self.is_active() and (not num_new):
             attempts += 1
             _, binding = self.pop_binding()
             readd, is_new = self._process_binding(binding)
@@ -306,14 +303,13 @@ class SkeletonQueue(Sized):
                 self.push_binding(binding)
             elif readd is STANDBY:
                 self.standby.append(binding) # TODO: test for deciding whether to standby
-            #is_new |= self.process_root()
-            self.greedily_process()
+            num_new += is_new
             if print_frequency <= elapsed_time(last_time):
                 print('Queue: {} | Attempts: {} | Time: {:.3f}'.format(
                     len(self.queue), attempts, elapsed_time(last_time)))
                 last_time = time.time()
         self.readd_standby()
-        return is_new
+        return num_new
 
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
