@@ -117,8 +117,12 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
     # TODO: change the search algorithm and unit costs based on the best cost
+    use_skeletons = (max_skeletons is not None)
+    #assert implies(use_skeletons, search_sample_ratio > 0)
+    eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
     num_iterations = eager_calls = 0
     complexity_limit = initial_complexity
+
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
@@ -129,7 +133,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # if (effort_weight is None) and not has_costs(domain):
     #     effort_weight = 1
 
-    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
@@ -139,11 +142,12 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     positive_externals = streams + functions + optimizers
-    use_skeletons = (max_skeletons is not None)
-    #assert implies(use_skeletons, search_sample_ratio > 0)
     has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
-    eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
+
+    ################
+
+    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
@@ -153,6 +157,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             push_disabled(eager_instantiator, disabled)
         eager_calls += process_stream_queue(eager_instantiator, store,
                                             complexity_limit=complexity_limit, verbose=verbose)
+
+        ################
 
         print('\nIteration: {} | Complexity: {} | Skeletons: {} | Skeleton Queue: {} | Disabled: {} | Evaluations: {} | '
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
@@ -174,6 +180,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         else:
             stream_plan, opt_plan, cost = OptSolution(INFEASIBLE, INFEASIBLE, INF) # TODO: apply elsewhere
 
+        ################
+
         #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
         #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
@@ -192,9 +200,12 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             log_plans(stream_plan, action_plan, num_iterations)
             create_visualizations(evaluations, stream_plan, num_iterations)
 
+        ################
+
         if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
             break
         if not is_plan(stream_plan):
+            print('No plan: increasing complexity from {} to {}'.format(complexity_limit, complexity_limit+complexity_step))
             complexity_limit += complexity_step
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
@@ -203,6 +214,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         if not use_skeletons:
             process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
             continue
+
+        ################
 
         #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
         optimizer_plan = None
@@ -216,6 +229,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             if len(skeleton_queue.skeletons) <= max_skeletons else INF
         if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
             break
+
+    ################
 
     summary = store.export_summary()
     summary.update({

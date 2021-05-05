@@ -124,15 +124,15 @@ class Binding(object):
         # TODO: intelligently compute/cache this - store parent stream_plan_complexity or compute formula per skeleton
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
-            future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
+            future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history)) # TODO: 0 or 1?
             self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.attempts) # attempts, calls
-    def check_complexity(self, complexity_limit):
+    def check_complexity(self, complexity_limit=INF):
         if complexity_limit == INF:
             return True
-        if (complexity_limit < self.max_history) or (complexity_limit < self.calls):
+        if any(calls > complexity_limit for calls in [self.max_history, self.calls]): # + self.history
             return False
         return self.compute_complexity() <= complexity_limit
     def do_evaluate_helper(self, affected):
@@ -258,7 +258,7 @@ class SkeletonQueue(Sized):
             return readd, is_new
         binding.attempts += 1
         instance = binding.result.instance
-        if PRUNE_BINDINGS and not binding.do_evaluate():
+        if (PRUNE_BINDINGS and not binding.do_evaluate()):
             # TODO: causes redundant plan skeletons to be identified (along with complexity using attempts instead of calls)
             # Do I need to re-enable this stream in case another skeleton needs it?
             # TODO: should I perform this when deciding to sample something new instead?
@@ -367,6 +367,7 @@ class SkeletonQueue(Sized):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
+            self.greedily_process()
         elif (stream_plan is INFEASIBLE) and not self.process_until_new():
             # Move this after process_complexity
             return INFEASIBLE
