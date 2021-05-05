@@ -198,6 +198,7 @@ STANDBY = None
 
 class SkeletonQueue(Sized):
     def __init__(self, store, domain, disable=True):
+        # TODO: multi-threaded
         self.store = store
         self.domain = domain
         self.skeletons = []
@@ -267,23 +268,24 @@ class SkeletonQueue(Sized):
         readd = not instance.enumerated
         return readd, is_new
 
-    def _process_root(self):
+    #########################
+
+    def process_root(self):
         _, binding = self.pop_binding()
         readd, is_new = self._process_binding(binding)
         if readd is not False:
             self.push_binding(binding)
         return is_new
 
-    #########################
-
-    def greedily_process(self, max_attempts=1, only_best=True):
+    def greedily_process(self, only_best=True):
+        num_new = 0
         while self.is_active():
-            # TODO: break if the complexity limit is exceeded
             priority, binding = self.peak_binding()
             #print(binding.is_best() == not priority.not_best) # TODO: update if stale
-            if (only_best and priority.not_best) or (priority.attempts >= max_attempts):
+            if (only_best and priority.not_best) or priority.not_greedy:
                 break
-            self._process_root()
+            num_new += self.process_root()
+        return num_new
 
     def process_until_new(self, complexity_limit, print_frequency=1.):
         # TODO: process the entire queue once instead
@@ -291,7 +293,7 @@ class SkeletonQueue(Sized):
         is_new = False
         attempts = 0
         last_time = time.time()
-        standby = []
+        standby = [] # TODO: test for deciding whether to standby
         while self.is_active() and (not is_new):
             attempts += 1
             _, binding = self.pop_binding()
@@ -300,7 +302,7 @@ class SkeletonQueue(Sized):
                 self.push_binding(binding)
             elif readd is STANDBY:
                 standby.append(binding)
-            #is_new |= self._process_root()
+            #is_new |= self.process_root()
             self.greedily_process(complexity_limit)
             if print_frequency <= elapsed_time(last_time):
                 print('Queue: {} | Attempts: {} | Time: {:.3f}'.format(
@@ -311,31 +313,34 @@ class SkeletonQueue(Sized):
         return is_new
 
     def process_complexity(self, complexity_limit):
-        raise NotImplementedError()
         # TODO: could copy the queue and filter instances that exceed complexity_limit
-        #self.greedily_process(max_attempts=complexity_limit) # This isn't quite the complexity limit
-        disabled_bindings = []
+        print('Complexity:', complexity_limit)
+        num_new = 0
+        standby = [] # TODO: make a class variable
         while self.is_active():
             _, binding = self.pop_binding()
+            # TODO: move check_complexity
             if binding.check_complexity(complexity_limit): # not binding.up_to_date() or
-                readd, _ = self._process_binding(binding)
-                if readd is True:
-                    self.push_binding(binding)
+                readd, is_new = self._process_binding(binding)
+                num_new += is_new
+                if readd is not STANDBY:
+                    if readd is True:
+                        self.push_binding(binding)
                     continue
-                self.greedily_process()
-            disabled_bindings.append(binding)
-        for binding in disabled_bindings:
+            standby.append(binding)
+        for binding in standby:
             self.push_binding(binding)
+        return num_new
         # TODO: increment the complexity level even more if nothing below in the queue
 
-    def timed_process(self, complexity_limit, max_time):
+    def timed_process(self, max_time=INF):
         start_time = time.time()
         iterations = num_new = 0
         while self.is_active() and (elapsed_time(start_time) <= max_time):
             iterations += 1
-            num_new += self._process_root()
-            self.greedily_process(complexity_limit)
+            num_new += self.process_root()
         print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
+        return num_new
 
     #########################
 
@@ -358,19 +363,16 @@ class SkeletonQueue(Sized):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
-            self.greedily_process()
         elif (stream_plan is INFEASIBLE) and not self.process_until_new(complexity_limit):
             # Move this after process_complexity
             return INFEASIBLE
         if not self.queue:
             return True
-
-        #if not is_plan(stream_plan):
-        #    print('Complexity:', complexity_limit) # TODO: revisit this
-        #    self.process_complexity(complexity_limit)
+        self.process_complexity(complexity_limit) # TODO: revisit this
         remaining_time = max_time - elapsed_time(start_time)
         print('Allocated sampling time: {:.3f} | Remaining sampling time: {:.3f}'.format(max_time, remaining_time))
-        self.timed_process(complexity_limit, remaining_time)
+        self.timed_process(remaining_time)
+        self.greedily_process()
         if accelerate:
            self.accelerate_best_bindings()
         return True

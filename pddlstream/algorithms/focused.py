@@ -117,7 +117,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
     # TODO: change the search algorithm and unit costs based on the best cost
-    num_iterations = search_time = sample_time = eager_calls = 0
+    num_iterations = eager_calls = 0
     complexity_limit = initial_complexity
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
@@ -272,6 +272,8 @@ def solve_adaptive(problem, max_skeletons=INF, search_sample_ratio=1, **kwargs):
         using stream applications
     """
     max_skeletons = INF if max_skeletons is None else max_skeletons
+    #search_sample_ratio = clip(search_sample_ratio, lower=0) # + EPSILON
+    #assert search_sample_ratio > 0
     return solve_abstract(problem, max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
                           bind=None, max_failures=None, **kwargs)
 

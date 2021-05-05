@@ -207,6 +207,7 @@ class Instance(object):
 
     def compute_complexity(self, evaluations, **kwargs):
         # Will change as self.num_calls increases
+        #num_calls = INF if self.enumerated else self.num_calls
         return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.num_calls)
 
@@ -273,7 +274,7 @@ class External(Performance):
         raise NotImplementedError()
     def is_cost(self):
         return False
-    def get_complexity(self, num_calls):
+    def get_complexity(self, num_calls=0):
         if self.is_special or not self.has_outputs:
             return 0
         return num_calls + 1
