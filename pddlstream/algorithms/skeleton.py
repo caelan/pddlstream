@@ -121,12 +121,11 @@ class Binding(object):
     def compute_complexity(self):
         if self.is_fully_bound:
             return 0
-        # TODO: intelligently compute/cache this
+        # TODO: intelligently compute/cache this - store parent stream_plan_complexity or compute formula per skeleton
         if self.complexity is None:
-            full_history = self.history + [self.calls] # TODO: include the full history or just the relevant history
-            self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations,
-                                                     self.skeleton.stream_plan, full_history)
-        #raw_input('Complexity: {} {}'.format(self.result, complexity))
+            full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
+            future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
+            self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.attempts) # attempts, calls
@@ -219,7 +218,7 @@ class SkeletonQueue(Sized):
         return self.queue and (not self.store.is_terminated())
 
     def push_binding(self, binding):
-        # TODO: add to a separate queue if not active
+        # TODO: add to standby if not active
         priority = binding.get_priority()
         element = HeapElement(priority, binding)
         heappush(self.queue, element)
@@ -321,7 +320,6 @@ class SkeletonQueue(Sized):
 
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
-        # TODO: need to take into account the future complexity - otherwise does too many
         print('Complexity:', complexity_limit)
         num_new = 0
         while self.is_active():
@@ -339,10 +337,10 @@ class SkeletonQueue(Sized):
         return num_new
         # TODO: increment the complexity level even more if nothing below in the queue
 
-    def timed_process(self, max_time=INF):
+    def timed_process(self, max_time=INF, max_iterations=INF):
         start_time = time.time()
         iterations = num_new = 0
-        while self.is_active() and (elapsed_time(start_time) <= max_time):
+        while self.is_active() and (elapsed_time(start_time) < max_time) and (iterations < max_iterations):
             iterations += 1
             num_new += self.process_root()
         print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
