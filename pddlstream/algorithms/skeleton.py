@@ -7,7 +7,7 @@ from heapq import heappush, heappop
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
 from pddlstream.algorithms.reorder import get_output_objects, get_object_orders
-from pddlstream.language.constants import is_plan, INFEASIBLE
+from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
 
@@ -131,6 +131,8 @@ class Binding(object):
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.attempts) # attempts, calls
     def check_complexity(self, complexity_limit):
+        if complexity_limit == INF:
+            return True
         if (complexity_limit < self.max_history) or (complexity_limit < self.calls):
             return False
         return self.compute_complexity() <= complexity_limit
@@ -204,6 +206,7 @@ class SkeletonQueue(Sized):
         self.skeletons = []
         self.queue = []
         self.disable = disable
+        self.standby = []
 
     @property
     def evaluations(self):
@@ -237,6 +240,11 @@ class SkeletonQueue(Sized):
         self.skeletons.append(skeleton)
         self.push_binding(skeleton.root)
         return skeleton
+
+    def readd_standby(self):
+        for binding in self.standby:
+            self.push_binding(binding)
+        self.standby = []
 
     #########################
 
@@ -275,6 +283,7 @@ class SkeletonQueue(Sized):
         readd, is_new = self._process_binding(binding)
         if readd is not False:
             self.push_binding(binding)
+        # TODO: if readd == STANDBY
         return is_new
 
     def greedily_process(self, only_best=True):
@@ -287,13 +296,12 @@ class SkeletonQueue(Sized):
             num_new += self.process_root()
         return num_new
 
-    def process_until_new(self, complexity_limit, print_frequency=1.):
+    def process_until_new(self, print_frequency=1.):
         # TODO: process the entire queue once instead
         print('Sampling until new output values')
         is_new = False
         attempts = 0
         last_time = time.time()
-        standby = [] # TODO: test for deciding whether to standby
         while self.is_active() and (not is_new):
             attempts += 1
             _, binding = self.pop_binding()
@@ -301,22 +309,21 @@ class SkeletonQueue(Sized):
             if readd is True:
                 self.push_binding(binding)
             elif readd is STANDBY:
-                standby.append(binding)
+                self.standby.append(binding) # TODO: test for deciding whether to standby
             #is_new |= self.process_root()
-            self.greedily_process(complexity_limit)
+            self.greedily_process()
             if print_frequency <= elapsed_time(last_time):
                 print('Queue: {} | Attempts: {} | Time: {:.3f}'.format(
                     len(self.queue), attempts, elapsed_time(last_time)))
                 last_time = time.time()
-        for binding in standby:
-            self.push_binding(binding)
+        self.readd_standby()
         return is_new
 
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
+        # TODO: need to take into account the future complexity - otherwise does too many
         print('Complexity:', complexity_limit)
         num_new = 0
-        standby = [] # TODO: make a class variable
         while self.is_active():
             _, binding = self.pop_binding()
             # TODO: move check_complexity
@@ -327,9 +334,8 @@ class SkeletonQueue(Sized):
                     if readd is True:
                         self.push_binding(binding)
                     continue
-            standby.append(binding)
-        for binding in standby:
-            self.push_binding(binding)
+            self.standby.append(binding)
+        self.readd_standby()
         return num_new
         # TODO: increment the complexity level even more if nothing below in the queue
 
@@ -363,16 +369,17 @@ class SkeletonQueue(Sized):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
-        elif (stream_plan is INFEASIBLE) and not self.process_until_new(complexity_limit):
+        elif (stream_plan is INFEASIBLE) and not self.process_until_new():
             # Move this after process_complexity
             return INFEASIBLE
         if not self.queue:
-            return True
-        self.process_complexity(complexity_limit) # TODO: revisit this
+            return FAILED
+
+        self.process_complexity(complexity_limit)
         remaining_time = max_time - elapsed_time(start_time)
         print('Allocated sampling time: {:.3f} | Remaining sampling time: {:.3f}'.format(max_time, remaining_time))
         self.timed_process(remaining_time)
         self.greedily_process()
         if accelerate:
            self.accelerate_best_bindings()
-        return True
+        return FAILED

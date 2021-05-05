@@ -200,22 +200,22 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                 reenable_disabled(evaluations, domain, disabled)
 
         #print(stream_plan_complexity(evaluations, stream_plan))
-        if use_skeletons:
-            #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
-            optimizer_plan = None
-            if optimizer_plan is not None:
-                # TODO: post process a bound plan
-                print('Optimizer plan ({}, {:.3f}): {}'.format(
-                    get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
-                skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+        if not use_skeletons:
+            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
+            continue
 
-            allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
-                if len(skeleton_queue.skeletons) <= max_skeletons else INF
-            if not skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time):
-                break
-        else:
-            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost,
-                                bind=bind, max_failures=max_failures)
+        #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
+        optimizer_plan = None
+        if optimizer_plan is not None:
+            # TODO: post process a bound plan
+            print('Optimizer plan ({}, {:.3f}): {}'.format(
+                get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
+            skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+
+        allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
+            if len(skeleton_queue.skeletons) <= max_skeletons else INF
+        if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
+            break
 
     summary = store.export_summary()
     summary.update({
