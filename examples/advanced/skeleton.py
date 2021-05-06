@@ -34,14 +34,15 @@ def create_problem1():
     streams = ['{}'.format(i) for i in range(5)]
 
     orders = {
-        (streams[0], streams[2]),
-        (streams[1], streams[3]),
-        (streams[2], streams[4]),
+        (streams[0], streams[1]),
+        (streams[2], streams[3]),
+        (streams[1], streams[4]),
         (streams[3], streams[4]),
     }
 
     info = {
-        streams[3]: StreamInfo(p_success=0.),
+        streams[2]: StreamInfo(p_success=0.),
+        #streams[3]: StreamInfo(p_success=0.),
         #streams[4]: StreamInfo(p_success=0.),
     }
     # TODO: debug values that use info
@@ -51,10 +52,10 @@ def create_problem1():
 
 ##################################################
 
-def get_gen(outputs=[], p_success=1.):
+def get_gen(outputs=[], p_success=1., start_index=1):
     for i in inf_generator():
         values = ['{}-{}'.format(output[1:], i) for output in outputs]
-        if (i >= 1) and (random.random() < p_success):
+        if (i >= start_index) and (random.random() < p_success):
             yield values
         else:
             yield None

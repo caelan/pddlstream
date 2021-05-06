@@ -12,13 +12,14 @@ from pddlstream.algorithms.disabled import process_instance, update_bindings, up
 from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
+#from pddlstream.algorithms.visualization import FunctionResult
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
     incoming_from_edges, outgoing_from_edges
 
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
 GREEDY_BEST = True
-REQUIRE_DOWNSTREAM = False
+REQUIRE_DOWNSTREAM = True
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
