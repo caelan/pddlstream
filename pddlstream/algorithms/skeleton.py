@@ -6,12 +6,13 @@ from itertools import count
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified, \
-    stream_plan_preimage
+    stream_plan_preimage, COMPLEXITY_OP
+from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
 from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, outgoing_from_edges
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, incoming_from_edges
 
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
@@ -58,9 +59,27 @@ class Skeleton(object):
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
+
+        stream_orders = get_partial_orders(self.stream_plan) # init_facts=self.queue.evaluations)
+        index_from_result = get_mapping(stream_plan, range(len(stream_plan)))
+        index_orders = {(index_from_result[r1], index_from_result[r2]) for r1, r2 in stream_orders}
+
+        preimage = stream_plan_preimage(stream_plan)
+        self.preimage_complexities = [[queue.evaluations[evaluation_from_fact(fact)].complexity
+                                       for fact in stream.get_domain() if fact in preimage] for stream in stream_plan]
+        self.incoming_indices = incoming_from_edges(index_orders)
+
         #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
-        # TODO: compute the preimage of the stream plan
+    def compute_complexity(self, stream_calls):
+        # TODO: use the previous value when possible
+        assert len(stream_calls) == len(self.stream_plan)
+        complexities = [0]*len(stream_calls)
+        for index in range(len(self.stream_plan)):
+            domain_complexity = COMPLEXITY_OP([0] + self.preimage_complexities[index] +
+                                              [complexities[index2] for index2 in self.incoming_indices[index]])
+            complexities[index] = domain_complexity + self.stream_plan[index].external.get_complexity(num_calls=stream_calls[index])
+        return COMPLEXITY_OP(complexities)
     def update_best(self, binding):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
                 ((self.best_binding.index == binding.index) and (binding.cost < self.best_binding.cost)):
@@ -134,7 +153,8 @@ class Binding(object):
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
             future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
-            self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
+            self.complexity = self.skeleton.compute_complexity(future)
+            #self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.visits) # visits, calls

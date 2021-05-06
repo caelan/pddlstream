@@ -51,11 +51,11 @@ def create_problem1():
 
 ##################################################
 
-def get_gen(n_outputs=0, p_success=1.):
-    output = (VALUE,) * n_outputs
+def get_gen(outputs=[], p_success=1.):
     for i in inf_generator():
+        values = ['{}-{}'.format(output[1:], i) for output in outputs]
         if (i >= 1) and (random.random() < p_success):
-            yield output
+            yield values
         else:
             yield None
         input()
@@ -70,14 +70,16 @@ def opt_from_graph(names, orders, infos={}):
     stream_plan = []
     for n in names:
         info = infos.get(n, StreamInfo(p_success=1, overhead=0, verbose=True))
+        inputs = [param_from_order[n2, n] for n2 in incoming_from_edges[n]]
+        outputs = [param_from_order[n, n2] for n2 in outgoing_from_edges[n]]
         stream = Stream(
             name=n,
             #gen_fn=DEBUG,
-            gen_fn=from_gen(get_gen(n_outputs=len(outgoing_from_edges[n]), p_success=info.p_success)),
-            inputs=[param_from_order[n2, n] for n2 in incoming_from_edges[n]],
+            gen_fn=from_gen(get_gen(outputs=outputs, p_success=info.p_success)),
+            inputs=inputs,
             domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],
-            outputs=[param_from_order[n, n2] for n2 in outgoing_from_edges[n]],
+            outputs=outputs,
             certified=[fact_from_order[n, n2] for n2 in outgoing_from_edges[n]],
             info=info,
         )

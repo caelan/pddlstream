@@ -278,8 +278,11 @@ class External(Performance):
     @property
     def is_cost(self):
         return False
+    @property
+    def zero_complexity(self):
+        return self.is_special or not self.has_outputs
     def get_complexity(self, num_calls=0):
-        if self.is_special or not self.has_outputs: # TODO: give this a name?
+        if self.zero_complexity:
             return 0
         return num_calls + 1
     def get_instance(self, input_objects):
