@@ -41,12 +41,11 @@ def create_problem1():
     }
 
     info = {
-        # Intentionally, misleading the stream
-        'increment': StreamInfo(p_success=0.01, overhead=1),
-        'decrement': StreamInfo(p_success=1, overhead=1),
+        streams[3]: StreamInfo(p_success=0.),
+        #streams[4]: StreamInfo(p_success=0.),
     }
     # TODO: debug values that use info
-    tests = {n: lambda *args, **kwargs: random.random() < 1. for n in streams} # TODO: sampler_from_random?
+    #tests = {n: lambda *args, **kwargs: random.random() < 1. for n in streams} # TODO: sampler_from_random?
 
     return streams, orders, info
 
@@ -54,9 +53,15 @@ def create_problem1():
 
 def get_gen(n_outputs=0, p_success=1.):
     output = (VALUE,) * n_outputs
-    return (output if random.random() < p_success else None for _ in inf_generator())
+    for i in inf_generator():
+        if (i >= 1) and (random.random() < p_success):
+            yield output
+        else:
+            yield None
+        input()
+    #return (output if random.random() < p_success else None for _ in inf_generator())
 
-def opt_from_graph(names, orders, info={}):
+def opt_from_graph(names, orders, infos={}):
     param_from_order = {order: PARAM_TEMPLATE.format(*order) for order in orders}
     fact_from_order = {order: (PREDICATE, param_from_order[order]) for order in orders}
     object_from_param = {param: parse_value(param) for param in param_from_order.values()}
@@ -64,16 +69,17 @@ def opt_from_graph(names, orders, info={}):
     incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
     stream_plan = []
     for n in names:
+        info = infos.get(n, StreamInfo(p_success=1, overhead=0, verbose=True))
         stream = Stream(
             name=n,
             #gen_fn=DEBUG,
-            gen_fn=from_gen(get_gen(n_outputs=len(outgoing_from_edges[n]), p_success=1.)),
+            gen_fn=from_gen(get_gen(n_outputs=len(outgoing_from_edges[n]), p_success=info.p_success)),
             inputs=[param_from_order[n2, n] for n2 in incoming_from_edges[n]],
             domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],
             outputs=[param_from_order[n, n2] for n2 in outgoing_from_edges[n]],
             certified=[fact_from_order[n, n2] for n2 in outgoing_from_edges[n]],
-            info=info.get(n, StreamInfo(p_success=1, overhead=0, verbose=True)),
+            info=info,
         )
         # TODO: dump names
 
