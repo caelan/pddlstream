@@ -5,15 +5,18 @@ from collections import namedtuple, Sized
 from itertools import count
 from heapq import heappush, heappop
 
-from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
+from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified, \
+    stream_plan_preimage
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
-from pddlstream.algorithms.reorder import get_output_objects, get_object_orders
+from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, outgoing_from_edges
 
+USE_PRIORITIES = True
 GREEDY_VISITS = 0
-REQUIRE_DOWNSTREAM = True
+GREEDY_BEST = True
+REQUIRE_DOWNSTREAM = False
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
@@ -114,7 +117,8 @@ class Binding(object):
         return self.is_fully_bound or self.result.enumerated
     def is_unsatisfied(self):
         return not self.children
-
+    def is_greedy(self):
+        return (self.visits <= GREEDY_VISITS) and (not GREEDY_BEST or self.is_best())
     def up_to_date(self):
         if self.is_fully_bound:
             return True
@@ -155,17 +159,17 @@ class Binding(object):
         return any(binding.check_downstream_helper(affected) for binding in self.children) # TODO: any or all
     def check_downstream(self):
         return self.check_downstream_helper(self.skeleton.affected_indices[self.index])
-    def get_priority(self, only_best=True):
-        #return Priority(not_greedy=True, complexity=0, visits=self.visits, remaining=0, cost=0.)
+    def get_priority(self):
+        if not USE_PRIORITIES:
+            return Priority(not_greedy=True, complexity=0, visits=self.visits, remaining=0, cost=0.)
         # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
-        greedy = (self.visits <= GREEDY_VISITS) and (not only_best or self.is_best())
         #priority = self.visits
         #priority = self.compute_complexity()
         priority = self.compute_complexity() + (self.visits - self.calls) # TODO: check this
         # TODO: call_index
         remaining = len(self.skeleton.stream_plan) - self.index
-        return Priority(not greedy, priority, self.visits, remaining, self.cost)
+        return Priority(not self.is_greedy(), priority, self.visits, remaining, self.cost)
     def post_order(self):
         for child in self.children:
             for binding in child.post_order():
@@ -295,8 +299,7 @@ class SkeletonQueue(Sized):
         num_new = 0
         while self.is_active():
             priority, binding = self.peak_binding()
-            #print(binding.is_best() == not priority.not_best) # TODO: update if stale?
-            if priority.not_greedy:
+            if not binding.is_greedy(): #priority.not_greedy:
                 break
             num_new += self.process_root()
         return num_new

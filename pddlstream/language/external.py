@@ -259,6 +259,7 @@ class External(Performance):
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+    # TODO: naming convention for statics and fluents
     @property
     def has_outputs(self):
         raise NotImplementedError()
@@ -274,10 +275,11 @@ class External(Performance):
     @property
     def is_function(self):
         raise NotImplementedError()
+    @property
     def is_cost(self):
         return False
     def get_complexity(self, num_calls=0):
-        if self.is_special or not self.has_outputs:
+        if self.is_special or not self.has_outputs: # TODO: give this a name?
             return 0
         return num_calls + 1
     def get_instance(self, input_objects):
