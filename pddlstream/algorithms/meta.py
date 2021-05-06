@@ -266,6 +266,7 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
         return None
     #optimistic_init = set(instantiated.task.init)
 
+    # This is like backchaining in a relaxed space
     condition_from_effect = defaultdict(set)
     if use_actions:
         # TODO: selectively ignore some conditions (e.g. HandEmpty)

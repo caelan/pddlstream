@@ -12,6 +12,7 @@ import pstats
 import io
 
 from collections import defaultdict, deque, Counter, namedtuple
+from itertools import count
 from heapq import heappush, heappop
 
 import numpy as np
@@ -23,6 +24,8 @@ try:
    user_input = raw_input
 except NameError:
    user_input = input
+
+inf_generator = count
 
 ##################################################
 

@@ -2,6 +2,8 @@
 
 from __future__ import print_function
 
+import random
+
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.meta import create_parser
 from pddlstream.algorithms.recover_optimizers import combine_optimizers
@@ -12,10 +14,11 @@ from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import create_visualizations, \
     log_plans
-from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution
+from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution, Output
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.stream import Stream, StreamInfo, DEBUG
-from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping
+from pddlstream.language.generator import from_gen, universe_test, from_gen_fn
+from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator
 
 # TODO: move other advanced out of their directories if only a single file
 
@@ -23,6 +26,7 @@ PREDICATE = 'P'
 NAME_TEMPLATE = '{}' # s{}
 PREDICATE_TEMPLATE = '{}-{}'
 PARAM_TEMPLATE = '?{}-{}' # PARAMETER +
+VALUE = True
 
 ##################################################
 
@@ -41,23 +45,29 @@ def create_problem1():
         'increment': StreamInfo(p_success=0.01, overhead=1),
         'decrement': StreamInfo(p_success=1, overhead=1),
     }
+    # TODO: debug values that use info
+    tests = {n: lambda *args, **kwargs: random.random() < 1. for n in streams} # TODO: sampler_from_random?
 
     return streams, orders, info
 
 ##################################################
+
+def get_gen(n_outputs=0, p_success=1.):
+    output = (VALUE,) * n_outputs
+    return (output if random.random() < p_success else None for _ in inf_generator())
 
 def opt_from_graph(names, orders, info={}):
     param_from_order = {order: PARAM_TEMPLATE.format(*order) for order in orders}
     fact_from_order = {order: (PREDICATE, param_from_order[order]) for order in orders}
     object_from_param = {param: parse_value(param) for param in param_from_order.values()}
 
-    # TODO: debug names that use info
     incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
     stream_plan = []
     for n in names:
         stream = Stream(
             name=n,
-            gen_fn=DEBUG, # from_test(universe_test),
+            #gen_fn=DEBUG,
+            gen_fn=from_gen(get_gen(n_outputs=len(outgoing_from_edges[n]), p_success=1.)),
             inputs=[param_from_order[n2, n] for n2 in incoming_from_edges[n]],
             domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],
@@ -66,9 +76,9 @@ def opt_from_graph(names, orders, info={}):
             info=info.get(n, StreamInfo(p_success=1, overhead=0, verbose=True)),
         )
         # TODO: dump names
+
         print()
         print(stream)
-
         input_objects = safe_apply_mapping(stream.inputs, object_from_param)
         instance = stream.get_instance(input_objects)
         print(instance)
