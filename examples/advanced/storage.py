@@ -5,7 +5,7 @@ from __future__ import print_function
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, print_solution, And
 from pddlstream.language.stream import DEBUG
-from pddlstream.utils import flatten
+from pddlstream.utils import flatten, Profiler
 
 # Kitchen Storage
 
@@ -120,8 +120,9 @@ def main():
     print('Init:', sorted(problem.init))
     print('Goal:', problem.goal)
 
-    solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
-                     planner='ff-wastar1', debug=True)
+    with Profiler():
+        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
+                         planner='ff-wastar1', debug=True)
     print_solution(solution)
 
 if __name__ == '__main__':
