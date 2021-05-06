@@ -19,8 +19,10 @@ from pddlstream.language.function import Function
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
+from pddlstream.algorithms.visualization import visualize_constraints
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 
+# TODO: ConstraintProblem?
 SatisfactionProblem = namedtuple('SatisfactionProblem', ['stream_pddl', 'stream_map', 'init', 'terms'])
 SatisfactionSolution = namedtuple('SatisfactionSolution', ['bindings', 'cost', 'facts'])
 
@@ -97,6 +99,10 @@ def dump_assignment(solution):
     print('Assignments:')
     for param in sorted(bindings):
         print('{} = {}'.format(param, str_from_object(bindings[param])))
+
+def visualize_problem(terms, **kwargs):
+    terms = set(map(obj_from_existential_expression, terms))
+    return visualize_constraints(terms, **kwargs)
 
 ##################################################
 

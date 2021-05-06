@@ -96,7 +96,8 @@ def main():
     print('Arguments:', args)
 
     problem_fn = problem3 # problem1 | problem2 | problem3 # TODO: use --problem
-    stream_pddl, stream_map, init, terms = problem_fn()
+    satisfaction_problem = problem_fn()
+    stream_pddl, stream_map, init, terms = satisfaction_problem
     #print('Init:', pddlstream_problem.init)
     #print('Goal:', pddlstream_problem.goal)
 
@@ -110,7 +111,8 @@ def main():
     success_cost = 0 if args.optimal else INF
     if args.algorithm in ALGORITHMS:
         solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, init, terms, algorithm=args.algorithm,
-                                                 stream_info=info, max_time=args.max_time, success_cost=success_cost)
+                                                 stream_info=info, max_time=args.max_time, success_cost=success_cost,
+                                                 visualize=False)
     else:
         solution = constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info=info, #unit_efforts=True,
                                            max_time=args.max_time, success_cost=success_cost)

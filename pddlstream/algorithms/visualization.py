@@ -12,6 +12,8 @@ from pddlstream.utils import clear_dir, ensure_dir, str_from_object
 
 # https://www.graphviz.org/doc/info/
 
+DEFAULT_EXTENSION = '.png' # png | pdf
+
 PARAMETER_COLOR = 'LightGreen'
 CONSTRAINT_COLOR = 'LightBlue'
 NEGATED_COLOR = 'LightYellow'
@@ -23,8 +25,8 @@ VISUALIZATIONS_DIR = 'visualizations/'
 CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
 STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
-ITERATION_TEMPLATE = 'iteration_{}.png'
-SYNTHESIZER_TEMPLATE = '{}_{}.png'
+ITERATION_TEMPLATE = 'iteration_{}' + DEFAULT_EXTENSION
+SYNTHESIZER_TEMPLATE = '{}_{}' + DEFAULT_EXTENSION
 
 ##################################################
 
@@ -88,7 +90,7 @@ def create_visualizations(evaluations, stream_plan, iteration):
 
 ##################################################
 
-def visualize_constraints(constraints, filename='constraint_network.pdf', use_functions=True):
+def visualize_constraints(constraints, filename='constraint_network'+DEFAULT_EXTENSION, use_functions=True):
     from pygraphviz import AGraph
 
     graph = AGraph(strict=True, directed=False)
@@ -111,7 +113,7 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     graph.graph_attr['dpi'] = 300
 
     positive, negated, functions = partition_facts(constraints)
-    for head in positive + negated + functions:
+    for head in (positive + negated + functions):
         # TODO: prune values w/o free parameters?
         name = str_from_fact(head)
         if head in functions:
@@ -128,12 +130,14 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
                 arg_name = str(arg)
                 graph.add_node(arg_name, shape='circle', color=PARAMETER_COLOR)
                 graph.add_edge(name, arg_name)
+
     graph.draw(filename, prog='dot') # neato | dot | twopi | circo | fdp | nop
+    print('Saved', filename)
     return graph
 
 ##################################################
 
-def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
+def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -155,11 +159,12 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     # https://stackoverflow.com/questions/3499056/making-a-legend-key-in-graphviz
 
     graph.draw(filename, prog='dot')
+    print('Saved', filename)
     return graph
 
 ##################################################
 
-def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use_functions=False):
+def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION, use_functions=False):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -206,7 +211,9 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
                 s_fact = add_fact(fact)
                 graph.add_edge(s_stream, s_fact)
                 achieved_facts.add(fact)
+
     graph.draw(filename, prog='dot')
+    print('Saved', filename)
     return graph
     # graph.layout
     # https://pygraphviz.github.io/documentation/pygraphviz-1.3rc1/reference/agraph.html
