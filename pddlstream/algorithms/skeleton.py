@@ -71,15 +71,18 @@ class Skeleton(object):
 
         #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
-    def compute_complexity(self, stream_calls):
+    def compute_complexity(self, stream_calls, complexities=[]):
         # TODO: use the previous value when possible
         assert len(stream_calls) == len(self.stream_plan)
-        complexities = [0]*len(stream_calls)
-        for index in range(len(self.stream_plan)):
-            domain_complexity = COMPLEXITY_OP([0] + self.preimage_complexities[index] +
-                                              [complexities[index2] for index2 in self.incoming_indices[index]])
-            complexities[index] = domain_complexity + self.stream_plan[index].external.get_complexity(num_calls=stream_calls[index])
-        return COMPLEXITY_OP(complexities)
+        start_index = len(complexities)
+        complexities = complexities + [0]*(len(stream_calls) - start_index)
+        for index in range(start_index, len(self.stream_plan)):
+            complexities[index] = self.compute_index_complexity(index, stream_calls[index], complexities)
+        return complexities
+    def compute_index_complexity(self, index, num_calls, complexities):
+        domain_complexity = COMPLEXITY_OP([0] + self.preimage_complexities[index] +
+                                          [complexities[index2] for index2 in self.incoming_indices[index]])
+        return domain_complexity + self.stream_plan[index].external.get_complexity(num_calls=num_calls)
     def update_best(self, binding):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
                 ((self.best_binding.index == binding.index) and (binding.cost < self.best_binding.cost)):
@@ -115,6 +118,7 @@ class Binding(object):
         self.visits = 0 # The number of times _process_binding has been called
         self.calls = 0 # The index for result_history
         self.complexity = None
+        self.complexities = None
         self.max_history = max(self.history) if self.history else 0
         self.skeleton.update_best(self)
         self.num = next(self.counter) # TODO: FIFO
@@ -153,7 +157,8 @@ class Binding(object):
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
             future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
-            self.complexity = self.skeleton.compute_complexity(future)
+            self.complexities = self.skeleton.compute_complexity(future)
+            self.complexity = COMPLEXITY_OP(self.complexities)
             #self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
