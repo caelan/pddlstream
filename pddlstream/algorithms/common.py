@@ -140,9 +140,9 @@ def stream_plan_complexity(evaluations, stream_plan, stream_calls, complexity_op
     optimistic_facts = {}
     result_complexities = []
     for i, result in enumerate(stream_plan):
+        # if result.external.get_complexity(num_calls=INF) == 0: # TODO: skip if true
         result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
                                                  for fact in result.get_domain()])
-
         # if stream_calls is None:
         #     num_calls = result.instance.num_calls
         # else:

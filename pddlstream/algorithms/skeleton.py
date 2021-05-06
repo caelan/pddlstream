@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import time
 from collections import namedtuple, Sized
+from itertools import count
 from heapq import heappush, heappop
 
 from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
@@ -16,7 +17,7 @@ REQUIRE_DOWNSTREAM = True
 
 # TODO: automatically set the opt level to be zero for any streams that are bound?
 
-Priority = namedtuple('Priority', ['not_best', 'not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
+Priority = namedtuple('Priority', ['not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
 def compute_affected_downstream(stream_plan, index):
@@ -56,6 +57,7 @@ class Skeleton(object):
                                  for index in range(len(self.stream_plan))]
         #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
+        # TODO: compute the preimage of the stream plan
     def update_best(self, binding):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
                 ((self.best_binding.index == binding.index) and (binding.cost < self.best_binding.cost)):
@@ -73,6 +75,7 @@ class Skeleton(object):
 ##################################################
 
 class Binding(object):
+    counter = count()
     def __init__(self, skeleton, cost, history, mapping, index, parent, parent_result):
     #def __init__(self, skeleton, cost=0., history=[], mapping={}, index=0, parent=None):
         self.skeleton = skeleton
@@ -92,6 +95,7 @@ class Binding(object):
         self.complexity = None
         self.max_history = max(self.history) if self.history else 0
         self.skeleton.update_best(self)
+        self.num = next(self.counter) # TODO: FIFO
     @property
     def is_fully_bound(self):
         return self.index == len(self.skeleton.stream_plan)
@@ -121,6 +125,7 @@ class Binding(object):
     def compute_complexity(self):
         if self.is_fully_bound:
             return 0
+        # TODO: use last if self.result.external.get_complexity(num_calls=INF) == 0
         # TODO: intelligently compute/cache this - store parent stream_plan_complexity or compute formula per skeleton
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
@@ -150,16 +155,17 @@ class Binding(object):
         return any(binding.check_downstream_helper(affected) for binding in self.children) # TODO: any or all
     def check_downstream(self):
         return self.check_downstream_helper(self.skeleton.affected_indices[self.index])
-    def get_priority(self):
+    def get_priority(self, only_best=True):
+        #return Priority(not_greedy=True, complexity=0, visits=self.visits, remaining=0, cost=0.)
         # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
-        greedy = (self.visits <= GREEDY_VISITS)
+        greedy = (self.visits <= GREEDY_VISITS) and (not only_best or self.is_best())
         #priority = self.visits
         #priority = self.compute_complexity()
         priority = self.compute_complexity() + (self.visits - self.calls) # TODO: check this
         # TODO: call_index
         remaining = len(self.skeleton.stream_plan) - self.index
-        return Priority(not self.is_best(), not greedy, priority, self.visits, remaining, self.cost)
+        return Priority(not greedy, priority, self.visits, remaining, self.cost)
     def post_order(self):
         for child in self.children:
             for binding in child.post_order():
@@ -203,7 +209,7 @@ class SkeletonQueue(Sized):
         self.store = store
         self.domain = domain
         self.skeletons = []
-        self.queue = []
+        self.queue = [] # TODO: deque version
         self.disable = disable
         self.standby = []
 
@@ -249,6 +255,7 @@ class SkeletonQueue(Sized):
     #########################
 
     def _process_binding(self, binding):
+        assert binding.calls <= binding.visits # TODO: global DEBUG mode
         readd = is_new = False
         if binding.is_dominated():
             return readd, is_new
@@ -284,12 +291,12 @@ class SkeletonQueue(Sized):
         # TODO: if readd == STANDBY
         return is_new
 
-    def greedily_process(self, only_best=True):
+    def greedily_process(self):
         num_new = 0
         while self.is_active():
             priority, binding = self.peak_binding()
-            #print(binding.is_best() == not priority.not_best) # TODO: update if stale
-            if (only_best and priority.not_best) or priority.not_greedy:
+            #print(binding.is_best() == not priority.not_best) # TODO: update if stale?
+            if priority.not_greedy:
                 break
             num_new += self.process_root()
         return num_new
@@ -344,7 +351,7 @@ class SkeletonQueue(Sized):
         if not self.is_active():
             return num_new
         print('Sampling for up to {:.3f} seconds'.format(max_time)) #, max_iterations))
-        start_time = time.time()
+        start_time = time.time() # TODO: instead use sample_time
         while self.is_active() and (elapsed_time(start_time) < max_time) and (iterations < max_iterations):
             iterations += 1
             num_new += self.process_root()
