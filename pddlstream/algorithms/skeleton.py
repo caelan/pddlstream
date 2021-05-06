@@ -12,7 +12,8 @@ from pddlstream.algorithms.disabled import process_instance, update_bindings, up
 from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, incoming_from_edges
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
+    incoming_from_edges, outgoing_from_edges
 
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
@@ -68,6 +69,7 @@ class Skeleton(object):
         self.preimage_complexities = [[queue.evaluations[evaluation_from_fact(fact)].complexity
                                        for fact in stream.get_domain() if fact in preimage] for stream in stream_plan]
         self.incoming_indices = incoming_from_edges(index_orders)
+        self.outgoing_indices = outgoing_from_edges(index_orders)
 
         #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
@@ -157,7 +159,12 @@ class Binding(object):
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
             future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
-            self.complexities = self.skeleton.compute_complexity(future)
+            parent_complexities = [0]*len(self.skeleton.stream_plan) if self.index == 0 else self.parent.complexities
+            if self.skeleton.outgoing_indices[self.index]:
+                self.complexities = self.skeleton.compute_complexity(future, complexities=parent_complexities[:self.index])
+            else:
+                self.complexities = list(parent_complexities)
+                self.complexities[self.index] = self.skeleton.compute_index_complexity(self.index, self.calls, self.complexities)
             self.complexity = COMPLEXITY_OP(self.complexities)
             #self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
