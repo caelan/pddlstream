@@ -238,6 +238,7 @@ class SkeletonQueue(Sized):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
         self.skeletons.append(skeleton)
         self.push_binding(skeleton.root)
+        #self.greedily_process()
         return skeleton
 
     def readd_standby(self):
@@ -378,6 +379,7 @@ class SkeletonQueue(Sized):
         if not self.queue:
             return FAILED
 
+        # TODO: add and process
         self.timed_process(max_time=(max_time - elapsed_time(start_time)))
         self.process_complexity(complexity_limit)
         if accelerate:
