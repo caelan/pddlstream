@@ -10,7 +10,8 @@ from time import time
 from pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
     pddl_list_from_expression, obj_from_pddl
-from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, safe_remove, safe_zip
+from pddlstream.utils import read, write, INF, clear_dir, get_file_path, MockSet, find_unique, int_ceil, \
+    safe_remove, safe_zip, elapsed_time
 from pddlstream.language.write_pddl import get_problem_pddl
 
 USE_CERBERUS = False
@@ -437,7 +438,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
 
     if debug:
         print(output.decode(encoding='UTF-8')[:-1])
-        print('Search runtime:', time() - start_time)
+        print('Search runtime: {:.3f}'.format(elapsed_time(start_time)))
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(SEARCH_OUTPUT))
     print('Plans:', plan_files)
     return parse_solutions(temp_path, plan_files)

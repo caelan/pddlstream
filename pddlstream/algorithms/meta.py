@@ -192,6 +192,7 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
 
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
+    assert not isinstance(domain, SimplifiedDomain)
 
     # store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
     # instantiator = Instantiator(externals, evaluations)
@@ -200,11 +201,11 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
 
     #set_unique(externals)
     # domain.actions[:] = [] # TODO: only instantiate axioms
+    # TODO: drop all fluents and instantiate
+    # TODO: relaxed planning version of this
     results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
-    evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
 
-    #plan, cost = solve_finite(evaluations, goal_exp, domain, max_cost=max_cost, **search_args)
-    assert not isinstance(domain, SimplifiedDomain)
+    evaluations = evaluations_from_stream_plan(evaluations, results, max_effort=None)
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     with Verbose(debug):
@@ -252,7 +253,7 @@ def recurse_subgoals(goals, condition_from_effect):
     return possible
 
 
-def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True):
+def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, **kwargs):
     # TODO: instantiate all goal partial states
     # TODO: remove actions/axioms that never could achieve a subgoal
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
@@ -260,7 +261,7 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True):
     init = set(fd_from_evaluations(evaluations))
 
     # from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
-    results, instantiated = examine_instantiated(problem, unit_costs=False)
+    results, instantiated = examine_instantiated(problem, **kwargs) # TODO: only do if the goals are derived
     if instantiated is None:
         return None
     #optimistic_init = set(instantiated.task.init)
@@ -294,7 +295,7 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True):
     print('Goals:', list(map(fact_from_fd, instantiated.goal_list)))
     #all_subgoals = iterate_subgoals(instantiated.goal_list, axiom_from_effect)
     all_subgoals = recurse_subgoals(instantiated.goal_list, condition_from_effect)
-    filtered_subgoals = [subgoal for subgoal in all_subgoals if subgoal in init]
+    filtered_subgoals = [subgoal for subgoal in all_subgoals if subgoal in init] # TODO: return the goals as well?
     external_subgoals = [value_from_obj_expression(fact_from_fd(subgoal))
                          for subgoal in sorted(filtered_subgoals, key=lambda g: g.predicate)
                          if not subgoal.predicate.startswith(INTERNAL_AXIOM)]

@@ -46,25 +46,26 @@ def create_problem1():
 
 ##################################################
 
-def opt_from_graph(streams, orders, info):
+def opt_from_graph(names, orders, info={}):
     param_from_order = {order: PARAM_TEMPLATE.format(*order) for order in orders}
     fact_from_order = {order: (PREDICATE, param_from_order[order]) for order in orders}
     object_from_param = {param: parse_value(param) for param in param_from_order.values()}
 
+    # TODO: debug names that use info
     incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
     stream_plan = []
-    for s in streams:
+    for n in names:
         stream = Stream(
-            name=s,
-            gen_fn=DEBUG,  # from_test(universe_test),
-            inputs=[param_from_order[s2, s] for s2 in incoming_from_edges[s]],
-            domain=[fact_from_order[s2, s] for s2 in incoming_from_edges[s]],
+            name=n,
+            gen_fn=DEBUG, # from_test(universe_test),
+            inputs=[param_from_order[n2, n] for n2 in incoming_from_edges[n]],
+            domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],
-            outputs=[param_from_order[s, s2] for s2 in outgoing_from_edges[s]],
-            certified=[fact_from_order[s, s2] for s2 in outgoing_from_edges[s]],
-            info=StreamInfo(p_success=1, overhead=0, verbose=True),
+            outputs=[param_from_order[n, n2] for n2 in outgoing_from_edges[n]],
+            certified=[fact_from_order[n, n2] for n2 in outgoing_from_edges[n]],
+            info=info.get(n, StreamInfo(p_success=1, overhead=0, verbose=True)),
         )
-        # TODO: dump streams
+        # TODO: dump names
         print()
         print(stream)
 

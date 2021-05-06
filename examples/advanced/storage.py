@@ -2,10 +2,10 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.algorithms.meta import solve, create_parser, analyze_goal
 from pddlstream.language.constants import PDDLProblem, print_solution, And
 from pddlstream.language.stream import DEBUG
-from pddlstream.utils import flatten, Profiler
+from pddlstream.utils import flatten, Profiler, SEPARATOR
 
 # Kitchen Storage
 
@@ -17,6 +17,7 @@ DOMAIN_PDDL = """
   (:predicates 
     (Region ?r)
     (Prepush ?r1 ?r2)
+    (Stackable ?t ?b)
     (Movable ?o)
     (Cylinder ?o)
     (Box ?o)
@@ -44,6 +45,7 @@ DOMAIN_PDDL = """
     :parameters (?t ?b)
     :precondition (and (Movable ?t) (Thing ?b) (not (= ?t ?b))
                        (Holding ?t)
+                       ;(or (Region ?b) (Stackable ?t ?b))
                        (or (Region ?b) (Clear ?b))
                        ;(imply (Supporting ?b) (Region ?b))
                   )
@@ -85,18 +87,19 @@ def get_problem1(n_regions=0, n_cylinders=3, n_boxes=3):
     prepushA = 'prepushA'
     shelfB = 'shelfB'
 
+    regions = [initial, shelfA, prepushA, shelfB] + \
+              ['region{}'.format(i) for i in range(n_regions)]
+    cylinders = ['cylinder{}'.format(i) for i in range(n_cylinders)]
+    boxes = ['box{}'.format(i) for i in range(n_boxes)]
+
     init = [
         ('HandEmpty',),
         ('Prepush', prepushA, shelfA),
+        #('Stackable', cylinders[2], cylinders[1]),
     ]
-    regions = [initial, shelfA, prepushA, shelfB] + ['region{}'.format(i) for i in range(n_regions)]
     init += [('Region', region) for region in regions]
-
-    cylinders = ['cylinder{}'.format(i) for i in range(n_cylinders)]
     init += [('Cylinder', cylinder) for cylinder in cylinders]
-    boxes = ['box{}'.format(i) for i in range(n_boxes)]
     init += [('Box', box) for box in boxes]
-
     init.extend(flatten([('Movable', movable), ('On', movable, initial), ('Clear', movable)]
                         for movable in (cylinders + boxes)))
     init += [('Thing', thing) for thing in (regions + cylinders + boxes)]
@@ -119,6 +122,9 @@ def main():
     problem = get_problem1(n_boxes=args.n_boxes)
     print('Init:', sorted(problem.init))
     print('Goal:', problem.goal)
+
+    # print(analyze_goal(problem, debug=True))
+    # print(SEPARATOR)
 
     with Profiler():
         solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
