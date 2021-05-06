@@ -7,7 +7,7 @@ from pddlstream.language.temporal import parse_domain, SimplifiedDomain
 from pddlstream.language.constants import get_prefix, get_args
 from pddlstream.language.conversion import obj_from_value_expression
 from pddlstream.language.exogenous import compile_to_exogenous
-from pddlstream.language.external import DEBUG, External
+from pddlstream.language.external import External
 from pddlstream.language.function import parse_function, parse_predicate
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.optimizer import parse_optimizer
@@ -157,7 +157,7 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info={}, unit_costs=False,
         stream_pddl = [stream_pddl]
     if all(isinstance(e, External) for e in stream_pddl):
         return stream_pddl
-    if stream_map != DEBUG:
+    if isinstance(stream_map, dict): # DEBUG_MODES
         stream_map = {k.lower(): v for k, v in stream_map.items()}
     stream_info = {k.lower(): v for k, v in stream_info.items()}
     rules = []

@@ -12,16 +12,10 @@ from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import create_visualizations, \
     log_plans
-# from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.language.constants import OptPlan
-from pddlstream.language.constants import is_plan, get_length, str_from_plan
-from pddlstream.language.constants import print_solution
+from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution
 from pddlstream.language.statistics import compute_plan_effort
-from pddlstream.language.stream import Stream
-from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import INF, SEPARATOR
-from pddlstream.utils import neighbors_from_orders
-from pddlstream.utils import safe_apply_mapping
+from pddlstream.language.stream import Stream, StreamInfo, DEBUG
+from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping
 
 # TODO: move other advanced out of their directories if only a single file
 
@@ -32,13 +26,8 @@ PARAM_TEMPLATE = '?{}-{}' # PARAMETER +
 
 ##################################################
 
-def create_problem():
+def create_problem1():
     streams = ['{}'.format(i) for i in range(5)]
-    info = {
-        # Intentionally, misleading the stream
-        'increment': StreamInfo(p_success=0.01, overhead=1),
-        'decrement': StreamInfo(p_success=1, overhead=1),
-    }
 
     orders = {
         (streams[0], streams[2]),
@@ -46,12 +35,23 @@ def create_problem():
         (streams[2], streams[4]),
         (streams[3], streams[4]),
     }
-    incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
 
+    info = {
+        # Intentionally, misleading the stream
+        'increment': StreamInfo(p_success=0.01, overhead=1),
+        'decrement': StreamInfo(p_success=1, overhead=1),
+    }
+
+    return streams, orders, info
+
+##################################################
+
+def opt_from_graph(streams, orders, info):
     param_from_order = {order: PARAM_TEMPLATE.format(*order) for order in orders}
     fact_from_order = {order: (PREDICATE, param_from_order[order]) for order in orders}
     object_from_param = {param: parse_value(param) for param in param_from_order.values()}
 
+    incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
     stream_plan = []
     for s in streams:
         stream = Stream(
@@ -65,6 +65,7 @@ def create_problem():
             info=StreamInfo(p_success=1, overhead=0, verbose=True),
         )
         # TODO: dump streams
+        print()
         print(stream)
 
         input_objects = safe_apply_mapping(stream.inputs, object_from_param)
@@ -74,15 +75,14 @@ def create_problem():
         result = instance.get_result(output_objects)
         print(result)
         stream_plan.append(result)
-        print()
-
-    print(SEPARATOR)
 
     opt_plan = OptPlan(action_plan=[], preimage_facts=[])
     opt_solution = OptSolution(stream_plan, opt_plan, cost=0)
     return opt_solution
 
-def solve_skeleton(evaluations={}, opt_solutions=[], reorder=False, visualize=False):
+##################################################
+
+def solve_skeleton(evaluations={}, opt_solutions=[], reorder=False, visualize=True):
     store = SolutionStore(evaluations=evaluations, max_time=INF, success_cost=INF, verbose=True)
     skeleton_queue = SkeletonQueue(store, domain=None, disable=True)
 
@@ -127,12 +127,15 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    opt_solution = create_problem()
+    streams, orders, info = create_problem1()
+    opt_solution = opt_from_graph(streams, orders, info)
+    print(SEPARATOR)
+
     solution = solve_skeleton(opt_solutions=[opt_solution])
+    print(SEPARATOR)
 
     print(solution) # TODO: print the stream plan
     print_solution(solution)
 
 if __name__ == '__main__':
     main()
-

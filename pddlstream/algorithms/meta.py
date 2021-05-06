@@ -15,7 +15,7 @@ from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, Solution
 from pddlstream.language.conversion import value_from_obj_expression, EQ
-from pddlstream.language.external import DEBUG
+from pddlstream.language.external import DEBUG, SHARED_DEBUG
 from pddlstream.language.stream import PartialInputs
 from pddlstream.language.temporal import SimplifiedDomain
 from pddlstream.utils import elapsed_time, INF, Verbose, irange, SEPARATOR
@@ -184,10 +184,10 @@ def set_unique(externals):
         external.info.opt_gen_fn = PartialInputs(unique=True)
         external.num_opt_fns = 0
 
-def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, verbose=False, debug=False):
+def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, unique=False, verbose=False, debug=False):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
-    stream_map = DEBUG
+    stream_map = DEBUG if unique else SHARED_DEBUG # DEBUG_MODES
     problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
     evaluations, goal_exp, domain, externals = parse_problem(

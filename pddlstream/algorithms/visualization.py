@@ -8,7 +8,7 @@ from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_pla
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import clear_dir, ensure_dir, str_from_object
+from pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input
 
 # https://www.graphviz.org/doc/info/
 
@@ -72,19 +72,22 @@ def create_synthesizer_visualizations(result, iteration):
 def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
     # TODO: decompose any joint streams
-    from pddlstream.retired.synthesizer import decompose_stream_plan
     for result in stream_plan:
         create_synthesizer_visualizations(result, iteration)
     filename = ITERATION_TEMPLATE.format(iteration)
     # visualize_stream_plan(stream_plan, path)
+
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     print('Constraints:', str_from_object(constraints))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+
+    from pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     if len(decomposed_plan) != len(stream_plan):
         visualize_stream_plan(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
+
     #visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
     visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
@@ -137,6 +140,22 @@ def visualize_constraints(constraints, filename='constraint_network'+DEFAULT_EXT
 
 ##################################################
 
+def display_image(filename):
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+    img = mpimg.imread(filename)
+    plt.imshow(img)
+    plt.title(filename)
+    plt.axis('off')
+    plt.tight_layout()
+
+    #plt.show()
+    plt.draw()
+    #plt.waitforbuttonpress(0)  # this will wait for indefinite time
+    plt.pause(interval=1e-3)
+    user_input()
+    plt.close(plt.figure())
+
 def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
@@ -160,6 +179,7 @@ def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION)
 
     graph.draw(filename, prog='dot')
     print('Saved', filename)
+    #display_image(filename)
     return graph
 
 ##################################################
@@ -217,3 +237,4 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan'+DEFAULT_
     return graph
     # graph.layout
     # https://pygraphviz.github.io/documentation/pygraphviz-1.3rc1/reference/agraph.html
+    # https://pygraphviz.github.io/documentation/stable/reference/agraph.html#pygraphviz.AGraph.draw

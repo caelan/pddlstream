@@ -2,7 +2,7 @@ import time
 
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
 from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG_MODES, get_procedure_fn
 from pddlstream.utils import str_from_object, apply_mapping
 
 # https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
@@ -133,7 +133,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
-        self.fn = opt_fn if (fn == DEBUG) else fn
+        self.fn = opt_fn if (fn in DEBUG_MODES) else fn
         #arg_spec = get_arg_spec(self.fn)
         #if len(self.inputs) != len(arg_spec.args):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(

@@ -7,8 +7,8 @@ from pddlstream.language.constants import AND, get_prefix, get_args, is_paramete
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
-    parse_lisp_list, select_inputs, convert_constants
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, SHARED_DEBUG, DEBUG_MODES, \
+    get_procedure_fn, parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
@@ -395,7 +395,7 @@ class Stream(External):
         self.certified = tuple(map(convert_constants, certified))
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
         self.fluents = fluents
-        #self.fluents = [] if gen_fn == DEBUG else fluents
+        #self.fluents = [] if (gen_fn in DEBUG_MODES) else fluents
 
         for p, c in Counter(self.outputs).items():
             if not is_parameter(p):
@@ -411,7 +411,11 @@ class Stream(External):
             print('Warning! Output [{}] for stream [{}] is not covered by a certified condition'.format(p, name))
 
         # TODO: automatically switch to unique if only used once
-        self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
+        self.gen_fn = gen_fn # DEBUG_MODES
+        if gen_fn == DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=False)
+        elif gen_fn == SHARED_DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=True)
         assert callable(self.gen_fn)
         self.num_opt_fns = 0 if (self.is_test or self.is_special) else 1 # TODO: is_negated or is_special
         if isinstance(self.info.opt_gen_fn, PartialInputs):

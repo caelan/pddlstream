@@ -8,6 +8,8 @@ from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT
 from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score, INF
 
 DEBUG = 'debug'
+SHARED_DEBUG = 'shared_debug'
+DEBUG_MODES = [DEBUG, SHARED_DEBUG]
 
 never_defer = lambda *args, **kwargs: False
 defer_unique = lambda result, *args, **kwargs: result.is_refined()
@@ -296,8 +298,8 @@ class External(Performance):
 ##################################################
 
 def get_procedure_fn(stream_map, name):
-    if stream_map == DEBUG:
-        return DEBUG
+    if not isinstance(stream_map, dict): # DEBUG_MODES
+        return stream_map
     if name not in stream_map:
         raise ValueError('Undefined external procedure: {}'.format(name))
     return stream_map[name]
