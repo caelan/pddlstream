@@ -50,17 +50,38 @@ def create_problem1():
 
     return streams, orders, info
 
+def create_problem2():
+    streams = ['{}'.format(i) for i in range(4)]
+
+    orders = {
+        (streams[0], streams[1]), # TODO: generalize
+        (streams[1], streams[2]),
+    }
+
+    info = {
+        #streams[3]: StreamInfo(p_success=0.),
+        #streams[3]: StreamInfo(p_success=0.),
+        #streams[4]: StreamInfo(p_success=0.),
+    }
+
+    return streams, orders, info
+
 ##################################################
 
-def get_gen(outputs=[], p_success=1., start_index=1):
+def outcome_generator(p_success=1., start_index=1, stop_index=2):
     for i in inf_generator():
-        values = ['{}-{}'.format(output[1:], i) for output in outputs]
-        if (i >= start_index) and (random.random() < p_success):
-            yield values
-        else:
-            yield None
+        yield (start_index <= i < stop_index) and (random.random() < p_success)
+
+def get_gen(outputs=[], **kwargs):
+    history = []
+    for outcome in outcome_generator(**kwargs):
+        values = ['{}-{}'.format(output[1:], len(history)) for output in outputs]
+        history.append(outcome)
+        yield values if outcome else None
         input()
     #return (output if random.random() < p_success else None for _ in inf_generator())
+
+##################################################
 
 def opt_from_graph(names, orders, infos={}):
     param_from_order = {order: PARAM_TEMPLATE.format(*order) for order in orders}
@@ -147,7 +168,7 @@ def main():
     args = parser.parse_args()
     print('Arguments:', args)
 
-    streams, orders, info = create_problem1()
+    streams, orders, info = create_problem2() # create_problem1 | create_problem2
     opt_solution = opt_from_graph(streams, orders, info)
     print(SEPARATOR)
 

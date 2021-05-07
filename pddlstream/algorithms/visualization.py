@@ -8,7 +8,7 @@ from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_pla
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input
+from pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input, flatten
 
 # https://www.graphviz.org/doc/info/
 
@@ -156,7 +156,7 @@ def display_image(filename):
     user_input()
     plt.close(plt.figure())
 
-def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION):
+def visualize_stream_orders(orders, streams=[], filename='stream_orders'+DEFAULT_EXTENSION):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -170,9 +170,10 @@ def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION)
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
 
-    for stream in stream_plan:
+    streams = set(streams) | set(flatten(orders))
+    for stream in streams:
         graph.add_node(str(stream))
-    for stream1, stream2 in get_partial_orders(stream_plan):
+    for stream1, stream2 in orders:
         graph.add_edge(str(stream1), str(stream2))
     # TODO: could also print the raw values (or a lookup table)
     # https://stackoverflow.com/questions/3499056/making-a-legend-key-in-graphviz
@@ -181,6 +182,9 @@ def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION)
     print('Saved', filename)
     #display_image(filename)
     return graph
+
+def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION):
+    return visualize_stream_orders(get_partial_orders(stream_plan), streams=stream_plan, filename=filename)
 
 ##################################################
 

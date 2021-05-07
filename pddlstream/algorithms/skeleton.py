@@ -12,7 +12,7 @@ from pddlstream.algorithms.disabled import process_instance, update_bindings, up
 from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
-#from pddlstream.algorithms.visualization import FunctionResult
+from pddlstream.algorithms.visualization import visualize_stream_orders
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
     incoming_from_edges, outgoing_from_edges
 
@@ -61,6 +61,7 @@ class Skeleton(object):
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
+        print(self.affected_indices)
 
         stream_orders = get_partial_orders(self.stream_plan) # init_facts=self.queue.evaluations)
         index_from_result = get_mapping(stream_plan, range(len(stream_plan)))
@@ -99,6 +100,9 @@ class Skeleton(object):
         return self.stream_plan[index].remap_inputs(mapping) # Has optimistic output objects
     def bind_action_plan(self, mapping):
         return bind_action_plan(self.action_plan, mapping)
+    def visualize_bindings(self):
+        orders = {(binding1.result, binding2.result) for binding1, binding2 in self.root.get_connections()}
+        return visualize_stream_orders(orders)
 
 ##################################################
 
@@ -179,10 +183,12 @@ class Binding(object):
             return False
         return self.compute_complexity() <= complexity_limit
     def check_downstream_helper(self, affected):
+        #print(self, self.children)
         if self.is_dominated():
             # Keep exploring down branches that contain a cost term
             return affected.has_cost
         if self.is_unsatisfied(): # or type(self.result) == FunctionResult): # not self.visits
+            print(self)
             return self.index in affected.indices
         # TODO: only prune functions here if the reset of the plan is feasible
         #if not affected.indices or (max(affected.indices) < self.index):
@@ -213,6 +219,12 @@ class Binding(object):
             for ancestor in self.parent.get_ancestors():
                 yield ancestor
         yield self
+    def get_connections(self):
+        connections = []
+        for child in self.children:
+            connections.append((self, child))
+            connections.extend(child.get_connections())
+        return connections
     def recover_bound_results(self):
         return [binding.parent_result for binding in list(self.get_ancestors())[1:]]
     def update_bindings(self):
@@ -427,4 +439,6 @@ class SkeletonQueue(Sized):
         self.process_complexity(complexity_limit)
         if accelerate:
            self.accelerate_best_bindings()
+
+        self.skeletons[0].draw_stuff()
         return FAILED
