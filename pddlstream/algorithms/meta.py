@@ -253,7 +253,7 @@ def recurse_subgoals(goals, condition_from_effect):
     return possible
 
 
-def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, **kwargs):
+def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, blocked_predicates=[], **kwargs):
     # TODO: instantiate all goal partial states
     # TODO: remove actions/axioms that never could achieve a subgoal
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
@@ -273,10 +273,12 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
         for action in instantiated.actions:
             for conditional, effect in action.add_effects:
                 for condition in (action.precondition + conditional):
-                    condition_from_effect[effect].add(condition)
+                    if condition.predicate not in blocked_predicates:
+                        condition_from_effect[effect].add(condition)
             for conditional, effect in action.del_effects:
                 for condition in (action.precondition + conditional):
-                    condition_from_effect[effect.negate()].add(condition)
+                    if condition.predicate not in blocked_predicates:
+                        condition_from_effect[effect.negate()].add(condition)
     if use_axioms:
         # TODO: axiom_rules.handle_axioms(...)
         # print('Axioms:', instantiated.axioms)

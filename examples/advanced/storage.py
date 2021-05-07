@@ -123,8 +123,13 @@ def main():
     print('Init:', sorted(problem.init))
     print('Goal:', problem.goal)
 
-    # print(analyze_goal(problem, debug=True))
-    # print(SEPARATOR)
+    print(analyze_goal(problem, debug=True, use_actions=True, blocked_predicates=[
+        # TODO: make sure to use lowercase
+        'handempty',
+        'clear',
+        # These are conditions that you can always reachieve?
+    ]))
+    print(SEPARATOR)
 
     with Profiler():
         solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
