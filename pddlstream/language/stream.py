@@ -197,6 +197,7 @@ class StreamInstance(Instance):
         opt_gen_fn = self.external.info.opt_gen_fn
         self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
             if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+        self._opt_values = None
         self._axiom_predicate = None
         self._disabled_axiom = None
         # TODO: keep track of unique outputs to prune repeated ones
@@ -300,6 +301,20 @@ class StreamInstance(Instance):
         #   self.enumerated = True
         return new_results, new_facts
 
+    def wrap_optimistic(self, output_values, call_index):
+        output_objects = []
+        for name, value in safe_zip(self.external.outputs, output_values):
+            unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name)  # object()
+            param = unique if (self.opt_index == 0) else value # TODO: make a proper abstraction generator
+            output_objects.append(OptimisticObject.from_opt(value, param))
+        return tuple(output_objects)
+
+    def get_opt_values(self, cache=True):
+        if cache and (self._opt_values is not None):
+            return self._opt_values
+        self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
+        return self._opt_values
+
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -309,17 +324,11 @@ class StreamInstance(Instance):
         #     return self.opt_results # TODO: reuse these (unless opt_index has changed)?
         self.opt_results = []
         output_set = set()
-        for output_list in self.opt_gen_fn(*self.get_input_values()): # TODO: support generators instead
+        for output_list in self.get_opt_values():
             self._check_output_values(output_list)
-            for i, output_values in enumerate(output_list):
+            for output_values in output_list:
                 call_index = len(self.opt_results)
-                output_objects = []
-                for name, value in safe_zip(self.external.outputs, output_values):
-                    # TODO: maybe record history of values here?
-                    unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name) # object()
-                    param = unique if (self.opt_index == 0) else value
-                    output_objects.append(OptimisticObject.from_opt(value, param))
-                output_objects = tuple(output_objects)
+                output_objects = self.wrap_optimistic(output_values, call_index)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
                     self.opt_results.append(self._Result(instance=self, output_objects=output_objects,
@@ -422,7 +431,7 @@ class Stream(External):
         # TODO: automatically switch to unique if only used once
         self.gen_fn = gen_fn # DEBUG_MODES
         if gen_fn == DEBUG:
-            self.gen_fn = get_debug_gen_fn(self, shared=False)
+            self.gen_fn = get_debug_gen_fn(self, shared=False) # TODO: list of abstractions that is considered in turn
         elif gen_fn == SHARED_DEBUG:
             self.gen_fn = get_debug_gen_fn(self, shared=True)
         assert callable(self.gen_fn)
