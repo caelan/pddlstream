@@ -3,7 +3,7 @@ from collections import Counter, Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
@@ -18,6 +18,7 @@ VERBOSE_WILD = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
 NEGATIVE_SUFFIX = '-negative'
+CACHE_OPTIMISTIC = True
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
@@ -305,10 +306,11 @@ class StreamInstance(Instance):
 
     #########################
 
-    def get_opt_values(self, cache=True):
-        if cache and (self._opt_values is not None):
+    def get_opt_values(self):
+        if CACHE_OPTIMISTIC and (self._opt_values is not None):
             return self._opt_values
         self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
+        # TODO: difficulty is that the output is a generator itself
         return self._opt_values
 
     def wrap_optimistic(self, output_values, call_index):
