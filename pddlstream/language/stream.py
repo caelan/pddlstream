@@ -223,6 +223,8 @@ class StreamInstance(Instance):
         self.previous_outputs = set()
         self.num_optimistic = 1
 
+    #########################
+
     def get_result(self, output_objects, opt_index=None, list_index=None, optimistic=True):
         # TODO: rename to create_result because not unique
         # TODO: ideally would increment a flag per stream for each failure
@@ -301,6 +303,14 @@ class StreamInstance(Instance):
         #   self.enumerated = True
         return new_results, new_facts
 
+    #########################
+
+    def get_opt_values(self, cache=True):
+        if cache and (self._opt_values is not None):
+            return self._opt_values
+        self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
+        return self._opt_values
+
     def wrap_optimistic(self, output_values, call_index):
         output_objects = []
         for name, value in safe_zip(self.external.outputs, output_values):
@@ -308,12 +318,6 @@ class StreamInstance(Instance):
             param = unique if (self.opt_index == 0) else value # TODO: make a proper abstraction generator
             output_objects.append(OptimisticObject.from_opt(value, param))
         return tuple(output_objects)
-
-    def get_opt_values(self, cache=True):
-        if cache and (self._opt_values is not None):
-            return self._opt_values
-        self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
-        return self._opt_values
 
     def next_optimistic(self):
         if self.enumerated or self.disabled:
