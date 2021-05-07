@@ -15,13 +15,13 @@ from pddlstream.algorithms.satisfaction import parse_value
 from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import create_visualizations, \
-    log_plans
+    log_plans, visualize_stream_plan
 from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution, Output
 from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.function import Function
 from pddlstream.language.stream import Stream, StreamInfo, DEBUG
 from pddlstream.language.generator import from_gen, universe_test, from_gen_fn
-from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator, irange
+from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator, irange, safe_zip
 
 # TODO: move other advanced out of their directories if only a single file
 
@@ -52,10 +52,11 @@ def create_problem1():
 
     return streams, orders, info
 
-def create_problem2(num=3):
+def create_problem2(chain1=2, chain2=2):
     # TODO: store execution traces
-    streams = [NAME_TEMPLATE.format(i) for i in range(num)]
-    orders = set(zip(streams[:-2], streams[1:-1]))
+    streams = [NAME_TEMPLATE.format(i) for i in range(chain1 + chain2)]
+    orders = set(get_pairs(streams[:chain1])) | \
+             set(get_pairs(streams[chain1:]))
     # info = {
     #     streams[1]: StreamInfo(p_success=0.),
     #     streams[2]: StreamInfo(p_success=0.),
@@ -69,12 +70,17 @@ def create_problem2(num=3):
     info = [
         {'p_success': 1., 'max_attempts': INF},
         {'p_success': 0.2, 'max_attempts': 1},
+        {'p_success': 1., 'max_attempts': INF},
         {'p_success': 0., 'max_attempts': INF},
     ]
 
     return streams, orders, info
 
 ##################################################
+
+def get_pairs(sequence):
+    sequence = list(sequence)
+    return safe_zip(sequence[:-1], sequence[1:])
 
 def constant_generator(constant, **kwargs):
     return (constant for _ in inf_generator(**kwargs))
@@ -159,6 +165,7 @@ def solve_skeleton(evaluations={}, opt_solutions=[], max_time=INF, success_cost=
     skeleton_queue = SkeletonQueue(store, domain=None, disable=True)
 
     for opt_solution in opt_solutions:
+        # TODO: add and then process later
         stream_plan, opt_plan, cost = opt_solution
 
         # stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
@@ -178,7 +185,8 @@ def solve_skeleton(evaluations={}, opt_solutions=[], max_time=INF, success_cost=
         if is_plan(stream_plan) and visualize:
             num_iterations = 0
             log_plans(stream_plan, action_plan, num_iterations)
-            create_visualizations(evaluations, stream_plan, num_iterations)
+            #create_visualizations(evaluations, stream_plan, num_iterations)
+            visualize_stream_plan(stream_plan)
 
         ################
 
@@ -190,8 +198,9 @@ def solve_skeleton(evaluations={}, opt_solutions=[], max_time=INF, success_cost=
         #         get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
         #     skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
 
-        # TODO: add and then process later
-        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=max_complexity, max_time=INF)  # is INFEASIBLE:
+        # TODO: these are quite different
+        #skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=INF, max_time=INF)
+        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=max_complexity, max_time=0)
     return store.extract_solution()
 
 def main():

@@ -16,7 +16,7 @@ from pddlstream.algorithms.visualization import visualize_stream_orders
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
     incoming_from_edges, outgoing_from_edges
 
-# TODO: the bias away from solved things is actually due to USE_PRIORITIES not REQUIRE_DOWNSTREAM
+# TODO: the bias away from solved things is actually due to USE_PRIORITIES+timed_process not REQUIRE_DOWNSTREAM
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
 GREEDY_BEST = True
@@ -193,8 +193,9 @@ class Binding(object):
         #if not affected.indices or (max(affected.indices) < self.index):
         #    # Cut branch for efficiency purposes
         #    return False
-        # TODO: discard bindings that have been pruned by their cost
-        return any(binding.check_downstream_helper(affected) for binding in self.children) # TODO: any or all
+        # TODO: discard bindings that have been pruned by their cost per affected component
+        # TODO: both any and all weakly prune
+        return any(binding.check_downstream_helper(affected) for binding in self.children)
     def check_downstream(self):
         return self.check_downstream_helper(self.skeleton.affected_indices[self.index])
     def get_priority(self):
@@ -244,6 +245,7 @@ class Binding(object):
         self.calls = instance.num_calls
         self.visits = max(self.visits, self.calls)
         self.complexity = None # Forces re-computation
+        #self.skeleton.visualize_bindings()
         return new_bindings
     def __repr__(self):
         return '{}(skeleton={}, {})'.format(self.__class__.__name__, self.skeleton.index, self.result)
