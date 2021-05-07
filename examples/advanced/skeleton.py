@@ -21,7 +21,7 @@ from pddlstream.language.statistics import compute_plan_effort
 from pddlstream.language.function import Function
 from pddlstream.language.stream import Stream, StreamInfo, DEBUG
 from pddlstream.language.generator import from_gen, universe_test, from_gen_fn
-from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator
+from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator, irange
 
 # TODO: move other advanced out of their directories if only a single file
 
@@ -43,11 +43,11 @@ def create_problem1():
         (streams[3], streams[4]),
     }
     info = {
+        # TODO: update to use itertools
         streams[2]: StreamInfo(p_success=0.),
         #streams[3]: StreamInfo(p_success=0.),
         #streams[4]: StreamInfo(p_success=0.),
     }
-    # TODO: debug values that use info
     #tests = {n: lambda *args, **kwargs: random.random() < 1. for n in streams} # TODO: sampler_from_random?
 
     return streams, orders, info
@@ -61,10 +61,15 @@ def create_problem2(num=3):
     #     streams[2]: StreamInfo(p_success=0.),
     #     streams[3]: StreamInfo(p_success=0.),
     # }
+    # info = [
+    #     repeat(True, times=N),
+    #     chain(repeat(True, times=N), repeat(True, times=N)),
+    #     repeat(False, times=N),
+    # ]
     info = [
-        repeat(True, times=N),
-        chain([False], repeat(True, times=N)),
-        repeat(False, times=N),
+        {'p_success': 1., 'max_attempts': INF},
+        {'p_success': 0.2, 'max_attempts': 1},
+        {'p_success': 0., 'max_attempts': INF},
     ]
 
     return streams, orders, info
@@ -75,6 +80,7 @@ def constant_generator(constant, **kwargs):
     return (constant for _ in inf_generator(**kwargs))
 
 def outcome_generator(p_success=1., start_index=1, stop_index=INF):
+    # TODO: debug values that use info
     for i in inf_generator():
         yield (start_index <= i < stop_index) and (random.random() < p_success)
 
@@ -87,6 +93,19 @@ def get_gen(generator, outputs=[], **kwargs):
         yield values if outcome else None
         input()
     #return (output if random.random() < p_success else None for _ in inf_generator())
+
+def get_gen_fn(outputs=[], p_success=1., max_attempts=INF):
+    history = []
+
+    def gen_fn(*args, **kwargs):
+        for _ in irange(max_attempts):
+            if random.random() < p_success:
+                values = ['{}-{}'.format(output[1:], len(history)) for output in outputs]
+                history.append(values)
+                yield values
+            else:
+                yield None
+    return gen_fn
 
 ##################################################
 
@@ -102,11 +121,12 @@ def opt_from_graph(names, orders, infos={}):
         inputs = [param_from_order[n2, n] for n2 in incoming_from_edges[n]]
         outputs = [param_from_order[n, n2] for n2 in outgoing_from_edges[n]]
         #gen = get_gen(outputs=outputs, p_success=info.p_success)
-        gen = get_gen(infos[i], outputs=outputs)
+        #gen = get_gen(infos[i], outputs=outputs)
         stream = Stream(
             name=n,
             #gen_fn=DEBUG,
-            gen_fn=from_gen(gen),
+            #gen_fn=from_gen(gen),
+            gen_fn=from_gen_fn(get_gen_fn(outputs=outputs, **infos[i])),
             inputs=inputs,
             domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],

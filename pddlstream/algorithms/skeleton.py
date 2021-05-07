@@ -16,12 +16,11 @@ from pddlstream.algorithms.visualization import visualize_stream_orders
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
     incoming_from_edges, outgoing_from_edges
 
+# TODO: the bias away from solved things is actually due to USE_PRIORITIES not REQUIRE_DOWNSTREAM
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
 GREEDY_BEST = True
 REQUIRE_DOWNSTREAM = True
-
-# TODO: automatically set the opt level to be zero for any streams that are bound?
 
 Priority = namedtuple('Priority', ['not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
@@ -83,6 +82,7 @@ class Skeleton(object):
             complexities[index] = self.compute_index_complexity(index, stream_calls[index], complexities)
         return complexities
     def compute_index_complexity(self, index, num_calls, complexities):
+        # TODO: automatically set the opt level to be zero for any streams that are bound (assuming not reachieve)
         domain_complexity = COMPLEXITY_OP([0] + self.preimage_complexities[index] +
                                           [complexities[index2] for index2 in self.incoming_indices[index]])
         return domain_complexity + self.stream_plan[index].external.get_complexity(num_calls=num_calls)
@@ -101,8 +101,8 @@ class Skeleton(object):
         return bind_action_plan(self.action_plan, mapping)
     def visualize_bindings(self):
         # TODO: remap outputs
-        orders = {(binding1.result.remap_outputs(binding1.mapping),
-                   binding2.result.remap_outputs(binding2.mapping)) for binding1, binding2 in self.root.get_connections()}
+        orders = {(binding1.parent_result, binding2.parent_result)
+                  for binding1, binding2 in self.root.get_connections()}
         return visualize_stream_orders(orders)
 
 ##################################################
@@ -439,6 +439,4 @@ class SkeletonQueue(Sized):
         self.process_complexity(complexity_limit)
         if accelerate:
            self.accelerate_best_bindings()
-
-        self.skeletons[0].draw_stuff()
         return FAILED
