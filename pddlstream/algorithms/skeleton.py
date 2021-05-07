@@ -61,7 +61,6 @@ class Skeleton(object):
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
-        print(self.affected_indices)
 
         stream_orders = get_partial_orders(self.stream_plan) # init_facts=self.queue.evaluations)
         index_from_result = get_mapping(stream_plan, range(len(stream_plan)))
@@ -101,7 +100,9 @@ class Skeleton(object):
     def bind_action_plan(self, mapping):
         return bind_action_plan(self.action_plan, mapping)
     def visualize_bindings(self):
-        orders = {(binding1.result, binding2.result) for binding1, binding2 in self.root.get_connections()}
+        # TODO: remap outputs
+        orders = {(binding1.result.remap_outputs(binding1.mapping),
+                   binding2.result.remap_outputs(binding2.mapping)) for binding1, binding2 in self.root.get_connections()}
         return visualize_stream_orders(orders)
 
 ##################################################
@@ -183,12 +184,10 @@ class Binding(object):
             return False
         return self.compute_complexity() <= complexity_limit
     def check_downstream_helper(self, affected):
-        #print(self, self.children)
         if self.is_dominated():
             # Keep exploring down branches that contain a cost term
             return affected.has_cost
         if self.is_unsatisfied(): # or type(self.result) == FunctionResult): # not self.visits
-            print(self)
             return self.index in affected.indices
         # TODO: only prune functions here if the reset of the plan is feasible
         #if not affected.indices or (max(affected.indices) < self.index):
@@ -220,6 +219,7 @@ class Binding(object):
                 yield ancestor
         yield self
     def get_connections(self):
+        # TODO: easier to just iterate over all bindings and extract the parent
         connections = []
         for child in self.children:
             connections.append((self, child))

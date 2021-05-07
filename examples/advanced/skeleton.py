@@ -2,6 +2,8 @@
 
 from __future__ import print_function
 
+from itertools import chain, repeat
+
 import random
 
 from pddlstream.algorithms.common import SolutionStore
@@ -16,6 +18,7 @@ from pddlstream.algorithms.visualization import create_visualizations, \
     log_plans
 from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution, Output
 from pddlstream.language.statistics import compute_plan_effort
+from pddlstream.language.function import Function
 from pddlstream.language.stream import Stream, StreamInfo, DEBUG
 from pddlstream.language.generator import from_gen, universe_test, from_gen_fn
 from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator
@@ -23,23 +26,22 @@ from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_m
 # TODO: move other advanced out of their directories if only a single file
 
 PREDICATE = 'P'
-NAME_TEMPLATE = '{}' # s{}
-PREDICATE_TEMPLATE = '{}-{}'
+NAME_TEMPLATE = 's{}' # s{}
+#PREDICATE_TEMPLATE = '{}-{}'
 PARAM_TEMPLATE = '?{}-{}' # PARAMETER +
 VALUE = True
+N = 1000
 
 ##################################################
 
 def create_problem1():
-    streams = ['{}'.format(i) for i in range(5)]
-
+    streams = [NAME_TEMPLATE.format(i) for i in range(5)]
     orders = {
         (streams[0], streams[1]),
         (streams[2], streams[3]),
         (streams[1], streams[4]),
         (streams[3], streams[4]),
     }
-
     info = {
         streams[2]: StreamInfo(p_success=0.),
         #streams[3]: StreamInfo(p_success=0.),
@@ -50,31 +52,36 @@ def create_problem1():
 
     return streams, orders, info
 
-def create_problem2():
-    streams = ['{}'.format(i) for i in range(4)]
-
-    orders = {
-        (streams[0], streams[1]), # TODO: generalize
-        (streams[1], streams[2]),
-    }
-
-    info = {
-        #streams[3]: StreamInfo(p_success=0.),
-        #streams[3]: StreamInfo(p_success=0.),
-        #streams[4]: StreamInfo(p_success=0.),
-    }
+def create_problem2(num=3):
+    # TODO: store execution traces
+    streams = [NAME_TEMPLATE.format(i) for i in range(num)]
+    orders = set(zip(streams[:-2], streams[1:-1]))
+    # info = {
+    #     streams[1]: StreamInfo(p_success=0.),
+    #     streams[2]: StreamInfo(p_success=0.),
+    #     streams[3]: StreamInfo(p_success=0.),
+    # }
+    info = [
+        repeat(True, times=N),
+        chain([False], repeat(True, times=N)),
+        repeat(False, times=N),
+    ]
 
     return streams, orders, info
 
 ##################################################
 
-def outcome_generator(p_success=1., start_index=1, stop_index=2):
+def constant_generator(constant, **kwargs):
+    return (constant for _ in inf_generator(**kwargs))
+
+def outcome_generator(p_success=1., start_index=1, stop_index=INF):
     for i in inf_generator():
         yield (start_index <= i < stop_index) and (random.random() < p_success)
 
-def get_gen(outputs=[], **kwargs):
+def get_gen(generator, outputs=[], **kwargs):
     history = []
-    for outcome in outcome_generator(**kwargs):
+    #generator = outcome_generator(**kwargs)
+    for outcome in generator:
         values = ['{}-{}'.format(output[1:], len(history)) for output in outputs]
         history.append(outcome)
         yield values if outcome else None
@@ -90,20 +97,23 @@ def opt_from_graph(names, orders, infos={}):
 
     incoming_from_edges, outgoing_from_edges = neighbors_from_orders(orders)
     stream_plan = []
-    for n in names:
-        info = infos.get(n, StreamInfo(p_success=1, overhead=0, verbose=True))
+    for i, n in enumerate(names):
+        #info = infos.get(n, StreamInfo(p_success=1, overhead=0, verbose=True))
         inputs = [param_from_order[n2, n] for n2 in incoming_from_edges[n]]
         outputs = [param_from_order[n, n2] for n2 in outgoing_from_edges[n]]
+        #gen = get_gen(outputs=outputs, p_success=info.p_success)
+        gen = get_gen(infos[i], outputs=outputs)
         stream = Stream(
             name=n,
             #gen_fn=DEBUG,
-            gen_fn=from_gen(get_gen(outputs=outputs, p_success=info.p_success)),
+            gen_fn=from_gen(gen),
             inputs=inputs,
             domain=[fact_from_order[n2, n] for n2 in incoming_from_edges[n]],
             fluents=[],
             outputs=outputs,
             certified=[fact_from_order[n, n2] for n2 in outgoing_from_edges[n]],
-            info=info,
+            #info=info,
+            info=StreamInfo(),
         )
         # TODO: dump names
 
@@ -118,13 +128,14 @@ def opt_from_graph(names, orders, infos={}):
         stream_plan.append(result)
 
     opt_plan = OptPlan(action_plan=[], preimage_facts=[])
-    opt_solution = OptSolution(stream_plan, opt_plan, cost=0)
+    opt_solution = OptSolution(stream_plan, opt_plan, cost=1)
     return opt_solution
 
 ##################################################
 
-def solve_skeleton(evaluations={}, opt_solutions=[], reorder=False, visualize=True):
-    store = SolutionStore(evaluations=evaluations, max_time=INF, success_cost=INF, verbose=True)
+def solve_skeleton(evaluations={}, opt_solutions=[], max_time=INF, success_cost=0,
+                   max_complexity=INF, reorder=False, visualize=True):
+    store = SolutionStore(evaluations=evaluations, max_time=max_time, success_cost=success_cost, verbose=True)
     skeleton_queue = SkeletonQueue(store, domain=None, disable=True)
 
     for opt_solution in opt_solutions:
@@ -160,7 +171,7 @@ def solve_skeleton(evaluations={}, opt_solutions=[], reorder=False, visualize=Tr
         #     skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
 
         # TODO: add and then process later
-        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=INF, max_time=INF)  # is INFEASIBLE:
+        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=max_complexity, max_time=INF)  # is INFEASIBLE:
     return store.extract_solution()
 
 def main():

@@ -171,15 +171,14 @@ class StreamResult(Result):
         #index = self.call_index
         return self.instance.opt_results[index]
     def remap_inputs(self, bindings):
-        # TODO: speed this procedure up
-        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
-        #    return self
-        input_objects = apply_mapping(self.input_objects, bindings)
-        fluent_facts = [substitute_fact(f, bindings) for f in self.instance.fluent_facts]
-        new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
-        new_instance.opt_index = self.instance.opt_index
+        new_instance = self.instance.remap_inputs(bindings)
         return self.__class__(new_instance, self.output_objects, self.opt_index,
                               self.call_index, self.list_index, self.optimistic)
+    # def remap_outputs(self, bindings):
+    #     new_instance = self.instance.remap_inputs(bindings)
+    #     output_objects = apply_mapping(self.output_objects, bindings)
+    #     return self.__class__(new_instance, output_objects, self.opt_index,
+    #                           self.call_index, self.list_index, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
@@ -382,6 +381,16 @@ class StreamInstance(Instance):
         #super(StreamInstance, self).enable(evaluations, domain) # TODO: strange infinite loop bug if enabled?
         evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), None)
 
+    def remap_inputs(self, bindings):
+        # TODO: speed this procedure up
+        #if not any(o in bindings for o in self.get_all_input_objects()):
+        #    return self
+        input_objects = apply_mapping(self.input_objects, bindings)
+        fluent_facts = [substitute_fact(f, bindings) for f in self.fluent_facts]
+        new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
+        new_instance.opt_index = self.opt_index
+        return new_instance
+
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -389,7 +398,7 @@ class StreamInstance(Instance):
 
 class Stream(External):
     _Instance = StreamInstance
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info=StreamInfo(), fluents=[]):
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(map(convert_constants, certified))
