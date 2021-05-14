@@ -27,9 +27,11 @@ QUANTIFIERS = (FORALL, EXISTS)
 OBJECTIVES = (MINIMIZE, MAXIMIZE, INCREASE)
 OPERATORS = CONNECTIVES + QUANTIFIERS + (WHEN,) # + OBJECTIVES
 
-#SUCCEEDED = True # TODO: OPTIMAL
+# TODO: OPTIMAL
+SUCCEEDED = True
 FAILED = None
 INFEASIBLE = False
+NOT_PLAN = [FAILED, INFEASIBLE]
 
 # TODO: rename PDDLProblem
 PDDLProblem = namedtuple('PDDLProblem', ['domain_pddl', 'constant_map',
@@ -134,7 +136,7 @@ def is_head(expression):
 ##################################################
 
 def is_plan(plan):
-    return not any(plan is status for status in [FAILED, INFEASIBLE])
+    return not any(plan is status for status in NOT_PLAN)
 
 
 def get_length(plan):

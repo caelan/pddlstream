@@ -8,9 +8,11 @@ from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_pla
 from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
 from pddlstream.language.function import FunctionResult
 from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import clear_dir, ensure_dir, str_from_object
+from pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input, flatten
 
 # https://www.graphviz.org/doc/info/
+
+DEFAULT_EXTENSION = '.png' # png | pdf
 
 PARAMETER_COLOR = 'LightGreen'
 CONSTRAINT_COLOR = 'LightBlue'
@@ -23,8 +25,8 @@ VISUALIZATIONS_DIR = 'visualizations/'
 CONSTRAINT_NETWORK_DIR = os.path.join(VISUALIZATIONS_DIR, 'constraint_networks/')
 STREAM_PLAN_DIR = os.path.join(VISUALIZATIONS_DIR, 'stream_plans/')
 PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
-ITERATION_TEMPLATE = 'iteration_{}.png'
-SYNTHESIZER_TEMPLATE = '{}_{}.png'
+ITERATION_TEMPLATE = 'iteration_{}' + DEFAULT_EXTENSION
+SYNTHESIZER_TEMPLATE = '{}_{}' + DEFAULT_EXTENSION
 
 ##################################################
 
@@ -70,25 +72,28 @@ def create_synthesizer_visualizations(result, iteration):
 def create_visualizations(evaluations, stream_plan, iteration):
     # TODO: place it in the temp_dir?
     # TODO: decompose any joint streams
-    from pddlstream.retired.synthesizer import decompose_stream_plan
     for result in stream_plan:
         create_synthesizer_visualizations(result, iteration)
     filename = ITERATION_TEMPLATE.format(iteration)
     # visualize_stream_plan(stream_plan, path)
+
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     print('Constraints:', str_from_object(constraints))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+
+    from pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     if len(decomposed_plan) != len(stream_plan):
         visualize_stream_plan(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
+
     #visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
     visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
 
 ##################################################
 
-def visualize_constraints(constraints, filename='constraint_network.pdf', use_functions=True):
+def visualize_constraints(constraints, filename='constraint_network'+DEFAULT_EXTENSION, use_functions=True):
     from pygraphviz import AGraph
 
     graph = AGraph(strict=True, directed=False)
@@ -111,7 +116,7 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
     graph.graph_attr['dpi'] = 300
 
     positive, negated, functions = partition_facts(constraints)
-    for head in positive + negated + functions:
+    for head in (positive + negated + functions):
         # TODO: prune values w/o free parameters?
         name = str_from_fact(head)
         if head in functions:
@@ -128,12 +133,30 @@ def visualize_constraints(constraints, filename='constraint_network.pdf', use_fu
                 arg_name = str(arg)
                 graph.add_node(arg_name, shape='circle', color=PARAMETER_COLOR)
                 graph.add_edge(name, arg_name)
+
     graph.draw(filename, prog='dot') # neato | dot | twopi | circo | fdp | nop
+    print('Saved', filename)
     return graph
 
 ##################################################
 
-def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
+def display_image(filename):
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+    img = mpimg.imread(filename)
+    plt.imshow(img)
+    plt.title(filename)
+    plt.axis('off')
+    plt.tight_layout()
+
+    #plt.show()
+    plt.draw()
+    #plt.waitforbuttonpress(0)  # this will wait for indefinite time
+    plt.pause(interval=1e-3)
+    user_input()
+    plt.close(plt.figure())
+
+def visualize_stream_orders(orders, streams=[], filename='stream_orders'+DEFAULT_EXTENSION):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -147,19 +170,25 @@ def visualize_stream_plan(stream_plan, filename='stream_plan.pdf'):
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
 
-    for stream in stream_plan:
+    streams = set(streams) | set(flatten(orders))
+    for stream in streams:
         graph.add_node(str(stream))
-    for stream1, stream2 in get_partial_orders(stream_plan):
+    for stream1, stream2 in orders:
         graph.add_edge(str(stream1), str(stream2))
     # TODO: could also print the raw values (or a lookup table)
     # https://stackoverflow.com/questions/3499056/making-a-legend-key-in-graphviz
 
     graph.draw(filename, prog='dot')
+    print('Saved', filename)
+    #display_image(filename)
     return graph
+
+def visualize_stream_plan(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION):
+    return visualize_stream_orders(get_partial_orders(stream_plan), streams=stream_plan, filename=filename)
 
 ##################################################
 
-def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use_functions=False):
+def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan'+DEFAULT_EXTENSION, use_functions=False):
     from pygraphviz import AGraph
     graph = AGraph(strict=True, directed=True)
     graph.node_attr['style'] = 'filled'
@@ -206,7 +235,10 @@ def visualize_stream_plan_bipartite(stream_plan, filename='stream_plan.pdf', use
                 s_fact = add_fact(fact)
                 graph.add_edge(s_stream, s_fact)
                 achieved_facts.add(fact)
+
     graph.draw(filename, prog='dot')
+    print('Saved', filename)
     return graph
     # graph.layout
     # https://pygraphviz.github.io/documentation/pygraphviz-1.3rc1/reference/agraph.html
+    # https://pygraphviz.github.io/documentation/stable/reference/agraph.html#pygraphviz.AGraph.draw

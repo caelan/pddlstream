@@ -2,7 +2,7 @@ import time
 
 from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
 from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG_MODES, get_procedure_fn
 from pddlstream.utils import str_from_object, apply_mapping
 
 # https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
@@ -94,7 +94,6 @@ class FunctionInstance(Instance):
     def next_results(self, verbose=False):
         assert not self.enumerated
         start_time = time.time()
-        start_calls = self.num_calls
         start_history = len(self.history)
         value = self._compute_output()
         new_results = [self._Result(self, value, optimistic=False)]
@@ -102,8 +101,9 @@ class FunctionInstance(Instance):
 
         if (value is not False) and verbose:
             # TODO: str(new_results[-1])
-            print('iter={}, outs={}) {}{}={:.3f}'.format(start_calls, len(new_results), get_prefix(self.external.head),
-                                                         str_from_object(self.get_input_values()), value))
+            print('iter={}, outs={}) {}{}={:.3f}'.format(
+                self.get_iteration(), len(new_results), get_prefix(self.external.head),
+                str_from_object(self.get_input_values()), value))
         if start_history <= len(self.history) - 1:
             self.update_statistics(start_time, new_results)
         self.successful |= any(r.is_successful() for r in new_results)
@@ -133,7 +133,7 @@ class Function(External):
         super(Function, self).__init__(get_prefix(head), info, get_args(head), domain)
         self.head = head
         opt_fn = lambda *args: self.codomain()
-        self.fn = opt_fn if (fn == DEBUG) else fn
+        self.fn = opt_fn if (fn in DEBUG_MODES) else fn
         #arg_spec = get_arg_spec(self.fn)
         #if len(self.inputs) != len(arg_spec.args):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(

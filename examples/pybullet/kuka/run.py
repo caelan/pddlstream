@@ -5,12 +5,12 @@ from __future__ import print_function
 from pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, BodyConf, Command, get_grasp_gen, \
     get_stable_gen, get_ik_fn, get_free_motion_gen, \
-    get_holding_motion_gen, get_movable_collision_test
-from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_world, get_pose, set_pose, Pose, \
+    get_holding_motion_gen, get_movable_collision_test, get_tool_link
+from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, dump_body, get_pose, set_pose, Pose, \
     Point, set_default_camera, stable_z, \
     BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet, \
-    LockRenderer, has_gui
+    LockRenderer, has_gui, draw_pose, draw_global_system
 from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen, from_test, universe_test
 from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object, negate_test
 from pddlstream.language.constants import print_solution, PDDLProblem
@@ -120,10 +120,11 @@ def pddlstream_from_problem(robot, movable=[], teleport=False, grasp_name='top')
 
 def load_world():
     # TODO: store internal world info here to be reloaded
+    set_default_camera()
+    draw_global_system()
     with HideOutput():
-        robot = load_model(DRAKE_IIWA_URDF)
         #add_data_path()
-        #robot = load_pybullet(KUKA_IIWA_URDF)
+        robot = load_model(DRAKE_IIWA_URDF, fixed_base=True) # DRAKE_IIWA_URDF | KUKA_IIWA_URDF
         floor = load_model('models/short_floor.urdf')
         sink = load_model(SINK_URDF, pose=Pose(Point(x=-0.5)))
         stove = load_model(STOVE_URDF, pose=Pose(Point(x=+0.5)))
@@ -131,6 +132,10 @@ def load_world():
         radish = load_model(SMALL_BLOCK_URDF, fixed_base=False)
         #cup = load_model('models/dinnerware/cup/cup_small.urdf',
         # Pose(Point(x=+0.5, y=+0.5, z=0.5)), fixed_base=False)
+
+    draw_pose(Pose(), parent=robot, parent_link=get_tool_link(robot)) # TODO: not working
+    # dump_body(robot)
+    # wait_for_user()
 
     body_names = {
         sink: 'sink',
@@ -142,7 +147,6 @@ def load_world():
 
     set_pose(celery, Pose(Point(y=0.5, z=stable_z(celery, floor))))
     set_pose(radish, Pose(Point(y=-0.5, z=stable_z(radish, floor))))
-    set_default_camera()
 
     return robot, body_names, movable_bodies
 
@@ -170,7 +174,6 @@ def main():
     robot, names, movable = load_world()
     print('Objects:', names)
     saver = WorldSaver()
-    #dump_world()
 
     problem = pddlstream_from_problem(robot, movable=movable, teleport=args.teleport)
     _, _, _, stream_map, init, goal = problem

@@ -5,7 +5,7 @@ from time import time
 
 from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
 from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl
-from pddlstream.utils import INF, Verbose, safe_rm_dir
+from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
 
 
 # TODO: manual_patterns
@@ -26,7 +26,7 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
         solution = run_search(temp_dir, debug=True, **search_args)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     #for axiom in sas_task.axioms:
     #    # TODO: return the set of axioms here as well
     #    var, value = axiom.effect
@@ -45,7 +45,7 @@ def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, d
         solution = run_search(temp_dir, debug=debug, **search_kwargs)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return solution
 
 ##################################################
@@ -98,7 +98,7 @@ def serialized_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=F
         plan, cost = plan_subgoals(sas_task, subgoal_plan, temp_dir, **kwargs)
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return plan, cost
 
 ##################################################
@@ -193,7 +193,7 @@ def abstrips_solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=Fal
             last_plan = [name_from_action(action, args) for action, args in plan]
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     return plan, cost
 
 ##################################################
@@ -233,7 +233,7 @@ def abstrips_solve_from_task_sequential(sas_task, temp_dir=TEMP_DIR, clean=False
             last_plan = [name_from_action(action, args) for action, args in plan]
         if clean:
             safe_rm_dir(temp_dir)
-        print('Total runtime:', time() - start_time)
+        print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
     # TODO: record which level of abstraction each operator is at when returning
     # TODO: return instantiated actions here rather than names (including pruned pre/eff)
     return plan, cost

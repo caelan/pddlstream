@@ -3,12 +3,12 @@ from collections import Counter, Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, get_procedure_fn, \
-    parse_lisp_list, select_inputs, convert_constants
+from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, SHARED_DEBUG, DEBUG_MODES, \
+    get_procedure_fn, parse_lisp_list, select_inputs, convert_constants
 from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
@@ -18,6 +18,7 @@ VERBOSE_WILD = False
 DEFAULT_UNIQUE = False
 NEGATIVE_BLOCKED = True
 NEGATIVE_SUFFIX = '-negative'
+CACHE_OPTIMISTIC = True
 
 # TODO: could also make only wild facts and automatically identify output tuples satisfying certified
 # TODO: default effort cost of streams with more inputs to be higher (but negated are free)
@@ -171,15 +172,14 @@ class StreamResult(Result):
         #index = self.call_index
         return self.instance.opt_results[index]
     def remap_inputs(self, bindings):
-        # TODO: speed this procedure up
-        #if not any(o in bindings for o in self.instance.get_all_input_objects()):
-        #    return self
-        input_objects = apply_mapping(self.input_objects, bindings)
-        fluent_facts = [substitute_fact(f, bindings) for f in self.instance.fluent_facts]
-        new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
-        new_instance.opt_index = self.instance.opt_index
+        new_instance = self.instance.remap_inputs(bindings)
         return self.__class__(new_instance, self.output_objects, self.opt_index,
                               self.call_index, self.list_index, self.optimistic)
+    # def remap_outputs(self, bindings):
+    #     new_instance = self.instance.remap_inputs(bindings)
+    #     output_objects = apply_mapping(self.output_objects, bindings)
+    #     return self.__class__(new_instance, output_objects, self.opt_index,
+    #                           self.call_index, self.list_index, self.optimistic)
     def is_successful(self):
         return True
     def __repr__(self):
@@ -198,6 +198,7 @@ class StreamInstance(Instance):
         opt_gen_fn = self.external.info.opt_gen_fn
         self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
             if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+        self._opt_values = None
         self._axiom_predicate = None
         self._disabled_axiom = None
         # TODO: keep track of unique outputs to prune repeated ones
@@ -222,6 +223,8 @@ class StreamInstance(Instance):
         super(StreamInstance, self).reset()
         self.previous_outputs = set()
         self.num_optimistic = 1
+
+    #########################
 
     def get_result(self, output_objects, opt_index=None, list_index=None, optimistic=True):
         # TODO: rename to create_result because not unique
@@ -265,14 +268,14 @@ class StreamInstance(Instance):
         if (not new_values and VERBOSE_FAILURES) or \
                 (new_values and self.info.verbose):
             print('iter={}, outs={}) {}:{}->{}'.format(
-                self.num_calls, len(new_values), self.external.name,
+                self.get_iteration(), len(new_values), self.external.name,
                 str_from_object(self.get_input_values()), str_from_object(new_values)))
 
     def dump_new_facts(self, new_facts=[]):
         if VERBOSE_WILD and new_facts:
             # TODO: format all_new_facts
             print('iter={}, facts={}) {}:{}->{}'.format(
-                self.num_calls, self.external.name, str_from_object(self.get_input_values()),
+                self.get_iteration(), self.external.name, str_from_object(self.get_input_values()),
                 new_facts, len(new_facts)))
 
     def next_results(self, verbose=False):
@@ -301,6 +304,23 @@ class StreamInstance(Instance):
         #   self.enumerated = True
         return new_results, new_facts
 
+    #########################
+
+    def get_opt_values(self):
+        if CACHE_OPTIMISTIC and (self._opt_values is not None):
+            return self._opt_values
+        self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
+        # TODO: difficulty is that the output is a generator itself
+        return self._opt_values
+
+    def wrap_optimistic(self, output_values, call_index):
+        output_objects = []
+        for name, value in safe_zip(self.external.outputs, output_values):
+            unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name)  # object()
+            param = unique if (self.opt_index == 0) else value # TODO: make a proper abstraction generator
+            output_objects.append(OptimisticObject.from_opt(value, param))
+        return tuple(output_objects)
+
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
@@ -310,17 +330,11 @@ class StreamInstance(Instance):
         #     return self.opt_results # TODO: reuse these (unless opt_index has changed)?
         self.opt_results = []
         output_set = set()
-        for output_list in self.opt_gen_fn(*self.get_input_values()): # TODO: support generators instead
+        for output_list in self.get_opt_values():
             self._check_output_values(output_list)
-            for i, output_values in enumerate(output_list):
+            for output_values in output_list:
                 call_index = len(self.opt_results)
-                output_objects = []
-                for name, value in safe_zip(self.external.outputs, output_values):
-                    # TODO: maybe record history of values here?
-                    unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name) # object()
-                    param = unique if (self.opt_index == 0) else value
-                    output_objects.append(OptimisticObject.from_opt(value, param))
-                output_objects = tuple(output_objects)
+                output_objects = self.wrap_optimistic(output_values, call_index)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
                     self.opt_results.append(self._Result(instance=self, output_objects=output_objects,
@@ -382,6 +396,16 @@ class StreamInstance(Instance):
         #super(StreamInstance, self).enable(evaluations, domain) # TODO: strange infinite loop bug if enabled?
         evaluations.pop(evaluation_from_fact(self.get_blocked_fact()), None)
 
+    def remap_inputs(self, bindings):
+        # TODO: speed this procedure up
+        #if not any(o in bindings for o in self.get_all_input_objects()):
+        #    return self
+        input_objects = apply_mapping(self.input_objects, bindings)
+        fluent_facts = [substitute_fact(f, bindings) for f in self.fluent_facts]
+        new_instance = self.external.get_instance(input_objects, fluent_facts=fluent_facts)
+        new_instance.opt_index = self.opt_index
+        return new_instance
+
     def __repr__(self):
         return '{}:{}->{}'.format(self.external.name, self.input_objects, self.external.outputs)
 
@@ -389,13 +413,13 @@ class StreamInstance(Instance):
 
 class Stream(External):
     _Instance = StreamInstance
-    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info, fluents=[]):
+    def __init__(self, name, gen_fn, inputs, domain, outputs, certified, info=StreamInfo(), fluents=[]):
         super(Stream, self).__init__(name, info, inputs, domain)
         self.outputs = tuple(outputs)
         self.certified = tuple(map(convert_constants, certified))
         self.constants.update(a for i in certified for a in get_args(i) if not is_parameter(a))
         self.fluents = fluents
-        #self.fluents = [] if gen_fn == DEBUG else fluents
+        #self.fluents = [] if (gen_fn in DEBUG_MODES) else fluents
 
         for p, c in Counter(self.outputs).items():
             if not is_parameter(p):
@@ -411,7 +435,11 @@ class Stream(External):
             print('Warning! Output [{}] for stream [{}] is not covered by a certified condition'.format(p, name))
 
         # TODO: automatically switch to unique if only used once
-        self.gen_fn = get_debug_gen_fn(self, shared=True) if gen_fn == DEBUG else gen_fn
+        self.gen_fn = gen_fn # DEBUG_MODES
+        if gen_fn == DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=False) # TODO: list of abstractions that is considered in turn
+        elif gen_fn == SHARED_DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=True)
         assert callable(self.gen_fn)
         self.num_opt_fns = 0 if (self.is_test or self.is_special) else 1 # TODO: is_negated or is_special
         if isinstance(self.info.opt_gen_fn, PartialInputs):

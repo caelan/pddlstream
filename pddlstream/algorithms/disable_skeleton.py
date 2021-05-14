@@ -59,7 +59,7 @@ def compute_failed_indices(skeleton):
 
 
 def current_failed_cluster(binding):
-    assert 1 <= binding.attempts
+    assert 1 <= binding.visits
     failed_result = binding.skeleton.stream_plan[binding.index]
     successful_results = [result for i, result in enumerate(binding.skeleton.stream_plan)
                           if i not in binding.stream_indices]
@@ -73,7 +73,7 @@ def current_failed_cluster(binding):
 
 def current_failure_contributors(binding):
     # Alternatively, find unsuccessful streams in cluster and add ancestors
-    assert (1 <= binding.attempts) or binding.is_dominated()
+    assert (1 <= binding.visits) or binding.is_dominated()
     failed_result = binding.skeleton.stream_plan[binding.index]
     failed_indices = compute_failed_indices(binding.skeleton)  # Use last index?
     partial_orders = get_partial_orders(binding.skeleton.stream_plan)

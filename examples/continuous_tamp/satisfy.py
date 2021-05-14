@@ -13,7 +13,7 @@ from pddlstream.language.stream import StreamInfo
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.constants import Not, Minimize, is_parameter
 from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment
+from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, SatisfactionProblem
 from pddlstream.language.temporal import retime_plan
 from pddlstream.utils import Profiler, INF
 
@@ -129,21 +129,21 @@ def main(success_cost=INF, use_costs=True): # 0 | INF
     if use_costs:
         print('Objectives:', OBJECTIVES)
         terms += OBJECTIVES
+    satisfaction_problem = SatisfactionProblem(stream_pddl, stream_map, INIT, terms)
 
     with Profiler():
         if args.algorithm == 'focused':
-            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms,
-                                                     incremental=False, stream_info=stream_info,
+            solution = solve_pddlstream_satisfaction(satisfaction_problem, incremental=False, stream_info=stream_info,
                                                      #search_sample_ratio=1,
                                                      #max_skeletons=1,
                                                      success_cost=success_cost, max_time=args.max_time)
         elif args.algorithm == 'incremental':
             assert not args.gurobi
-            solution = solve_pddlstream_satisfaction(stream_pddl, stream_map, INIT, terms, incremental=True,
+            solution = solve_pddlstream_satisfaction(satisfaction_problem, incremental=True,
                                                      success_cost=success_cost, max_time=args.max_time,
                                                      verbose=False, debug=False)
         else:
-            solution = constraint_satisfaction(stream_pddl, stream_map, INIT, terms, stream_info=stream_info,
+            solution = constraint_satisfaction(satisfaction_problem, stream_info=stream_info,
                                                costs=not args.unit, success_cost=success_cost,
                                                max_time=args.max_time, search_sample_ratio=1,
                                                debug=False)

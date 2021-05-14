@@ -81,8 +81,8 @@ def pddlstream_from_tamp(tamp_problem):
                   list(tamp_problem.goal_poses.values())
 
     directory = os.path.dirname(os.path.abspath(__file__))
-    domain_pddl = read(os.path.join(directory, 'domain_push.pddl'))
-    stream_pddl = read(os.path.join(directory, 'stream_push.pddl'))
+    domain_pddl = read(os.path.join(directory, 'domain.pddl'))
+    stream_pddl = read(os.path.join(directory, 'stream.pddl'))
     constant_map = {}
 
     init = [

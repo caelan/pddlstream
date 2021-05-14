@@ -1,5 +1,4 @@
 import time
-import random
 
 from collections import namedtuple, deque, Counter
 from itertools import combinations
@@ -9,7 +8,8 @@ from pddlstream.language.external import Result
 from pddlstream.language.statistics import Stats, Performance, EPSILON
 from pddlstream.language.stream import StreamResult
 from pddlstream.utils import INF, neighbors_from_orders, topological_sort, get_connected_components, \
-    sample_topological_sort, is_acyclic, layer_sort, Score, elapsed_time, safe_zip, randomize
+    sample_topological_sort, is_acyclic, layer_sort, Score, safe_zip
+
 
 def get_output_objects(result):
     if isinstance(result, StreamResult):
@@ -25,14 +25,18 @@ def get_object_orders(stream_plan):
                 partial_orders.add((stream1, stream2))
     return partial_orders
 
+def get_initial_orders(init_facts, stream_plan):
+    return {(fact, stream) for stream in stream_plan for fact in stream.get_domain() if fact in init_facts}
+
 def get_fact_orders(stream_plan, init_facts=set()):
     # TODO: explicitly recover this from plan_streams
+    # TODO: init_facts isn't used in practice
     achieved_facts = set(init_facts)
     partial_orders = set()
     for i, stream1 in enumerate(stream_plan):
         new_facts = set(stream1.get_certified()) - achieved_facts
         for stream2 in stream_plan[i+1:]: # Prevents circular
-            if new_facts & set(stream2.instance.get_domain()):
+            if new_facts & set(stream2.get_domain()):
                 partial_orders.add((stream1, stream2))
         achieved_facts.update(new_facts)
     return partial_orders
@@ -46,8 +50,8 @@ def get_partial_orders(stream_plan, use_facts=True, **kwargs):
 
 ##################################################
 
-def get_stream_plan_components(external_plan):
-    partial_orders = get_partial_orders(external_plan)
+def get_stream_plan_components(external_plan, **kwargs):
+    partial_orders = get_partial_orders(external_plan, **kwargs)
     return get_connected_components(external_plan, partial_orders)
 
 def dump_components(stream_plan):

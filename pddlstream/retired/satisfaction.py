@@ -127,11 +127,12 @@ def bindings_from_plan(problem, plan):
 
 ##################################################
 
-def solve_pddlstream_satisfaction(stream_pddl, stream_map, init, constraints, **kwargs):
+def solve_pddlstream_satisfaction(problem, **kwargs):
     # TODO: prune set of streams based on constraints
     # TODO: investigate constraint satisfaction techniques for search instead
     # TODO: optimistic objects based on free parameters that prevent cycles
     # TODO: disallow creation of new parameters / certifying new facts
+    stream_pddl, stream_map, init, constraints = problem
     problem = pddl_from_csp(stream_pddl, stream_map, init, constraints)
     plan, cost, facts = solve(problem, **kwargs)
     bindings = bindings_from_plan(problem, plan)
