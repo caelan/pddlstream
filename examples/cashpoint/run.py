@@ -11,6 +11,7 @@ from pddlstream.utils import read_pddl, Profiler
 from pddlstream.language.constants import get_length, PDDLProblem, print_solution
 from pddlstream.language.generator import from_test, from_fn, from_sampler
 from pddlstream.language.stream import StreamInfo, PartialInputs
+from examples.ipc.rovers.run import dump_plan
 
 # https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl
 # https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/p0.pddl
@@ -111,16 +112,8 @@ def solve_pddlstream(planner='max-astar'):
 def solve_pddl():
     domain_pddl = read_pddl(__file__, 'domain0.pddl')
     problem_pddl = read_pddl(__file__, 'problem0.pddl')
-
     plan, cost = solve_from_pddl(domain_pddl, problem_pddl)
-    solved = plan is not None
-    print('Solved: {}'.format(solved))
-    print('Cost: {}'.format(cost))
-    print('Length: {}'.format(get_length(plan)))
-    if not solved:
-        return
-    for i, action in enumerate(plan):
-        print('{}) {}'.format(i+1, ' '.join(map(str, action))))
+    dump_plan(plan, cost)
 
 def main():
     #solve_pddl()
