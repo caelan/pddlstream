@@ -33,7 +33,7 @@ PROBLEM_PDDL = """
 """
 
 def main():
-    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL)
+    plan, cost = solve_from_pddl(DOMAIN_PDDL, PROBLEM_PDDL, planner='dijkstra')
     dump_plan(plan, cost)
 
 if __name__ == '__main__':
