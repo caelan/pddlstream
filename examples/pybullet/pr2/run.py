@@ -105,7 +105,7 @@ def opt_motion_fn(q1, q2):
 
 #######################################################
 
-def pddlstream_from_problem(problem, teleport=False):
+def pddlstream_from_problem(problem, collisions=True, teleport=False):
     robot = problem.robot
 
     # TODO: integrate pr2 & tamp
@@ -152,14 +152,14 @@ def pddlstream_from_problem(problem, teleport=False):
                      [('Cooked', b)  for b in problem.goal_cooked]
 
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(problem)),
-        'sample-grasp': from_list_fn(get_grasp_gen(problem)),
-        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, teleport=teleport)),
-        'plan-base-motion': from_fn(get_motion_gen(problem, teleport=teleport)),
+        'sample-pose': from_gen_fn(get_stable_gen(problem, collisions=collisions)),
+        'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=False)),
+        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, collisions=collisions, teleport=teleport)),
+        'plan-base-motion': from_fn(get_motion_gen(problem, collisions=collisions, teleport=teleport)),
 
-        'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test()),
-        'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem)),
-        'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem.robot)),
+        'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
+        'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
+        'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem.robot, collisions=collisions)),
 
         'MoveCost': move_cost_fn,
 
@@ -221,6 +221,7 @@ def post_process(problem, plan, teleport=False):
 
 def main(partial=False, defer=False, verbose=True):
     parser = create_parser()
+    parser.add_argument('-cfree', action='store_true', help='Disables collisions during planning')
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
@@ -238,7 +239,7 @@ def main(partial=False, defer=False, verbose=True):
     saver = WorldSaver()
     #dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(problem, teleport=args.teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
 
     stream_info = {
         # 'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
