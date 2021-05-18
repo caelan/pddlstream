@@ -54,8 +54,12 @@ def write_pickle(filename, data):
 
 
 def read_pickle(filename):
+    # Can sometimes read pickle3 from python2 by calling twice
     with open(filename, 'rb') as f:
-        return pickle.load(f)
+        try:
+            return pickle.load(f)
+        except UnicodeDecodeError as e:
+            return pickle.load(f, encoding='latin1')
 
 
 def safe_remove(p):

@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import pickle
 
 from collections import Counter, namedtuple
 
@@ -55,7 +56,10 @@ def load_data(pddl_name):
     filename = get_data_path(pddl_name)
     if not os.path.exists(filename):
         return {}
-    data = read_pickle(filename)
+    #try:
+    data = read_pickle(filename) # TODO: try/except
+    #except pickle.UnpicklingError:
+    #return {}
     #print('Loaded:', filename)
     return data
 
