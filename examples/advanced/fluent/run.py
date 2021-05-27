@@ -5,7 +5,7 @@ from __future__ import print_function
 from pddlstream.algorithms.meta import solve, create_parser, FOCUSED_ALGORITHMS
 from pddlstream.language.generator import from_test, from_fn, universe_test
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.constants import And, print_solution, PDDLProblem
+from pddlstream.language.constants import And, print_solution, PDDLProblem, Output
 from pddlstream.utils import read, get_file_path
 
 TRAJ = [0, 1]
@@ -21,7 +21,7 @@ def feasibility_test(o, fluents=set()):
 def feasibility_fn(o, fluents=set()):
     if not feasibility_test(o, fluents=fluents):
         return None
-    return (TRAJ,)
+    return Output(TRAJ)
 
 def get_pddlstream_problem():
     # TODO: bug where a trajectory sample could be used in a different state than anticipated (don't return the sample)
@@ -34,7 +34,7 @@ def get_pddlstream_problem():
     stream_pddl = read(get_file_path(__file__, 'stream.pddl'))
     stream_map = {
         'sample-pickable': from_fn(feasibility_fn),
-        'test-cleanable': from_test(universe_test),
+        'test-cleanable': from_test(universe_test), # TODO: bug because this stream is never called
         #'test-cleanable': from_fn(lambda o, fluents=set(): None if fluents else (TRAJ,)),
     }
 

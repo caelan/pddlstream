@@ -121,6 +121,21 @@ class WildOutput(object):
     def __iter__(self):
         return iter([self.values, self.facts])
 
+class FluentOutput(object): # TODO: unify with OptimizerOutput
+    # TODO: allow fluent streams to report the subset of facts that caused failure
+    def __init__(self, assignments=[], facts=[], infeasible=[]):
+        self.assignments = list(assignments)
+        self.facts = list(facts)
+        self.infeasible = list(map(frozenset, infeasible))
+    def to_wild(self):
+        return WildOutput(self.assignments, self.facts)
+    def __bool__(self):
+        return bool(self.assignments)
+    __nonzero__ = __bool__
+    def __repr__(self):
+        #return '{}{}'.format(self.__class__.__name__, str_from_object(self.__dict__))
+        return str_from_object(self.__dict__)
+
 class StreamInfo(ExternalInfo):
     def __init__(self, opt_gen_fn=None, negate=False, simultaneous=False,
                  verbose=True, **kwargs): # TODO: set negate to None to express no user preference
