@@ -214,9 +214,9 @@ class StreamInstance(Instance):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
         self.fluent_facts = frozenset(fluent_facts)
-        opt_gen_fns = [opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+        self.opt_gen_fns = [opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
                        for opt_gen_fn in self.external.opt_gen_fns]
-        self.opt_gens = [BoundedGenerator(opt_gen_fn(*self.get_input_values())) for opt_gen_fn in opt_gen_fns]
+        self.opt_gens = len(self.opt_gen_fns)*[None]
         self._axiom_predicate = None
         self._disabled_axiom = None
         # TODO: keep track of unique outputs to prune repeated ones
@@ -327,6 +327,7 @@ class StreamInstance(Instance):
     def wrap_optimistic(self, output_values, call_index):
         output_objects = []
         for name, value in safe_zip(self.external.outputs, output_values):
+            # TODO: retain the value from a custom opt_gen_fn but use unique
             unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name)  # object()
             param = unique if (self.opt_index == 0) else value # TODO: make a proper abstraction generator
             output_objects.append(OptimisticObject.from_opt(value, param))
@@ -335,7 +336,8 @@ class StreamInstance(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        assert self.opt_index < len(self.opt_gens)
+        if self.opt_gens[self.opt_index] is None:
+            self.opt_gens[self.opt_index] = BoundedGenerator(self.opt_gen_fns[self.opt_index](*self.get_input_values()))
         opt_gen = self.opt_gens[self.opt_index]
         try:
             next(opt_gen) # next | list

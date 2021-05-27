@@ -88,7 +88,7 @@ def opt_move_cost_fn(t):
 
 #######################################################
 
-CustomValue = namedtuple('OptValue', ['stream', 'values'])
+CustomValue = namedtuple('CustomValue', ['stream', 'values'])
 
 def opt_pose_fn(o, r):
     p = CustomValue('p-sp', (r,))
