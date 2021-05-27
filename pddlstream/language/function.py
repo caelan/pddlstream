@@ -18,11 +18,11 @@ from pddlstream.utils import str_from_object, apply_mapping
 
 def add_opt_function(name, base_fn, stream_map, stream_info, constant=0., coefficient=1., **external_kwargs):
     stream_fn = lambda *args, **kwargs: constant + coefficient*base_fn(*args, **kwargs)
+    stream_map[name] = stream_fn
     opt_fn = lambda *args, **kwargs: constant
     info = FunctionInfo(opt_fn=opt_fn, **external_kwargs)
-    stream_map[name] = stream_fn
     stream_info[name] = info
-    return stream_info, info
+    return stream_map, stream_info
 
 ##################################################
 

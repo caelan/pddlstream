@@ -5,7 +5,10 @@ from __future__ import print_function
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, print_solution, And, Output
 from pddlstream.language.generator import from_gen
-from pddlstream.utils import flatten, Profiler, SEPARATOR, inf_generator
+from pddlstream.language.stream import StreamInfo
+from pddlstream.language.function import FunctionInfo, add_opt_function
+from pddlstream.language.object import UniqueOptValue, SharedOptValue
+from pddlstream.utils import flatten, Profiler, SEPARATOR, inf_generator, INF
 
 DOMAIN_PDDL = """
 (define (domain cost)
@@ -23,7 +26,7 @@ DOMAIN_PDDL = """
     :effect (and (Goal)
                  (increase (total-cost) 2)
                  (increase (total-cost) (Cost ?x))
-                 (increase (total-cost) 3) ; The last cost is the only one retained
+                 ;(increase (total-cost) 3) ; The last cost is the only one retained
             )
   )
 )
@@ -43,6 +46,19 @@ STREAM_PDDL = """
 
 ##################################################
 
+COST_CONSTANT = 1
+
+def harmonic(x):
+    return 1./(x + 1)
+
+def cost_fn(x):
+    cost = COST_CONSTANT
+    if type(x) not in [UniqueOptValue, SharedOptValue]:
+        cost += harmonic(x)
+    # print(x, cost)
+    # input()
+    return cost
+
 def main():
     parser = create_parser()
     args = parser.parse_args()
@@ -50,8 +66,19 @@ def main():
 
     stream_map = {
         'sample-control': from_gen(Output(i) for i in inf_generator()),
-        'Cost': lambda x: 1./(x + 1),
+        #'Cost': lambda x: COST_CONSTANT + harmonic(x),
+        'Cost': cost_fn,
     }
+    stream_info = {
+        'sample-control': StreamInfo(opt_gen_fn=None),
+        #'Cost': FunctionInfo(opt_fn=lambda x: COST_CONSTANT),
+        'Cost': FunctionInfo(opt_fn=cost_fn),
+    }
+
+    stream_map, stream_info = add_opt_function(name='Cost', base_fn=harmonic,
+                                               stream_map=stream_map, stream_info=stream_info,
+                                               constant=COST_CONSTANT, coefficient=1.)
+    # TODO: cost fn that takes in a list of terms and sums them
 
     init = []
     goal = And(
@@ -66,8 +93,9 @@ def main():
     problem = PDDLProblem(DOMAIN_PDDL, constant_map, STREAM_PDDL, stream_map, init, goal)
 
     with Profiler():
-        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
-                         max_time=2, success_cost=0,
+        solution = solve(problem, stream_info=stream_info, algorithm=args.algorithm, unit_costs=args.unit, max_time=1,
+                         #success_cost=0,
+                         success_cost=INF,
                          planner='max-astar', debug=False)
     print_solution(solution)
 
