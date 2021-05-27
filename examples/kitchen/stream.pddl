@@ -7,6 +7,7 @@
 	(:stream sample-motion
 		:inputs (?gripper ?pose ?pose2)
 		:domain (and (IsGripper ?gripper) (IsPose ?gripper ?pose) (IsPose ?gripper ?pose2))
+		:fluents (AtPose Grasped)
 		:outputs (?control)
 		:certified (and (Motion ?gripper ?pose ?pose2 ?control) (IsControl ?control))
 	)

@@ -249,13 +249,13 @@ def main(partial=False, defer=False, verbose=True):
         'MoveCost': FunctionInfo(opt_move_cost_fn),
     }
     stream_info.update({
-        'sample-pose': StreamInfo(PartialInputs('?r')),
-        'inverse-kinematics': StreamInfo(PartialInputs('?p')),
-        'plan-base-motion': StreamInfo(PartialInputs('?q1 ?q2'), defer_fn=defer_shared if defer else never_defer),
+        'sample-pose': StreamInfo(opt_gen_fn=PartialInputs('?r')),
+        'inverse-kinematics': StreamInfo(opt_gen_fn=PartialInputs('?p')),
+        'plan-base-motion': StreamInfo(opt_gen_fn=PartialInputs('?q1 ?q2'), defer_fn=defer_shared if defer else never_defer),
     } if partial else {
-        'sample-pose': StreamInfo(from_fn(opt_pose_fn)),
-        'inverse-kinematics': StreamInfo(from_fn(opt_ik_fn)),
-        'plan-base-motion': StreamInfo(from_fn(opt_motion_fn)),
+        'sample-pose': StreamInfo(opt_gen_fn=from_fn(opt_pose_fn)),
+        'inverse-kinematics': StreamInfo(opt_gen_fn=from_fn(opt_ik_fn)),
+        'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
     })
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)

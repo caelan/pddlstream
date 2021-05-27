@@ -98,10 +98,14 @@ class DebugValue(object): # TODO: could just do an object
         return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), self.index)
 
 class SharedDebugValue(namedtuple('SharedDebugValue', ['stream', 'output_parameter'])):
-    _prefix = '@' # $ | @
+    # TODO: this alone doesn't refining at the shared object level
+    _prefix = '&' # $ | @ | &
     def __repr__(self):
-        index = hash(self.stream) % 1000
-        return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), index)
+        #index = hash(self.stream) % 1000
+        #index = self.stream.outputs.index(self.output_parameter) # TODO: self.stream is a str
+        #return '{}{}{}'.format(self._prefix, get_parameter_name(self.output_parameter), index)
+        #return '{}{}'.format(self._prefix, self.stream)
+        return '{}{}'.format(self._prefix, get_parameter_name(self.output_parameter))
 
 ##################################################
 

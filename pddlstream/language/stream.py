@@ -37,9 +37,6 @@ def get_identity_fn(indices):
 
 ##################################################
 
-#UNIQUE_OPT =  False
-#DEFAULT_OPT = None
-
 class PartialInputs(object):
     def __init__(self, inputs='', unique=DEFAULT_UNIQUE, test=universe_test): #, num=1):
         self.inputs = tuple(inputs.split())

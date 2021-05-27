@@ -276,11 +276,11 @@ def main(deterministic=False, observable=False, collisions=True, factor=True):
     print('Cost scale:', get_cost_scale())
 
     stream_info = {
-        'GE': StreamInfo(from_test(ge_fn), eager=False),
-        'prob-after-move': StreamInfo(from_fn(get_opt_move_fn(factor=factor))),
-        'MoveCost': FunctionInfo(move_cost_fn),
-        'prob-after-look': StreamInfo(from_fn(get_opt_obs_fn(factor=factor))),
-        'LookCost': FunctionInfo(get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
+        'GE': StreamInfo(opt_gen_fn=from_test(ge_fn), eager=False),
+        'prob-after-move': StreamInfo(opt_gen_fn=from_fn(get_opt_move_fn(factor=factor))),
+        'MoveCost': FunctionInfo(opt_fn=move_cost_fn),
+        'prob-after-look': StreamInfo(opt_gen_fn=from_fn(get_opt_obs_fn(factor=factor))),
+        'LookCost': FunctionInfo(opt_fn=get_look_cost_fn(p_look_fp=0, p_look_fn=0)),
     }
     planner = 'ff-wastar1'
     success_cost = 0 # 0 | MAX_COST

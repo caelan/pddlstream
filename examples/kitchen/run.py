@@ -9,7 +9,7 @@ refinement.CONSTRAIN_PLANS = False
 
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import And, print_solution
-from pddlstream.language.stream import DEBUG
+from pddlstream.language.stream import DEBUG, SHARED_DEBUG, StreamInfo, PartialInputs
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.language.constants import PDDLProblem, read_pddlstream_pair
 from pddlstream.utils import read, get_file_path, Profiler
@@ -61,7 +61,8 @@ def create_problem(initial_poses):
 
     domain_pddl, stream_pddl = read_pddlstream_pair(__file__)
     constant_map = {}
-    stream_map = DEBUG
+    #stream_map = DEBUG
+    stream_map = SHARED_DEBUG
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map,
                        initial_atoms, And(*goal_literals))
@@ -89,10 +90,15 @@ def main():
     }
 
     problem = create_problem(initial_poses)
+    stream_info = {
+        'sample-grasp-ctrl': StreamInfo(opt_gen_fn=PartialInputs(unique=False)),
+    }
+
     with Profiler(field='tottime'):
         #solution = solve_serialized(problem, planner='ff-eager', unit_costs=args.unit,
         #                            unit_efforts=True, effort_weight=1, debug=False) # max_planner_time=5,
-        solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit, planner='ff-eager',
+        solution = solve(problem, algorithm=args.algorithm, stream_info=stream_info,
+                         unit_costs=args.unit, planner='ff-eager',
                          unit_efforts=True, effort_weight=1, debug=False) # max_planner_time=5,
         print_solution(solution)
 
