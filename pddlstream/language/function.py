@@ -111,6 +111,7 @@ class FunctionInstance(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
+        # TODO: cache this value
         opt_value = self.external.opt_fn(*self.get_input_values())
         self.opt_results = [self._Result(self, opt_value, optimistic=True)]
         return self.opt_results
@@ -139,6 +140,7 @@ class Function(External):
         #    raise TypeError('Function [{}] expects inputs {} but its procedure has inputs {}'.format(
         #        self.name, list(self.inputs), arg_spec.args))
         self.opt_fn = opt_fn if (self.info.opt_fn is None) else self.info.opt_fn
+        self.num_opt_fns = 0 # TODO: support multiple opt_fns
     @property
     def function(self):
         return get_prefix(self.head)

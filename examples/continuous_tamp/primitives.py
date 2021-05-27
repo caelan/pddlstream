@@ -54,6 +54,8 @@ def get_block_interval(b, p):
 ##################################################
 
 def collision_test(b1, p1, b2, p2):
+    if b1 == b2:
+        return False
     return interval_overlap(get_block_interval(b1, p1),
                             get_block_interval(b2, p2))
 

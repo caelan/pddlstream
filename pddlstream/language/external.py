@@ -135,7 +135,6 @@ class Instance(object):
         self.disabled = False # TODO: perform disabled using complexity
         self.history = [] # TODO: facts history
         self.results_history = []
-        self.opt_results = None
         self._mapping = None
         self._domain = None
         self.reset()
@@ -255,7 +254,6 @@ class External(Performance):
             print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
-        self.num_opt_fns = 0
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)

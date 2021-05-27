@@ -9,7 +9,7 @@ from pddlstream.language.conversion import list_from_conjunction, substitute_exp
     objects_from_values, substitute_fact
 from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, SHARED_DEBUG, DEBUG_MODES, \
     get_procedure_fn, parse_lisp_list, select_inputs, convert_constants
-from pddlstream.language.generator import get_next, from_fn, universe_test, from_test
+from pddlstream.language.generator import get_next, from_fn, universe_test, from_test, BoundedGenerator
 from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
 from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
 
@@ -66,6 +66,7 @@ class PartialInputs(object):
         external = instance.external
         inputs = external.inputs if self.unique else self.inputs
         assert set(inputs) <= set(external.inputs)
+        unique = (set(inputs) == set(external.inputs))
         # TODO: ensure no scoping errors with inputs
         def gen_fn(*input_values):
             if not self.test(*input_values):
@@ -77,8 +78,13 @@ class PartialInputs(object):
                 #     yield [tuple(UniqueOptValue(instance, idx, out)
                 #                  for out in external.outputs)]
                 # else:
-                yield [tuple(SharedOptValue(external.name, inputs, selected_objects, out)
-                             for out in external.outputs)]
+                if unique:
+                    outputs = tuple(UniqueOptValue(instance, idx, out)
+                                 for out in external.outputs)
+                else:
+                    outputs = tuple(SharedOptValue(external.name, inputs, selected_objects, out)
+                                 for out in external.outputs)
+                yield [outputs]
         return gen_fn
     def __repr__(self):
         return repr(self.__dict__)
@@ -180,6 +186,7 @@ class StreamResult(Result):
     def get_action(self):
         return StreamAction(self.name, self.input_objects, self.output_objects)
     def get_optimistic(self):
+        raise NotImplementedError()
         index = 0
         #index = self.call_index
         return self.instance.opt_results[index]
@@ -207,10 +214,9 @@ class StreamInstance(Instance):
         super(StreamInstance, self).__init__(stream, input_objects)
         self._generator = None
         self.fluent_facts = frozenset(fluent_facts)
-        opt_gen_fn = self.external.info.opt_gen_fn
-        self.opt_gen_fn = opt_gen_fn.get_opt_gen_fn(self) \
-            if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
-        self._opt_values = None
+        opt_gen_fns = [opt_gen_fn.get_opt_gen_fn(self) if isinstance(opt_gen_fn, PartialInputs) else opt_gen_fn
+                       for opt_gen_fn in self.external.opt_gen_fns]
+        self.opt_gens = [BoundedGenerator(opt_gen_fn(*self.get_input_values())) for opt_gen_fn in opt_gen_fns]
         self._axiom_predicate = None
         self._disabled_axiom = None
         # TODO: keep track of unique outputs to prune repeated ones
@@ -318,13 +324,6 @@ class StreamInstance(Instance):
 
     #########################
 
-    def get_opt_values(self):
-        if CACHE_OPTIMISTIC and (self._opt_values is not None):
-            return self._opt_values
-        self._opt_values = list(self.opt_gen_fn(*self.get_input_values())) # TODO: support generators instead
-        # TODO: difficulty is that the output is a generator itself
-        return self._opt_values
-
     def wrap_optimistic(self, output_values, call_index):
         output_objects = []
         for name, value in safe_zip(self.external.outputs, output_values):
@@ -336,22 +335,25 @@ class StreamInstance(Instance):
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        # TODO: (potentially infinite) sequence of optimistic objects
+        assert self.opt_index < len(self.opt_gens)
+        opt_gen = self.opt_gens[self.opt_index]
+        try:
+            next(opt_gen) # next | list
+        except StopIteration:
+            pass
         # TODO: how do I distinguish between real and not real verifications of things?
-        # if self.opt_results is not None:
-        #     return self.opt_results # TODO: reuse these (unless opt_index has changed)?
-        self.opt_results = []
         output_set = set()
-        for output_list in self.get_opt_values():
+        opt_results = []
+        for output_list in opt_gen.history:
             self._check_output_values(output_list)
             for output_values in output_list:
-                call_index = len(self.opt_results)
+                call_index = len(opt_results)
                 output_objects = self.wrap_optimistic(output_values, call_index)
                 if output_objects not in output_set:
                     output_set.add(output_objects) # No point returning the exact thing here...
-                    self.opt_results.append(self._Result(instance=self, output_objects=output_objects,
-                                                         opt_index=self.opt_index, call_index=call_index, list_index=0))
-        return self.opt_results
+                    opt_results.append(self._Result(instance=self, output_objects=output_objects,
+                                                    opt_index=self.opt_index, call_index=call_index, list_index=0))
+        return opt_results
 
     def get_blocked_fact(self):
         if self.external.is_fluent:
@@ -453,13 +455,11 @@ class Stream(External):
         elif gen_fn == SHARED_DEBUG:
             self.gen_fn = get_debug_gen_fn(self, shared=True)
         assert callable(self.gen_fn)
-        self.num_opt_fns = 0 if (self.is_test or self.is_special) else 1 # TODO: is_negated or is_special
-        if isinstance(self.info.opt_gen_fn, PartialInputs):
-            #self.info.opt_gen_fn.register(self)
-            if self.info.opt_gen_fn.unique:
-                self.num_opt_fns = 0
-        #self.bound_list_fn = None # TODO: generalize to a hierarchical sequence
-        #self.opt_fns = [get_unique_fn(self), get_shared_fn(self)] # get_unique_fn | get_shared_fn
+
+        self.opt_gen_fns = [PartialInputs(unique=True)]
+        if not self.is_test and not self.is_special and not \
+                (isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique):
+            self.opt_gen_fns.append(self.info.opt_gen_fn)
 
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
@@ -479,11 +479,14 @@ class Stream(External):
     #    super(Stream, self).reset()
     #    self.disabled_instances = []
     @property
-    def is_test(self):
-        return not self.outputs
+    def num_opt_fns(self):
+        return len(self.opt_gen_fns) - 1
     @property
     def has_outputs(self):
-        return not self.is_test
+        return bool(self.outputs)
+    @property
+    def is_test(self):
+        return not self.has_outputs
     @property
     def is_fluent(self):
         return bool(self.fluents)

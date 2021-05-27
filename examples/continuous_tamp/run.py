@@ -2,10 +2,7 @@
 
 from __future__ import print_function
 
-import argparse
-import cProfile
 import os
-import pstats
 import random
 import numpy as np
 import time
@@ -22,7 +19,7 @@ from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
 from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or
+from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or, Output
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.language.stream import StreamInfo
@@ -100,7 +97,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
     constant_map = {}
     stream_map = {
-        's-grasp': from_fn(lambda b: (GRASP,)),
+        's-grasp': from_fn(lambda b: Output(GRASP)),
         's-region': from_gen_fn(get_pose_gen(tamp_problem.regions)),
         's-ik': from_fn(inverse_kin_fn),
         #'s-ik': from_gen_fn(unreliable_ik_fn),
