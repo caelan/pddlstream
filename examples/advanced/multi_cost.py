@@ -19,14 +19,23 @@ DOMAIN_PDDL = """
   ;(:functions ; FastDownawrd doesn't throw an error when not included
   ;  (Cost ?x)
   ;)
-  (:action execute
+  (:action execute1
     :parameters (?x)
     :precondition (and (Control ?x)
                   )
-    :effect (and (Goal)
+    :effect (and ;(Goal)
                  (increase (total-cost) 2)
                  (increase (total-cost) (Cost ?x))
                  ;(increase (total-cost) 3) ; The last cost is the only one retained
+            )
+  )
+  (:action execute2
+    :parameters (?x1 ?x2)
+    :precondition (and (Control ?x1) (Control ?x2)) ; TODO: make the costs parameters and add them in a generic fn
+    :effect (and (Goal)
+                 (increase (total-cost) (Cost ?x1))
+                 (increase (total-cost) (Cost ?x2))
+                 (increase (total-cost) (Sum ?x1 ?x2))
             )
   )
 )
@@ -40,6 +49,9 @@ STREAM_PDDL = """
   )
   (:function (Cost ?x)
     (Control ?x)
+  )
+  (:function (Sum ?x1 ?x2)
+    (and (Control ?x1) (Control ?x2))
   )
 )
 """
@@ -68,6 +80,7 @@ def main():
         'sample-control': from_gen(Output(i) for i in inf_generator()),
         #'Cost': lambda x: COST_CONSTANT + harmonic(x),
         'Cost': cost_fn,
+        'Sum': lambda *xs: sum(cost_fn(x) for x in xs),
     }
     stream_info = {
         'sample-control': StreamInfo(opt_gen_fn=None),
