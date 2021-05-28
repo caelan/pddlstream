@@ -259,13 +259,13 @@ class StreamInstance(Instance):
         return [Fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
 
     def _create_generator(self):
-        if self._generator is not None:
-            return
-        input_values = self.get_input_values()
-        if self.external.is_fluent: # self.fluent_facts
-            self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
-        else:
-            self._generator = self.external.gen_fn(*input_values)
+        if self._generator is None:
+            input_values = self.get_input_values()
+            if self.external.is_fluent: # self.fluent_facts
+                self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
+            else:
+                self._generator = self.external.gen_fn(*input_values)
+        return self._generator
 
     def _next_wild(self):
         output, self.enumerated = get_next(self._generator, default=[])
@@ -324,25 +324,42 @@ class StreamInstance(Instance):
 
     #########################
 
+    def get_representative_optimistic(self):
+        for opt_gn in self.opt_gens:
+            if (opt_gn is not None) and opt_gn.history and opt_gn.history[0]:
+                return opt_gn.history[0][0]
+        return None
+
     def wrap_optimistic(self, output_values, call_index):
         output_objects = []
-        for name, value in safe_zip(self.external.outputs, output_values):
+        representative_outputs = self.get_representative_optimistic()
+        assert representative_outputs is not None
+        for name, value, rep in zip(self.external.outputs, output_values, representative_outputs):
             # TODO: retain the value from a custom opt_gen_fn but use unique
-            unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name)  # object()
-            param = unique if (self.opt_index == 0) else value # TODO: make a proper abstraction generator
+            #unique = UniqueOptValue(instance=self, sequence_index=call_index, output=name)  # object()
+            #param = unique if (self.opt_index == 0) else value
+            param = value
+            value = rep
             output_objects.append(OptimisticObject.from_opt(value, param))
         return tuple(output_objects)
+
+    def _create_opt_generator(self, opt_index=None):
+        # TODO: automatically refine opt_index based on self.opt_gens
+        if opt_index is None:
+            opt_index = self.opt_index
+        if self.opt_gens[opt_index] is None:
+            self.opt_gens[opt_index] = BoundedGenerator(self.opt_gen_fns[opt_index](*self.get_input_values()))
+            opt_gen = self.opt_gens[opt_index]
+            try:
+                next(opt_gen) # next | list
+            except StopIteration:
+                pass
+        return self.opt_gens[opt_index]
 
     def next_optimistic(self):
         if self.enumerated or self.disabled:
             return []
-        if self.opt_gens[self.opt_index] is None:
-            self.opt_gens[self.opt_index] = BoundedGenerator(self.opt_gen_fns[self.opt_index](*self.get_input_values()))
-        opt_gen = self.opt_gens[self.opt_index]
-        try:
-            next(opt_gen) # next | list
-        except StopIteration:
-            pass
+        opt_gen = self._create_opt_generator(self.opt_index)
         # TODO: how do I distinguish between real and not real verifications of things?
         output_set = set()
         opt_results = []
