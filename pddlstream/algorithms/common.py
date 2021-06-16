@@ -126,33 +126,50 @@ def compute_complexity(evaluations, facts, complexity_op=COMPLEXITY_OP):
 ##################################################
 
 def optimistic_complexity(evaluations, optimistic_facts, fact):
-    # TODO: take the min of the two
+    if fact in optimistic_facts: # Matters due to reachieving
+        return optimistic_facts[fact]
     evaluation = evaluation_from_fact(fact)
-    if evaluation in evaluations:
-        return evaluations[evaluation].complexity
-    return optimistic_facts[fact]
+    #if evaluation in evaluations:
+    return evaluations[evaluation].complexity
+    #return optimistic_facts[fact]
+
+
+def stream_plan_preimage(stream_plan):
+    # Easy because monotonic
+    preimage = set()
+    achieved = set()
+    for stream in stream_plan:
+        preimage.update(set(stream.get_domain()) - achieved)
+        achieved.update(stream.get_certified())
+    return preimage
 
 
 def stream_plan_complexity(evaluations, stream_plan, stream_calls, complexity_op=COMPLEXITY_OP):
     if not is_plan(stream_plan):
         return INF
     # TODO: difference between a result having a particular complexity and the next result having something
-    optimistic_facts = {}
+    #optimistic_facts = {}
+    optimistic_facts = {fact: evaluations[evaluation_from_fact(fact)].complexity
+                        for fact in stream_plan_preimage(stream_plan)}
     result_complexities = []
+    #complexity = 0
     for i, result in enumerate(stream_plan):
-        result_complexity = complexity_op([0] + [optimistic_complexity(evaluations, optimistic_facts, fact)
+        # if result.external.get_complexity(num_calls=INF) == 0: # TODO: skip if true
+        result_complexity = complexity_op([0] + [optimistic_facts[fact]
+                                                 #optimistic_complexity(evaluations, optimistic_facts, fact)
                                                  for fact in result.get_domain()])
-
         # if stream_calls is None:
         #     num_calls = result.instance.num_calls
         # else:
         num_calls = stream_calls[i]
         result_complexity += result.external.get_complexity(num_calls)
         result_complexities.append(result_complexity)
+        #complexity = complexity_op(complexity, result_complexity)
         for fact in result.get_certified():
             if fact not in optimistic_facts:
                 optimistic_facts[fact] = result_complexity
-    return complexity_op([0] + result_complexities)
+    complexity = complexity_op([0] + result_complexities)
+    return complexity
 
 
 def is_instance_ready(evaluations, instance):

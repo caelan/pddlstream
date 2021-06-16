@@ -8,6 +8,8 @@ from pddlstream.language.statistics import Performance, PerformanceInfo, DEFAULT
 from pddlstream.utils import elapsed_time, get_mapping, flatten, INF, safe_apply_mapping, Score, INF
 
 DEBUG = 'debug'
+SHARED_DEBUG = 'shared_debug'
+DEBUG_MODES = [DEBUG, SHARED_DEBUG]
 
 never_defer = lambda *args, **kwargs: False
 defer_unique = lambda result, *args, **kwargs: result.is_refined()
@@ -257,6 +259,7 @@ class External(Performance):
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+    # TODO: naming convention for statics and fluents
     @property
     def has_outputs(self):
         raise NotImplementedError()
@@ -272,10 +275,14 @@ class External(Performance):
     @property
     def is_function(self):
         raise NotImplementedError()
+    @property
     def is_cost(self):
         return False
+    @property
+    def zero_complexity(self):
+        return self.is_special or not self.has_outputs
     def get_complexity(self, num_calls=0):
-        if self.is_special or not self.has_outputs:
+        if self.zero_complexity:
             return 0
         return num_calls + 1
     def get_instance(self, input_objects):
@@ -296,8 +303,8 @@ class External(Performance):
 ##################################################
 
 def get_procedure_fn(stream_map, name):
-    if stream_map == DEBUG:
-        return DEBUG
+    if not isinstance(stream_map, dict): # DEBUG_MODES
+        return stream_map
     if name not in stream_map:
         raise ValueError('Undefined external procedure: {}'.format(name))
     return stream_map[name]

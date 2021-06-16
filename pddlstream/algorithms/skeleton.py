@@ -2,21 +2,27 @@ from __future__ import print_function
 
 import time
 from collections import namedtuple, Sized
+from itertools import count
 from heapq import heappush, heappop
 
-from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified
+from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified, \
+    stream_plan_preimage, COMPLEXITY_OP
+from pddlstream.language.conversion import evaluation_from_fact
 from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
-from pddlstream.algorithms.reorder import get_output_objects, get_object_orders
+from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
 from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF
+from pddlstream.algorithms.visualization import visualize_stream_orders
+from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
+    incoming_from_edges, outgoing_from_edges
 
+# TODO: the bias away from solved things is actually due to USE_PRIORITIES+timed_process not REQUIRE_DOWNSTREAM
+USE_PRIORITIES = True
 GREEDY_VISITS = 0
+GREEDY_BEST = True
 REQUIRE_DOWNSTREAM = True
 
-# TODO: automatically set the opt level to be zero for any streams that are bound?
-
-Priority = namedtuple('Priority', ['not_best', 'not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
+Priority = namedtuple('Priority', ['not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
 def compute_affected_downstream(stream_plan, index):
@@ -54,8 +60,32 @@ class Skeleton(object):
         self.root = Binding(self, self.cost, history=[], mapping={}, index=0, parent=None, parent_result=None)
         self.affected_indices = [compute_affected_downstream(self.stream_plan, index)
                                  for index in range(len(self.stream_plan))]
+
+        stream_orders = get_partial_orders(self.stream_plan) # init_facts=self.queue.evaluations)
+        index_from_result = get_mapping(stream_plan, range(len(stream_plan)))
+        index_orders = {(index_from_result[r1], index_from_result[r2]) for r1, r2 in stream_orders}
+
+        preimage = stream_plan_preimage(stream_plan)
+        self.preimage_complexities = [[queue.evaluations[evaluation_from_fact(fact)].complexity
+                                       for fact in stream.get_domain() if fact in preimage] for stream in stream_plan]
+        self.incoming_indices = incoming_from_edges(index_orders)
+        self.outgoing_indices = outgoing_from_edges(index_orders)
+
         #min_complexity = stream_plan_complexity(self.queue.evaluations, self.stream_plan, [0]*len(stream_plan))
         # TODO: compute this all at once via hashing
+    def compute_complexity(self, stream_calls, complexities=[]):
+        # TODO: use the previous value when possible
+        assert len(stream_calls) == len(self.stream_plan)
+        start_index = len(complexities)
+        complexities = complexities + [0]*(len(stream_calls) - start_index)
+        for index in range(start_index, len(self.stream_plan)):
+            complexities[index] = self.compute_index_complexity(index, stream_calls[index], complexities)
+        return complexities
+    def compute_index_complexity(self, index, num_calls, complexities):
+        # TODO: automatically set the opt level to be zero for any streams that are bound (assuming not reachieve)
+        domain_complexity = COMPLEXITY_OP([0] + self.preimage_complexities[index] +
+                                          [complexities[index2] for index2 in self.incoming_indices[index]])
+        return domain_complexity + self.stream_plan[index].external.get_complexity(num_calls=num_calls)
     def update_best(self, binding):
         if (self.best_binding is None) or (self.best_binding.index < binding.index) or \
                 ((self.best_binding.index == binding.index) and (binding.cost < self.best_binding.cost)):
@@ -69,10 +99,16 @@ class Skeleton(object):
         return self.stream_plan[index].remap_inputs(mapping) # Has optimistic output objects
     def bind_action_plan(self, mapping):
         return bind_action_plan(self.action_plan, mapping)
+    def visualize_bindings(self):
+        # TODO: remap outputs
+        orders = {(binding1.parent_result, binding2.parent_result)
+                  for binding1, binding2 in self.root.get_connections()}
+        return visualize_stream_orders(orders)
 
 ##################################################
 
 class Binding(object):
+    counter = count()
     def __init__(self, skeleton, cost, history, mapping, index, parent, parent_result):
     #def __init__(self, skeleton, cost=0., history=[], mapping={}, index=0, parent=None):
         self.skeleton = skeleton
@@ -90,8 +126,10 @@ class Binding(object):
         self.visits = 0 # The number of times _process_binding has been called
         self.calls = 0 # The index for result_history
         self.complexity = None
+        self.complexities = None
         self.max_history = max(self.history) if self.history else 0
         self.skeleton.update_best(self)
+        self.num = next(self.counter) # TODO: FIFO
     @property
     def is_fully_bound(self):
         return self.index == len(self.skeleton.stream_plan)
@@ -110,7 +148,8 @@ class Binding(object):
         return self.is_fully_bound or self.result.enumerated
     def is_unsatisfied(self):
         return not self.children
-
+    def is_greedy(self):
+        return (self.visits <= GREEDY_VISITS) and (not GREEDY_BEST or self.is_best())
     def up_to_date(self):
         if self.is_fully_bound:
             return True
@@ -121,11 +160,19 @@ class Binding(object):
     def compute_complexity(self):
         if self.is_fully_bound:
             return 0
+        # TODO: use last if self.result.external.get_complexity(num_calls=INF) == 0
         # TODO: intelligently compute/cache this - store parent stream_plan_complexity or compute formula per skeleton
         if self.complexity is None:
             full_history = self.history + [self.calls] # TODO: relevant history, full history, or future
             future = full_history + [0]*(len(self.skeleton.stream_plan) - len(full_history))
-            self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
+            parent_complexities = [0]*len(self.skeleton.stream_plan) if self.index == 0 else self.parent.complexities
+            if self.skeleton.outgoing_indices[self.index]:
+                self.complexities = self.skeleton.compute_complexity(future, complexities=parent_complexities[:self.index])
+            else:
+                self.complexities = list(parent_complexities)
+                self.complexities[self.index] = self.skeleton.compute_index_complexity(self.index, self.calls, self.complexities)
+            self.complexity = COMPLEXITY_OP(self.complexities)
+            #self.complexity = stream_plan_complexity(self.skeleton.queue.evaluations, self.skeleton.stream_plan, future)
         return self.complexity
         #return compute_complexity(self.skeleton.queue.evaluations, self.result.get_domain()) + \
         #       self.result.external.get_complexity(self.visits) # visits, calls
@@ -146,20 +193,22 @@ class Binding(object):
         #if not affected.indices or (max(affected.indices) < self.index):
         #    # Cut branch for efficiency purposes
         #    return False
-        # TODO: discard bindings that have been pruned by their cost
-        return any(binding.check_downstream_helper(affected) for binding in self.children) # TODO: any or all
+        # TODO: discard bindings that have been pruned by their cost per affected component
+        # TODO: both any and all weakly prune
+        return any(binding.check_downstream_helper(affected) for binding in self.children)
     def check_downstream(self):
         return self.check_downstream_helper(self.skeleton.affected_indices[self.index])
     def get_priority(self):
+        if not USE_PRIORITIES:
+            return Priority(not_greedy=True, complexity=0, visits=self.visits, remaining=0, cost=0.)
         # TODO: use effort instead
         # TODO: instead of remaining, use the index in the queue to reprocess earlier ones
-        greedy = (self.visits <= GREEDY_VISITS)
         #priority = self.visits
         #priority = self.compute_complexity()
         priority = self.compute_complexity() + (self.visits - self.calls) # TODO: check this
         # TODO: call_index
         remaining = len(self.skeleton.stream_plan) - self.index
-        return Priority(not self.is_best(), not greedy, priority, self.visits, remaining, self.cost)
+        return Priority(not self.is_greedy(), priority, self.visits, remaining, self.cost)
     def post_order(self):
         for child in self.children:
             for binding in child.post_order():
@@ -170,6 +219,13 @@ class Binding(object):
             for ancestor in self.parent.get_ancestors():
                 yield ancestor
         yield self
+    def get_connections(self):
+        # TODO: easier to just iterate over all bindings and extract the parent
+        connections = []
+        for child in self.children:
+            connections.append((self, child))
+            connections.extend(child.get_connections())
+        return connections
     def recover_bound_results(self):
         return [binding.parent_result for binding in list(self.get_ancestors())[1:]]
     def update_bindings(self):
@@ -189,6 +245,7 @@ class Binding(object):
         self.calls = instance.num_calls
         self.visits = max(self.visits, self.calls)
         self.complexity = None # Forces re-computation
+        #self.skeleton.visualize_bindings()
         return new_bindings
     def __repr__(self):
         return '{}(skeleton={}, {})'.format(self.__class__.__name__, self.skeleton.index, self.result)
@@ -203,7 +260,7 @@ class SkeletonQueue(Sized):
         self.store = store
         self.domain = domain
         self.skeletons = []
-        self.queue = []
+        self.queue = [] # TODO: deque version
         self.disable = disable
         self.standby = []
 
@@ -238,6 +295,7 @@ class SkeletonQueue(Sized):
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
         self.skeletons.append(skeleton)
         self.push_binding(skeleton.root)
+        #self.greedily_process()
         return skeleton
 
     def readd_standby(self):
@@ -248,6 +306,7 @@ class SkeletonQueue(Sized):
     #########################
 
     def _process_binding(self, binding):
+        assert binding.calls <= binding.visits # TODO: global DEBUG mode
         readd = is_new = False
         if binding.is_dominated():
             return readd, is_new
@@ -283,12 +342,11 @@ class SkeletonQueue(Sized):
         # TODO: if readd == STANDBY
         return is_new
 
-    def greedily_process(self, only_best=True):
+    def greedily_process(self):
         num_new = 0
         while self.is_active():
             priority, binding = self.peak_binding()
-            #print(binding.is_best() == not priority.not_best) # TODO: update if stale
-            if (only_best and priority.not_best) or priority.not_greedy:
+            if not binding.is_greedy(): #priority.not_greedy:
                 break
             num_new += self.process_root()
         return num_new
@@ -343,7 +401,7 @@ class SkeletonQueue(Sized):
         if not self.is_active():
             return num_new
         print('Sampling for up to {:.3f} seconds'.format(max_time)) #, max_iterations))
-        start_time = time.time()
+        start_time = time.time() # TODO: instead use sample_time
         while self.is_active() and (elapsed_time(start_time) < max_time) and (iterations < max_iterations):
             iterations += 1
             num_new += self.process_root()
@@ -378,6 +436,7 @@ class SkeletonQueue(Sized):
         if not self.queue:
             return FAILED
 
+        # TODO: add and process
         self.timed_process(max_time=(max_time - elapsed_time(start_time)))
         self.process_complexity(complexity_limit)
         if accelerate:

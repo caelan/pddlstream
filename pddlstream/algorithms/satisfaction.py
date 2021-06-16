@@ -19,16 +19,20 @@ from pddlstream.language.function import Function
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
 from pddlstream.language.stream import Stream
+from pddlstream.algorithms.visualization import visualize_constraints
 from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 
+# TODO: ConstraintProblem?
 SatisfactionProblem = namedtuple('SatisfactionProblem', ['stream_pddl', 'stream_map', 'init', 'terms'])
 SatisfactionSolution = namedtuple('SatisfactionSolution', ['bindings', 'cost', 'facts'])
 
 ##################################################
 
+def parse_value(value):
+    return OptimisticObject.from_opt(value, value) if is_parameter(value) else Object.from_value(value)
+
 def obj_from_existential_expression(parent): # obj_from_value_expression
-    return replace_expression(parent, lambda o: OptimisticObject
-                              .from_opt(o, o) if is_parameter(o) else Object.from_value(o))
+    return replace_expression(parent, parse_value)
 
 def create_domain(goal_facts):
     domain = make_domain()
@@ -98,9 +102,14 @@ def dump_assignment(solution):
     for param in sorted(bindings):
         print('{} = {}'.format(param, str_from_object(bindings[param])))
 
+def visualize_problem(problem, **kwargs):
+    stream_pddl, stream_map, init, terms = problem
+    terms = set(map(obj_from_existential_expression, terms))
+    return visualize_constraints(terms, **kwargs)
+
 ##################################################
 
-def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={},
+def constraint_satisfaction(problem, stream_info={},
                             costs=True, max_cost=INF, success_cost=INF, max_time=INF,
                             unit_efforts=False, max_effort=INF,
                             max_skeletons=INF, search_sample_ratio=1, verbose=True, **search_args):
@@ -117,6 +126,7 @@ def constraint_satisfaction(stream_pddl, stream_map, init, terms, stream_info={}
     # TODO: effort that is a function of the number of output parameters (degrees of freedom)
     # TODO: use a CSP solver instead of a planner internally
     # TODO: max_iterations?
+    stream_pddl, stream_map, init, terms = problem
     if not terms:
         return SatisfactionSolution({}, 0, init)
     constraints, negated, functions = partition_facts(set(map(obj_from_existential_expression, terms)))
