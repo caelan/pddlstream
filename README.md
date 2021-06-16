@@ -5,8 +5,8 @@ PDDLStream extends Planning Domain Definition Language (PDDL) by introducing str
 PDDLStream algorithms are domain independent and solve PDDLStream problems with only a blackbox description of each sampler.
 The motivating application of PDDLStream was for general-purpose robot Task and Motion Planning (TAMP). 
 
-The [default](https://github.com/caelan/pddlstream) **pddlstream** branch ([stable](https://github.com/caelan/pddlstream/tree/stable)) is the newest stable "release" of **pddlstream**.
-The [master](https://github.com/caelan/pddlstream/tree/master) **pddlstream** branch is the most recent and advanced version of **pddlstream** but also is somewhat experimental.
+The [default](https://github.com/caelan/pddlstream) **pddlstream** branch ([main](https://github.com/caelan/pddlstream/tree/stable)) is the newest stable "release" of **pddlstream**.
+The [downward](https://github.com/caelan/pddlstream/tree/master) **pddlstream** branch is the most recent and advanced version of **pddlstream** but also is somewhat experimental.
 
 <!--https://www.markdownguide.org/basic-syntax/-->
 <!--https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet-->
@@ -43,8 +43,8 @@ Most notably, it adheres to PDDL conventions and syntax whenever possible and co
 ```
 $ git clone --recursive --branch downward git@github.com:caelan/pddlstream.git
 $ cd pddlstream
-$ git submodule update --init --recursive
-$ ./downward/build.py
+pddlstream$ git submodule update --init --recursive
+pddlstream$ ./downward/build.py
 ```
 <!--```
 $ git clone --recursive https://github.com/caelan/pddlstream.git
@@ -57,7 +57,7 @@ If building fails, install FastDownward's dependencies using your package manage
 
 If necessary, see FastDownward's [documentation](http://www.fast-downward.org/ObtainingAndRunningFastDownward) for more detailed installation instructions.
 
-My FastDownward "fork" is several years old. If you have trouble compiling FastDownward on a newer machine, try installing the experimental [downward](https://github.com/caelan/pddlstream/tree/downward) PDDLStream branch.
+<!--My FastDownward "fork" is several years old. If you have trouble compiling FastDownward on a newer machine, try installing the experimental [downward](https://github.com/caelan/pddlstream/tree/downward) PDDLStream branch.-->
 
 PDDLStream actively supports python2.7 as well as the most recent version of python3.
 <!--(many robotics applications still require python2.7)-->
