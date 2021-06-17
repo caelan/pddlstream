@@ -9,8 +9,9 @@ from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solutio
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.generator import from_fn, from_test
 
+# TODO: 2 modes - check for possible inconsistency before or fail if inconsistency is detected after
 DOMAIN_PDDL = """
-(define (domain debug)
+(define (domain temporal)
   (:predicates 
     (Time ?t)
     (Duration ?dt)
@@ -21,11 +22,13 @@ DOMAIN_PDDL = """
     (Stove ?s) ; TODO: Oven
     
     (CookDuration ?dt ?f ?s)
-    (Cooking ?t2 ?f ?s)
+    (Cooking ?t ?f ?s)
 
     (AtTime ?t)
     (Cooked ?f)
     (Locked ?s)
+    (Premature ?t)
+    (Invalid)
   )
   (:functions
     (Elapsed ?dt)
@@ -33,7 +36,11 @@ DOMAIN_PDDL = """
   (:action wait
     :parameters (?t1 ?dt ?t2)
     :precondition (and (Sum ?t1 ?dt ?t2) 
-                       (AtTime ?t1))
+                       (AtTime ?t1)
+                       ;(CanWait)
+                       (not (Premature ?t2))
+                       (not (Invalid))
+                  )
     :effect (and (AtTime ?t2) 
                  (not (AtTime ?t1))
                  (increase (total-cost) (Elapsed ?dt)))
@@ -43,29 +50,52 @@ DOMAIN_PDDL = """
     :precondition (and ;(Food ?f) (Stove ?s)
                        (CookDuration ?dt ?f ?s)
                        (Sum ?t1 ?dt ?t2)
-                       (AtTime ?t1) 
+                       (AtTime ?t1)
                        (not (Locked ?f)) (not (Locked ?s))
+                       ;(not (Premature ?t1))
+                       (not (Invalid))
                    )
     :effect (and (Cooking ?t2 ?f ?s)
                  (Locked ?f) (Locked ?s)
                  (increase (total-cost) 0))
   )
+  ; TODO: while cooking
   (:action stop-cooking
     :parameters (?t2 ?f ?s)
     :precondition (and (Time ?t2) (Food ?f) (Stove ?s)
                        (Cooking ?t2 ?f ?s)
-                       (AtTime ?t2))
+                       (AtTime ?t2)
+                       ;(not (Premature ?t2))
+                       (not (Invalid))
+                  )
     :effect (and (Cooked ?f)
                  (not (Cooking ?t2 ?f ?s))
                  (not (Locked ?f)) (not (Locked ?s))
                  (increase (total-cost) 0))
   )
+  
+  ;# TODO: overall conditions
+  ;(:derived (Valid) (and
+  ;  (forall (?t ?f ?s) (imply (Cooking ?t ?f ?s)
+  ;                            (and ...)))
+  ;))
+  
+  ;(:derived (Invalid) (or
+  ;  (exists (?t ?f ?s) (and (Cooking ?t ?f ?s) 
+  ;                           ...))
+  ;))
+    
+  (:derived (Premature ?t2) (or 
+    (exists (?t1 ?f ?s) (and (Food ?f) (Stove ?s)
+                             (GE ?t2 ?t1) (not (= ?t2 ?t1)) ; TODO: strictly greater than?
+                             (Cooking ?t1 ?f ?s)))
+  ))
 )
 """
 
 # TODO: see counting, satisfy, cashpoint, discrete_belief, ...
 STREAM_PDDL = """
-(define (stream exogenous)
+(define (stream temporal)
   (:stream add
     :inputs (?t1 ?dt)
     :domain (and (Time ?t1) (Duration ?dt))
@@ -77,24 +107,6 @@ STREAM_PDDL = """
     :domain (and (Time ?t1) (Time ?t2))
     :certified (GE ?t1 ?t2)
   )
-  
-  ;(:stream decrement
-  ;  :inputs (?x1)
-  ;  :domain (Integer ?x1)
-  ;  :outputs (?x2)
-  ;  :certified (Integer ?x2)
-  ;)
-  ;(:stream test-large
-  ;  :inputs (?x)
-  ;  :domain (Integer ?x)
-  ;  :certified (Large ?x)
-  ;)
-  ;(:stream test-small
-  ;  :inputs (?x)
-  ;  :domain (Integer ?x)
-  ;  :certified (Small ?x)
-  ;)
-
   (:function (Elapsed ?dt) 
              (Duration ?dt))
 )
@@ -102,13 +114,11 @@ STREAM_PDDL = """
 
 ##################################################
 
-def create_problem(max_time=20., n_foods=2, n_stoves=1):
+def create_problem(max_time=20., n_foods=3, n_stoves=2):
     constant_map = {}
     stream_map = {
         'add': from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_time) else None),
-        'decrement': from_fn(lambda x: (x - 1,)),
         'ge': from_test(lambda t1, t2: t1 >= t2),
-        # 'test-small': from_test(lambda x: x <= -n),
         'Elapsed': lambda dt: dt,
     }
 
@@ -122,7 +132,7 @@ def create_problem(max_time=20., n_foods=2, n_stoves=1):
     init = [
         ('Time', t0),
         ('AtTime', t0),
-        ('Duration', wait_dt),
+        #('Duration', wait_dt),
         ('Time', goal_t),
     ]
 
@@ -159,13 +169,13 @@ def main():
     print('Goal:', problem.goal)
 
     info = {
-        # Intentionally, misleading the stream
-        'increment': StreamInfo(p_success=0.01, overhead=1),
-        'decrement': StreamInfo(p_success=1, overhead=1),
+        'add': StreamInfo(eager=True, verbose=True),
+        'ge': StreamInfo(eager=True, verbose=False),
     }
 
     solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
-                     stream_info=info, planner='max-astar', effort_weight=1)
+                     stream_info=info, planner='ff-wastar1',
+                     effort_weight=None, debug=True, verbose=False)
     print_solution(solution)
 
 if __name__ == '__main__':
