@@ -261,6 +261,7 @@ Diverse Planners:
 * [Recent Overview](https://youtu.be/7xLPogztQss)
 * [Recent Tutorial](https://youtu.be/JNOk1rylDpU)
 * [PDDLStream Tutorial](https://web.mit.edu/caelan/www/presentations/6.881_19-11-12.pdf)
+* [The AI Planning & PDDL Wiki](https://planning.wiki/)
 * [Planning Domain Definition Language (PDDL)](http://users.cecs.anu.edu.au/~patrik/pddlman/writing.html)
 * [Derived Predicates](https://www.cs.cmu.edu/afs/cs/project/jair/pub/volume28/coles07a-html/node18.html)
 * [FastDownward](http://www.fast-downward.org/)
