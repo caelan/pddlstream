@@ -16,22 +16,42 @@
     (Locked ?s)
     (Premature ?t)
     (Invalid)
+    (CanWait)
   )
   (:functions
     (Elapsed ?dt)
+    (Difference ?t2 ?t1)
   )
-  (:action wait
-    :parameters (?t1 ?dt ?t2)
-    :precondition (and (Sum ?t1 ?dt ?t2)
+
+  ;(:action wait
+  ;  :parameters (?t1 ?dt ?t2)
+  ;  :precondition (and (Sum ?t1 ?dt ?t2)
+  ;                     (AtTime ?t1)
+  ;                     (CanWait)
+  ;                     (not (Premature ?t2))
+  ;                     (not (Invalid))
+  ;                )
+  ;  :effect (and (AtTime ?t2)
+  ;               (not (AtTime ?t1))
+  ;               (not (CanWait))
+  ;               (increase (total-cost) (Elapsed ?dt)))
+  ;)
+
+  (:action wait ; # TODO: allow jumping between any times or just between adjacent ones
+    :parameters (?t1 ?t2)
+    :precondition (and (GE ?t2 ?t1) (not (= ?t1 ?t2))
                        (AtTime ?t1)
-                       ;(CanWait)
+                       (CanWait)
                        (not (Premature ?t2))
                        (not (Invalid))
                   )
     :effect (and (AtTime ?t2)
                  (not (AtTime ?t1))
-                 (increase (total-cost) (Elapsed ?dt)))
-  )
+                 (not (CanWait))
+                 ;(increase (total-cost) 1)
+                 (increase (total-cost) (Difference ?t2 ?t1))
+            ))
+
   (:action start-cooking
     :parameters (?t1 ?dt ?t2 ?f ?s)
     :precondition (and ;(Food ?f) (Stove ?s)
@@ -44,6 +64,7 @@
                    )
     :effect (and (Cooking ?t2 ?f ?s)
                  (Locked ?f) (Locked ?s)
+                 (CanWait)
                  (increase (total-cost) 0))
   )
   ; TODO: while cooking
@@ -58,6 +79,7 @@
     :effect (and (Cooked ?f)
                  (not (Cooking ?t2 ?f ?s))
                  (not (Locked ?f)) (not (Locked ?s))
+                 (CanWait)
                  (increase (total-cost) 0))
   )
 
