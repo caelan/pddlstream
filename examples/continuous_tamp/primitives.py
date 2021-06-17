@@ -468,7 +468,7 @@ def update_state(state, action, t):
         robot, _, traj, _ = args
         robot_confs[robot] = get_value_at_time(traj, fraction)
     elif name == 'pick':
-        robot, block, pose, grasp, conf = args
+        robot, block, pose, grasp, conf = args[:5]
         traj = [conf, pose - grasp]
         if fraction < threshold:
             robot_confs[robot] = get_value_at_time(traj, fraction / threshold)
@@ -477,7 +477,7 @@ def update_state(state, action, t):
             block_poses.pop(block, None)
             robot_confs[robot] = get_value_at_time(traj[::-1], (fraction - threshold) / (1 - threshold))
     elif name == 'place':
-        robot, block, pose, grasp, conf = args
+        robot, block, pose, grasp, conf = args[:5]
         traj = [conf, pose - grasp]
         if fraction < threshold:
             robot_confs[robot] = get_value_at_time(traj, fraction / threshold)

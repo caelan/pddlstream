@@ -28,7 +28,7 @@
     ; Derived predicates
     (Holding ?r ?b)
     (In ?b ?s)
-    (Unsafe ?b)
+    (UnsafePose ?b1 ?p1 ?b2)
   )
   (:functions
     (Cost)
@@ -39,7 +39,8 @@
     :parameters (?r ?q1 ?t ?q2)
     :precondition (and (Robot ?r) (Motion ?q1 ?t ?q2)
                        (AtConf ?r ?q1) (CanMove ?r)
-                       (forall (?b) (imply (Block ?b) (not (Unsafe ?b))))
+                       (forall (?b1 ?p1 ?b2) (imply (and (Pose ?b1 ?p1) (Block ?b2))
+                                                    (not (UnsafePose ?b1 ?p1 ?b2))))
                   )
     :effect (and (AtConf ?r ?q2)
                  (not (AtConf ?r ?q1)) (not (CanMove ?r))
@@ -57,6 +58,7 @@
   (:action place
     :parameters (?r ?b ?p ?g ?q ?s)
     :precondition (and (Robot ?r) (Kin ?b ?q ?p ?g) (Contain ?b ?p ?s)
+                       ; TODO: opposite version where the search pays before using (like with axioms)
                        (AtConf ?r ?q) (AtGrasp ?r ?b ?g)
                        ; TODO: recreate a precondition version
                        ;(forall (?b2 ?p2) ; TODO: makes incremental slow
@@ -65,7 +67,9 @@
                   )
     :effect (and (AtPose ?b ?p) (In ?b ?s) (HandEmpty ?r) (CanMove ?r)
                  (not (AtGrasp ?r ?b ?g)) (not (Holding ?r ?b))
-                 (forall (?b2) (when (and (Block ?b) (not (= ?b ?b2))) (Unsafe ?b2)))
+                 ; TODO: condition that negates all (not (UnsafePose ?b1 ?p1 ?b2))
+                 (forall (?b2) (when (and (Block ?b2) (not (= ?b ?b2)))
+                                     (UnsafePose ?b ?p ?b2)))
                  (increase (total-cost) (Cost))))
 
   (:action cook
@@ -75,14 +79,13 @@
     :effect (and (Cooked ?b)
                  (increase (total-cost) (Cost))))
 
-  (:action prove-safe
-    :parameters (?b)
-    :precondition (and (Block ?b) (Unsafe ?b))
-    :effect (not (Unsafe ?b)))
-
-  ;(:derived (UnsafePose ?b1 ?p1)
-  ;  (exists (?b2 ?p2) (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)
-  ;                         (AtPose ?b2 ?p2)
-  ;                         (not (CFree ?b1 ?p1 ?b2 ?p2))
-  ;                     )))
+  (:action prove-safe ; TODO: maybe just use the subsequent state
+    ; TODO: impose partial orders on objects to reduce branching factor
+    ; TODO: condition (UnsafePose ?b1 ?p1 ?b2) before must not hold
+    :parameters (?b1 ?p1 ?b2 ?p2)
+    :precondition (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)
+                       (CFree ?b1 ?p1 ?b2 ?p2)
+                       (AtPose ?b2 ?p2) (UnsafePose ?b1 ?p1 ?b2)
+    )
+    :effect (not (UnsafePose ?b1 ?p1 ?b2)))
 )
