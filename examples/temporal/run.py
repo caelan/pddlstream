@@ -65,6 +65,10 @@ def create_problem(max_t=20., n_foods=3, n_stoves=2):
     discretize_dt = None # TODO: set to None if not all times are StartTimes
     # TODO: iteratively increase max_t and/or discretize_dt
 
+    # TODO: min_dt is the min of all the durations
+    # TODO: sample the duration for actions
+    # TODO: add epsilon after every action start
+
     init = [
         ('CanWait',),
         ('Time', t0),
@@ -110,6 +114,25 @@ def create_problem(max_t=20., n_foods=3, n_stoves=2):
 
 def main():
     # TODO: previous domains with dynamics: rocket domain, car domain, ..
+    # stripstream
+    # https://github.mit.edu/caelan/stripstream/tree/master/fts_scripts
+    # https://github.mit.edu/caelan/stripstream/tree/master/lis_scripts
+    # https://github.mit.edu/caelan/stripstream/tree/master/robotics/openrave
+    # https://github.mit.edu/caelan/stripstream/tree/master/scripts
+    # https://github.mit.edu/caelan/stripstream/tree/master/scripts/metric/run_car.py
+    # https://github.mit.edu/caelan/stripstream/tree/master/scripts/metric/run_rocket.py
+    # https://github.mit.edu/caelan/stripstream/tree/master/scripts/metric/run_tsiolkovsky.py
+    # https://github.mit.edu/caelan/stripstream/tree/master/scripts/openrave
+    # https://github.mit.edu/caelan/stripstream/tree/master/stripstream/pddl/examples
+    # https://github.mit.edu/caelan/stripstream/tree/master/stripstream/fts/examples
+
+    # ss
+    # https://github.mit.edu/caelan/ss/tree/master/belief
+    # https://github.mit.edu/caelan/ss/tree/master/openrave
+    # https://github.mit.edu/caelan/ss/tree/master/examples
+
+    # http://gki.informatik.uni-freiburg.de/papers/eyerich-etal-icaps09.pdf
+
     # TODO: exogenous agents such as intercepting a ball
     # examples/pybullet/turtlebots/domain.pddl
     # examples/continuous_tamp/temporal/domain.pddl

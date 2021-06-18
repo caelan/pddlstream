@@ -51,11 +51,13 @@ def convert_constants(fact):
 ##################################################
 
 class ExternalInfo(PerformanceInfo):
-    def __init__(self, eager=False, defer_fn=never_defer, **kwargs):
+    def __init__(self, eager=False, eager_skeleton=False, defer_fn=never_defer, **kwargs):
         super(ExternalInfo, self).__init__(**kwargs)
         # TODO: enable eager=True for inexpensive test streams by default
         # TODO: change p_success and overhead if it's a function or test stream
         self.eager = eager
+        self.eager_skeleton = eager_skeleton # TODO: apply in binding and adaptive
+        # TODO: automatically set tests and costs to be eager
         self.defer_fn = defer_fn # Old syntax was defer=True
         #self.complexity_fn = complexity_fn
 

@@ -80,6 +80,20 @@ GOAL_NAME = '@goal' # @goal-reachable
 # bound (int): exclusive depth bound on g-values. Cutoffs are always performed according to the real cost.
 # (i.e. solutions must be strictly better than the bound)
 
+HEURISTICS = ['add', 'blind', 'cea', 'ff', 'goalcount', 'hmax', 'lmcut'] # hm
+TRANSFORMS = ['NORMAL', 'ONE', 'PLUSONE']
+
+# TODO: move toward using this style
+
+def Heuristic(heuristic='ff', cost_type='PLUSONE'):
+    return '--heuristic "h={heuristic}(transform=adapt_costs(cost_type={cost_type}))"'.format(
+        heuristic=heuristic, cost_type=cost_type)
+
+def EagerWeightedAStar(heuristic='ff', weight=1, cost_type='PLUSONE'):
+    return '--search eager_wastar(evals=[h()], preferred=[], reopen_closed=true, boost=0, w={weight}, pruning=null(), ' \
+           'cost_type={cost_type}, bound=infinity, max_time=infinity, verbosity=normal)'.format(
+        weight=weight, cost_type=cost_type)
+
 SEARCH_OPTIONS = {
     # See FastDownward's documentation for more configurations
     # http://www.fast-downward.org/Doc/Evaluator
@@ -113,14 +127,16 @@ SEARCH_OPTIONS = {
                          '--search "eager(tiebreaking([h, g()]),reopen_closed=false,'
                          'cost_type=PLUSONE,max_time=%s,bound=%s, f_eval=sum([g(), h]))"', # preferred=[h],
     'ff-lazy-tiebreak': '--heuristic "h=ff(transform=no_transform())" '
-                         '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
-                         'randomize_successors=True,cost_type=PLUSONE,max_time=%s,bound=%s)"',  # preferred=[h],
+                        '--search "lazy(tiebreaking([h, g()]),reopen_closed=false,'
+                        'randomize_successors=True,cost_type=PLUSONE,max_time=%s,bound=%s)"',  # preferred=[h],
     # TODO: eagerly evaluate goal count but lazily compute relaxed plan
 
     'ff-ehc': '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
               '--search "ehc(h,preferred=[h],preferred_usage=RANK_PREFERRED_FIRST,'
               'cost_type=PLUSONE,max_time=%s,bound=%s)"',
     # The key difference is that ehc resets the open list upon finding an improvement
+
+    # TODO: iterated search
 }
 # TODO: do I want to sort operators in FD hill-climbing search?
 # TODO: greedily prioritize operators with less cost. Useful when prioritizing actions that have no stream cost
@@ -128,19 +144,22 @@ SEARCH_OPTIONS = {
 for w in range(1, 1+5):
     SEARCH_OPTIONS.update({
         # TODO: specify whether lazy or eager
-        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},' \
-                  'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+        'ff-wastar{w}'.format(w=w): '--heuristic "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                  '--search "lazy_wastar([h],preferred=[h],reopen_closed=true,boost=100,w={w},'
+                  'randomize_successors=false,preferred_successors_first=true,random_seed=-1,'
+                  'cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
 
-        'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},' \
-                   'preferred_successors_first=true,cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+        'cea-wastar{w}'.format(w=w): '--heuristic "h=cea(transform=adapt_costs(cost_type=PLUSONE))" '
+                   '--search "lazy_wastar([h],preferred=[h],reopen_closed=false,boost=1000,w={w},'
+                   'randomize_successors=false,preferred_successors_first=true,random_seed=-1,'
+                   'cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
 
+        # TODO: eager_wastar
         # http://www.fast-downward.org/Doc/SearchEngine#Eager_weighted_A.2A_search
-        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=PLUSONE))" ' \
-                                   '--search "eager(alt([single(sum([g(), weight(h,{w})])),' \
-                                            'single(sum([g(),weight(h,{w})]),pref_only=true)]),' \
-                                        'preferred=[h],cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
+        'ff-astar{w}'.format(w=w): '--evaluator "h=ff(transform=adapt_costs(cost_type=PLUSONE))" '
+                                   '--search "eager(alt([single(sum([g(), weight(h,{w})])),'
+                                   'single(sum([g(),weight(h,{w})]),pref_only=true)]),'
+                                   'preferred=[h],cost_type=PLUSONE,max_time=%s,bound=%s)"'.format(w=w),
     })
 
 if USE_CERBERUS:
@@ -160,6 +179,10 @@ DEFAULT_MAX_TIME = 30 # INF
 DEFAULT_CONSERVATIVE_PLANNER = 'ff-astar'
 DEFAULT_GREEDY_PLANNER = 'ff-astar2'
 DEFAULT_PLANNER = DEFAULT_GREEDY_PLANNER
+
+def print_search_options():
+    for i, (name, command) in enumerate(sorted(SEARCH_OPTIONS.items())):
+        print('\n{}) {}: {}'.format(i, name, command))
 
 ##################################################
 
@@ -400,14 +423,15 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     max_time = convert_value(max_planner_time)
     max_cost = convert_value(scale_cost(max_cost))
     start_time = time()
-    search = os.path.join(FD_BIN, SEARCH_COMMAND)
+    search = os.path.abspath(os.path.join(FD_BIN, SEARCH_COMMAND))
     if planner == 'cerberus':
         planner_config = SEARCH_OPTIONS[planner] # Check if max_time, max_cost exist
     else:
         planner_config = SEARCH_OPTIONS[planner] % (max_time, max_cost)
-    command = search.format(temp_dir + SEARCH_OUTPUT, planner_config, temp_dir + TRANSLATE_OUTPUT)
+    temp_dir = os.path.abspath(temp_dir)
+    command = search.format(os.path.join(temp_dir, SEARCH_OUTPUT), planner_config,
+                            os.path.join(temp_dir, TRANSLATE_OUTPUT))
 
-    temp_path = os.path.join(os.getcwd(), TEMP_DIR)
     domain_path = os.path.abspath(os.path.join(temp_dir, DOMAIN_INPUT))
     problem_path = os.path.abspath(os.path.join(temp_dir, PROBLEM_INPUT))
     if USE_FORBID:
@@ -425,12 +449,15 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #except subprocess.CalledProcessError as e:
     #    print(e)
 
+    temp_path = os.path.join(os.getcwd(), TEMP_DIR) # TODO: temp dir?
     for filename in os.listdir(temp_path):
         if filename.startswith(SEARCH_OUTPUT):
             safe_remove(os.path.join(temp_path, filename))
 
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, cwd=None, close_fds=True)
     output, error = proc.communicate()
+    #if proc.returncode not in [0, 12]: # Good: [0, 12] | Bad: [127]
+    #    raise RuntimeError(proc.returncode)
 
     if USE_FORBID:
         for filename in os.listdir(FORBID_PATH):

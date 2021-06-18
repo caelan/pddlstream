@@ -94,9 +94,9 @@
   ;                           ...))
   ;))
 
-  (:derived (Premature ?t2) (or
-    (exists (?t1 ?f ?s) (and (Food ?f) (Stove ?s)
-                             (GE ?t2 ?t1) (not (= ?t2 ?t1)) ; TODO: strictly greater than?
-                             (Cooking ?t1 ?f ?s)))
-  ))
+  (:derived (Premature ?t2)
+    (exists (?t1) (and (GE ?t2 ?t1) (not (= ?t2 ?t1)) (or ; TODO: strictly greater than?
+      (exists (?f ?s) (and (Food ?f) (Stove ?s)
+                           (Cooking ?t1 ?f ?s)))
+  ))))
 )
