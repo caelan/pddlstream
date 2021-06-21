@@ -97,15 +97,16 @@ def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
     # TODO: filter instantiated_axioms that aren't applicable?
     import options
     with Verbose(False):
-        all_axioms, _ = axiom_rules.handle_axioms(
-            [], instantiated_axioms, goals, options.layer_strategy)
+        # axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goals)
+        all_axioms, axiom_layers = axiom_rules.handle_axioms(
+            operators=[], axioms=instantiated_axioms, goals=goals, layer_strategy=options.layer_strategy)
     axiom_init = set()  # TODO: new FastDownward does not use axiom_init
     helpful_axioms = []
     for axiom in all_axioms:
-        if axiom.effect in goals:
+        if axiom.effect in goals: # TODO: double check this
             helpful_axioms.append(axiom)
             init_atom = axiom.effect.negate()
-            if init_atom in axiom_init:
+            if axiom.effect in axiom_init:
                 raise RuntimeError('Bug introduced by new "downward" where both the positive and negative atoms '
                                    'of literal {} are in the initial state'.format(init_atom.positive()))
             axiom_init.add(init_atom)

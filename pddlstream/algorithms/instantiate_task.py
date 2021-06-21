@@ -292,12 +292,16 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     return task
 
 
-def convert_instantiated(instantiated_task):
-    import axiom_rules
+def convert_instantiated(instantiated_task, verbose=False):
     task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
     normalize.normalize(task)
-    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
-    init = task.init + axiom_init
+    import axiom_rules
+    #axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
+    #init = task.init + axiom_init
+    import options
+    with Verbose(verbose):
+        axioms, axiom_layers = axiom_rules.handle_axioms(actions, axioms, goal_list, options.layer_strategy)
+    init = task.init
     # axioms.sort(key=lambda axiom: axiom.name)
     # for axiom in axioms:
     #  axiom.dump()
