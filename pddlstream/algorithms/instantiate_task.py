@@ -10,7 +10,7 @@ from pddlstream.algorithms.downward import get_literals, get_precondition, get_f
 from pddlstream.algorithms.relation import Relation, compute_order, solve_satisfaction
 from pddlstream.language.constants import is_parameter
 from pddlstream.utils import flatten, apply_mapping, MockSet, elapsed_time, Verbose, safe_remove, ensure_dir, \
-    str_from_object, user_input
+    str_from_object, user_input, Profiler
 
 import pddl
 import instantiate
@@ -174,6 +174,7 @@ def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwarg
     start_time = time()
     print()
     normalize.normalize(task)
+    #with Profiler(field='tottime', num=25):
     if use_fd:
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:

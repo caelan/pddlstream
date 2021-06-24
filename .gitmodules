@@ -3,4 +3,4 @@
 	url = https://github.com/caelan/ss-pybullet
 [submodule "downward"]
 	path = downward
-	url = git@github.com:caelan/downward.git
+	url = https://github.com/caelan/downward.git
