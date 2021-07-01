@@ -11,8 +11,9 @@ import traceback
 from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
-    parse_sequential_domain, get_conjunctive_parts, write_pddl, make_action, make_parameters, make_object, fd_from_fact, Domain, make_effects
-from pddlstream.language.constants import DurativeAction, Fact, Not
+    parse_sequential_domain, get_conjunctive_parts, write_pddl, make_action, make_parameters, make_object, \
+    fd_from_fact, Domain, make_effects, make_axiom, make_preconditions
+from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix
 from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
@@ -410,10 +411,7 @@ def parse_temporal_domain(domain_pddl):
     sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
     import pddl_parser
-    assert not actions
-
-    simple_from_durative = simple_from_durative_action(durative_actions, fluents)
-    simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
+    assert not actions # Only durative actions
 
     requirements = pddl.Requirements([])
     types = [pddl.Type(ty.name, ty.basetype_name) for ty in types]
@@ -434,6 +432,7 @@ def parse_domain(domain_pddl):
     except AssertionError as e:
         if str(e) == DURATIVE_ACTIONS:
             return parse_temporal_domain(domain_pddl)
+        traceback.print_exc()
         raise e
 
 ##################################################
@@ -513,20 +512,33 @@ def expand_condition(condition):
 def convert_durative(durative_actions, fluents):
     # TODO: if static, apply as a condition to all
     from pddlstream.algorithms.advanced import get_predicates
+    from pddlstream.algorithms.downward import fd_from_fact
     import pddl
+
+    # TODO: automatically add streams
+    can_move = ('CanMove',)
+    stopped = ('Stopped',)
+    violated = ('DeadEnd',)
+    AtTime = 'attime'
 
     wait_action = make_action(
         name='wait',
         parameters=['?t1', '?t2'],
         preconditions=[
-            ('time', '?t1'), ('time', '?t2'),
-            ('attime', '?t1'),
-            #('CanMove',),
+            #('time', '?t1'), ('time', '?t2'),
+            ('ge', '?t2', '?t1'),
+            #('adjacent', '?t1', '?t2'),
+            (AtTime, '?t1'),
+            can_move,
+            Not(stopped),
+            Not(violated),
+            Not(Fact('premature', ['?t1'])),
         ],
         effects=[
-            ('attime', '?t2'),
-            Not(('attime', '?t2')),
-            #Not(('CanMove',)),
+            (AtTime, '?t2'),
+            Not((AtTime, '?t2')),
+            Not(can_move),
+            stopped,
         ],
         #cost=None,
     )
@@ -534,6 +546,7 @@ def convert_durative(durative_actions, fluents):
     #asdf = Fact('sum', ['?t1', '?t2'])
     # TODO: need to connect the function
 
+    axioms = []
     actions = [wait_action]
     for action in durative_actions:
         #print(type(action.duration))
@@ -544,30 +557,95 @@ def convert_durative(durative_actions, fluents):
         parameters = convert_parameters(action.parameters)
         #start_cond, over_cond, end_cond = list(map(expand_condition, action.condition))
         start_cond, over_cond, end_cond = list(map(convert_condition, action.condition))
-        #assert not over_cond
+        #assert not over_cond # Over is inclusive
         start_effects, end_effects = list(map(convert_effects, action.effects))
         #start_effects, end_effects = action.effects
 
         durative_predicate = 'durative-{}'.format(action.name)
-        fact = Fact(durative_predicate, ['?t2'] + [p.name for p in parameters])
+        active_fact = Fact(durative_predicate, ['?t2'] + [p.name for p in parameters])
+        # TODO: ongoing & end facts
 
         start_parameters = [make_object(t) for t in ['?t1', '?dt', '?t2']] + parameters
         start_action = pddl.Action('start-{}'.format(action.name), start_parameters, len(start_parameters),
-                                 pddl.Conjunction([pddl.Atom('sum', ['?t1', '?dt', '?t2']), pddl.Atom('attime', ['?t1']),
-                                                   static_condition, start_cond, over_cond]).simplified(),
-                                 make_effects([fact]) + start_effects, None) # static_condition
+                                 pddl.Conjunction([pddl.Atom('sum', ['?t1', '?dt', '?t2']),
+                                                   pddl.Atom(AtTime, ['?t1']),
+                                                   fd_from_fact(Not(violated)),
+                                                   static_condition,
+                                                   start_cond,
+                                                   #over_cond, # TODO: inclusive
+                                                   ]).simplified(),
+                                 make_effects([
+                                     active_fact, can_move, Not(stopped),
+                                 ]) + start_effects, None) # static_condition
 
         # TODO: case matters
         end_parameters = [make_object('?t2')] + parameters
         end_action = pddl.Action('stop-{}'.format(action.name), end_parameters, len(end_parameters),
-                                 pddl.Conjunction([pddl.Atom('time', ['?t2']), pddl.Atom('attime', ['?t2']),
-                                                   fd_from_fact(fact), static_condition, end_cond, over_cond]).simplified(),
-                                 make_effects([Not(fact)]) + end_effects, None) # static_condition
+                                 pddl.Conjunction([pddl.Atom('time', ['?t2']),
+                                                   pddl.Atom(AtTime, ['?t2']),
+                                                   fd_from_fact(active_fact),
+                                                   fd_from_fact(Not(violated)),
+                                                   static_condition,
+                                                   #over_cond, # TODO: inclusive
+                                                   end_cond,
+                                                   ]).simplified(),
+                                 make_effects([
+                                     Not(active_fact), can_move, Not(stopped),
+                                 ]) + end_effects, None) # static_condition
         actions.extend([start_action, end_action])
-    for action in actions:
-        action.dump()
 
-    return actions
+        #########################
+
+        derived = Fact('premature', ['?t'])
+        axiom_parameters = [make_object('?t')] + end_parameters
+        #print([o.name for o in axiom_parameters])
+        # axiom = make_axiom(parameters=[o.name for o in axiom_parameters],
+        #                    preconditions=[('ge', '?t', '?t2'), (AtTime, '?t2'), active_fact],
+        #                    derived=derived)
+
+        parameters = [o.name for o in axiom_parameters]
+        predicate = get_prefix(derived)
+        external_parameters = list(get_args(derived))
+        internal_parameters = [p for p in parameters if p not in external_parameters]
+        parameters = external_parameters + internal_parameters
+        axiom = pddl.Axiom(name=predicate,
+                           parameters=make_parameters(parameters),
+                           num_external_parameters=len(external_parameters),
+                           condition=pddl.Conjunction([pddl.Atom('ge', ['?t', '?t2']),
+                                                       #pddl.Atom(AtTime, ['?t2']),
+                                                       fd_from_fact(active_fact),
+                                                       static_condition]).simplified())
+        axioms.append(axiom)
+
+        #########################
+
+        #derived = Fact('stuff', [])
+        derived = violated
+        axiom_parameters = end_parameters
+        print([o.name for o in axiom_parameters])
+
+        parameters = [o.name for o in axiom_parameters]
+        predicate = get_prefix(derived)
+        external_parameters = list(get_args(derived))
+        internal_parameters = [p for p in parameters if p not in external_parameters]
+        parameters = external_parameters + internal_parameters
+        axiom = pddl.Axiom(name=predicate, # TODO: do this per non-static condition
+                           parameters=make_parameters(parameters),
+                           num_external_parameters=len(external_parameters),
+                           condition=pddl.Conjunction([pddl.Atom('time', ['?t2']),
+                                                       static_condition,
+                                                       fd_from_fact(active_fact),
+                                                       over_cond.negate(),
+                                                       ]).simplified())
+        axioms.append(axiom)
+
+
+    for action in actions + axioms:
+        print(action.parameters)
+        action.dump()
+    #input()
+
+    return actions, axioms
 
 
 def simple_from_durative_action(durative_actions, fluents):

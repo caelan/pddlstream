@@ -31,10 +31,13 @@
      (at start (Stove ?s))
      (at start (not (Locked ?f)))
      (at start (not (Locked ?s)))
+     (over all (On ?s))
    )
    :effect (and
+     (at start (On ?s))
      (at start (Locked ?f))
      (at start (Locked ?s))
+     (at end (not (On ?s)))
      (at end (not (Locked ?f)))
      (at end (not (Locked ?s)))
      (at end (Cooked ?f))

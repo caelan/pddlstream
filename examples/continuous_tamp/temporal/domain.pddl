@@ -81,7 +81,7 @@
 			(at start (not (HandEmpty ?r)))
 			(at end (AtGrasp ?r ?b ?g))
 			(forall (?s) (when (at start (Contain ?b ?p ?s)) ; TODO: maybe typing info helps here
-												 (at end (not (On ?b ?s)))))
+							   (at end (not (On ?b ?s)))))
 		)
 	)
 
