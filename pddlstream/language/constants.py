@@ -116,7 +116,7 @@ def concatenate(*args):
     return tuple(output)
 
 
-def Fact(predicate, args):
+def Fact(predicate, args=[]):
     return (predicate,) + tuple(args)
 
 
