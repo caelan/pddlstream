@@ -14,9 +14,10 @@
     (AtTime ?t)
     (Cooked ?f)
     (Locked ?s)
-    (Premature ?t)
-    (Invalid)
-    (CanWait)
+    (On ?s)
+    ;(Premature ?t)
+    ;(Invalid)
+    ;(CanWait)
   )
   (:functions
     (Elapsed ?dt)
@@ -26,9 +27,17 @@
   (:action turn-on
     :parameters (?s)
     :precondition (and (Stove ?s)
-                       (not (On ?s))
+                       ;(not (On ?s))
                   )
     :effect (and (On ?s)
+                 (increase (total-cost) 0))
+  )
+  (:action turn-off
+    :parameters (?s)
+    :precondition (and (Stove ?s)
+                       ;(On ?s)
+                  )
+    :effect (and (not (On ?s))
                  (increase (total-cost) 0))
   )
 
@@ -45,7 +54,7 @@
      (over all (On ?s))
    )
    :effect (and
-     (at start (On ?s))
+     ;(at start (On ?s))
      (at start (Locked ?f))
      (at start (Locked ?s))
      (at start (increase (total-cost) 1)) ; Many temporal planners don't support costs
@@ -54,7 +63,7 @@
 	 ;(at start (scale-up (Test) 1)) ; Not supported
 	 ;(at start (scale-down (Test) 1)) ; Not supported
 
-     (at end (not (On ?s)))
+     ;(at end (not (On ?s)))
      (at end (not (Locked ?f)))
      (at end (not (Locked ?s)))
      (at end (Cooked ?f))

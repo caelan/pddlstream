@@ -477,6 +477,9 @@ def convert_condition(condition):
 
 def convert_conjunctive(conditions):
     import pddl
+    class_name = conditions.__class__.__name__
+    if class_name == 'Truth': # TODO: list conditions for durative actions but not for actions
+        return pddl.Truth()
     return pddl.Conjunction(list(map(convert_condition, conditions))).simplified()
 
 def convert_effects(effects):
