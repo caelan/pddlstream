@@ -521,16 +521,17 @@ GE = 'ge'
 SUM = 'sum'
 
 def convert_durative(durative_actions, fluents):
-    # TODO: if static, apply as a condition to all
     from pddlstream.algorithms.advanced import get_predicates
     from pddlstream.algorithms.downward import fd_from_fact
     import pddl
+    # http://gki.informatik.uni-freiburg.de/papers/eyerich-etal-icaps09.pdf
 
     # TODO: automatically add streams
     can_move = Fact('CanMove')
     stopped = Fact('Stopped')
     violated = Fact('DeadEnd')
     premature = Fact('premature', ['?t'])
+    active_time = Fact('active', ['?t2'])
 
     # TODO: automatically add GE and SUM streams
     wait_action = make_action(
@@ -553,13 +554,21 @@ def convert_durative(durative_actions, fluents):
             Not(can_move),
             stopped, # Disable if using adjacent
         ],
-        #cost=None,
+        cost=None,
     )
 
     #asdf = Fact('sum', ['?t1', '?t2'])
     # TODO: need to connect the function
 
-    axioms = []
+    active_axiom = make_axiom(parameters=['?t', '?t2'],
+                              preconditions=[
+                                  (GE, '?t', '?t2'),
+                                  Not(Equal('?t', '?t2')),
+                                  active_time,
+                              ],
+                              derived=premature)
+
+    axioms = [active_axiom]
     actions = [wait_action]
     for action in durative_actions:
         #print(type(action.duration))
@@ -573,37 +582,47 @@ def convert_durative(durative_actions, fluents):
         #assert not over_cond # Over is inclusive
         start_effects, end_effects = list(map(convert_effects, action.effects))
 
+        # TODO: pddl predicates here are case sensitive
         durative_predicate = 'durative-{}'.format(action.name)
         active_fact = Fact(durative_predicate, ['?t2'] + [p.name for p in parameters])
         # TODO: ongoing & end facts
 
-        start_parameters = [make_object(t) for t in ['?t1', '?dt', '?t2']] + parameters
+        # TODO: epsilonize to move forward in time
+        start_parameters = make_parameters(['?t1', '?dt', '?t2']) + tuple(parameters)
         start_action = pddl.Action('start-{}'.format(action.name), start_parameters, len(start_parameters),
-                                 pddl.Conjunction([pddl.Atom(SUM, ['?t1', '?dt', '?t2']),
-                                                   pddl.Atom(AtTime, ['?t1']),
-                                                   #fd_from_fact(Not(active_fact)),
-                                                   fd_from_fact(Not(violated)),
-                                                   static_condition,
-                                                   start_cond,
-                                                   #over_cond, # TODO: over is inclusive (what about start though)
-                                                   ]).simplified(),
+                                 pddl.Conjunction([
+                                     pddl.Atom(SUM, ['?t1', '?dt', '?t2']),
+                                     pddl.Atom(AtTime, ['?t1']),
+                                     #fd_from_fact(Not(active_fact)),
+                                     fd_from_fact(Not(violated)),
+                                     static_condition,
+                                     start_cond,
+                                     #over_cond, # TODO: over is inclusive (what about start though)
+                                ]).simplified(),
                                  make_effects([
-                                     active_fact, can_move, Not(stopped),
+                                     active_fact,
+                                     can_move,
+                                     Not(stopped),
+                                     Fact('scheduled', ['?t2']),
                                  ]) + start_effects, cost=None)
 
-        # TODO: case matters
+        # TODO: conditional effects to apply all when at end time
         end_parameters = [make_object('?t2')] + parameters
         end_action = pddl.Action('stop-{}'.format(action.name), end_parameters, len(end_parameters),
-                                 pddl.Conjunction([pddl.Atom(Time, ['?t2']),
-                                                   pddl.Atom(AtTime, ['?t2']),
-                                                   fd_from_fact(active_fact),
-                                                   fd_from_fact(Not(violated)),
-                                                   static_condition,
-                                                   #over_cond, # TODO: inclusive
-                                                   end_cond,
-                                                   ]).simplified(),
+                                 pddl.Conjunction([
+                                     pddl.Atom(Time, ['?t2']),
+                                     pddl.Atom(AtTime, ['?t2']),
+                                     fd_from_fact(active_fact),
+                                     fd_from_fact(Not(violated)),
+                                     static_condition,
+                                     #over_cond, # TODO: inclusive
+                                     end_cond,
+                                 ]).simplified(),
                                  make_effects([
-                                     Not(active_fact), can_move, Not(stopped),
+                                     Not(active_fact),
+                                     can_move,
+                                     Not(stopped),
+                                     Not(Fact('scheduled', ['?t2'])),
                                  ]) + end_effects, cost=None)
         actions.extend([start_action, end_action])
 
@@ -619,10 +638,13 @@ def convert_durative(durative_actions, fluents):
         axiom = pddl.Axiom(name=get_prefix(derived), # TODO: make_axiom
                            parameters=make_parameters(external_parameters + internal_parameters),
                            num_external_parameters=len(external_parameters),
-                           condition=pddl.Conjunction([pddl.Atom(GE, ['?t', '?t2']),
-                                                       #pddl.Atom(AtTime, ['?t2']),
-                                                       fd_from_fact(active_fact),
-                                                       static_condition]).simplified())
+                           condition=pddl.Conjunction([
+                               pddl.Atom(GE, ['?t', '?t2']),
+                               fd_from_fact(Not(Equal('?t', '?t2'))),
+                               #pddl.Atom(AtTime, ['?t2']),
+                               fd_from_fact(active_fact),
+                               static_condition,
+                           ]).simplified())
         axioms.append(axiom)
 
         #########################
@@ -632,14 +654,30 @@ def convert_durative(durative_actions, fluents):
         axiom = pddl.Axiom(name=get_prefix(derived), # TODO: do this per non-static condition
                            parameters=make_parameters(external_parameters + internal_parameters),
                            num_external_parameters=len(external_parameters),
-                           condition=pddl.Conjunction([pddl.Atom(Time, ['?t2']),
-                                                       static_condition,
-                                                       fd_from_fact(active_fact),
-                                                       over_cond.negate(),
-                                                       ]).simplified())
+                           condition=pddl.Conjunction([
+                               pddl.Atom(Time, ['?t2']),
+                               static_condition,
+                               fd_from_fact(active_fact),
+                               over_cond.negate(),
+                           ]).simplified())
+        axioms.append(axiom)
+
+        #########################
+
+        derived = active_time
+        external_parameters, internal_parameters = organize_parameters(derived, end_parameters)
+        axiom = pddl.Axiom(name=get_prefix(derived),
+                           parameters=make_parameters(external_parameters + internal_parameters),
+                           num_external_parameters=len(external_parameters),
+                           condition=pddl.Conjunction([
+                               pddl.Atom(Time, ['?t2']),
+                               static_condition,
+                               fd_from_fact(active_fact),
+                           ]).simplified())
         axioms.append(axiom)
 
     for action in actions + axioms:
+        print()
         print(action.parameters)
         action.dump()
     raw_input()
