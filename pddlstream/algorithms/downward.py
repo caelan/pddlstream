@@ -257,6 +257,7 @@ def parse_problem(domain, problem_pddl):
 
 def fd_from_fact(fact):
     # TODO: convert to evaluation?
+    # TODO: return if isinstance(fd, pddl.Literal)
     prefix = get_prefix(fact)
     if prefix == NOT:
         return fd_from_fact(fact[1]).negate()

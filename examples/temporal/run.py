@@ -76,6 +76,7 @@ def create_problem(max_t=20., n_foods=3, n_stoves=2):
         ('AtTime', t0),
         #('Duration', wait_dt), # T
         ('Time', goal_t),
+        ('Duration', 0),
     ]
     if discretize_dt is not None:
         for t in np.arange(t0, max_t, step=1./3):
