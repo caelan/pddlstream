@@ -12,8 +12,8 @@ from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, parse_sequential_domain, get_conjunctive_parts, write_pddl, \
     make_action, make_parameters, make_object, \
-    Domain, make_effects, make_axiom
-from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix, Equal, TOTAL_COST
+    Domain, make_effects, make_axiom, make_cost
+from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix, Equal, TOTAL_COST, INCREASE
 from pddlstream.utils import INF, read, elapsed_time, safe_zip, user_input
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
@@ -491,7 +491,7 @@ def convert_effects(effects):
             peffect_name = effect.peffect.__class__.__name__
             if peffect_name in ('Atom', 'NegatedAtom'):
                 pass
-            elif peffect_name in ('Increase', 'Decrease'):
+            elif peffect_name in ('Increase', 'Decrease'): # TODO: INCREASE, DECREASE
                 # TODO: currently ignoring numeric conditions
                 continue
             new_effects.append(pddl.Effect(convert_parameters(effect.parameters),
@@ -522,14 +522,38 @@ def organize_parameters(derived, axiom_parameters):
     internal_parameters = [p for p in parameter_names if p not in external_parameters]
     return external_parameters, internal_parameters
 
+def extract_costs(effects):
+    import pddl
+    costs = []
+    for effect in effects:
+        class_name = effect.peffect.__class__.__name__.lower()
+        if class_name == INCREASE:
+            assert convert_conjunctive(effect.condition) == pddl.Truth()
+            function = effect.peffect.fluent.symbol  # fluent.args
+            assert function == TOTAL_COST  # TOTAL_TIME
+            cost = effect.peffect.expression
+            if cost.__class__.__name__ == 'PrimitiveNumericExpression':
+                costs.append(Fact(cost.symbol, convert_args(cost.args)))
+                #costs.append(pddl.f_expression.PrimitiveNumericExpression(cost.symbol, convert_args(cost.args)))
+            elif cost.__class__.__name__ == 'NumericConstant':
+                costs.append(cost.value)
+                #costs.append(pddl.f_expression.NumericConstant(cost.value))
+            else:
+                raise NotImplementedError(cost)
+    return costs
+
+##################################################
+
 Time = 'time'
 AtTime = 'attime'
 GE = 'ge'
 SUM = 'sum'
 Premature = 'premature'
 
+ADVANCE = 'advance'
 START_PREFIX = 'start-'
 STOP_PREFIX = 'stop-'
+INSTANT_PREFIX = 'instant-'
 
 def convert_durative(instant_actions, durative_actions, fluents):
     from pddlstream.algorithms.advanced import get_predicates
@@ -548,12 +572,13 @@ def convert_durative(instant_actions, durative_actions, fluents):
     violation = Fact('Violation')
     premature = Fact(Premature, [T])
     active_time = Fact('active', [T2])
+    ongoing = Fact('ongoing')
 
     # TODO: automatically add GE and SUM streams
     # TODO: sum time horizon and time step
     # TODO: extend to numeric variables
     advance_action = make_action(
-        name='advance',
+        name=ADVANCE,
         parameters=[T1, T2],
         #action_params=[T1, DT, T2],
         preconditions=[
@@ -578,20 +603,34 @@ def convert_durative(instant_actions, durative_actions, fluents):
         cost=('difference', T2, T1),
     )
 
-    active_axiom = make_axiom(parameters=[T, T2],
-                              preconditions=[
-                                  (GE, T, T2),
-                                  Not(Equal(T, T2)),
-                                  active_time,
-                              ],
-                              derived=premature)
+    #########################
+
+    premature_axiom = make_axiom(parameters=[T, T2],
+                                 preconditions=[
+                                     (GE, T, T2),
+                                     Not(Equal(T, T2)),
+                                     active_time,
+                                 ],
+                                 derived=premature)
+    ongoing_axiom = make_axiom(parameters=[T2],
+                               preconditions=[
+                                   (Time, T2),
+                                   active_time,
+                               ],
+                               derived=ongoing)
+
+    #########################
 
     new_actions = [advance_action]
-    new_axioms = [active_axiom]
+    new_axioms = [premature_axiom, ongoing_axiom]
     for action in instant_actions:
+        costs = extract_costs(action.effects)
+        assert len(costs) <= 1
+        cost = costs[0] if costs else None
+
         action_params = convert_parameters(action.parameters)
         instant_params = make_parameters([T2]) + tuple(action_params)
-        instant_action = pddl.Action(action.name, instant_params, len(instant_params),
+        instant_action = pddl.Action('{}{}'.format(INSTANT_PREFIX, action.name), instant_params, len(instant_params),
                                    pddl.Conjunction([
                                        convert_condition(action.condition),
                                        pddl.Atom(Time, [T2]),
@@ -599,13 +638,23 @@ def convert_durative(instant_actions, durative_actions, fluents):
                                        fd_from_fact(Not(violation)),
                                    ]).simplified(),
                                    convert_effects(action.effects),
-                                   cost=None)
+                                   cost=make_cost(cost))
         new_actions.append(instant_action)
+        print(action.__dict__)
+        #print(extract_costs(action))
+        #user_input()
+
+    #########################
 
     for action in durative_actions:
         static_condition = pddl.Conjunction(list({
             part for condition in action.condition for part in expand_condition(condition)
             if not (get_predicates(part) & fluents)}))
+
+        print(action.__dict__)
+        costs = [extract_costs(effects) for effects in action.effects]
+        print(costs)
+        user_input()
 
         # TODO: convert the function to a predicate defined on ?dt
         # [(_, duration)], _ = action.duration
@@ -615,16 +664,6 @@ def convert_durative(instant_actions, durative_actions, fluents):
         #start_cond, over_cond, end_cond = list(map(expand_condition, action.condition))
         start_cond, over_cond, end_cond = list(map(convert_condition, action.condition))
         start_effects, end_effects = list(map(convert_effects, action.effects))
-
-        # cost = None
-        # for effects in action.effects:
-        #     for effect in effects:
-        #         class_name = effect.peffect.__class__.__name__
-        #         if class_name == 'Increase':
-        #             assert convert_conjunctive(effect.condition) == pddl.Truth()
-        #             function = effect.peffect.fluent.symbol # fluent.args
-        #             assert function == TOTAL_COST # TOTAL_TIME
-        #             cost = effect.peffect.expression.value # TODO: convert function
 
         # TODO: pddl predicates here are case sensitive
         active_pred = 'active-{}'.format(action.name)
@@ -650,7 +689,7 @@ def convert_durative(instant_actions, durative_actions, fluents):
                                        active_fact,
                                        advanceable,
                                        Not(idle),
-                                       Fact('scheduled', [T2]),
+                                       #active_time,
                                    ]) + start_effects, cost=None)
 
         #########################
@@ -671,7 +710,7 @@ def convert_durative(instant_actions, durative_actions, fluents):
                                      Not(active_fact),
                                      advanceable,
                                      Not(idle),
-                                     Not(Fact('scheduled', [T2])),
+                                     #active_time,
                                  ]) + end_effects, cost=None)
         new_actions.extend([start_action, end_action])
 

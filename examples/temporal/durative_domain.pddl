@@ -22,6 +22,7 @@
   (:functions
     (Elapsed ?dt)
     (Difference ?t2 ?t1)
+    (GasCost ?s)
   )
 
   (:action turn-on
@@ -30,7 +31,9 @@
                        ;(not (On ?s))
                   )
     :effect (and (On ?s)
-                 (increase (total-cost) 0))
+                 ;(increase (total-cost) 0)
+                 (increase (total-cost) (GasCost ?s))
+            )
   )
   (:action turn-off
     :parameters (?s)
@@ -38,7 +41,9 @@
                        ;(On ?s)
                   )
     :effect (and (not (On ?s))
-                 (increase (total-cost) 0))
+                 (increase (total-cost) 0)
+                 ;(increase (total-cost) (GasCost ?s))
+            )
   )
 
   (:durative-action cook

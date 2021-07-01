@@ -127,7 +127,7 @@ class Function(External):
     codomain = float # int | float
     _Instance = FunctionInstance
     #_default_p_success = 0.99 # 0.99 | 1  # Might be pruned using cost threshold
-    def __init__(self, head, fn, domain, info):
+    def __init__(self, head, fn, domain, info=FunctionInfo()):
         # TODO: function values that act as preconditions (cost must be below threshold)
         if info is None:
             # TODO: move the defaults to FunctionInfo in the event that an optimistic fn is specified

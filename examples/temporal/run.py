@@ -4,14 +4,18 @@ from __future__ import print_function
 
 from itertools import product
 import numpy as np
+import os
 
 from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And
+from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal
 from pddlstream.utils import read_pddl, INF
+from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, SUM, ENV_VAR
 #from pddlstream.algorithms.downward import print_search_options
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo
+from pddlstream.language.stream import StreamInfo, Stream
+from pddlstream.language.function import FunctionInfo, Function
 from pddlstream.language.generator import from_fn, from_test
+
+os.environ[ENV_VAR] = '/Users/caelan/Programs/external/planners/TemporalFastDownward'
 
 # TODO: 2 modes - check for possible inconsistency before or fail if inconsistency is detected after
 
@@ -45,7 +49,30 @@ STREAM_PDDL = """
 
 ##################################################
 
-def create_problem(max_t=20., n_foods=3, n_stoves=2):
+def create_inequality_stream():
+    #from pddlstream.algorithms.downward import IDENTICAL
+    return Stream(name='ge', gen_fn=from_test(lambda t1, t2: t1 >= t2),
+                  inputs=['?t1', '?t2'],
+                  domain=[(Time, '?t1'), (Time, '?t2')],
+                  outputs=[], certified=[(GE, '?t1', '?t2')],
+                  info=StreamInfo(eager=True), fluents=[])
+
+def create_difference_function():
+    return Function(head=('Difference', '?t2', '?t1'),
+                    fn=lambda t2, t1: t2 - t1,
+                    domain=[(GE, '?t2', '?t1')],
+                    info=StreamInfo(eager=True))
+
+def create_add_function(max_t=INF):
+    return Stream(name='ge', gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
+                  inputs=['?t1', '?dt'],
+                  domain=[(Time, '?t1'), ('Duration', '?t2')],
+                  outputs=[], certified=[(Sum, '?t1', '?t2')],
+                  info=StreamInfo(eager=True), fluents=[])
+
+##################################################
+
+def create_problem(max_t=20., n_foods=1, n_stoves=1):
     constant_map = {}
     stream_map = {
         # TODO: compute the sequence of times and/or length
@@ -79,7 +106,8 @@ def create_problem(max_t=20., n_foods=3, n_stoves=2):
         ('Duration', 0),
     ]
     if discretize_dt is not None:
-        for t in np.arange(t0, max_t, step=1./3):
+        step_size = 1./3
+        for t in np.arange(t0, max_t, step=step_size):
             t = round(t, 3)
             init.extend([
                 ('Time', t),
@@ -96,18 +124,32 @@ def create_problem(max_t=20., n_foods=3, n_stoves=2):
             ('Stove', stove),
             ('CookDuration', cook_dt, food, stove),
             ('Duration', cook_dt),
+            Equal(('GasCost', stove), 0),
         ])
 
     goal_expressions = [
         #Exists(['?t'], And(('GE', '?t', goal_t),
         #                   ('AtTime', '?t'))),
     ]
+    for stove in stoves:
+        goal_expressions.append(Not(('On', stove)))
     for food in foods:
         goal_expressions.append(('Cooked', food))
     goal = And(*goal_expressions)
 
     domain_pddl = read_pddl(__file__, 'domain.pddl')
     stream_pddl = STREAM_PDDL
+
+    #path = '/Users/caelan/Programs/pddlstream/examples/continuous_tamp/temporal/domain.pddl'
+    path = 'durative_domain.pddl'
+    domain_pddl = read_pddl(__file__, path)
+
+    #domain = parse_domain(domain_pddl)
+    #domain = parse_temporal_domain(domain_pddl)
+    #domain_pddl = domain
+
+    # for action in domain.actions:
+    #     action.dump()
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
