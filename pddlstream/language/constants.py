@@ -133,6 +133,15 @@ def get_parameter_name(expression):
 def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
+class Predicate(object):
+    def __init__(self, name):
+        self.name = name # .lower()
+    def __call__(self, *args):
+        return Fact(self.name, args)
+    def __repr__(self):
+        #return self.name
+        return '{}(...)'.format(self.name)
+
 ##################################################
 
 def is_plan(plan):

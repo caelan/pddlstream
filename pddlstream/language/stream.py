@@ -3,7 +3,7 @@ from collections import Counter, Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output
+from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output, EQ
 from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
@@ -534,14 +534,14 @@ class Stream(External):
 def create_equality_stream():
     return Stream(name='equality', gen_fn=from_test(universe_test),
                   inputs=['?o'], domain=[('Object', '?o')],
-                  outputs=[], certified=[('=', '?o', '?o')],
+                  outputs=[], certified=[(EQ, '?o', '?o')],
                   info=StreamInfo(eager=True), fluents=[])
 
 def create_inequality_stream():
     #from pddlstream.algorithms.downward import IDENTICAL
     return Stream(name='inequality', gen_fn=from_test(lambda o1, o2: o1 != o2),
                   inputs=['?o1', '?o2'], domain=[('Object', '?o1'), ('Object', '?o2')],
-                  outputs=[], certified=[('=', '?o1', '?o2')],
+                  outputs=[], certified=[('!=', '?o1', '?o2')],
                   info=StreamInfo(eager=True), fluents=[])
 
 ##################################################
