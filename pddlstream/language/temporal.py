@@ -558,13 +558,17 @@ def create_conjunctive_axiom(derived, parameters, conditions):
 Time = 'time'
 AtTime = 'attime'
 GE = 'ge'
-SUM = 'sum'
+Sum = 'sum'
 Premature = 'premature'
+Difference = 'difference'
+Duration = 'duration'
+Advancable = 'advanceable'
 
 ADVANCE = 'advance'
 START_PREFIX = 'start-'
 STOP_PREFIX = 'stop-'
 INSTANT_PREFIX = 'instant-'
+DURATION_TEMPLATE = '{}duration'
 
 def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False):
     from pddlstream.algorithms.advanced import get_predicates
@@ -578,14 +582,14 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     T2 = '?t2'
     T = '?t'
 
-    advanceable = Fact('Advanceable')
+    advanceable = Fact(Advancable)
     idle = Fact('Idle')
     violation = Fact('Violation')
     premature = Fact(Premature, [T])
     active_time = Fact('active', [T2])
     ongoing = Fact('ongoing')
 
-    # TODO: automatically add GE and SUM streams
+    # TODO: automatically add GE and Sum streams
     # TODO: sum time horizon and time step
     # TODO: extend to numeric variables
     advance_action = make_action(
@@ -595,7 +599,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         preconditions=[
             #(Time, T1), (Time, T2),
             (GE, T2, T1),
-            #Fact(SUM, [T1, DT, T2]),
+            #Fact(Sum, [T1, DT, T2]),
             #('adjacent', T1, T2),
             Not(Equal(T1, T2)),
             (AtTime, T1),
@@ -611,7 +615,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
             idle, # Disable if using adjacent
         ],
         #cost=('elapsed', DT), # duration | elapsed
-        cost=('difference', T2, T1),
+        cost=(Difference, T2, T1),
     )
     new_actions = [advance_action]
 
@@ -668,6 +672,9 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         # TODO: convert the function to a predicate defined on ?dt
         [(_, duration)], _ = action.duration
         duration = convert_numeric(duration)
+        duration_pred = DURATION_TEMPLATE.format(action.name) # TODO: relate to duration
+        #duration_fact = Fact(duration_pred, [DT] + get_args(duration))
+        duration_fact = Fact(duration_pred, [DT] + [p.name for p in action_params])
 
         start_cost, end_cost = map(extract_cost, action.effects)
         #start_cost = duration if duration_costs else None
@@ -676,12 +683,11 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         #########################
 
         # TODO: epsilonize to move forward in time
-        duration_pred = '{}duration'.format(action.name)
         start_params = make_parameters([T1, DT, T2]) + tuple(action_params)
         start_action = pddl.Action('{}{}'.format(START_PREFIX, action.name), start_params, len(start_params),
                                    pddl.Conjunction([
-                                       pddl.Atom(SUM, [T1, DT, T2]),
-                                       pddl.Atom(duration_pred, [DT] + [p.name for p in action_params]),
+                                       pddl.Atom(Sum, [T1, DT, T2]),
+                                       fd_from_fact(duration_fact),
                                        pddl.Atom(AtTime, [T1]),
                                        # fd_from_fact(Not(active_fact)),
                                        fd_from_fact(Not(violation)),

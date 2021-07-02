@@ -63,10 +63,17 @@ def load_data(pddl_name):
     #print('Loaded:', filename)
     return data
 
+def get_external_domain(externals):
+    # TODO: ensure the same
+    default = None
+    names = {getattr(external, 'pddl_name', default) for external in externals} - {default}
+    assert len(names) == 1
+    return list(names)[0]
+
 def load_stream_statistics(externals):
     if not externals:
         return
-    pddl_name = externals[0].pddl_name # TODO: ensure the same
+    pddl_name = get_external_domain(externals)
     # TODO: fresh restart flag
     data = load_data(pddl_name)
     for external in externals:
@@ -134,7 +141,7 @@ def write_stream_statistics(externals, verbose):
     if verbose:
         #dump_online_statistics(externals)
         dump_total_statistics(externals)
-    pddl_name = externals[0].pddl_name # TODO: ensure the same
+    pddl_name = get_external_domain(externals)
     previous_data = load_data(pddl_name)
     data = {}
     for external in externals:

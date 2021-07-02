@@ -9,7 +9,8 @@ import os
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal
 from pddlstream.utils import read_pddl, INF
-from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, SUM, ENV_VAR
+from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, Sum, Difference, \
+    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable
 #from pddlstream.algorithms.downward import print_search_options
 from pddlstream.language.stream import StreamInfo, Stream
 from pddlstream.language.function import FunctionInfo, Function
@@ -35,15 +36,8 @@ STREAM_PDDL = """
                )
   )
   
-  (:stream ge
-    :inputs (?t1 ?t2)
-    :domain (and (Time ?t1) (Time ?t2))
-    :certified (GE ?t1 ?t2)
-  )
   (:function (Elapsed ?dt) 
              (Duration ?dt))
-  (:function (Difference ?t2 ?t1)
-             (GE ?t2 ?t1))
 )
 """
 
@@ -51,24 +45,41 @@ STREAM_PDDL = """
 
 def create_inequality_stream():
     #from pddlstream.algorithms.downward import IDENTICAL
-    return Stream(name='ge', gen_fn=from_test(lambda t1, t2: t1 >= t2),
+    return Stream(name='ge',
+                  gen_fn=from_test(lambda t1, t2: t1 >= t2),
                   inputs=['?t1', '?t2'],
                   domain=[(Time, '?t1'), (Time, '?t2')],
-                  outputs=[], certified=[(GE, '?t1', '?t2')],
-                  info=StreamInfo(eager=True), fluents=[])
+                  outputs=[],
+                  certified=[(GE, '?t1', '?t2')],
+                  info=StreamInfo(eager=True))
 
 def create_difference_function():
-    return Function(head=('Difference', '?t2', '?t1'),
+    return Function(head=(Difference, '?t2', '?t1'),
                     fn=lambda t2, t1: t2 - t1,
                     domain=[(GE, '?t2', '?t1')],
-                    info=StreamInfo(eager=True))
+                    info=FunctionInfo(eager=True)) # TODO: eager function
 
 def create_add_function(max_t=INF):
-    return Stream(name='ge', gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
+    return Stream(name='add',
+                  gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
                   inputs=['?t1', '?dt'],
-                  domain=[(Time, '?t1'), ('Duration', '?t2')],
-                  outputs=[], certified=[(Sum, '?t1', '?t2')],
-                  info=StreamInfo(eager=True), fluents=[])
+                  domain=[(Time, '?t1'), (Duration, '?dt')],
+                  outputs=['?t2'],
+                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2')],
+                  info=StreamInfo(eager=True))
+
+def create_duration_stream(action, ):
+    # TODO: lower upper
+    # TODO: interval generator
+    duration_pred = DURATION_TEMPLATE.format(action)  # TODO: relate to duration
+
+    return Stream(name='add',
+                  gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
+                  inputs=['?t1', '?dt'],
+                  domain=[(Time, '?t1'), (Duration, '?dt')],
+                  outputs=['?t2'],
+                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2')],
+                  info=StreamInfo(eager=True))
 
 ##################################################
 
@@ -97,7 +108,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
     # TODO: add epsilon after every action start
 
     init = [
-        ('CanWait',),
+        (Advancable,), # TODO: add automatically
         ('Time', t0),
         ('StartTime', t0),
         ('AtTime', t0),
@@ -122,7 +133,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         init.extend([
             ('Food', food),
             ('Stove', stove),
-            ('CookDuration', cook_dt, food, stove),
+            (DURATION_TEMPLATE.format('cook'), cook_dt, food, stove),
             ('Duration', cook_dt),
             Equal(('GasCost', stove), 0),
         ])
@@ -150,6 +161,13 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
 
     # for action in domain.actions:
     #     action.dump()
+
+    stream_pddl = [
+        create_inequality_stream(),
+        create_difference_function(),
+        #create_add_function(max_t=max_t),
+        stream_pddl,
+    ]
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
