@@ -13,7 +13,7 @@ from collections import namedtuple
 from pddlstream.algorithms.downward import TEMP_DIR, parse_sequential_domain, get_conjunctive_parts, write_pddl, \
     make_action, make_parameters, make_object, \
     Domain, make_effects, make_axiom, make_cost
-from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix, Equal, TOTAL_COST, INCREASE
+from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix, Equal, TOTAL_COST, INCREASE, Predicate
 from pddlstream.utils import INF, read, elapsed_time, safe_zip, user_input
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
@@ -27,8 +27,10 @@ PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 # sudo apt-get install cmake coinor-libcbc-dev coinor-libclp-dev
 # sudo apt-get install coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev doxygen libbz2-dev bison flex
 # sudo apt-get install coinor-cbc
-# sudo apt-get install apt-get -y install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev coinor-libclp-dev coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
-# sudo apt-get install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev coinor-libclp-dev coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
+# sudo apt-get install apt-get -y install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev
+#   coinor-libclp-dev coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
+# sudo apt-get install g++ make flex bison cmake doxygen coinor-clp coinor-libcbc-dev coinor-libclp-dev
+#   coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev libbz2-dev libgsl-dev libz-dev
 # sudo apt-get remove coinor-libcbc-dev coinor-libclp-dev
 # sudo apt-get remove coinor-libcoinutils-dev coinor-libosi-dev coinor-libcgl-dev
 
@@ -98,7 +100,8 @@ def format_option(pair):
 # Disabling rescheduling because of universal conditions in original task!
 # TODO: convert finite quantifiers
 
-# /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl /home/caelan/Programs/pddlstream/temp/plan
+# /home/caelan/Programs/VAL/validate /home/caelan/Programs/pddlstream/temp/domain.pddl /home/caelan/Programs/pddlstream/temp/problem.pddl
+# /home/caelan/Programs/pddlstream/temp/plan
 
 # Parameters just used in search (and split by +)
 #TFD_COMMAND = 'plan.py n {} {} {}' # Default in plannerParameters.h
@@ -312,7 +315,7 @@ CERB_COMMAND = 'plan.py {} {} {}'
 ##################################################
 
 def parse_temporal_solution(solution):
-    makespan = 0.0
+    makespan = 0.
     plan = []
     # TODO: this regex doesn't work for @
     regex = r'(\d+.\d+):\s+' \
@@ -354,6 +357,9 @@ def compute_end(plan):
 
 def compute_duration(plan):
     return compute_end(plan) - compute_start(plan)
+
+
+compute_makespan = compute_duration
 
 
 def apply_start(plan, new_start=0.):
@@ -623,7 +629,6 @@ Duration = '_duration'
 
 # axiom
 Advancable = '_advanceable'
-Premature = '_premature'
 
 # function
 Difference = '_difference'
@@ -649,11 +654,12 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     T = '?t'
 
     advanceable = Fact(Advancable)
-    idle = Fact('Idle')
-    violation = Fact('Violation')
-    premature = Fact(Premature, [T])
-    active_time = Fact('active', [T2])
-    ongoing = Fact('ongoing')
+    idle = Fact('idle')
+    violation = Fact('_violation')
+    ongoing = Fact('_ongoing')
+
+    Premature = Predicate('_premature')
+    Active = Predicate('_active')
 
     # TODO: automatically add GE and Sum streams
     # TODO: sum time horizon and time step
@@ -669,10 +675,10 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
             #('adjacent', T1, T2),
             Not(Equal(T1, T2)),
             (AtTime, T1),
-            advanceable,
+            #advanceable,
             Not(idle),
             Not(violation),
-            Not(Fact(Premature, [T1])),
+            Not(Premature(T1)),
         ],
         effects=[
             (AtTime, T2),
@@ -691,13 +697,13 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                  preconditions=[
                                      (GE, T, T2),
                                      Not(Equal(T, T2)),
-                                     active_time,
+                                     Active(T2),
                                  ],
-                                 derived=premature)
+                                 derived=Premature(T))
     ongoing_axiom = make_axiom(parameters=[T2],
                                preconditions=[
                                    (Time, T2),
-                                   active_time,
+                                   Active(T2),
                                ],
                                derived=ongoing)
     # TODO: add Not(ongoing) to the goal
@@ -765,7 +771,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                        active_fact,
                                        advanceable,
                                        Not(idle),
-                                       #active_time,
+                                       #Active(T2),
                                    ]) + start_effects,
                                    make_cost(start_cost))
 
@@ -787,7 +793,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                      Not(active_fact),
                                      advanceable,
                                      Not(idle),
-                                     #active_time,
+                                     #Not(Active(T2)),
                                  ]) + end_effects,
                                  make_cost(end_cost))
         new_actions.extend([start_action, end_action])
@@ -815,7 +821,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
 
         #########################
 
-        axiom = create_conjunctive_axiom(active_time, end_params, [
+        axiom = create_conjunctive_axiom(Active(T2), end_params, [
             pddl.Atom(Time, [T2]),
             static_condition,
             fd_from_fact(active_fact),

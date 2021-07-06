@@ -134,7 +134,7 @@ def is_head(expression):
     return get_prefix(expression) not in OPERATORS
 
 class Predicate(object):
-    def __init__(self, name):
+    def __init__(self, name): # TODO: parameters
         self.name = name # .lower()
     def __call__(self, *args):
         return Fact(self.name, args)

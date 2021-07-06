@@ -10,7 +10,7 @@ from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal, Solution
 from pddlstream.utils import read_pddl, INF
 from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, Sum, Difference, \
-    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime, Elapsed, StartTime, temporal_from_sequential
+    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime, Elapsed, StartTime, temporal_from_sequential, compute_makespan
 #from pddlstream.algorithms.downward import print_search_options
 from pddlstream.language.stream import StreamInfo, Stream
 from pddlstream.language.function import FunctionInfo, Function
@@ -69,17 +69,17 @@ def create_add_function(max_t=INF):
                             ],
                   info=StreamInfo(eager=True))
 
-def create_duration_stream(action, ):
-    # TODO: lower upper
+def create_duration_stream(action, parameters, durations=[]):
+    # TODO: lower and upper generator
     # TODO: interval generator
-    duration_pred = DURATION_TEMPLATE.format(action)  # TODO: relate to duration
-
-    return Stream(name='add',
-                  gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
+    ActionDuration = DURATION_TEMPLATE.format(action)  # TODO: relate to duration
+    # TODO: load from duration functions
+    return Stream(name='{}-duration',
+                  gen_fn=from_list_fn(lambda *args, **kwar: Output(t1 + dt) if (t1 + dt <= max_t) else None),
                   inputs=['?t1', '?dt'],
                   domain=[(Time, '?t1'), (Duration, '?dt')],
-                  outputs=['?t2'],
-                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2')],
+                  outputs=['?dt'],
+                  certified=[(Duration, '?dt'), (ActionDuration, '?t1', '?dt', '?t2')],
                   info=StreamInfo(eager=True))
 
 ##################################################
@@ -99,6 +99,30 @@ def create_duration_function(): #scale=1.):
 
 ##################################################
 
+def discretize_time(t0, max_t, dt=None):
+    # TODO: stream for increasing max_t
+    # TODO: stream for decreasing dt
+    init = []
+    if dt is None:
+        return init # TODO: include t0?
+    for t in np.arange(t0, max_t, step=dt):
+        t = round(t, 3)
+        init.extend([
+            (Time, t),
+            (StartTime, t),
+        ])
+    return init
+
+def convert_solution(solution):
+    if not solution:
+        return solution
+    plan, cost, certificate = solution
+    plan = temporal_from_sequential(plan)
+    cost = compute_makespan(plan)
+    return Solution(plan, cost, certificate)
+
+##################################################
+
 def create_problem(max_t=20., n_foods=1, n_stoves=1):
     constant_map = {}
 
@@ -114,10 +138,10 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
 
     # TODO: min_dt is the min of all the durations
     # TODO: sample the duration for actions
-    # TODO: add epsilon after every action start
+    # TODO: add epsilon (epsilonize) after every action start
 
     init = [
-        (Advancable,), # TODO: add automatically
+        #(Advancable,), # TODO: add automatically
         (Time, t0),
         (StartTime, t0),
         (AtTime, t0),
@@ -126,13 +150,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         (Duration, 0),
     ]
     if discretize_dt is not None:
-        step_size = 1./3
-        for t in np.arange(t0, max_t, step=step_size):
-            t = round(t, 3)
-            init.extend([
-                (Time, t),
-                (StartTime, t),
-            ])
+        init.extend(discretize_time(t0, max_t, dt=discretize_dt))
 
     # TODO: extract all initial times as important times
     # TODO: support timed initial literals
@@ -231,10 +249,10 @@ def main():
     print('Goal:', problem.goal)
 
     info = {
-        ADD_STREAM: StreamInfo(eager=True, verbose=True),
-        GE_STREAM: StreamInfo(eager=True, verbose=False),
-        Elapsed: FunctionInfo(eager=True, verbose=False),
-        Difference: FunctionInfo(eager=True, verbose=False),
+        # ADD_STREAM: StreamInfo(eager=True, verbose=True),
+        # GE_STREAM: StreamInfo(eager=True, verbose=False),
+        # Elapsed: FunctionInfo(eager=True, verbose=False),
+        # Difference: FunctionInfo(eager=True, verbose=False),
     }
 
     # TODO: eager for incremental
