@@ -356,7 +356,7 @@ def compute_duration(plan):
     return compute_end(plan) - compute_start(plan)
 
 
-def apply_start(plan, new_start):
+def apply_start(plan, new_start=0.):
     if not plan:
         return plan
     old_start = compute_start(plan)
@@ -379,6 +379,39 @@ def reverse_plan(plan):
     makespan = compute_duration(plan)
     return [DurativeAction(action.name, action.args, makespan - get_end(action), action.duration)
             for action in plan]
+
+
+def strip_prefix(s, prefix):
+    assert s.startswith(prefix)
+    return s[len(prefix):]
+
+
+def is_temporal(plan):
+    if plan is None:
+        return False
+    return any(action.name.startswith(prefix) for action in plan
+               for prefix in [INSTANT_PREFIX, START_PREFIX, STOP_PREFIX])
+
+
+def temporal_from_sequential(sequential_plan):
+    # TODO move to conversion?
+    if not sequential_plan:
+        return sequential_plan
+    temporal_plan = []
+    for name, args in sequential_plan:
+        if name == ADVANCE_ACTION:
+            pass
+        elif name.startswith(INSTANT_PREFIX):
+            #t0, *args = args
+            temporal_plan.append(DurativeAction(strip_prefix(name, INSTANT_PREFIX), args[1:], args[0], 0.))
+        elif name.startswith(START_PREFIX):
+            temporal_plan.append(DurativeAction(strip_prefix(name, START_PREFIX), args[3:], args[0], args[1]))
+        elif name.startswith(STOP_PREFIX):
+            pass
+        else:
+            #temporal_plan.append(Action(name, args))
+            raise NotImplementedError(name)
+    return temporal_plan
 
 ##################################################
 
@@ -579,28 +612,28 @@ def create_conjunctive_axiom(derived, parameters, conditions):
 
 ##################################################
 
-Time = 'time'
-StartTime = 'starttime'
-AtTime = 'attime'
+Time = '_time'
+StartTime = '_starttime'
+AtTime = '_attime'
 
 # stream
-GE = 'ge'
-Sum = 'sum'
-Duration = 'duration'
+GE = '_ge'
+Sum = '_sum'
+Duration = '_duration'
 
 # axiom
-Advancable = 'advanceable'
-Premature = 'premature'
+Advancable = '_advanceable'
+Premature = '_premature'
 
 # function
-Difference = 'difference'
-Elapsed = 'elapsed'
+Difference = '_difference'
+Elapsed = '_elapsed'
 
-ADVANCE = 'advance'
-START_PREFIX = 'start-'
-STOP_PREFIX = 'stop-'
-INSTANT_PREFIX = 'instant-'
-DURATION_TEMPLATE = '{}duration'
+ADVANCE_ACTION = '_advance'
+START_PREFIX = '_start-'
+STOP_PREFIX = '_stop-'
+INSTANT_PREFIX = '_instant-'
+DURATION_TEMPLATE = '_{}duration'
 
 def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False):
     from pddlstream.algorithms.advanced import get_predicates
@@ -626,7 +659,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     # TODO: sum time horizon and time step
     # TODO: extend to numeric variables
     advance_action = make_action(
-        name=ADVANCE,
+        name=ADVANCE_ACTION,
         parameters=[T1, T2],
         #action_params=[T1, DT, T2],
         preconditions=[

@@ -7,10 +7,10 @@ import numpy as np
 import os
 
 from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal
+from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal, Solution
 from pddlstream.utils import read_pddl, INF
 from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, Sum, Difference, \
-    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime, Elapsed, StartTime
+    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime, Elapsed, StartTime, temporal_from_sequential
 #from pddlstream.algorithms.downward import print_search_options
 from pddlstream.language.stream import StreamInfo, Stream
 from pddlstream.language.function import FunctionInfo, Function
@@ -241,6 +241,9 @@ def main():
     solution = solve(problem, algorithm=args.algorithm, unit_costs=args.unit,
                      stream_info=info, planner='dijkstra', initial_complexity=INF,
                      effort_weight=None, debug=True, verbose=False)
+    plan, cost, certificate = solution
+    plan = temporal_from_sequential(plan)
+    solution = Solution(plan, cost, certificate)
     print_solution(solution)
     #print_search_options()
 
