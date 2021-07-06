@@ -1,9 +1,10 @@
 (define (domain temporal)
+  (:requirements :equality :durative-actions :derived-predicates) ; :typing :action-costs :conditional-effects :numeric-fluents :disjunctive-preconditions
   (:predicates
-    (Time ?t)
-    (Duration ?dt)
-    (Sum ?t1 ?dt ?t2)
-    (GE ?t1 ?t2)
+    ;(Time ?t)
+    ;(Duration ?dt)
+    ;(Sum ?t1 ?dt ?t2)
+    ;(GE ?t1 ?t2)
 
     (Food ?f)
     (Stove ?s) ; TODO: Oven
@@ -62,6 +63,7 @@
      ;(at start (On ?s))
      (at start (Locked ?f))
      (at start (Locked ?s))
+
      (at start (increase (total-cost) 1)) ; Many temporal planners don't support costs
 	 (at start (decrease (Gas) 1)) ; Numeric effects not currently supported
 	 ;(at start (assign (Test) 1)) ; Not supported

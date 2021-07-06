@@ -395,6 +395,8 @@ def get_tfd_path():
         raise RuntimeError('Environment variable {} is not defined!'.format(ENV_VAR))
     return os.path.join(os.environ[ENV_VAR], 'downward/')
 
+REDUCE_TO_SEQUENTIAL = True
+
 def parse_temporal_domain(domain_pddl):
     translate_path = os.path.join(get_tfd_path(), 'translate/') # tfd & temporal-FD
     prefixes = ['pddl', 'normalize']
@@ -411,7 +413,9 @@ def parse_temporal_domain(domain_pddl):
     sys.modules.update(deleted) # This is important otherwise classes are messed up
     import pddl
     import pddl_parser
-    assert not actions # Only durative actions
+
+    #if not durative_actions:
+    #   return parse_sequential_domain(domain_pddl)
 
     requirements = pddl.Requirements([])
     types = [pddl.Type(ty.name, ty.basetype_name) for ty in types]
@@ -420,20 +424,37 @@ def parse_temporal_domain(domain_pddl):
     constants = convert_parameters(constants)
     axioms = list(map(convert_axiom, axioms))
 
+    if REDUCE_TO_SEQUENTIAL:
+        # TODO: make standalone TFD translator
+        # TODO: test whether TFD compiles
+        simple_actions, new_axioms = convert_durative(actions, durative_actions, fluents)
+        axioms.extend(new_axioms)
+        return Domain(name, requirements, types, {ty.name: ty for ty in types}, constants,
+                      predicates, {p.name: p for p in predicates}, functions,
+                      simple_actions, axioms, domain_pddl)
+
+    assert not actions # Only durative actions
+    simple_from_durative = simple_from_durative_action(durative_actions, fluents)
+    simple_actions = [action for triplet in simple_from_durative.values() for action in triplet]
     return SimplifiedDomain(name, requirements, types, {ty.name: ty for ty in types}, constants,
                             predicates, {p.name: p for p in predicates}, functions,
                             simple_actions, axioms, simple_from_durative, domain_pddl)
 
+DURATIVE_ACTION = ':durative-action'
 DURATIVE_ACTIONS = ':durative-actions'
 
 def parse_domain(domain_pddl):
-    try:
-        return parse_sequential_domain(domain_pddl)
-    except AssertionError as e:
-        if str(e) == DURATIVE_ACTIONS:
-            return parse_temporal_domain(domain_pddl)
-        traceback.print_exc()
-        raise e
+    if DURATIVE_ACTION in domain_pddl:
+        return parse_temporal_domain(domain_pddl)
+    return parse_sequential_domain(domain_pddl)
+    # try:
+    #     return parse_sequential_domain(domain_pddl)
+    # except AssertionError as e:
+    #     # assert action_tag == ":action"
+    #     if str(e) == DURATIVE_ACTIONS:
+    #         return parse_temporal_domain(domain_pddl)
+    #     traceback.print_exc()
+    #     raise e
 
 ##################################################
 
@@ -483,6 +504,7 @@ def convert_conjunctive(conditions):
     return pddl.Conjunction(list(map(convert_condition, conditions))).simplified()
 
 def convert_effects(effects):
+    # TODO: does not support conditional effects
     import pddl
     new_effects = make_effects([('_noop',)]) # To ensure the action has at least one effect
     for effect in effects:
@@ -577,6 +599,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     # https://planning.wiki/ref/pddl21/domain
     # http://gki.informatik.uni-freiburg.de/papers/eyerich-etal-icaps09.pdf
 
+    # TODO: automatically add initial facts
     T1 = '?t1'
     DT = '?dt'
     T2 = '?t2'

@@ -163,7 +163,10 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info={}, unit_costs=False,
     rules = []
     for pddl in stream_pddl:
         # TODO: check which functions are actually used and prune the rest
-        parse_streams(externals, rules, pddl, stream_map, stream_info, use_functions=not unit_costs)
+        if isinstance(pddl, External):
+            externals.append(pddl)
+        else:
+            parse_streams(externals, rules, pddl, stream_map, stream_info, use_functions=not unit_costs)
     apply_rules_to_streams(rules, externals)
     if unit_efforts:
         set_unit_efforts(externals)

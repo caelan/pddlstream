@@ -1,4 +1,5 @@
 (define (domain temporal)
+  (:requirements :strips :typing :action-costs :adl)
   (:predicates
     (Time ?t)
     (Duration ?dt)
@@ -14,6 +15,7 @@
     (AtTime ?t)
     (Cooked ?f)
     (Locked ?s)
+    (On ?s)
     (Premature ?t)
     (Invalid)
     (CanWait)

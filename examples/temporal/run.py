@@ -10,7 +10,7 @@ from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal
 from pddlstream.utils import read_pddl, INF
 from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, Sum, Difference, \
-    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable
+    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime
 #from pddlstream.algorithms.downward import print_search_options
 from pddlstream.language.stream import StreamInfo, Stream
 from pddlstream.language.function import FunctionInfo, Function
@@ -109,11 +109,11 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
 
     init = [
         (Advancable,), # TODO: add automatically
-        ('Time', t0),
+        (Time, t0),
         ('StartTime', t0),
-        ('AtTime', t0),
+        (AtTime, t0),
         #('Duration', wait_dt), # T
-        ('Time', goal_t),
+        (Time, goal_t),
         ('Duration', 0),
     ]
     if discretize_dt is not None:
@@ -121,7 +121,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         for t in np.arange(t0, max_t, step=step_size):
             t = round(t, 3)
             init.extend([
-                ('Time', t),
+                (Time, t),
                 ('StartTime', t),
             ])
 
@@ -139,8 +139,8 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         ])
 
     goal_expressions = [
-        #Exists(['?t'], And(('GE', '?t', goal_t),
-        #                   ('AtTime', '?t'))),
+        #Exists(['?t'], And((GE, '?t', goal_t),
+        #                   (AtTime, '?t'))),
     ]
     for stove in stoves:
         goal_expressions.append(Not(('On', stove)))
@@ -148,11 +148,9 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         goal_expressions.append(('Cooked', food))
     goal = And(*goal_expressions)
 
-    domain_pddl = read_pddl(__file__, 'domain.pddl')
-    stream_pddl = STREAM_PDDL
-
     #path = '/Users/caelan/Programs/pddlstream/examples/continuous_tamp/temporal/domain.pddl'
-    path = 'durative_domain.pddl'
+    path = 'sequential_domain.pddl'
+    #path = 'durative_domain.pddl'
     domain_pddl = read_pddl(__file__, path)
 
     #domain = parse_domain(domain_pddl)
@@ -162,6 +160,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
     # for action in domain.actions:
     #     action.dump()
 
+    stream_pddl = STREAM_PDDL
     stream_pddl = [
         create_inequality_stream(),
         create_difference_function(),
