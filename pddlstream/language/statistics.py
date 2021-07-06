@@ -66,7 +66,9 @@ def load_data(pddl_name):
 def get_external_domain(externals):
     # TODO: ensure the same
     default = None
-    names = {getattr(external, 'pddl_name', default) for external in externals} - {default}
+    names = {getattr(external, 'pddl_name', default) for external in externals} - {default} # TODO: hasattr
+    if not names:
+        return default
     assert len(names) == 1
     return list(names)[0]
 
@@ -74,6 +76,9 @@ def load_stream_statistics(externals):
     if not externals:
         return
     pddl_name = get_external_domain(externals)
+    if pddl_name is None:
+        print('Warning! Unable to load external statistics')
+        return
     # TODO: fresh restart flag
     data = load_data(pddl_name)
     for external in externals:

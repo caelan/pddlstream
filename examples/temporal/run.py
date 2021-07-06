@@ -10,7 +10,7 @@ from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And, Not, Equal
 from pddlstream.utils import read_pddl, INF
 from pddlstream.language.temporal import parse_domain, parse_temporal_domain, Time, GE, Sum, Difference, \
-    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime
+    ENV_VAR, DURATION_TEMPLATE, Duration, Advancable, AtTime, Elapsed, StartTime
 #from pddlstream.algorithms.downward import print_search_options
 from pddlstream.language.stream import StreamInfo, Stream
 from pddlstream.language.function import FunctionInfo, Function
@@ -23,7 +23,6 @@ os.environ[ENV_VAR] = '/Users/caelan/Programs/external/planners/TemporalFastDown
 # TODO: see counting, satisfy, cashpoint, discrete_belief, ...
 STREAM_PDDL = """
 (define (stream temporal)
-  ; TODO: could make one of these per action to only propagate for a specific duration
   (:stream add
     :inputs (?t1 ?dt)
     :domain (and (Time ?t1)
@@ -36,14 +35,16 @@ STREAM_PDDL = """
                )
   )
   
-  (:function (Elapsed ?dt) 
-             (Duration ?dt))
 )
 """
 
 ##################################################
 
+GE_STREAM = 'ge'
+ADD_STREAM = 'add'
+
 def create_inequality_stream():
+    # TODO: refactor
     #from pddlstream.algorithms.downward import IDENTICAL
     return Stream(name='ge',
                   gen_fn=from_test(lambda t1, t2: t1 >= t2),
@@ -53,19 +54,19 @@ def create_inequality_stream():
                   certified=[(GE, '?t1', '?t2')],
                   info=StreamInfo(eager=True))
 
-def create_difference_function():
-    return Function(head=(Difference, '?t2', '?t1'),
-                    fn=lambda t2, t1: t2 - t1,
-                    domain=[(GE, '?t2', '?t1')],
-                    info=FunctionInfo(eager=True)) # TODO: eager function
-
 def create_add_function(max_t=INF):
-    return Stream(name='add',
+    # TODO: could make one of these per action to only propagate for a specific duration
+    return Stream(name=ADD_STREAM,
                   gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
                   inputs=['?t1', '?dt'],
-                  domain=[(Time, '?t1'), (Duration, '?dt')],
+                  domain=[(Time, '?t1'), (Duration, '?dt'),
+                          (StartTime, '?t1'),
+                          ],
                   outputs=['?t2'],
-                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2')],
+                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2'),
+                              # TODO: toggle depending on if can start from any stop time
+                             (StartTime, '?t2'),
+                            ],
                   info=StreamInfo(eager=True))
 
 def create_duration_stream(action, ):
@@ -83,15 +84,23 @@ def create_duration_stream(action, ):
 
 ##################################################
 
+def create_difference_function(): #scale=1.):
+    # TODO: min_dt, max_dt, scale_dt?
+    return Function(head=(Difference, '?t2', '?t1'),
+                    fn=lambda t2, t1: (t2 - t1), # scale
+                    domain=[(GE, '?t2', '?t1')],
+                    info=FunctionInfo(eager=True)) # TODO: eager function
+
+def create_duration_function(): #scale=1.):
+    return Function(head=(Elapsed, '?dt'),
+                    fn=lambda dt: dt, # scale
+                    domain=[(Duration, '?dt')],
+                    info=FunctionInfo(eager=True)) # TODO: eager function
+
+##################################################
+
 def create_problem(max_t=20., n_foods=1, n_stoves=1):
     constant_map = {}
-    stream_map = {
-        # TODO: compute the sequence of times and/or length
-        'add': from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
-        'ge': from_test(lambda t1, t2: t1 >= t2),
-        'Elapsed': lambda dt: dt,
-        'Difference': lambda t2, t1: t2 - t1,
-    }
 
     foods = ['f{}'.format(i) for i in range(n_foods)]
     stoves = ['s{}'.format(i) for i in range(n_stoves)]
@@ -110,11 +119,11 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
     init = [
         (Advancable,), # TODO: add automatically
         (Time, t0),
-        ('StartTime', t0),
+        (StartTime, t0),
         (AtTime, t0),
-        #('Duration', wait_dt), # T
+        #(Duration, wait_dt), # T
         (Time, goal_t),
-        ('Duration', 0),
+        (Duration, 0),
     ]
     if discretize_dt is not None:
         step_size = 1./3
@@ -122,7 +131,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
             t = round(t, 3)
             init.extend([
                 (Time, t),
-                ('StartTime', t),
+                (StartTime, t),
             ])
 
     # TODO: extract all initial times as important times
@@ -130,13 +139,16 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
 
     cook_dt = 2.
     for food, stove in product(foods, stoves):
+        CookDuration = DURATION_TEMPLATE.format('cook')
         init.extend([
+            (Duration, cook_dt),
+            (CookDuration, cook_dt, food, stove),
             ('Food', food),
             ('Stove', stove),
-            (DURATION_TEMPLATE.format('cook'), cook_dt, food, stove),
-            ('Duration', cook_dt),
             Equal(('GasCost', stove), 0),
         ])
+
+    ##################################################
 
     goal_expressions = [
         #Exists(['?t'], And((GE, '?t', goal_t),
@@ -148,9 +160,11 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         goal_expressions.append(('Cooked', food))
     goal = And(*goal_expressions)
 
+    ##################################################
+
     #path = '/Users/caelan/Programs/pddlstream/examples/continuous_tamp/temporal/domain.pddl'
-    path = 'sequential_domain.pddl'
-    #path = 'durative_domain.pddl'
+    #path = 'sequential_domain.pddl'
+    path = 'durative_domain.pddl'
     domain_pddl = read_pddl(__file__, path)
 
     #domain = parse_domain(domain_pddl)
@@ -160,13 +174,25 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
     # for action in domain.actions:
     #     action.dump()
 
-    stream_pddl = STREAM_PDDL
+    ##################################################
+
     stream_pddl = [
         create_inequality_stream(),
+        create_add_function(max_t=max_t),
+
+        create_duration_function(),
         create_difference_function(),
-        #create_add_function(max_t=max_t),
-        stream_pddl,
+
+        #STREAM_PDDL,
     ]
+
+    stream_map = {
+        # TODO: compute the sequence of times and/or length
+        #ADD_STREAM: from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
+        #GE_STREAM: from_test(lambda t1, t2: t1 >= t2),
+        #Elapsed: lambda dt: dt,
+        #Difference: lambda t2, t1: t2 - t1,
+    }
 
     return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
@@ -205,10 +231,10 @@ def main():
     print('Goal:', problem.goal)
 
     info = {
-        'add': StreamInfo(eager=True, verbose=True),
-        'ge': StreamInfo(eager=True, verbose=False),
-        'Duration': FunctionInfo(eager=True, verbose=False),
-        'Difference': FunctionInfo(eager=True, verbose=False),
+        ADD_STREAM: StreamInfo(eager=True, verbose=True),
+        GE_STREAM: StreamInfo(eager=True, verbose=False),
+        Elapsed: FunctionInfo(eager=True, verbose=False),
+        Difference: FunctionInfo(eager=True, verbose=False),
     }
 
     # TODO: eager for incremental

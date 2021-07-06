@@ -444,6 +444,8 @@ DURATIVE_ACTION = ':durative-action'
 DURATIVE_ACTIONS = ':durative-actions'
 
 def parse_domain(domain_pddl):
+    if type(domain_pddl) in [Domain, SimplifiedDomain]:
+        return domain_pddl
     if DURATIVE_ACTION in domain_pddl:
         return parse_temporal_domain(domain_pddl)
     return parse_sequential_domain(domain_pddl)
@@ -578,13 +580,21 @@ def create_conjunctive_axiom(derived, parameters, conditions):
 ##################################################
 
 Time = 'time'
+StartTime = 'starttime'
 AtTime = 'attime'
+
+# stream
 GE = 'ge'
 Sum = 'sum'
-Premature = 'premature'
-Difference = 'difference'
 Duration = 'duration'
+
+# axiom
 Advancable = 'advanceable'
+Premature = 'premature'
+
+# function
+Difference = 'difference'
+Elapsed = 'elapsed'
 
 ADVANCE = 'advance'
 START_PREFIX = 'start-'
@@ -637,7 +647,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
             Not(advanceable),
             idle, # Disable if using adjacent
         ],
-        #cost=('elapsed', DT), # duration | elapsed
+        #cost=(Elapsed, DT),
         cost=(Difference, T2, T1),
     )
     new_actions = [advance_action]

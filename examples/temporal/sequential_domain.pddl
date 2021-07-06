@@ -19,6 +19,7 @@
     (Premature ?t)
     (Invalid)
     (CanWait)
+    ; TODO: update predicate names
   )
   (:functions
     (Elapsed ?dt)
