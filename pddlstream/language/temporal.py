@@ -641,6 +641,8 @@ INSTANT_PREFIX = '_instant-'
 DURATION_TEMPLATE = '_{}duration'
 
 def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False):
+    # TODO: support timed initial literals
+    # TODO: duration multiplier when duration_costs=True
     from pddlstream.algorithms.advanced import get_predicates
     from pddlstream.algorithms.downward import fd_from_fact
     import pddl

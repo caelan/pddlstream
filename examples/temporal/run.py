@@ -46,7 +46,7 @@ ADD_STREAM = 'add'
 def create_inequality_stream():
     # TODO: refactor
     #from pddlstream.algorithms.downward import IDENTICAL
-    return Stream(name='ge',
+    return Stream(name=GE_STREAM,
                   gen_fn=from_test(lambda t1, t2: t1 >= t2),
                   inputs=['?t1', '?t2'],
                   domain=[(Time, '?t1'), (Time, '?t2')],
@@ -54,7 +54,16 @@ def create_inequality_stream():
                   certified=[(GE, '?t1', '?t2')],
                   info=StreamInfo(eager=True))
 
-def create_add_function(max_t=INF):
+class BoundedTime(object):
+    def __init__(self, t=0., num=0):
+        # Limits the number of sequential actions
+        # TODO: exploit the fact that robots can only do one thing at time
+        self.t = t
+        self.num = num # TODO: countdown from zero instead?
+    def __add__(self, duration):
+        return BoundedTime(self.t + duration, self.num + 1)
+
+def create_add_function(max_t=INF, propagate_start=True):
     # TODO: could make one of these per action to only propagate for a specific duration
     return Stream(name=ADD_STREAM,
                   gen_fn=from_fn(lambda t1, dt: Output(t1 + dt) if (t1 + dt <= max_t) else None),
@@ -63,10 +72,9 @@ def create_add_function(max_t=INF):
                           (StartTime, '?t1'),
                           ],
                   outputs=['?t2'],
-                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2'),
-                              # TODO: toggle depending on if can start from any stop time
-                             (StartTime, '?t2'),
-                            ],
+                  certified=[(Time, '?t2'), (Sum, '?t1', '?dt', '?t2')]
+                            # TODO: toggle depending on if can start from any stop time
+                            + ([(StartTime, '?t2')] if propagate_start else []),
                   info=StreamInfo(eager=True))
 
 def create_duration_stream(action, parameters, durations=[]):
@@ -98,6 +106,14 @@ def create_duration_function(): #scale=1.):
                     info=FunctionInfo(eager=True)) # TODO: eager function
 
 ##################################################
+
+def initialize_time(t0=0.):
+    return [
+        # (Advancable,), # TODO: add automatically
+        (Time, t0),
+        (StartTime, t0),
+        (AtTime, t0),
+    ]
 
 def discretize_time(t0, max_t, dt=None):
     # TODO: stream for increasing max_t
@@ -137,23 +153,19 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
     # TODO: iteratively increase max_t and/or discretize_dt
 
     # TODO: min_dt is the min of all the durations
-    # TODO: sample the duration for actions
     # TODO: add epsilon (epsilonize) after every action start
 
     init = [
-        #(Advancable,), # TODO: add automatically
-        (Time, t0),
-        (StartTime, t0),
-        (AtTime, t0),
         #(Duration, wait_dt), # T
         (Time, goal_t),
         (Duration, 0),
     ]
+    init.extend(initialize_time())
     if discretize_dt is not None:
         init.extend(discretize_time(t0, max_t, dt=discretize_dt))
 
     # TODO: extract all initial times as important times
-    # TODO: support timed initial literals
+    # TODO: support timed initial literals # e.g (at 10 (train-not-in-use t1))
 
     cook_dt = 2.
     for food, stove in product(foods, stoves):
