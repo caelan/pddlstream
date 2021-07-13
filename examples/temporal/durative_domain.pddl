@@ -29,12 +29,12 @@
   (:action turn-on
     :parameters (?s)
     :precondition (and (Stove ?s)
-                       ;(PowerOn)
+                       (PowerOn)
                        ;(not (On ?s))
                   )
     :effect (and (On ?s)
                  ;(increase (total-cost) 0)
-                 (increase (total-cost) (GasCost ?s))
+                 ;(increase (total-cost) (GasCost ?s))
             )
   )
   (:action turn-off
@@ -43,23 +43,26 @@
                        ;(On ?s)
                   )
     :effect (and (not (On ?s))
-                 (increase (total-cost) 0)
+                 ;(increase (total-cost) 0)
                  ;(increase (total-cost) (GasCost ?s))
             )
   )
 
-  ;(:durative-action power-on
-  ; :parameters ()
-  ; :duration (= ?duration (power-on_duration))
-  ; :condition (and
-  ;   (at start (_Noop))
-  ;   ;(at start (not (Advanced)))
-  ;   (at start (not (PowerOn)))
-  ; )
-  ; :effect (and
-  ;   (at end (PowerOn))
-  ; )
-  ;)
+  (:durative-action power-on ; TODO: exogenous process
+   :parameters ()
+   :duration (= ?duration (power-on_duration))
+   :condition (and
+     ;(at start (_Noop))
+     (at start (not (Advanced)))
+     ;(at start (not (PowerOn)))
+     (at start (Controllable))
+   )
+   :effect (and
+     (at end (PowerOn))
+     (at start (not (Controllable))) ; TODO: hack to make Controllable a fluent
+   )
+  )
+  ; TODO: schedule an effect to start at a particular time
 
   (:durative-action cook
    :parameters (?f ?s)
@@ -83,8 +86,8 @@
      (at start (Locked ?f))
      (at start (Locked ?s))
 
-     (at start (increase (total-cost) 1)) ; Many temporal planners don't support costs
-	 (at start (decrease (Gas) 1)) ; Numeric effects not currently supported
+     ;(at start (increase (total-cost) 1)) ; Many temporal planners don't support costs
+	 ;(at start (decrease (Gas) 1)) ; Numeric effects not currently supported
 	 ;(at start (assign (Test) 1)) ; Not supported
 	 ;(at start (scale-up (Test) 1)) ; Not supported
 	 ;(at start (scale-down (Test) 1)) ; Not supported

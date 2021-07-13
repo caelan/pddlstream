@@ -10,7 +10,7 @@ from examples.temporal.utils import create_inequality_stream, create_add_functio
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.constants import PDDLProblem, print_solution, And, Not, Equal, Solution
 from pddlstream.utils import read_pddl, INF
-from pddlstream.language.temporal import Time, ENV_VAR, DURATION_TEMPLATE, Duration, temporal_from_sequential
+from pddlstream.language.temporal import Time, ENV_VAR, DURATION_TEMPLATE, Duration, temporal_from_sequential, ACTIVE_TEMPLATE
 
 #from pddlstream.algorithms.downward import print_search_options
 
@@ -45,6 +45,10 @@ def initialize_duration(action, dt, *args):
         (ActionDuration, dt) + tuple(args),
     ]
 
+def schedule_effect(action, t2, *args):
+    ActionSchedule = ACTIVE_TEMPLATE.format(action)
+    return (ActionSchedule, t2) + tuple(args)
+
 def create_problem(max_t=20., n_foods=1, n_stoves=1):
     constant_map = {}
 
@@ -65,6 +69,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         #(Duration, wait_dt), # T
         (Time, goal_t),
         (Duration, 0),
+        schedule_effect('power-on', 1),
     ]
     init.extend(initialize_duration('power-on', dt=1)) # TODO: only add robot durative actions
     init.extend(initialize_time())

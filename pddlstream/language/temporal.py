@@ -12,7 +12,7 @@ from collections import namedtuple
 
 from pddlstream.algorithms.downward import TEMP_DIR, parse_sequential_domain, get_conjunctive_parts, write_pddl, \
     make_action, make_parameters, make_object, \
-    Domain, make_effects, make_axiom, make_cost
+    Domain, make_effects, make_axiom, make_cost, get_min_unit
 from pddlstream.language.constants import DurativeAction, Fact, Not, get_args, get_prefix, Equal, TOTAL_COST, INCREASE, Predicate
 from pddlstream.utils import INF, read, elapsed_time, safe_zip, user_input
 
@@ -437,6 +437,7 @@ def get_tfd_path():
 REDUCE_TO_SEQUENTIAL = True
 
 def parse_temporal_domain(domain_pddl):
+    # TODO: https://github.com/aig-upf/universal-pddl-parser
     translate_path = os.path.join(get_tfd_path(), 'translate/') # tfd & temporal-FD
     prefixes = ['pddl', 'normalize']
     deleted = delete_imports(prefixes)
@@ -644,7 +645,7 @@ STOP_PREFIX = '_stop_'
 INSTANT_PREFIX = '_instant_'
 DURATION_TEMPLATE = '_{}_duration'
 OVER_ALL_TEMPLATE = '_{}_over_all'
-ACTIVE_TEMPLATE = '_active_{}'
+ACTIVE_TEMPLATE = '_active_{}' # TODO: scheduled
 
 def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False, debug=False):
     # TODO: support PDDL2.2 timed initial literals
@@ -727,6 +728,8 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     for action in instant_actions:
         #action.dump()
         cost = extract_cost(action.effects)
+        #if cost is None:
+        #    cost = get_min_unit() # 0 | 1
         action_params = convert_parameters(action.parameters)
         instant_params = make_parameters([T2]) + tuple(action_params)
         instant_action = pddl.Action('{}{}'.format(INSTANT_PREFIX, action.name), instant_params, len(instant_params),
@@ -769,6 +772,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         start_cost, end_cost = map(extract_cost, action.effects)
         #start_cost = duration if duration_costs else None
         end_cost = duration if duration_costs else end_cost # TODO: pay at start or at end?
+        # TODO: factor the following actions to support exogenous processes, events, timed literals
 
         #########################
 
