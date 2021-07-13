@@ -639,10 +639,12 @@ Elapsed = '_elapsed'
 
 # prefixes
 ADVANCE_ACTION = '_advance'
-START_PREFIX = '_start-'
-STOP_PREFIX = '_stop-'
-INSTANT_PREFIX = '_instant-'
+START_PREFIX = '_start_'
+STOP_PREFIX = '_stop_'
+INSTANT_PREFIX = '_instant_'
 DURATION_TEMPLATE = '_{}_duration'
+OVER_ALL_TEMPLATE = '_{}_over_all'
+ACTIVE_TEMPLATE = '_active_{}'
 
 def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False, debug=False):
     # TODO: support PDDL2.2 timed initial literals
@@ -661,7 +663,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     T = '?t'
 
     advanceable = Fact(Advancable)
-    idle = Fact('idle')
+    idle = Fact('_idle')
     violation = Fact('_violation')
     ongoing = Fact('_ongoing')
 
@@ -714,7 +716,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                    Active(T2),
                                ],
                                derived=ongoing)
-    # TODO: add Not(ongoing) to the goal
+    # TODO: add Not(ongoing) to the goal?
     new_axioms = [
         premature_axiom,
         #ongoing_axiom,
@@ -751,7 +753,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         start_effects, end_effects = map(convert_effects, action.effects)
 
         # TODO: pddl predicates here are case sensitive
-        active_pred = 'active-{}'.format(action.name)
+        active_pred = ACTIVE_TEMPLATE.format(action.name)
         active_fact = Fact(active_pred, [T2] + [p.name for p in action_params])
 
         # TODO: convert the function to a predicate defined on ?dt
@@ -760,6 +762,9 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         duration_pred = DURATION_TEMPLATE.format(action.name) # TODO: relate to duration
         #duration_fact = Fact(duration_pred, [DT] + get_args(duration))
         duration_fact = Fact(duration_pred, [DT] + [p.name for p in action_params])
+
+        over_all = OVER_ALL_TEMPLATE.format(action.name)
+        over_all_fact = Fact(over_all, [p.name for p in action_params])
 
         start_cost, end_cost = map(extract_cost, action.effects)
         #start_cost = duration if duration_costs else None
@@ -825,12 +830,27 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
 
         #########################
 
-        over_parts = filter_parts(set(get_conjunctive_parts(over_cond)) -
-                                  set(get_conjunctive_parts(static_condition)))
-        axiom = create_conjunctive_axiom(violation, end_params, [
+        axiom = create_conjunctive_axiom(over_all_fact, end_params, [
             pddl.Atom(Time, [T2]),
             static_condition,
             fd_from_fact(active_fact),
+        ])
+        new_axioms.append(axiom)
+
+        #########################
+
+        over_parts = filter_parts(set(get_conjunctive_parts(over_cond)) -
+                                  set(get_conjunctive_parts(static_condition)))
+        # axiom = create_conjunctive_axiom(violation, end_params, [
+        #     pddl.Atom(Time, [T2]),
+        #     static_condition,
+        #     fd_from_fact(active_fact),
+        #     #over_cond.negate(),  # TODO: could iterate over over_cond
+        #     pddl.Conjunction(over_parts).negate(),
+        # ])
+        axiom = create_conjunctive_axiom(violation, action_params, [
+            static_condition,
+            fd_from_fact(over_all_fact),
             #over_cond.negate(),  # TODO: could iterate over over_cond
             pddl.Conjunction(over_parts).negate(),
         ])

@@ -66,7 +66,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         (Time, goal_t),
         (Duration, 0),
     ]
-    #init.extend(initialize_duration('power-on', dt=1)) # TODO: only add robot durative actions
+    init.extend(initialize_duration('power-on', dt=1)) # TODO: only add robot durative actions
     init.extend(initialize_time())
     if discretize_dt is not None:
         init.extend(discretize_time(t0, max_t, dt=discretize_dt))
