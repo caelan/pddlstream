@@ -29,6 +29,7 @@
   (:action turn-on
     :parameters (?s)
     :precondition (and (Stove ?s)
+                       ;(PowerOn)
                        ;(not (On ?s))
                   )
     :effect (and (On ?s)
@@ -47,15 +48,33 @@
             )
   )
 
+  ;(:durative-action power-on
+  ; :parameters ()
+  ; :duration (= ?duration (power-on_duration))
+  ; :condition (and
+  ;   (at start (_Noop))
+  ;   ;(at start (not (Advanced)))
+  ;   (at start (not (PowerOn)))
+  ; )
+  ; :effect (and
+  ;   (at end (PowerOn))
+  ; )
+  ;)
+
   (:durative-action cook
    :parameters (?f ?s)
-   :duration (= ?duration (CookDuration ?f ?s)) ; TODO: expressions
+   :duration (= ?duration (cook_duration ?f ?s)) ; TODO: expressions
    :condition (and
      (at start (Food ?f))
      (at start (Stove ?s))
      (at start (not (Locked ?f)))
      (at start (not (Locked ?s)))
      (at start (On ?s))
+
+     ;(at start (and (Food ?f) (Stove ?s) (On ?s)))
+     ;(at start (not (and (Locked ?f) (Locked ?s))))
+     ;(at start (and (Food ?f) (Stove ?s) (On ?s)
+     ;     (not (and (Locked ?f) (Locked ?s)))))
 
      (over all (On ?s))
    )

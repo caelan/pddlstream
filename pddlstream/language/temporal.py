@@ -574,10 +574,12 @@ def convert_parameters(parameters):
     import pddl
     return [pddl.TypedObject(param.name, param.type) for param in parameters]
 
-def expand_condition(condition):
+def filter_parts(parts):
     import pddl
-    return [part for part in get_conjunctive_parts(convert_condition(condition).simplified())
-            if not isinstance(part, pddl.Truth)]
+    return [part for part in parts if not isinstance(part, pddl.Truth)]
+
+def expand_condition(condition):
+    return filter_parts(get_conjunctive_parts(convert_condition(condition).simplified()))
 
 def organize_parameters(derived, axiom_parameters):
     parameter_names = [o.name for o in axiom_parameters]
@@ -621,6 +623,7 @@ def create_conjunctive_axiom(derived, parameters, conditions):
 Time = '_time'
 StartTime = '_starttime'
 AtTime = '_attime'
+Advanced = '_advanced'
 
 # stream
 GE = '_ge'
@@ -634,14 +637,16 @@ Advancable = '_advanceable'
 Difference = '_difference'
 Elapsed = '_elapsed'
 
+# prefixes
 ADVANCE_ACTION = '_advance'
 START_PREFIX = '_start-'
 STOP_PREFIX = '_stop-'
 INSTANT_PREFIX = '_instant-'
-DURATION_TEMPLATE = '_{}duration'
+DURATION_TEMPLATE = '_{}_duration'
 
-def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False):
-    # TODO: support timed initial literals
+def convert_durative(instant_actions, durative_actions, fluents, duration_costs=False, debug=False):
+    # TODO: support PDDL2.2 timed initial literals
+    # TODO: support PDDL+ exogenous processes and events
     # TODO: duration multiplier when duration_costs=True
     from pddlstream.algorithms.advanced import get_predicates
     from pddlstream.algorithms.downward import fd_from_fact
@@ -684,6 +689,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         ],
         effects=[
             (AtTime, T2),
+            (Advanced,),
             Not((AtTime, T1)),
             Not(advanceable),
             idle, # Disable if using adjacent
@@ -709,11 +715,15 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                ],
                                derived=ongoing)
     # TODO: add Not(ongoing) to the goal
-    new_axioms = [premature_axiom, ongoing_axiom]
+    new_axioms = [
+        premature_axiom,
+        #ongoing_axiom,
+    ]
 
     #########################
 
     for action in instant_actions:
+        #action.dump()
         cost = extract_cost(action.effects)
         action_params = convert_parameters(action.parameters)
         instant_params = make_parameters([T2]) + tuple(action_params)
@@ -731,6 +741,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
     #########################
 
     for action in durative_actions:
+        #action.dump()
         static_condition = pddl.Conjunction(list({
             part for condition in action.condition for part in expand_condition(condition)
             if not (get_predicates(part) & fluents)}))
@@ -756,6 +767,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
 
         #########################
 
+        # TODO: create two separate event actions
         # TODO: epsilonize to move forward in time
         start_params = make_parameters([T1, DT, T2]) + tuple(action_params)
         start_action = pddl.Action('{}{}'.format(START_PREFIX, action.name), start_params, len(start_params),
@@ -798,7 +810,7 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
                                      #Not(Active(T2)),
                                  ]) + end_effects,
                                  make_cost(end_cost))
-        new_actions.extend([start_action, end_action])
+        new_actions.extend([start_action, end_action]) # TODO: don't add if no effect
 
         #########################
 
@@ -813,13 +825,18 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
 
         #########################
 
+        over_parts = filter_parts(set(get_conjunctive_parts(over_cond)) -
+                                  set(get_conjunctive_parts(static_condition)))
         axiom = create_conjunctive_axiom(violation, end_params, [
             pddl.Atom(Time, [T2]),
             static_condition,
             fd_from_fact(active_fact),
-            over_cond.negate(),  # TODO: could iterate over over_cond
+            #over_cond.negate(),  # TODO: could iterate over over_cond
+            pddl.Conjunction(over_parts).negate(),
         ])
-        new_axioms.append(axiom)
+        # TODO: only add if over_cond != pddl.Truth()
+        if over_parts:
+            new_axioms.append(axiom)
 
         #########################
 
@@ -830,11 +847,12 @@ def convert_durative(instant_actions, durative_actions, fluents, duration_costs=
         ])
         new_axioms.append(axiom)
 
-    # for action in new_actions + new_axioms:
-    #     print()
-    #     print(action.parameters)
-    #     action.dump()
-    # user_input()
+    if debug:
+        for action in new_actions + new_axioms:
+            print()
+            print(list(action.parameters))
+            action.dump()
+        user_input()
 
     return new_actions, new_axioms
 
@@ -854,8 +872,8 @@ def simple_from_durative_action(durative_actions, fluents):
         effects = list(map(convert_effects, [start_effects, over_effects, end_effects]))
 
         static_condition = pddl.Conjunction(list({
-            part for condition in conditions for part in get_conjunctive_parts(condition.simplified())
-            if not isinstance(part, pddl.Truth) and not (get_predicates(part) & fluents)})) # TODO: expand_condition
+            part for condition in conditions for part in filter_parts(get_conjunctive_parts(condition.simplified()))
+            if not (get_predicates(part) & fluents)})) # TODO: expand_condition
         # TODO: deal with case where there are fluents
         actions = []
         for i, (condition, effect) in enumerate(safe_zip(conditions, effects)):

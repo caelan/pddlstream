@@ -38,6 +38,13 @@ STREAM_PDDL = """
 
 ##################################################
 
+def initialize_duration(action, dt, *args):
+    ActionDuration = DURATION_TEMPLATE.format(action)
+    return [
+        (Duration, dt),
+        (ActionDuration, dt) + tuple(args),
+    ]
+
 def create_problem(max_t=20., n_foods=1, n_stoves=1):
     constant_map = {}
 
@@ -59,6 +66,7 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
         (Time, goal_t),
         (Duration, 0),
     ]
+    #init.extend(initialize_duration('power-on', dt=1)) # TODO: only add robot durative actions
     init.extend(initialize_time())
     if discretize_dt is not None:
         init.extend(discretize_time(t0, max_t, dt=discretize_dt))
@@ -68,10 +76,8 @@ def create_problem(max_t=20., n_foods=1, n_stoves=1):
 
     cook_dt = 2.
     for food, stove in product(foods, stoves):
-        CookDuration = DURATION_TEMPLATE.format('cook')
+        init.extend(initialize_duration('cook', cook_dt, food, stove))
         init.extend([
-            (Duration, cook_dt),
-            (CookDuration, cook_dt, food, stove),
             ('Food', food),
             ('Stove', stove),
             Equal(('GasCost', stove), 0),
