@@ -3,18 +3,11 @@
 from __future__ import print_function
 
 import os
-import random
-
 from numpy import array, random
 
-from examples.continuous_tamp.primitives import get_random_seed, TAMPProblem, TAMPState
-from examples.continuous_tamp.run import set_deterministic, dump_pddlstream, display_plan
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import Equal, PDDLProblem, TOTAL_COST, print_solution
-from pddlstream.language.generator import from_test
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.temporal import retime_plan
-from pddlstream.utils import read
+##################################################
+
+# Global constants
 
 REGIONS = {
     'ground': array([-10., 5.]),
@@ -24,11 +17,14 @@ REGIONS = {
 BLOCK_WIDTH = 2.
 HAND_HEIGHT = 1.
 
+GY = BLOCK_WIDTH + HAND_HEIGHT/2.
 GRASPS = [
-    -array([0., BLOCK_WIDTH + HAND_HEIGHT/2.]), # Transformation from hand to block
+    -array([0., GY]), # Transformation from hand to block
 ]
 
 ##################################################
+
+# Streams
 
 def pose_sampler(b, r):
     x1, x2 = REGIONS[r]
@@ -42,17 +38,36 @@ def grasp_generator(b):
     yield [(g,) for g in GRASPS]
 
 def ik_solver(b, p, g):
-    q = p - g
+    q = p - g # q + g = p
     yield [(q,)]
 
 def motion_planner(q1, q2):
     x1, _ = q1
     x2, _ = q2
     y = 2*BLOCK_WIDTH + HAND_HEIGHT/2.
-    w1 = array([x1, y])
-    w2 = array([x2, y])
-    t = [q1, w1, w2, q2]
+    w1 = array([x1, y]) # waypoint1
+    w2 = array([x2, y]) # waypoint2
+    t = [q1, w1, w2, q2] # path
     yield [(t,)]
+
+def collision_free_checker(b1, p1, b2, p2):
+    assert b1 != b2
+    x1, _ = p1
+    x2, _ = p2
+    collision = abs(x2 - x1) <= BLOCK_WIDTH
+    if not collision:
+        yield [tuple()] # empty tuple certifies
+
+def test_contained(b, p, r):
+    x, y = p
+    x1, x2 = REGIONS[r]
+    contained = (x1 + BLOCK_WIDTH/2.) <= x <= (x2 - BLOCK_WIDTH/2.)
+    if contained:
+        yield [tuple()] # empty tuple certifies
+
+##################################################
+
+# External functions
 
 def distance(q1, q2):
     x1, _ = q1
@@ -61,20 +76,23 @@ def distance(q1, q2):
 
 ##################################################
 
+# Initial state
+
 q0 = array([-5.,  6.])
 initial_poses = {
     'b1': array([0., 0.]),
-    'b2': array([-3.,  0.]),
+    'b2': array([7.5, 0.]),
 }
 
 initial = [
-    ('Conf', q0),
-    ('AtConf', q0),
-    ('HandEmpty',),
+    ('Conf', q0),   # Static type property
+    ('AtConf', q0), # Static type property
+    ('HandEmpty',), # Fluent initial fact
+    ('CanMove',),   # Fluent initial fact (prevents the robot double moving)
 
-    ('Stove', 'stove'),
+    ('Stove', 'stove'), # Fluent initial fact
 
-    Equal((TOTAL_COST,), 0)
+    ('=', ('total-cost',), 0.) # Initial plan cost (optional)
 ]
 for r in REGIONS:
     initial += [
@@ -83,23 +101,27 @@ for r in REGIONS:
 
 for b, p0 in initial_poses.items():
     initial += [
-        ('Block', b),
-        ('Pose', b, p0),
-        ('AtPose', b, p0),
+        ('Block', b),      # Static type property
+        ('Pose', b, p0),   # Static type property
+        ('AtPose', b, p0), # Fluent initial fact
     ]
 
 ##################################################
 
+# Goal formula
+
 goal = ('and', ('Cooked', 'b1'),
                ('Holding', 'b1'),
-               ('AtConf', q0),
-        )
+               ('AtConf', q0), # Return to initial conf
+       )
 
 ##################################################
 
+# Reading PDDL text files
+
 parent_dir = os.path.dirname(__file__)
-domain_pddl = read(os.path.join(parent_dir, 'domain.pddl'))
-stream_pddl = read(os.path.join(parent_dir, 'stream.pddl'))
+domain_pddl = open(os.path.join(parent_dir, 'domain.pddl')).read()
+stream_pddl = open(os.path.join(parent_dir, 'stream.pddl')).read()
 
 constant_map = {}
 stream_map = {
@@ -107,17 +129,22 @@ stream_map = {
     's-region': pose_sampler,
     's-ik': ik_solver,
     's-motion': motion_planner,
-    't-cfree': from_test(lambda *args: True),
-    #'t-region': from_test(get_region_test(tamp_problem.regions)),
+    't-cfree': collision_free_checker,
+    't-region': test_contained,
     'dist': distance,
 }
-#stream_map = 'debug'
 
-problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, initial, goal)
+problem = (domain_pddl, constant_map, stream_pddl, stream_map, initial, goal)
 
 ##################################################
 
 import numpy as np
+
+from examples.continuous_tamp.primitives import get_random_seed, TAMPProblem, TAMPState
+from examples.continuous_tamp.run import set_deterministic, dump_pddlstream, display_plan
+from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.language.temporal import retime_plan
 
 # stripstream
 # https://caelan.github.io/stripstream/tutorial.html
@@ -128,23 +155,25 @@ import numpy as np
 # https://github.com/caelan/ss/tree/master/examples/tutorial
 
 args = create_parser().parse_args()
-np.set_printoptions(precision=2)
+np.set_printoptions(precision=3)
 set_deterministic(seed=0)
 print('Random seed:', get_random_seed())
+dump_pddlstream(PDDLProblem(*problem))
 
-stream_info = {
-    't-region': StreamInfo(eager=True, p_success=0),
-}
-#stream_info = {}
+##################################################
 
-dump_pddlstream(problem)
-solution = solve(problem, algorithm=args.algorithm, stream_info=stream_info,
-                 planner='ff-wastar1', verbose=True)
+# Solve the problem
+
+solution = solve(problem, algorithm=args.algorithm, planner='ff-astar', verbose=True)
 print_solution(solution)
 plan, cost, evaluations = solution
+
+##################################################
+
+# Visualize the plan
 
 if plan is not None:
     initial_state = TAMPState(robot_confs={'': q0}, holding={}, block_poses=initial_poses)
     tamp_problem = TAMPProblem(initial=initial_state, regions=REGIONS,
                                goal_conf=q0, goal_regions={}, goal_cooked=['b1'])
-    display_plan(tamp_problem, retime_plan(plan), time_step=0.01)
+    display_plan(tamp_problem, retime_plan(plan), time_step=0.025)

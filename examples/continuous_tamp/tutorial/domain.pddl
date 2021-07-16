@@ -22,6 +22,7 @@
     (AtGrasp ?b ?g)
     (AtConf ?q)
     (HandEmpty)
+    (CanMove)
     (Cooked ?b)
 
     ; Derived predicates
@@ -39,27 +40,27 @@
   (:action move                                           ; Action name
     :parameters (?q1 ?t ?q2)                              ; Action parameters
     :precondition (and (Motion ?q1 ?t ?q2)                ; Static preconditions
-                       (AtConf ?q1))                      ; Fluent preconditions
+                       (AtConf ?q1) (CanMove))            ; Fluent preconditions
     :effect (and (AtConf ?q2)                             ; Add effects
-                 (not (AtConf ?q1))                       ; Delete effects
+                 (not (AtConf ?q1)) (not (CanMove))       ; Delete effects
                  (increase (total-cost) (Dist ?q1 ?q2)))) ; Cost term
 
   (:action pick                                                ; Action name
     :parameters (?b ?p ?g ?q)                                  ; Action parameters
     :precondition (and (Kin ?b ?q ?p ?g)                       ; Static preconditions
                        (AtConf ?q) (AtPose ?b ?p) (HandEmpty)) ; Fluent preconditions
-    :effect (and (AtGrasp ?b ?g)                               ; Add effects
+    :effect (and (AtGrasp ?b ?g) (CanMove)                     ; Add effects
                  (not (AtPose ?b ?p)) (not (HandEmpty))        ; Delete effects
                  (increase (total-cost) 1)))                   ; Cost term
 
-  (:action place                                   ; Action name
-    :parameters (?b ?p ?g ?q)                      ; Action parameters
-    :precondition (and (Kin ?b ?q ?p ?g)           ; Static preconditions
-                       (AtConf ?q) (AtGrasp ?b ?g) ; Fluent preconditions
-                       (not (UnsafePose ?b ?p)))   ; Negated derived preconditions
-    :effect (and (AtPose ?b ?p) (HandEmpty)        ; Add effects
-                 (not (AtGrasp ?b ?g))             ; Delete effects
-                 (increase (total-cost) 1)))       ; Cost term
+  (:action place                                      ; Action name
+    :parameters (?b ?p ?g ?q)                         ; Action parameters
+    :precondition (and (Kin ?b ?q ?p ?g)              ; Static preconditions
+                       (AtConf ?q) (AtGrasp ?b ?g)    ; Fluent preconditions
+                       (not (UnsafePose ?b ?p)))      ; Negated derived preconditions
+    :effect (and (AtPose ?b ?p) (HandEmpty) (CanMove) ; Add effects
+                 (not (AtGrasp ?b ?g))                ; Delete effects
+                 (increase (total-cost) 1)))          ; Cost term
 
   (:action cook                              ; Action name
     :parameters (?b ?r)                      ; Action parameters

@@ -1,4 +1,7 @@
 (define (stream 2d-tamp)
+
+  ; Generator streams
+
   (:stream s-region                      ; Stream name
     :inputs (?b ?r)                      ; Input parameters
     :domain (and (Block ?b) (Region ?r)) ; Input type constraints
@@ -26,16 +29,24 @@
     :certified (and (Traj ?t)                ; Output type properties
                     (Motion ?q1 ?t ?q2)))    ; Output constraint properties
 
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ; Test streams
+
   (:stream t-cfree                              ; Stream name
     :inputs (?b1 ?p1 ?b2 ?p2)                   ; Input parameters
     :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)) ; Input type constraints
     :certified (CFree ?b1 ?p1 ?b2 ?p2))         ; Output constraint properties
 
-  ;(:stream t-region                        ; Stream name
-  ;  :inputs (?b ?p ?r)                     ; Input parameters
-  ;  :domain (and (Pose ?b ?p) (Region ?r)) ; Input type constraints
-  ;  :certified (Contain ?b ?p ?r))         ; Output constraint properties
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ; External functions
 
   (:function (Dist ?q1 ?q2)      ; External function
     (and (Conf ?q1) (Conf ?q2))) ; Input type constraints
 )
+
+  ;(:stream t-region                        ; Stream name
+  ;  :inputs (?b ?p ?r)                     ; Input parameters
+  ;  :domain (and (Pose ?b ?p) (Region ?r)) ; Input type constraints
+  ;  :certified (Contain ?b ?p ?r))         ; Output constraint properties
