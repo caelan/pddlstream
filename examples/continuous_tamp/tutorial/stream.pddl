@@ -36,6 +36,6 @@
     :domain (and (Pose ?b ?p) (Region ?r)) ; Input type constraints
     :certified (Contain ?b ?p ?r))         ; Output constraint properties
 
-  (:function (Dist ?q1 ?q2)     ; External function
-    (and (Conf ?q1) (Conf ?q2)) ; Input type constraints
+  (:function (Dist ?q1 ?q2)      ; External function
+    (and (Conf ?q1) (Conf ?q2))) ; Input type constraints
 )

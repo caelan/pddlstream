@@ -60,7 +60,6 @@
     :effect (and (AtPose ?b ?p) (HandEmpty ?r)     ; Add effects
                  (not (AtGrasp ?b ?g))             ; Delete effects
                  (increase (total-cost) 1)))       ; Cost term
-  )
 
   (:action cook                              ; Action name
     :parameters (?b ?r)                      ; Action parameters
