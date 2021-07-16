@@ -17,8 +17,9 @@ ENV_HEIGHT = 1.
 
 COLOR_FROM_NAME = {
     'stove': 'red',
-    'table': 'brown', # brown | tan
+    'table': 'brown',
     'shelf': 'grey',
+    'ground': 'tan',
 }
 
 BACKGROUND_COLOR = 'light blue' # tan | light blue

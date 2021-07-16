@@ -457,6 +457,17 @@ def get_value_at_time(traj, fraction):
     #    raw_input()
     return conf
 
+def extract_args(robot_confs, args):
+    # TODO: instead just convert the plan
+    if not robot_confs:
+        return args
+    robot = sorted(robot_confs)[0]
+    if not args:
+        return [robot]
+    if isinstance(args[0], str) and (args[0] in robot_confs):
+        return args
+    return [robot] + list(args)
+
 def update_state(state, action, t):
     robot_confs, holding, block_poses = state
     name, args, start, duration = action
@@ -465,10 +476,10 @@ def update_state(state, action, t):
     assert 0 <= fraction <= 1
     threshold = 0.5
     if name == 'move':
-        robot, _, traj, _ = args
+        robot, _, traj, _ = extract_args(robot_confs, args)
         robot_confs[robot] = get_value_at_time(traj, fraction)
     elif name == 'pick':
-        robot, block, pose, grasp, conf = args[:5]
+        robot, block, pose, grasp, conf = extract_args(robot_confs, args[:5])
         traj = [conf, pose - grasp]
         if fraction < threshold:
             robot_confs[robot] = get_value_at_time(traj, fraction / threshold)
@@ -477,7 +488,7 @@ def update_state(state, action, t):
             block_poses.pop(block, None)
             robot_confs[robot] = get_value_at_time(traj[::-1], (fraction - threshold) / (1 - threshold))
     elif name == 'place':
-        robot, block, pose, grasp, conf = args[:5]
+        robot, block, pose, grasp, conf = extract_args(robot_confs, args[:5])
         traj = [conf, pose - grasp]
         if fraction < threshold:
             robot_confs[robot] = get_value_at_time(traj, fraction / threshold)

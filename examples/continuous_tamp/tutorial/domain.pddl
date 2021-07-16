@@ -21,7 +21,7 @@
     (AtPose ?b ?p)
     (AtGrasp ?b ?g)
     (AtConf ?q)
-    (HandEmpty ?r)
+    (HandEmpty)
     (Cooked ?b)
 
     ; Derived predicates
@@ -44,20 +44,20 @@
                  (not (AtConf ?q1))                       ; Delete effects
                  (increase (total-cost) (Dist ?q1 ?q2)))) ; Cost term
 
-  (:action pick                                                   ; Action name
-    :parameters (?b ?p ?g ?q)                                     ; Action parameters
-    :precondition (and (Kin ?b ?q ?p ?g)                          ; Static preconditions
-                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty ?r)) ; Fluent preconditions
-    :effect (and (AtGrasp ?b ?g)                                  ; Add effects
-                 (not (AtPose ?b ?p)) (not (HandEmpty ?r))        ; Delete effects
-                 (increase (total-cost) 1)))                      ; Cost term
+  (:action pick                                                ; Action name
+    :parameters (?b ?p ?g ?q)                                  ; Action parameters
+    :precondition (and (Kin ?b ?q ?p ?g)                       ; Static preconditions
+                       (AtConf ?q) (AtPose ?b ?p) (HandEmpty)) ; Fluent preconditions
+    :effect (and (AtGrasp ?b ?g)                               ; Add effects
+                 (not (AtPose ?b ?p)) (not (HandEmpty))        ; Delete effects
+                 (increase (total-cost) 1)))                   ; Cost term
 
   (:action place                                   ; Action name
     :parameters (?b ?p ?g ?q)                      ; Action parameters
     :precondition (and (Kin ?b ?q ?p ?g)           ; Static preconditions
                        (AtConf ?q) (AtGrasp ?b ?g) ; Fluent preconditions
                        (not (UnsafePose ?b ?p)))   ; Negated derived preconditions
-    :effect (and (AtPose ?b ?p) (HandEmpty ?r)     ; Add effects
+    :effect (and (AtPose ?b ?p) (HandEmpty)        ; Add effects
                  (not (AtGrasp ?b ?g))             ; Delete effects
                  (increase (total-cost) 1)))       ; Cost term
 

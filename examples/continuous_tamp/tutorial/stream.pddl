@@ -31,10 +31,10 @@
     :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2)) ; Input type constraints
     :certified (CFree ?b1 ?p1 ?b2 ?p2))         ; Output constraint properties
 
-  (:stream t-region                        ; Stream name
-    :inputs (?b ?p ?r)                     ; Input parameters
-    :domain (and (Pose ?b ?p) (Region ?r)) ; Input type constraints
-    :certified (Contain ?b ?p ?r))         ; Output constraint properties
+  ;(:stream t-region                        ; Stream name
+  ;  :inputs (?b ?p ?r)                     ; Input parameters
+  ;  :domain (and (Pose ?b ?p) (Region ?r)) ; Input type constraints
+  ;  :certified (Contain ?b ?p ?r))         ; Output constraint properties
 
   (:function (Dist ?q1 ?q2)      ; External function
     (and (Conf ?q1) (Conf ?q2))) ; Input type constraints
