@@ -1,17 +1,17 @@
-(define (stream 2d-tamp)
+(define (stream TAMP-2D)
 
   ; Generator streams
 
   (:stream s-region                      ; Stream name
     :inputs (?b ?r)                      ; Input parameters
-    :domain (and (Block ?b) (Region ?r)) ; Input type constraints
+    :domain (and (Body ?b) (Region ?r))  ; Input type constraints
     :outputs (?p)                        ; Output parameters
     :certified (and (Pose ?b ?p)         ; Output type properties
                     (Contain ?b ?p ?r))) ; Output constraint properties
 
   (:stream s-grasp            ; Stream name
     :inputs (?b)              ; Input parameters
-    :domain (Block ?b)        ; Input type constraints
+    :domain (Body ?b)         ; Input type constraints
     :outputs (?g)             ; Output parameters
     :certified (Grasp ?b ?g)) ; Output type properties
 
@@ -22,12 +22,12 @@
     :certified (and (Conf ?q)                ; Output type properties
                     (Kin ?b ?q ?p ?g)))      ; Output constraint properties
 
-  (:stream s-motion                          ; Stream name
-    :inputs (?q1 ?q2)                        ; Input parameters
-    :domain (and (Conf ?q1) (Conf ?q2))      ; Input type constraints
-    :outputs (?t)                            ; Output parameters
-    :certified (and (Traj ?t)                ; Output type properties
-                    (Motion ?q1 ?t ?q2)))    ; Output constraint properties
+  (:stream s-motion                       ; Stream name
+    :inputs (?q1 ?q2)                     ; Input parameters
+    :domain (and (Conf ?q1) (Conf ?q2))   ; Input type constraints
+    :outputs (?t)                         ; Output parameters
+    :certified (and (Traj ?t)             ; Output type properties
+                    (Motion ?q1 ?t ?q2))) ; Output constraint properties
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
