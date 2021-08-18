@@ -10,28 +10,28 @@
     :domain (and (Ray ?y) (Conf ?r ?q))
     :certified (CFreeRayConf ?y ?r ?q)
   )
-  ;(:stream obj-range ; Eager
+  ;(:stream image-range ; Eager
   ;  :inputs (?q ?o)
   ;  :domain (and (Conf ?q) (Objective ?o))
   ;  :certified (ImageRange ?q ?o)
   ;)
-  ;(:stream com-range ; Eager
+  ;(:stream transmit-range ; Eager
   ;  :inputs (?q ?l)
   ;  :domain (and (Conf ?q) (Lander ?l))
   ;  :certified (ComRange ?q ?l)
   ;)
-  (:stream obj-inv-visible
+  (:stream inv-image
     :inputs (?r ?o)
     :domain (and (Rover ?r) (Objective ?o))
     :outputs (?q ?y)
-    :certified (and (ImageVisible ?r ?q ?y ?o) (ImageRange ?r ?q ?o)
+    :certified (and (ImageConf ?r ?q ?y ?o) (ImageRange ?r ?q ?o)
                     (Conf ?r ?q) (Ray ?y))
   )
-  (:stream com-inv-visible
+  (:stream inv-transmit
     :inputs (?r ?l)
     :domain (and (Rover ?r) (Lander ?l))
     :outputs (?q ?y)
-    :certified (and (ComVisible ?r ?q ?y ?l) (ComRange ?r ?q ?l)
+    :certified (and (TransmitConf ?r ?q ?y ?l) (ComRange ?r ?q ?l)
                     (Conf ?r ?q) (Ray ?y))
   )
   (:stream sample-above

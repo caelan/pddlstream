@@ -14,8 +14,8 @@
     (Conf ?r ?q)
     (Ray ?y)
     (Motion ?r ?q1 ?t ?q2)
-    (ImageVisible ?r ?q ?y ?o)
-    (ComVisible ?r ?q ?y ?l)
+    (ImageConf ?r ?q ?y ?o)
+    (TransmitConf ?r ?q ?y ?l)
     (Above ?r ?q ?g)
     (CFreeRayConf ?y ?r ?q)
 
@@ -43,7 +43,7 @@
   )
   (:action take_image
     :parameters (?r ?q ?y ?o ?c ?m)
-    :precondition (and (ImageVisible ?r ?q ?y ?o) (OnBoard ?c ?r) (Supports ?c ?m)
+    :precondition (and (ImageConf ?r ?q ?y ?o) (OnBoard ?c ?r) (Supports ?c ?m)
                        (AtConf ?r ?q) (Calibrated ?c ?r)
                        (not (Occluded ?y))
                   )
@@ -52,7 +52,7 @@
   )
   (:action calibrate
     :parameters (?r ?q ?y ?o ?c)
-    :precondition (and (ImageVisible ?r ?q ?y ?o) (OnBoard ?c ?r)
+    :precondition (and (ImageConf ?r ?q ?y ?o) (OnBoard ?c ?r)
                        (AtConf ?r ?q)
                        (not (Occluded ?y))
                   )
@@ -60,7 +60,7 @@
   )
   (:action send_image
     :parameters (?r ?q ?y ?l ?o ?m)
-    :precondition (and (ComVisible ?r ?q ?y ?l) (Objective ?o) (Mode ?m)
+    :precondition (and (TransmitConf ?r ?q ?y ?l) (Objective ?o) (Mode ?m)
                        (HaveImage ?r ?o ?m) (AtConf ?r ?q)
                        (not (Occluded ?y))
                   )
@@ -76,7 +76,7 @@
   )
   (:action send_analysis
     :parameters (?r ?q ?y ?l ?g)
-    :precondition (and (ComVisible ?r ?q ?y ?l) (Rock ?g)
+    :precondition (and (TransmitConf ?r ?q ?y ?l) (Rock ?g)
                        (Analyzed ?r ?g) (AtConf ?r ?q)
                        (not (Occluded ?y))
                   )
