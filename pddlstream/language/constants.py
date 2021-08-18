@@ -120,6 +120,11 @@ def Fact(predicate, args=[]):
     return (predicate,) + tuple(args)
 
 
+def F(predicate, *args):
+    # TODO: generic Tuple(...), Set(...), etc. classes
+    return (predicate,) + tuple(args)
+
+
 def is_parameter(expression):
     return isinstance(expression, str) and expression.startswith(PARAMETER)
 
@@ -137,7 +142,8 @@ class Predicate(object):
     def __init__(self, name): # TODO: parameters
         self.name = name # .lower()
     def __call__(self, *args):
-        return Fact(self.name, args)
+        # TODO: could instead overwrite __getitem__
+        return Fact(predicate=self.name, args=args)
     def __repr__(self):
         #return self.name
         return '{}(...)'.format(self.name)

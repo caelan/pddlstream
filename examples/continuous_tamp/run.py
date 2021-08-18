@@ -87,7 +87,7 @@ def create_problem(tamp_problem, hand_empty=False, manipulate_cost=1.):
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):
 
-    domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
+    domain_pddl = read(get_file_path(__file__, 'domain.pddl')) # domain | strips_domain
     external_paths = []
     if use_stream:
         external_paths.append(get_file_path(__file__, 'stream.pddl'))
@@ -121,7 +121,7 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 
 ##################################################
 
-def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.025, sec_per_step=1e-3):
+def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.05, sec_per_step=1e-3):
     from examples.continuous_tamp.viewer import ContinuousTMPViewer
     from examples.discrete_tamp.viewer import COLORS
 
@@ -185,8 +185,9 @@ MUTEXES = [
 ##################################################
 
 def set_deterministic(seed=0):
-    random.seed(seed=seed)
-    np.random.seed(seed=seed)
+    # TODO: refactor to pddlstream
+    random.seed(seed)
+    np.random.seed(seed)
 
 def initialize(parser):
     parser.add_argument('-c', '--cfree', action='store_true', help='Disables collisions')

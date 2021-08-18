@@ -325,7 +325,8 @@ class StreamInstance(Instance):
     #########################
 
     def get_representative_optimistic(self):
-        for opt_gn in self.opt_gens:
+        # TODO: finish replacement of unique objects to support optimistic costs
+        for opt_gn in reversed(self.opt_gens):
             if (opt_gn is not None) and opt_gn.history and opt_gn.history[0]:
                 return opt_gn.history[0][0]
         return None
