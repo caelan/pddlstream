@@ -46,7 +46,7 @@ def apply_actions(domain, state, plan, unit_costs=False):
         apply_action(task.init, instance)
     fluents = get_fluents(domain)
     fluent_state = [value_from_evaluation(evaluation_from_fd(atom))
-                    for atom in task.init if isinstance(atom, pddl.Atom) and atom.predicate in fluents]
+                    for atom in task.init if isinstance(atom, pddl.Atom) and (atom.predicate in fluents)]
     print('Fluent:', fluent_state)
     state = static_state + fluent_state
     return state

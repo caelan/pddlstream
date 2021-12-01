@@ -280,9 +280,8 @@ def evaluation_from_fd(fd):
         head = Head(fd.predicate, tuple(map(obj_from_pddl, fd.args)))
         return Evaluation(head, not fd.negated)
     if isinstance(fd, pddl.f_expression.Assign):
-        raise NotImplementedError(fd)
-        #head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
-        #return Evaluation(head, float(fd.expression.value) / get_cost_scale())  # Need to be careful due to rounding
+        head = Head(fd.fluent.symbol, tuple(map(obj_from_pddl, fd.fluent.args)))
+        return Evaluation(head, float(fd.expression.value) / get_cost_scale())  # Need to be careful due to rounding
     raise ValueError(fd)
 
 def fd_from_evaluation(evaluation):
@@ -319,13 +318,14 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
     problem_pddl = None
     if USE_FORBID:
         problem_pddl = get_problem_pddl(evaluations, goal_exp, domain.pddl, temporal=False)
-    write_pddl(domain.pddl, problem_pddl)
+    write_pddl(domain.pddl, problem_pddl, temp_dir=TEMP_DIR)
     return Problem(task_name=domain.name, task_domain_name=domain.name,
                    objects=sorted(typed_objects, key=lambda o: o.name),
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal,
                    use_metric=not unit_costs, pddl=problem_pddl)
 
 IDENTICAL = "identical" # lowercase is critical (!= instead?)
+INTERNAL_PREDICATES = [EQ, IDENTICAL]
 
 def get_identical_atoms(objects):
     # TODO: optimistically evaluate (not (= ?o1 ?o2))
@@ -547,6 +547,7 @@ def is_applicable(state, action):
 def apply_action(state, action):
     assert(isinstance(action, pddl.PropositionalAction))
     # TODO: signed literals
+    # TODO: relaxed_apply_action
     for conditions, effect in action.del_effects:
         if conditions_hold(state, conditions):
             state.discard(effect)

@@ -211,7 +211,7 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     with Verbose(debug):
         instantiated = instantiate_task(task)
         if instantiated is None:
-            return None
+            return results, None
         # TODO: reinstantiate actions?
         instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
         instantiated = convert_instantiated(instantiated)
@@ -270,6 +270,7 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
     condition_from_effect = defaultdict(set)
     if use_actions:
         # TODO: selectively ignore some conditions (e.g. HandEmpty)
+        # TODO: refactor into separate method
         for action in instantiated.actions:
             for conditional, effect in action.add_effects:
                 for condition in (action.precondition + conditional):

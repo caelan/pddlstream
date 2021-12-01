@@ -10,7 +10,7 @@ from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, get_mapping
 
 UNIVERSAL_TO_CONDITIONAL = False
-AUTOMATICALLY_NEGATE = True
+AUTOMATICALLY_NEGATE = False # TODO: fix Yang's bug
 
 
 def get_predicates(expression):
@@ -141,8 +141,8 @@ def identify_non_producers(externals):
         #if external.is_fluent:
         #external.num_opt_fns = 0 # Streams that can be evaluated at the end as tests
         if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
-                and external.is_test and not external.is_negated and external.could_succeed() and \
-                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)): # TODO: not external.is_fluent?
+                and external.is_test and not external.is_fluent and not external.is_negated and external.could_succeed() and \
+                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)):
             # TODO: could instead only negate if in a negative axiom
             external.info.negate = True
             print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))

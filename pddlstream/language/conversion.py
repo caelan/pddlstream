@@ -248,4 +248,7 @@ def str_from_fact(fact):
     prefix = get_prefix(fact)
     if prefix == NOT:
         return '~{}'.format(str_from_fact(fact[1]))
+    if prefix == EQ: # TODO: predicate = vs function =
+        _, head, value = fact
+        return '{}={}'.format(str_from_fact(head), value)
     return str_from_head(fact)

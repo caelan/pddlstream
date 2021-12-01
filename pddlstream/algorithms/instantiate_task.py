@@ -57,6 +57,7 @@ def instantiate_condition(action, is_static, args_from_predicate):
         yield solution.get_mapping(element)
 
 def get_reachable_action_params(instantiated_actions):
+    # TODO: use pddl_from_instance
     reachable_action_params = defaultdict(list)
     for inst_action in instantiated_actions:
         action = inst_action.action
@@ -176,6 +177,7 @@ def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwarg
     normalize.normalize(task)
     #with Profiler(field='tottime', num=25):
     if use_fd:
+        # TODO: recover relaxed reachability (from model)
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
