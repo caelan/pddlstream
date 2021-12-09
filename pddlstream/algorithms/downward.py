@@ -72,6 +72,10 @@ SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'
 INFINITY = 'infinity'
 GOAL_NAME = '@goal' # @goal-reachable
 
+INTERNAL_AXIOM = 'new-axiom' # @0
+IDENTICAL = "identical" # lowercase is critical (!= instead?)
+INTERNAL_PREDICATES = [EQ, IDENTICAL, INTERNAL_AXIOM]
+
 ##################################################
 
 # TODO: cost_type=PLUSONE can lead to suboptimality but often doesn't in practice due to COST_SCALE
@@ -324,9 +328,6 @@ def get_problem(evaluations, goal_exp, domain, unit_costs=False):
                    task_requirements=pddl.tasks.Requirements([]), init=init, goal=goal,
                    use_metric=not unit_costs, pddl=problem_pddl)
 
-IDENTICAL = "identical" # lowercase is critical (!= instead?)
-INTERNAL_PREDICATES = [EQ, IDENTICAL]
-
 def get_identical_atoms(objects):
     # TODO: optimistically evaluate (not (= ?o1 ?o2))
     init = []
@@ -449,6 +450,7 @@ def run_search(temp_dir, planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_T
     #except subprocess.CalledProcessError as e:
     #    print(e)
 
+    #temp_path = temp_dir
     temp_path = os.path.join(os.getcwd(), TEMP_DIR) # TODO: temp dir?
     for filename in os.listdir(temp_path):
         if filename.startswith(SEARCH_OUTPUT):

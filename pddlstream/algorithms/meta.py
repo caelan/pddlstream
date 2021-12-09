@@ -6,9 +6,10 @@ from collections import defaultdict
 from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, fd_from_evaluations
+from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, \
+    fd_from_evaluations, INTERNAL_AXIOM
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive
+from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive, get_negative_externals
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
 from pddlstream.algorithms.refinement import optimistic_process_streams
 from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
@@ -184,15 +185,16 @@ def set_unique(externals):
         external.info.opt_gen_fn = PartialInputs(unique=True)
         external.num_opt_fns = 0
 
-def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=False, unique=False, verbose=False, debug=False):
+def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False, verbose=False, debug=False, **kwargs):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
     stream_map = DEBUG if unique else SHARED_DEBUG # DEBUG_MODES
     problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-    evaluations, goal_exp, domain, externals = parse_problem(
-        problem, constraints=constraints, unit_costs=unit_costs)
+    evaluations, goal_exp, domain, externals = parse_problem(problem, **kwargs)
     assert not isinstance(domain, SimplifiedDomain)
+    negative = get_negative_externals(externals)
+    externals = list(filter(lambda s: s not in negative, externals))
 
     # store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
     # instantiator = Instantiator(externals, evaluations)
@@ -209,18 +211,17 @@ def examine_instantiated(problem, constraints=PlanConstraints(), unit_costs=Fals
     problem = get_problem(evaluations, goal_exp, domain, unit_costs)
     task = task_from_domain_problem(domain, problem)
     with Verbose(debug):
-        instantiated = instantiate_task(task)
+        instantiated = instantiate_task(task, check_infeasible=False)
         if instantiated is None:
             return results, None
         # TODO: reinstantiate actions?
         instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
-        instantiated = convert_instantiated(instantiated)
+        if normalize:
+            instantiated = convert_instantiated(instantiated)
     return results, instantiated
     # sas_task = sas_from_pddl(task, debug=debug)
 
 ##################################################
-
-INTERNAL_AXIOM = 'new-axiom'
 
 def iterate_subgoals(goals, axiom_from_effect):
     necessary = set()

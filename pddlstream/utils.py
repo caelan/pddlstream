@@ -602,10 +602,10 @@ def is_hashable(value):
     return True
 
 
-def hash_or_id(value):
-    if is_hashable(value):
-        return hash(value)
-    return id(value)
+# def hash_or_id(value):
+#     if is_hashable(value):
+#         return hash(value)
+#     return id(value)
 
 
 def value_or_id(value):
