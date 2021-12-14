@@ -3,12 +3,12 @@
 from __future__ import print_function
 
 from pddlstream.pddlstream.algorithms.meta import solve, create_parser
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
     get_gripper_joints, GripperCommand, apply_commands, State
-from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
-from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, point_from_pose, \
     disconnect, get_joint_positions, enable_gravity, save_state, restore_state, HideOutput, \
     get_distance, LockRenderer, get_min_limit, get_max_limit, has_gui, WorldSaver, wait_if_gui, add_line, SEPARATOR
 from pddlstream.pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, fn_from_constant, empty_gen, from_test
@@ -18,7 +18,7 @@ from pddlstream.pddlstream.language.function import FunctionInfo
 from pddlstream.pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.pddlstream.language.object import SharedOptValue
 from pddlstream.pddlstream.language.external import defer_shared, never_defer
-from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
+from pddlstream.examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     move_cost_fn
 from collections import namedtuple
 

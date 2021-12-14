@@ -2,14 +2,14 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.discrete_belief.dist import DDist
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory, \
+from pddlstream.examples.discrete_belief.dist import DDist
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Command, Pose, Conf, Trajectory, \
     create_trajectory, Attach, Detach, get_target_path, SELF_COLLISIONS
-from examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
-from examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_problems import get_fixed_bodies
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import HEAD_LINK_NAME, get_visual_detections, \
     visible_base_generator, inverse_visibility, get_kinect_registrations, get_detection_cone, get_viewcone, \
     MAX_KINECT_DISTANCE, plan_scan_path, get_group_joints, get_group_conf, set_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import link_from_name, create_mesh, set_pose, get_link_pose, \
     wait_for_duration, unit_pose, remove_body, is_center_stable, get_body_name, get_name, point_from_pose, \
     plan_waypoints_joint_motion, pairwise_collision, plan_direct_joint_motion, BodySaver, set_joint_positions, \
     INF, get_length, multiply, wait_for_user, LockRenderer, set_color, RED, GREEN, apply_alpha, dump_body, \

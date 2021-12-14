@@ -1,5 +1,5 @@
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import iterate_approach_path
-from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance, multiply, set_pose, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import iterate_approach_path
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance, multiply, set_pose, \
     interpolate_poses, invert, wait_if_gui
 
 BASE_CONSTANT = 1

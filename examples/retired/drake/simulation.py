@@ -4,7 +4,7 @@ import numpy as np
 from pydrake.systems.analysis import Simulator
 from pydrake.trajectories import PiecewisePolynomial
 
-from examples.drake.utils import get_configuration, user_input
+from pddlstream.examples.drake.utils import get_configuration, user_input
 
 
 def step_trajectories(diagram, diagram_context, plant_context, trajectories, time_step=0.001, teleport=False):

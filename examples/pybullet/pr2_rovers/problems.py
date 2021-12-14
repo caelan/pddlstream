@@ -1,13 +1,13 @@
 import numpy as np
 
-from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2
-from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, arm_conf, REST_LEFT_ARM, close_arm, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, arm_conf, REST_LEFT_ARM, close_arm, \
     set_group_conf, ARM_NAMES
-from examples.pybullet.utils.pybullet_tools.utils import add_data_path, load_pybullet, set_point, Point, create_box, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import add_data_path, load_pybullet, set_point, Point, create_box, \
     stable_z, HUSKY_URDF, dump_body, wait_for_user, GREY, BLACK, RED, BLUE, BROWN, TAN
-from examples.pybullet.tamp.problems import sample_placements
+from pddlstream.examples.pybullet.tamp.problems import sample_placements
 
-from examples.pybullet.turtlebot_rovers.problems import RoversProblem
+from pddlstream.examples.pybullet.turtlebot_rovers.problems import RoversProblem
 
 
 def problem1(n_rovers=1, n_objectives=1, n_rocks=2, n_soil=2, n_stores=1):

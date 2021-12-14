@@ -1,10 +1,10 @@
 import numpy as np
 import math
 
-from examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, exists_colliding_pair, \
+from pddlstream.examples.drake.utils import get_random_positions, get_joint_limits, set_joint_positions, exists_colliding_pair, \
     create_transform, solve_inverse_kinematics, get_unit_vector, get_body_pose
-from examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
-from examples.pybullet.utils.motion.motion_planners.smoothing import smooth_path
+from pddlstream.examples.pybullet.utils.motion.motion_planners.rrt_connect import birrt
+from pddlstream.examples.pybullet.utils.motion.motion_planners.smoothing import smooth_path
 
 DEFAULT_WEIGHT = 1.0
 DEFAULT_RESOLUTION = 0.01*np.pi

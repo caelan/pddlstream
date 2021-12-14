@@ -1,10 +1,10 @@
 import numpy as np
 
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands, Trajectory, create_trajectory
-from examples.pybullet.utils.pybullet_tools.pr2_utils import get_group_joints, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands, Trajectory, create_trajectory
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import get_group_joints, \
     visible_base_generator, inverse_visibility
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, get_custom_limits
-from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, draw_base_limits, WorldSaver, get_point, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, get_custom_limits
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, draw_base_limits, WorldSaver, get_point, \
     all_between, get_bodies, plan_direct_joint_motion, plan_joint_motion
 
 VIS_RANGE = 2.5

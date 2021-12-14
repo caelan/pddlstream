@@ -10,7 +10,7 @@ from pydrake.all import (
 )
 
 from pydrake.multibody.multibody_tree import MultibodyForces
-from examples.drake.utils import get_model_actuators
+from pddlstream.examples.drake.utils import get_model_actuators
 
 
 plan_types = [

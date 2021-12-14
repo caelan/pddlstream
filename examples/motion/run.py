@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from pddlstream.pddlstream.algorithms.meta import create_parser
-from examples.motion.viewer import sample_box, get_distance, is_collision_free, \
+from pddlstream.examples.motion.viewer import sample_box, get_distance, is_collision_free, \
     create_box, draw_solution, draw_roadmap, draw_environment
 from pddlstream.pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.pddlstream.language.generator import from_gen_fn, from_test

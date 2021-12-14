@@ -1,4 +1,4 @@
-from examples.continuous_tamp.optimizer.optimizer import has_gurobi
+from pddlstream.examples.continuous_tamp.optimizer.optimizer import has_gurobi
 from pddlstream.pddlstream.language.constants import is_parameter, MINIMIZE, NOT
 from pddlstream.pddlstream.language.generator import from_list_fn
 from pddlstream.pddlstream.language.optimizer import OptimizerOutput

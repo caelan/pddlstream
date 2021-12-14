@@ -2,16 +2,16 @@
 
 from __future__ import print_function
 
-from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
+from pddlstream.examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     get_cfree_traj_grasp_pose_test, BASE_CONSTANT, distance_fn, move_cost_fn
 
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, control_commands
-from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
     get_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user
-from examples.pybullet.namo.stream import get_custom_limits
+from pddlstream.examples.pybullet.namo.stream import get_custom_limits
 
 from pddlstream.pddlstream.algorithms.meta import create_parser, solve
 from pddlstream.pddlstream.algorithms.common import SOLUTIONS
@@ -22,11 +22,11 @@ from pddlstream.pddlstream.utils import read, INF, get_file_path, Profiler
 from pddlstream.pddlstream.language.function import FunctionInfo
 from pddlstream.pddlstream.language.stream import StreamInfo, DEBUG
 
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, State
-from examples.pybullet.pr2.run import post_process
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, State
+from pddlstream.examples.pybullet.pr2.run import post_process
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object
 
-from examples.pybullet.tamp.problems import PROBLEMS
+from pddlstream.examples.pybullet.tamp.problems import PROBLEMS
 
 # TODO: collapse similar streams into a single stream when reodering
 

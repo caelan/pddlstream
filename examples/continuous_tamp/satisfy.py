@@ -7,8 +7,8 @@ import argparse
 import numpy as np
 from numpy import array
 
-from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
-from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic, TIGHT_SKELETON
+from pddlstream.examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
+from pddlstream.examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic, TIGHT_SKELETON
 from pddlstream.pddlstream.language.stream import StreamInfo
 from pddlstream.pddlstream.language.function import FunctionInfo
 from pddlstream.pddlstream.language.constants import Not, Minimize, is_parameter

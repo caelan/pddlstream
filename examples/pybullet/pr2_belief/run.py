@@ -14,18 +14,18 @@ from pddlstream.pddlstream.utils import read, get_file_path, Profiler
 from pddlstream.pddlstream.language.constants import PDDLProblem, And, Equal, print_solution
 from pddlstream.pddlstream.language.stream import StreamInfo
 
-from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
+from pddlstream.examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
     plan_head_traj, get_cone_commands, move_look_trajectory, get_vis_base_gen, \
     get_inverse_visibility_fn, get_in_range_test, VIS_RANGE, REG_RANGE
-from examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
-from examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
+from pddlstream.examples.pybullet.pr2_belief.problems import get_problem1, USE_DRAKE_PR2, create_pr2
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import ARM_NAMES, get_arm_joints, attach_viewcone, \
     is_drake_pr2, get_group_joints, get_group_conf
-from examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import set_pose, get_pose, connect, clone_world, \
     disconnect, set_client, add_data_path, WorldSaver, wait_for_user, get_joint_positions, get_configuration, \
     set_configuration, ClientSaver, HideOutput, is_center_stable, add_body_name, draw_base_limits
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, get_ik_ir_gen, get_motion_gen, get_stable_gen, \
     get_grasp_gen, Attach, Detach, apply_commands, Trajectory, get_base_limits
-from examples.discrete_belief.run import revisit_mdp_cost, MAX_COST, clip_cost
+from pddlstream.examples.discrete_belief.run import revisit_mdp_cost, MAX_COST, clip_cost
 
 
 def pddlstream_from_state(state, teleport=False):

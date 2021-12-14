@@ -10,7 +10,7 @@ from pddlstream.pddlstream.language.stream import StreamInfo
 from pddlstream.pddlstream.utils import read, get_file_path, Profiler
 from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 from pddlstream.pddlstream.language.external import defer_unique, never_defer
-#from examples.advanced.exogenous.run import ik_fn, motion_fn
+#from pddlstream.examples.advanced.exogenous.run import ik_fn, motion_fn
 
 GRASP = np.array([0, 1])
 

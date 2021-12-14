@@ -10,8 +10,8 @@ import time
 from itertools import product
 
 from pddlstream.pddlstream.algorithms.meta import solve, create_parser
-from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
-from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
+from pddlstream.examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
+from pddlstream.examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
     update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
 from pddlstream.pddlstream.algorithms.downward import get_cost_scale
@@ -122,8 +122,8 @@ def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, col
 ##################################################
 
 def display_plan(tamp_problem, plan, display=True, save=False, time_step=0.025, sec_per_step=1e-3):
-    from examples.continuous_tamp.viewer import ContinuousTMPViewer
-    from examples.discrete_tamp.viewer import COLORS
+    from pddlstream.examples.continuous_tamp.viewer import ContinuousTMPViewer
+    from pddlstream.examples.discrete_tamp.viewer import COLORS
 
     if save:
         #example_name = os.path.basename(os.path.dirname(__file__))

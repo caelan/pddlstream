@@ -2,15 +2,15 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Trajectory, create_trajectory, Command
-from examples.pybullet.utils.pybullet_tools.pr2_utils import visible_base_generator, get_detection_cone
-from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_limits, all_between, pairwise_collision, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Trajectory, create_trajectory, Command
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import visible_base_generator, get_detection_cone
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_limits, all_between, pairwise_collision, \
     plan_joint_motion, get_sample_fn, get_distance_fn, get_collision_fn, check_initial_end, is_placement, \
     MAX_DISTANCE, get_extend_fn, wait_for_user, create_mesh, set_pose, get_link_pose, link_from_name, \
     remove_body, create_cylinder, get_distance, point_from_pose, Pose, Point, multiply, get_visual_data, get_pose, \
     wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion, create_attachment, \
     pose_from_pose2d, wait_if_gui, child_link_from_joint, get_link_name, Attachment
-from examples.pybullet.turtlebot_rovers.problems import get_base_joints, KINECT_FRAME
+from pddlstream.examples.pybullet.turtlebot_rovers.problems import get_base_joints, KINECT_FRAME
 from pddlstream.pddlstream.language.constants import Output
 
 VIS_RANGE = 2

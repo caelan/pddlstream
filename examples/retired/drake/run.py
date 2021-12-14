@@ -7,14 +7,14 @@ import random
 
 import numpy as np
 
-from examples.drake.generators import Pose, Conf, get_grasp_gen_fn, get_ik_gen_fn, \
+from pddlstream.examples.drake.generators import Pose, Conf, get_grasp_gen_fn, get_ik_gen_fn, \
     get_motion_fn, get_pull_fn, get_collision_test, get_reachable_pose_gen_fn, get_open_trajectory, Trajectory
-from examples.drake.iiwa_utils import get_door_positions, DOOR_OPEN
-from examples.drake.simulation import compute_duration, convert_splines, step_trajectories, \
+from pddlstream.examples.drake.iiwa_utils import get_door_positions, DOOR_OPEN
+from pddlstream.examples.drake.simulation import compute_duration, convert_splines, step_trajectories, \
     simulate_splines
-from examples.drake.problems import PROBLEMS
-from examples.drake.systems import RenderSystemWithGraphviz
-from examples.drake.utils import get_world_pose, get_configuration, \
+from pddlstream.examples.drake.problems import PROBLEMS
+from pddlstream.examples.drake.systems import RenderSystemWithGraphviz
+from pddlstream.examples.drake.utils import get_world_pose, get_configuration, \
     get_model_name, get_joint_positions, get_parent_joints, \
     get_state, set_state, get_movable_joints
 from pddlstream.pddlstream.algorithms.focused import solve_focused

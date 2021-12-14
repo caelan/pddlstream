@@ -2,11 +2,11 @@ from itertools import product
 
 import numpy as np
 
-from examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps, get_top_cylinder_grasps, \
+from pddlstream.examples.drake.iiwa_utils import open_wsg50_gripper, get_box_grasps, get_top_cylinder_grasps, \
     get_close_wsg50_positions, get_open_wsg50_positions
-from examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
+from pddlstream.examples.drake.motion import plan_joint_motion, plan_waypoints_joint_motion, \
     get_extend_fn, interpolate_translation, plan_workspace_motion, get_collision_fn, get_distance_fn
-from examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
+from pddlstream.examples.drake.utils import get_relative_transform, set_world_pose, set_joint_position, get_body_pose, \
     get_base_body, sample_aabb_placement, get_movable_joints, get_model_name, set_joint_positions, get_box_from_geom, \
     exists_colliding_pair, get_model_bodies, aabb_contains_point, bodies_from_models, get_model_aabb
 

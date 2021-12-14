@@ -6,15 +6,15 @@ import argparse
 import random
 import numpy as np
 
-from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
-from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
+from pddlstream.examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
+from pddlstream.examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, get_random_seed, GROUND_NAME, GRASP, duration_fn
 from pddlstream.pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.pddlstream.language.constants import And, PDDLProblem, print_solution
 from pddlstream.pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
 from pddlstream.pddlstream.utils import read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies, Profiler
-from examples.continuous_tamp.run import display_plan
+from pddlstream.examples.continuous_tamp.run import display_plan
 
 
 def pddlstream_from_tamp(tamp_problem, use_stream=True, use_optimizer=False, collisions=True):

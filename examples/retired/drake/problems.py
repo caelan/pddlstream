@@ -8,9 +8,9 @@ from pydrake.geometry import (SceneGraph)
 from pydrake.multibody.multibody_tree.multibody_plant import MultibodyPlant
 from pydrake.multibody.multibody_tree.parsing import AddModelFromSdfFile
 
-from examples.drake.systems import build_manipulation_station, build_diagram
-from examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED, DOOR_OPEN, open_wsg50_gripper
-from examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
+from pddlstream.examples.drake.systems import build_manipulation_station, build_diagram
+from pddlstream.examples.drake.iiwa_utils import weld_gripper, DOOR_CLOSED, DOOR_OPEN, open_wsg50_gripper
+from pddlstream.examples.drake.utils import get_model_name, weld_to_world, create_transform, get_movable_joints, \
     get_model_bodies, get_bodies, set_joint_position, set_world_pose
 
 IIWA14_SDF_PATH = os.path.join(pydrake.getDrakePath(),

@@ -1,5 +1,5 @@
-from examples.drake.generators import get_grasp_gen_fn, get_pose_gen
-from examples.drake.utils import get_base_body, get_body_pose, user_input, get_model_name
+from pddlstream.examples.drake.generators import get_grasp_gen_fn, get_pose_gen
+from pddlstream.examples.drake.utils import get_base_body, get_body_pose, user_input, get_model_name
 
 
 def test_generators(task, diagram, diagram_context):

@@ -4,7 +4,7 @@ import numpy as np
 import random
 import time
 
-from examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
+from pddlstream.examples.continuous_tamp.primitives import BLOCK_WIDTH, sample_region, plan_motion, GRASP
 from pddlstream.pddlstream.language.constants import partition_facts, NOT, MINIMIZE, get_constraints, is_parameter
 from pddlstream.pddlstream.language.optimizer import OptimizerOutput
 from pddlstream.pddlstream.utils import INF, elapsed_time

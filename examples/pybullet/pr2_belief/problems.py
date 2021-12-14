@@ -1,12 +1,12 @@
 from __future__ import print_function
 
 
-from examples.discrete_belief.dist import UniformDist, DeltaDist, MixtureDist, MixtureDD
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import State
-from examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
+from pddlstream.examples.discrete_belief.dist import UniformDist, DeltaDist, MixtureDist, MixtureDD
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import State
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_utils import set_arm_conf, get_carry_conf, open_arm, get_other_arm, \
     arm_conf, REST_LEFT_ARM, close_arm, create_gripper
-from examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, get_bodies, is_center_stable
-from examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import get_name, HideOutput, get_bodies, is_center_stable
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_problems import create_pr2, create_kitchen
 
 USE_DRAKE_PR2 = True
 OTHER = 'other'

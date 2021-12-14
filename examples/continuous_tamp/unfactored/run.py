@@ -4,10 +4,10 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
+from pddlstream.examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
     tight, blocked, draw_state, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT, apply_action
-from examples.continuous_tamp.viewer import ContinuousTMPViewer
-from examples.discrete_tamp.viewer import COLORS
+from pddlstream.examples.continuous_tamp.viewer import ContinuousTMPViewer
+from pddlstream.examples.discrete_tamp.viewer import COLORS
 from pddlstream.pddlstream.algorithms.focused import solve_focused
 from pddlstream.pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test

@@ -8,10 +8,10 @@ from itertools import permutations, combinations
 
 import numpy as np
 
-from examples.continuous_tamp.primitives import draw_state, SUCTION_HEIGHT, GROUND_NAME
-from examples.continuous_tamp.run import initialize, create_problem, dump_pddlstream
-from examples.continuous_tamp.viewer import ContinuousTMPViewer
-from examples.discrete_tamp.viewer import COLORS
+from pddlstream.examples.continuous_tamp.primitives import draw_state, SUCTION_HEIGHT, GROUND_NAME
+from pddlstream.examples.continuous_tamp.run import initialize, create_problem, dump_pddlstream
+from pddlstream.examples.continuous_tamp.viewer import ContinuousTMPViewer
+from pddlstream.examples.discrete_tamp.viewer import COLORS
 from pddlstream.pddlstream.algorithms.constraints import PlanConstraints, WILD
 from pddlstream.pddlstream.algorithms.focused import solve_focused
 from pddlstream.pddlstream.language.constants import PDDLProblem, print_solution

@@ -6,13 +6,13 @@ import argparse
 import numpy as np
 
 #from pddlstream.pddlstream.algorithms.meta import solve, create_parser
-from examples.continuous_tamp.primitives import get_value_at_time
+from pddlstream.examples.continuous_tamp.primitives import get_value_at_time
 from pddlstream.pddlstream.language.temporal import get_end, compute_duration
-from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
+from pddlstream.examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
     get_custom_limits, point_from_conf, get_motion_fn, create_vertices
-from examples.pybullet.pr2_belief.problems import BeliefState
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
-from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
+from pddlstream.examples.pybullet.pr2_belief.problems import BeliefState
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, create_trajectory
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, LockRenderer, get_bodies, add_line, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     HideOutput, GREY, TAN, RED, get_extend_fn, pairwise_collision, draw_point, VideoSaver, \
     set_point, Point, GREEN, BLUE, set_color, get_all_links, wait_for_duration, \

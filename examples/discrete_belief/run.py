@@ -7,7 +7,7 @@ from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.pddlstream.language.function import FunctionInfo
 from pddlstream.pddlstream.language.generator import from_fn, from_test
 
-from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
+from pddlstream.examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
 from pddlstream.pddlstream.algorithms.downward import get_cost_scale, set_cost_scale, MAX_FD_COST
 
 from pddlstream.pddlstream.language.constants import And, print_solution, PDDLProblem

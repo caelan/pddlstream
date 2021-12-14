@@ -11,11 +11,11 @@ from pddlstream.pddlstream.language.constants import And, Equal, TOTAL_COST, pri
 from pddlstream.pddlstream.language.generator import from_test, from_list_fn
 from pddlstream.pddlstream.language.stream import WildOutput
 from pddlstream.pddlstream.utils import read, safe_zip
-from examples.discrete_tamp.run import apply_plan
-from examples.discrete_tamp.primitives import GRASP, is_valid, get_length, get_difference, collision_test, distance_fn, \
+from pddlstream.examples.discrete_tamp.run import apply_plan
+from pddlstream.examples.discrete_tamp.primitives import GRASP, is_valid, get_length, get_difference, collision_test, distance_fn, \
     DiscreteTAMPState, DiscreteTAMPProblem
 from pddlstream.pddlstream.language.stream import StreamInfo
-from examples.discrete_tamp.viewer import MAX_COLS
+from pddlstream.examples.discrete_tamp.viewer import MAX_COLS
 
 #array = np.array
 #array = tuple

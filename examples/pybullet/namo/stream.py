@@ -3,8 +3,8 @@ from itertools import islice, product
 import numpy as np
 import random
 
-from examples.pybullet.utils.pybullet_tools.pr2_primitives import State, Pose, Conf, create_trajectory
-from examples.pybullet.utils.pybullet_tools.utils import get_subtree_aabb, link_from_name, joints_from_names, \
+from pddlstream.examples.pybullet.utils.pybullet_tools.pr2_primitives import State, Pose, Conf, create_trajectory
+from pddlstream.examples.pybullet.utils.pybullet_tools.utils import get_subtree_aabb, link_from_name, joints_from_names, \
     get_joint_positions, set_joint_positions, joint_from_name, pairwise_collision, set_renderer, get_visual_data, \
     add_line, wait_for_user, BodySaver, get_link_pose, approximate_as_cylinder, get_point, Point, unit_generator, \
     quat_from_euler, Euler, multiply, invert, base_values_from_pose, get_halton_sample_fn, get_collision_fn, \

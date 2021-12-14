@@ -15,7 +15,7 @@ from pddlstream.pddlstream.utils import read, get_file_path, Profiler
 from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 from pddlstream.pddlstream.language.external import defer_shared, never_defer
 #from pddlstream.pddlstream.language.exogenous import FutureValue
-#from examples.advanced.defer.run import ik_fn, motion_fn
+#from pddlstream.examples.advanced.defer.run import ik_fn, motion_fn
 
 class Latent(object):
     pass

@@ -9,11 +9,11 @@ from itertools import combinations
 from collections import namedtuple
 from copy import deepcopy
 
-from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
+from pddlstream.examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, get_region_test, plan_motion, \
     tight, blocked, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT, sample_region, \
     inverse_kin, forward_kin, collision_test, draw_block, draw_robot
-from examples.continuous_tamp.viewer import ContinuousTMPViewer
-from examples.discrete_tamp.viewer import COLORS
+from pddlstream.examples.continuous_tamp.viewer import ContinuousTMPViewer
+from pddlstream.examples.discrete_tamp.viewer import COLORS
 from pddlstream.pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.pddlstream.utils import user_input, read, INF, get_file_path, Profiler, randomize
