@@ -1,8 +1,8 @@
-from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.exogenous import replace_literals
-from pddlstream.language.external import get_domain_predicates
-from pddlstream.language.stream import Stream
-from pddlstream.utils import find_unique, get_mapping, safe_apply_mapping
+from pddlstream.pddlstream.language.constants import get_prefix, get_args
+from pddlstream.pddlstream.language.exogenous import replace_literals
+from pddlstream.pddlstream.language.external import get_domain_predicates
+from pddlstream.pddlstream.language.stream import Stream
+from pddlstream.pddlstream.utils import find_unique, get_mapping, safe_apply_mapping
 
 
 def get_predicate_map(state_streams):

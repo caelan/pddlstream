@@ -13,14 +13,14 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_p
     get_joint_positions, HideOutput, LockRenderer, wait_for_user
 from examples.pybullet.namo.stream import get_custom_limits
 
-from pddlstream.algorithms.meta import create_parser, solve
-from pddlstream.algorithms.common import SOLUTIONS
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
-from pddlstream.language.constants import Equal, And, print_solution, Exists, get_args, is_parameter, \
+from pddlstream.pddlstream.algorithms.meta import create_parser, solve
+from pddlstream.pddlstream.algorithms.common import SOLUTIONS
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
+from pddlstream.pddlstream.language.constants import Equal, And, print_solution, Exists, get_args, is_parameter, \
     get_parameter_name, PDDLProblem
-from pddlstream.utils import read, INF, get_file_path, Profiler
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.stream import StreamInfo, DEBUG
+from pddlstream.pddlstream.utils import read, INF, get_file_path, Profiler
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands, State
 from examples.pybullet.pr2.run import post_process

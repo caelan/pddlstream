@@ -1,19 +1,19 @@
 from collections import Counter
 
-from pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
-from pddlstream.algorithms.constraints import add_plan_constraints
-from pddlstream.algorithms.downward import parse_lisp, parse_goal, has_costs, set_unit_costs, normalize_domain_goal
-from pddlstream.language.temporal import parse_domain, SimplifiedDomain
-from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.conversion import obj_from_value_expression
-from pddlstream.language.exogenous import compile_to_exogenous
-from pddlstream.language.external import External
-from pddlstream.language.function import parse_function, parse_predicate
-from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.optimizer import parse_optimizer
-from pddlstream.language.rule import parse_rule, apply_rules_to_streams, RULES
-from pddlstream.language.stream import parse_stream, Stream, StreamInstance
-from pddlstream.utils import INF
+from pddlstream.pddlstream.algorithms.common import evaluations_from_init, SOLUTIONS
+from pddlstream.pddlstream.algorithms.constraints import add_plan_constraints
+from pddlstream.pddlstream.algorithms.downward import parse_lisp, parse_goal, has_costs, set_unit_costs, normalize_domain_goal
+from pddlstream.pddlstream.language.temporal import parse_domain, SimplifiedDomain
+from pddlstream.pddlstream.language.constants import get_prefix, get_args
+from pddlstream.pddlstream.language.conversion import obj_from_value_expression
+from pddlstream.pddlstream.language.exogenous import compile_to_exogenous
+from pddlstream.pddlstream.language.external import External
+from pddlstream.pddlstream.language.function import parse_function, parse_predicate
+from pddlstream.pddlstream.language.object import Object, OptimisticObject
+from pddlstream.pddlstream.language.optimizer import parse_optimizer
+from pddlstream.pddlstream.language.rule import parse_rule, apply_rules_to_streams, RULES
+from pddlstream.pddlstream.language.stream import parse_stream, Stream, StreamInstance
+from pddlstream.pddlstream.utils import INF
 
 
 # TODO: rename file to parsing

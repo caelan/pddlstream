@@ -3,9 +3,9 @@ from __future__ import print_function
 from copy import deepcopy
 from time import time
 
-from pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
-from pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl
-from pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
+from pddlstream.pddlstream.algorithms.downward import run_search, TEMP_DIR, write_pddl
+from pddlstream.pddlstream.algorithms.instantiate_task import write_sas_task, translate_and_write_pddl
+from pddlstream.pddlstream.utils import INF, Verbose, safe_rm_dir, elapsed_time
 
 
 # TODO: manual_patterns

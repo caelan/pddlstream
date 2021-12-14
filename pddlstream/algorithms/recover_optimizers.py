@@ -1,13 +1,13 @@
 import copy
 
-from pddlstream.algorithms.common import INIT_EVALUATION
-from pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
-from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import get_prefix, is_plan, get_args
-from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import ComponentStream, OptimizerStream
-from pddlstream.utils import neighbors_from_orders, get_mapping, safe_apply_mapping
+from pddlstream.pddlstream.algorithms.common import INIT_EVALUATION
+from pddlstream.pddlstream.algorithms.reorder import get_partial_orders, get_stream_plan_components
+from pddlstream.pddlstream.algorithms.scheduling.utils import partition_external_plan
+from pddlstream.pddlstream.language.constants import get_prefix, is_plan, get_args
+from pddlstream.pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.pddlstream.language.function import FunctionResult
+from pddlstream.pddlstream.language.optimizer import ComponentStream, OptimizerStream
+from pddlstream.pddlstream.utils import neighbors_from_orders, get_mapping, safe_apply_mapping
 
 CLUSTER = True
 
@@ -127,7 +127,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     # TODO: ensure correct ordering
     new_results = list(filter(lambda r: isinstance(r, ComponentStream), new_results))
 
-    #from pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
+    #from pddlstream.pddlstream.algorithms.scheduling.recover_streams import get_achieving_streams, extract_stream_plan
     #node_from_atom = get_achieving_streams(evaluations, stream_results) # TODO: make these lower effort
     #extract_stream_plan(node_from_atom, target_facts, stream_plan)
 
@@ -139,7 +139,7 @@ def replan_with_optimizers(evaluations, external_plan, domain, optimizers):
     #print(str_from_object(set(goal_facts)))
 
     # TODO: can do the flexibly sized optimizers search
-    from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
+    from pddlstream.pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
     optimizer_plan = reschedule_stream_plan(initial_evaluations, goal_facts, copy.copy(domain),
                                            (stream_plan + optimizer_results), unique_binding=True)
     if not is_plan(optimizer_plan):

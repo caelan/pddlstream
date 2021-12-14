@@ -17,11 +17,11 @@ from examples.drake.systems import RenderSystemWithGraphviz
 from examples.drake.utils import get_world_pose, get_configuration, \
     get_model_name, get_joint_positions, get_parent_joints, \
     get_state, set_state, get_movable_joints
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import And, print_solution
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.generator import from_gen_fn, from_fn
-from pddlstream.utils import read, INF, get_file_path
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.language.constants import And, print_solution
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn
+from pddlstream.pddlstream.utils import read, INF, get_file_path
 
 
 # Listing all available docker images

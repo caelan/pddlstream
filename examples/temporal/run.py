@@ -5,13 +5,13 @@ from __future__ import print_function
 from itertools import product
 import numpy as np
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And
-from pddlstream.utils import read_pddl, INF
-#from pddlstream.algorithms.downward import print_search_options
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.generator import from_fn, from_test
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution, Output, And
+from pddlstream.pddlstream.utils import read_pddl, INF
+#from pddlstream.pddlstream.algorithms.downward import print_search_options
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.generator import from_fn, from_test
 
 # TODO: 2 modes - check for possible inconsistency before or fail if inconsistency is detected after
 
@@ -30,13 +30,13 @@ STREAM_PDDL = """
                     (StartTime ?t2) ; TODO: toggle depending on if can start from any stop time
                )
   )
-  
+
   (:stream ge
     :inputs (?t1 ?t2)
     :domain (and (Time ?t1) (Time ?t2))
     :certified (GE ?t1 ?t2)
   )
-  (:function (Elapsed ?dt) 
+  (:function (Elapsed ?dt)
              (Duration ?dt))
   (:function (Difference ?t2 ?t1)
              (GE ?t2 ?t1))

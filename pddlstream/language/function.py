@@ -1,9 +1,9 @@
 import time
 
-from pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
-from pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG_MODES, get_procedure_fn
-from pddlstream.utils import str_from_object, apply_mapping
+from pddlstream.pddlstream.language.conversion import substitute_expression, list_from_conjunction, str_from_head
+from pddlstream.pddlstream.language.constants import Not, Equal, get_prefix, get_args, is_head, FunctionAction
+from pddlstream.pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG_MODES, get_procedure_fn
+from pddlstream.pddlstream.utils import str_from_object, apply_mapping
 
 # https://stackoverflow.com/questions/847936/how-can-i-find-the-number-of-arguments-of-a-python-function
 #try:
@@ -59,7 +59,7 @@ class FunctionResult(Result):
     def is_successful(self):
         return True
     def __repr__(self):
-        #from pddlstream.algorithms.downward import get_cost_scale
+        #from pddlstream.pddlstream.algorithms.downward import get_cost_scale
         #value = math.log(self.value) # TODO: number of digits to display
         return '{}={:.3f}'.format(str_from_head(self.instance.head), self.value)
 

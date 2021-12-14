@@ -9,13 +9,13 @@ from numpy import array
 
 from examples.continuous_tamp.primitives import get_random_seed, tight, MOVE_COST, GRASP
 from examples.continuous_tamp.run import pddlstream_from_tamp, display_plan, set_deterministic, TIGHT_SKELETON
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.constants import Not, Minimize, is_parameter
-from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, SatisfactionProblem
-from pddlstream.language.temporal import retime_plan
-from pddlstream.utils import Profiler, INF
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.constants import Not, Minimize, is_parameter
+from pddlstream.pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
+from pddlstream.pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, SatisfactionProblem
+from pddlstream.pddlstream.language.temporal import retime_plan
+from pddlstream.pddlstream.utils import Profiler, INF
 
 # Be careful about uniqueness here
 #CONF0 = array([-7.5, 5.])

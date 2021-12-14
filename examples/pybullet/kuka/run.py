@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.kuka_primitives import BodyPose, BodyConf, Command, get_grasp_gen, \
     get_stable_gen, get_ik_fn, get_free_motion_gen, \
     get_holding_motion_gen, get_movable_collision_test, get_tool_link
@@ -11,9 +11,9 @@ from examples.pybullet.utils.pybullet_tools.utils import WorldSaver, connect, du
     BLOCK_URDF, SMALL_BLOCK_URDF, get_configuration, SINK_URDF, STOVE_URDF, load_model, is_placement, get_body_name, \
     disconnect, DRAKE_IIWA_URDF, get_bodies, HideOutput, wait_for_user, KUKA_IIWA_URDF, add_data_path, load_pybullet, \
     LockRenderer, has_gui, draw_pose, draw_global_system
-from pddlstream.language.generator import from_gen_fn, from_fn, empty_gen, from_test, universe_test
-from pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object, negate_test
-from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, empty_gen, from_test, universe_test
+from pddlstream.pddlstream.utils import read, INF, get_file_path, find_unique, Profiler, str_from_object, negate_test
+from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     move_cost_fn, get_cfree_obj_approach_pose_test
 

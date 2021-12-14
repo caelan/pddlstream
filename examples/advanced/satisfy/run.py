@@ -4,13 +4,13 @@ from __future__ import print_function
 
 import argparse
 
-from pddlstream.algorithms.meta import ALGORITHMS
-from pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
-from pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, \
+from pddlstream.pddlstream.algorithms.meta import ALGORITHMS
+from pddlstream.pddlstream.retired.satisfaction import solve_pddlstream_satisfaction
+from pddlstream.pddlstream.algorithms.satisfaction import constraint_satisfaction, dump_assignment, \
     SatisfactionSolution, SatisfactionProblem
-from pddlstream.language.generator import from_test, from_gen_fn, from_fn
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import INF
+from pddlstream.pddlstream.language.generator import from_test, from_gen_fn, from_fn
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.utils import INF
 
 STREAM_PDDL = """
 (define (stream satisfy)
@@ -38,8 +38,8 @@ STREAM_PDDL = """
     :outputs (?x3)
     :certified (and (Sum ?x1 ?x2 ?x3) (Integer ?x3))
   )
-  
-  (:function (Cost ?x) 
+
+  (:function (Cost ?x)
              (Integer ?x)
   )
 )

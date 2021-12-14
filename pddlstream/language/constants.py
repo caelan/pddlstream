@@ -3,7 +3,7 @@ from __future__ import print_function
 import os
 from collections import namedtuple
 
-from pddlstream.utils import INF, str_from_object, read
+from pddlstream.pddlstream.utils import INF, str_from_object, read
 
 EQ = '=' # xnor
 AND = 'and'

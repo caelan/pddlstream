@@ -6,22 +6,22 @@ from itertools import chain, repeat
 
 import random
 
-from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.meta import create_parser
-from pddlstream.algorithms.recover_optimizers import combine_optimizers
-from pddlstream.algorithms.reorder import reorder_stream_plan
-from pddlstream.algorithms.satisfaction import parse_value
-# from pddlstream.algorithms.downward import has_costs
-from pddlstream.algorithms.scheduling.plan_streams import OptSolution
-from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.algorithms.visualization import create_visualizations, \
+from pddlstream.pddlstream.algorithms.common import SolutionStore
+from pddlstream.pddlstream.algorithms.meta import create_parser
+from pddlstream.pddlstream.algorithms.recover_optimizers import combine_optimizers
+from pddlstream.pddlstream.algorithms.reorder import reorder_stream_plan
+from pddlstream.pddlstream.algorithms.satisfaction import parse_value
+# from pddlstream.pddlstream.algorithms.downward import has_costs
+from pddlstream.pddlstream.algorithms.scheduling.plan_streams import OptSolution
+from pddlstream.pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.pddlstream.algorithms.visualization import create_visualizations, \
     log_plans, visualize_stream_plan
-from pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution, Output
-from pddlstream.language.statistics import compute_plan_effort
-from pddlstream.language.function import Function
-from pddlstream.language.stream import Stream, StreamInfo, DEBUG
-from pddlstream.language.generator import from_gen, universe_test, from_gen_fn
-from pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator, irange, safe_zip
+from pddlstream.pddlstream.language.constants import OptPlan, is_plan, get_length, str_from_plan, print_solution, Output
+from pddlstream.pddlstream.language.statistics import compute_plan_effort
+from pddlstream.pddlstream.language.function import Function
+from pddlstream.pddlstream.language.stream import Stream, StreamInfo, DEBUG
+from pddlstream.pddlstream.language.generator import from_gen, universe_test, from_gen_fn
+from pddlstream.pddlstream.utils import INF, SEPARATOR, neighbors_from_orders, safe_apply_mapping, inf_generator, irange, safe_zip
 
 # TODO: move other advanced out of their directories if only a single file
 

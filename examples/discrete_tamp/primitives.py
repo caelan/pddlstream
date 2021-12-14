@@ -3,7 +3,7 @@ from collections import namedtuple
 import numpy as np
 
 from examples.discrete_tamp.viewer import MAX_COLS, MAX_ROWS
-from pddlstream.language.generator import outputs_from_boolean
+from pddlstream.pddlstream.language.generator import outputs_from_boolean
 
 GRASP = np.array([0, 0])
 

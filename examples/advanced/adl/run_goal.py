@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.pddlstream.algorithms.search import solve_from_pddl
 from examples.ipc.rovers.run import dump_plan
 
 DOMAIN_PDDL = """
@@ -16,7 +16,7 @@ DOMAIN_PDDL = """
 """
 
 PROBLEM_PDDL = """
-(define (problem check) 
+(define (problem check)
  (:domain sanity)
     (:objects
         A
@@ -26,7 +26,7 @@ PROBLEM_PDDL = """
         (isA A)
         (isB B)
     )
-    (:goal 
+    (:goal
         (or (isA A) (isB B))
     )
 )

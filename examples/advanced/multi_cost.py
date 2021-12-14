@@ -2,17 +2,17 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, print_solution, And, Output
-from pddlstream.language.generator import from_gen
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo, add_opt_function
-from pddlstream.language.object import UniqueOptValue, SharedOptValue
-from pddlstream.utils import flatten, Profiler, SEPARATOR, inf_generator, INF
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import PDDLProblem, print_solution, And, Output
+from pddlstream.pddlstream.language.generator import from_gen
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.function import FunctionInfo, add_opt_function
+from pddlstream.pddlstream.language.object import UniqueOptValue, SharedOptValue
+from pddlstream.pddlstream.utils import flatten, Profiler, SEPARATOR, inf_generator, INF
 
 DOMAIN_PDDL = """
 (define (domain cost)
-  (:predicates 
+  (:predicates
     (Control ?x)
     (Goal)
   )

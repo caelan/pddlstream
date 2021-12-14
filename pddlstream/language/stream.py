@@ -1,17 +1,17 @@
 import time
 from collections import Counter, Sequence
 
-from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
-from pddlstream.algorithms.downward import make_axiom
-from pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output
-from pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
+from pddlstream.pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
+from pddlstream.pddlstream.algorithms.downward import make_axiom
+from pddlstream.pddlstream.language.constants import AND, get_prefix, get_args, is_parameter, Fact, concatenate, StreamAction, Output
+from pddlstream.pddlstream.language.conversion import list_from_conjunction, substitute_expression, \
     get_formula_operators, values_from_objects, obj_from_value_expression, evaluation_from_fact, \
     objects_from_values, substitute_fact
-from pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, SHARED_DEBUG, DEBUG_MODES, \
+from pddlstream.pddlstream.language.external import ExternalInfo, Result, Instance, External, DEBUG, SHARED_DEBUG, DEBUG_MODES, \
     get_procedure_fn, parse_lisp_list, select_inputs, convert_constants
-from pddlstream.language.generator import get_next, from_fn, universe_test, from_test, BoundedGenerator
-from pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
-from pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
+from pddlstream.pddlstream.language.generator import get_next, from_fn, universe_test, from_test, BoundedGenerator
+from pddlstream.pddlstream.language.object import Object, OptimisticObject, UniqueOptValue, SharedOptValue, DebugValue, SharedDebugValue
+from pddlstream.pddlstream.utils import str_from_object, get_mapping, irange, apply_mapping, safe_apply_mapping, safe_zip
 
 VERBOSE_FAILURES = True
 VERBOSE_WILD = False
@@ -538,7 +538,7 @@ def create_equality_stream():
                   info=StreamInfo(eager=True), fluents=[])
 
 def create_inequality_stream():
-    #from pddlstream.algorithms.downward import IDENTICAL
+    #from pddlstream.pddlstream.algorithms.downward import IDENTICAL
     return Stream(name='inequality', gen_fn=from_test(lambda o1, o2: o1 != o2),
                   inputs=['?o1', '?o2'], domain=[('Object', '?o1'), ('Object', '?o2')],
                   outputs=[], certified=[('=', '?o1', '?o2')],

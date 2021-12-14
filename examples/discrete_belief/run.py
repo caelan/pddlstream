@@ -3,16 +3,16 @@ from __future__ import print_function
 import os
 from collections import namedtuple
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.generator import from_fn, from_test
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.generator import from_fn, from_test
 
 from examples.discrete_belief.dist import DDist, MixtureDD, DeltaDist, UniformDist, totalProbability, JDist
-from pddlstream.algorithms.downward import get_cost_scale, set_cost_scale, MAX_FD_COST
+from pddlstream.pddlstream.algorithms.downward import get_cost_scale, set_cost_scale, MAX_FD_COST
 
-from pddlstream.language.constants import And, print_solution, PDDLProblem
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, INF, Profiler
+from pddlstream.pddlstream.language.constants import And, print_solution, PDDLProblem
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.utils import read, INF, Profiler
 
 # TODO: would be helpful if I could use <= here
 # TODO: could use fixed threshold or the max of the ones met

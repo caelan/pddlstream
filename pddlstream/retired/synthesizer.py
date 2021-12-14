@@ -1,13 +1,13 @@
 from collections import deque, Counter
 
-from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import is_plan
-from pddlstream.language.conversion import substitute_expression
-from pddlstream.language.function import FunctionResult
-from pddlstream.language.optimizer import get_cluster_values, OptimizerResult
-from pddlstream.language.statistics import Performance
-from pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
-from pddlstream.utils import neighbors_from_orders
+from pddlstream.pddlstream.algorithms.reorder import get_partial_orders
+from pddlstream.pddlstream.language.constants import is_plan
+from pddlstream.pddlstream.language.conversion import substitute_expression
+from pddlstream.pddlstream.language.function import FunctionResult
+from pddlstream.pddlstream.language.optimizer import get_cluster_values, OptimizerResult
+from pddlstream.pddlstream.language.statistics import Performance
+from pddlstream.pddlstream.language.stream import Stream, StreamInstance, StreamResult, StreamInfo
+from pddlstream.pddlstream.utils import neighbors_from_orders
 
 def decompose_result(result):
     if isinstance(result, SynthStreamResult):
@@ -108,12 +108,12 @@ class StreamSynthesizer(Performance): # JointStream | Stream Combiner
 
 # TODO: factor this into algorithms
 
-# TODO: 
+# TODO:
 # 1) Iteratively resolve for the next stream plan to apply rather than do in sequence
 # 2) Apply to a constraint network specifcation
 # 3) Satisfy a constraint network were free variables aren't given by streams
 # 4) Allow algorithms to return not feasible to combine rather than impose minimums
-# 5) Make a method (rather than a spec) that traverses the constraint graph and prunes weak links/constraints that can't be planned 
+# 5) Make a method (rather than a spec) that traverses the constraint graph and prunes weak links/constraints that can't be planned
 # 6) Post process all feasible skeletons at once
 # 7) Planning and execution view of the algorithm
 # 8) Algorithm that does the matching of streams to variables

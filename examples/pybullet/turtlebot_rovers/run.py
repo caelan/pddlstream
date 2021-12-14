@@ -2,14 +2,14 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands, Attach, Detach
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
     HideOutput, LockRenderer, wait_for_user
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.constants import And, print_solution, Exists, PDDLProblem
-from pddlstream.utils import read, INF, get_file_path, Profiler
-from pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.pddlstream.language.constants import And, print_solution, Exists, PDDLProblem
+from pddlstream.pddlstream.utils import read, INF, get_file_path, Profiler
+from pddlstream.pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.pr2_belief.primitives import Register, Scan

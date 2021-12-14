@@ -2,10 +2,10 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 
 DOMAIN_PDDL = """
 (define (domain blocksworld)
@@ -36,7 +36,7 @@ DOMAIN_PDDL = """
     :precondition (and (on ?ob ?underob) (arm-empty) (not (unsafe ?ob)))
     :effect (and (holding ?ob)
                  (not (on ?ob ?underob)) (not (arm-empty))))
-  (:derived (unsafe ?underob) 
+  (:derived (unsafe ?underob)
     (exists (?ob) (on ?ob ?underob)))
 )
 """
@@ -45,7 +45,7 @@ PROBLEM_PDDL = """
 (define (problem pb2)
    (:domain blocksworld)
    (:objects a b)
-   (:init 
+   (:init
      (on b a)
      (on-table a)
      (arm-empty))

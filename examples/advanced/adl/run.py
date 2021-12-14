@@ -2,14 +2,14 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, Or, print_solution
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import PDDLProblem, Or, print_solution
 
 DOMAIN_PDDL = """
 (define (domain debug)
   (:requirements :strips :equality :adl)
   ;(:constants c1)
-  (:predicates 
+  (:predicates
     (A)
     (B)
     (P1 ?o)
@@ -82,7 +82,7 @@ PROBLEM_PDDL = """
 (define (problem debug)
    (:domain debug)
    (:objects c1)
-   (:init 
+   (:init
      (P1 c1)
      ;(P2 c1)
    )

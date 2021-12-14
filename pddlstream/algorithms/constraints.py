@@ -3,12 +3,12 @@ from __future__ import print_function
 from collections import namedtuple
 from copy import deepcopy
 
-from pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
-from pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate, \
+from pddlstream.pddlstream.algorithms.common import add_fact, INTERNAL_EVALUATION
+from pddlstream.pddlstream.algorithms.downward import make_predicate, make_preconditions, make_effects, add_predicate, \
     fd_from_fact
-from pddlstream.language.constants import Or, And, is_parameter, Not, str_from_plan, EQ
-from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, \
+from pddlstream.pddlstream.language.constants import Or, And, is_parameter, Not, str_from_plan, EQ
+from pddlstream.pddlstream.language.object import Object, OptimisticObject
+from pddlstream.pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, \
     get_ancestors, get_descendants
 
 OrderedSkeleton = namedtuple('OrderedSkeleton', ['actions', 'orders']) # TODO: AND/OR tree

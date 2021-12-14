@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.language.constants import get_length, read_pddl_pair
+from pddlstream.pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.pddlstream.language.constants import get_length, read_pddl_pair
 
 def dump_plan(plan, cost):
     solved = plan is not None

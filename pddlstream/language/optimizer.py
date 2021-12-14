@@ -1,16 +1,16 @@
 from collections import defaultdict
 
-from pddlstream.algorithms.scheduling.utils import partition_external_plan
-from pddlstream.language.constants import get_prefix, get_args, get_parameter_name, is_parameter, Minimize
-from pddlstream.language.conversion import substitute_expression, list_from_conjunction
-from pddlstream.language.external import parse_lisp_list, get_procedure_fn
-from pddlstream.language.function import PredicateResult, FunctionResult
-from pddlstream.language.object import Object, SharedOptValue
-from pddlstream.language.stream import StreamInfo, Stream, StreamInstance, StreamResult, \
+from pddlstream.pddlstream.algorithms.scheduling.utils import partition_external_plan
+from pddlstream.pddlstream.language.constants import get_prefix, get_args, get_parameter_name, is_parameter, Minimize
+from pddlstream.pddlstream.language.conversion import substitute_expression, list_from_conjunction
+from pddlstream.pddlstream.language.external import parse_lisp_list, get_procedure_fn
+from pddlstream.pddlstream.language.function import PredicateResult, FunctionResult
+from pddlstream.pddlstream.language.object import Object, SharedOptValue
+from pddlstream.pddlstream.language.stream import StreamInfo, Stream, StreamInstance, StreamResult, \
     PartialInputs, NEGATIVE_SUFFIX, WildOutput
-from pddlstream.language.generator import get_next
-from pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
-from pddlstream.algorithms.reorder import get_stream_plan_components, get_partial_orders
+from pddlstream.pddlstream.language.generator import get_next
+from pddlstream.pddlstream.utils import INF, get_mapping, safe_zip, str_from_object
+from pddlstream.pddlstream.algorithms.reorder import get_stream_plan_components, get_partial_orders
 
 DEFAULT_SIMULTANEOUS = False
 DEFAULT_UNIQUE = True # TODO: would it ever even make sense to do shared here?

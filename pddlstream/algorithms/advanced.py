@@ -1,13 +1,13 @@
 from collections import defaultdict
 
-from pddlstream.algorithms.downward import fd_from_fact, get_conjunctive_parts, get_disjunctive_parts
-from pddlstream.language.constants import get_prefix, get_args
-from pddlstream.language.conversion import substitute_expression
-from pddlstream.language.fluent import get_predicate_map
-from pddlstream.language.function import Function
-from pddlstream.language.optimizer import UNSATISFIABLE, ConstraintStream
-from pddlstream.language.stream import Stream
-from pddlstream.utils import find_unique, get_mapping
+from pddlstream.pddlstream.algorithms.downward import fd_from_fact, get_conjunctive_parts, get_disjunctive_parts
+from pddlstream.pddlstream.language.constants import get_prefix, get_args
+from pddlstream.pddlstream.language.conversion import substitute_expression
+from pddlstream.pddlstream.language.fluent import get_predicate_map
+from pddlstream.pddlstream.language.function import Function
+from pddlstream.pddlstream.language.optimizer import UNSATISFIABLE, ConstraintStream
+from pddlstream.pddlstream.language.stream import Stream
+from pddlstream.pddlstream.utils import find_unique, get_mapping
 
 UNIVERSAL_TO_CONDITIONAL = False
 AUTOMATICALLY_NEGATE = False # TODO: fix Yang's bug
@@ -66,7 +66,7 @@ def process_conditional_effect(effect, negative_from_predicate):
 
 def optimizer_conditional_effects(domain, externals):
     import pddl
-    #from pddlstream.algorithms.scheduling.negative import get_negative_predicates
+    #from pddlstream.pddlstream.algorithms.scheduling.negative import get_negative_predicates
     # TODO: extend this to predicates
     if UNIVERSAL_TO_CONDITIONAL:
         negative_streams = list(filter(lambda e: e.is_negated, externals))

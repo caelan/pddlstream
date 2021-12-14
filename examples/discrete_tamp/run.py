@@ -5,14 +5,14 @@ from __future__ import print_function
 import os
 import numpy as np
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.discrete_tamp.primitives import GRASP, collision_test, distance_fn, DiscreteTAMPState, \
     get_shift_one_problem
 from examples.discrete_tamp.viewer import DiscreteTAMPViewer, COLORS
-# from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, PDDLProblem
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import user_input, read, INF
+# from pddlstream.pddlstream.algorithms.serialized import solve_serialized
+from pddlstream.pddlstream.language.constants import And, Equal, TOTAL_COST, print_solution, PDDLProblem
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.pddlstream.utils import user_input, read, INF
 
 
 # TODO: Can infer domain from usage or from specification

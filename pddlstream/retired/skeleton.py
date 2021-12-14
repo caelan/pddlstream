@@ -5,11 +5,11 @@ from collections import namedtuple, Sized
 from heapq import heappush, heappop, heapreplace
 from operator import itemgetter
 
-from pddlstream.algorithms.common import is_instance_ready, EvaluationNode
-from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
-from pddlstream.language.constants import is_plan, INFEASIBLE
-from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.utils import elapsed_time, HeapElement, safe_zip, get_mapping
+from pddlstream.pddlstream.algorithms.common import is_instance_ready, EvaluationNode
+from pddlstream.pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
+from pddlstream.pddlstream.language.constants import is_plan, INFEASIBLE
+from pddlstream.pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.pddlstream.utils import elapsed_time, HeapElement, safe_zip, get_mapping
 
 
 # The motivation for immediately instantiating is to avoid unnecessary sampling
@@ -365,7 +365,7 @@ class SkeletonQueue(Sized):
 
 ##################################################
 
-# from pddlstream.language.synthesizer import SynthStreamResult
+# from pddlstream.pddlstream.language.synthesizer import SynthStreamResult
 # def _decompose_synthesizer_skeleton(queue, skeleton, index):
 #     stream_plan, plan_attempts, bindings, plan_index, cost = skeleton
 #     opt_result = stream_plan[index]
@@ -416,10 +416,10 @@ class SkeletonQueue(Sized):
 
 ##################################################
 
-# from pddlstream.algorithms.downward import task_from_domain_problem, get_problem, get_action_instances, \
+# from pddlstream.pddlstream.algorithms.downward import task_from_domain_problem, get_problem, get_action_instances, \
 #    get_goal_instance, plan_preimage, is_valid_plan, substitute_derived, is_applicable, apply_action
-# from pddlstream.algorithms.reorder import replace_derived
-# from pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
+# from pddlstream.pddlstream.algorithms.reorder import replace_derived
+# from pddlstream.pddlstream.algorithms.scheduling.recover_axioms import extract_axiom_plan
 
 # def is_solution(domain, evaluations, action_plan, goal_expression):
 #     task = task_from_domain_problem(domain, get_problem(evaluations, goal_expression, domain, unit_costs=True))

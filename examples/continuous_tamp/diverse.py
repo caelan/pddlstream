@@ -12,13 +12,13 @@ from examples.continuous_tamp.primitives import draw_state, SUCTION_HEIGHT, GROU
 from examples.continuous_tamp.run import initialize, create_problem, dump_pddlstream
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.algorithms.constraints import PlanConstraints, WILD
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.constants import PDDLProblem, print_solution
-from pddlstream.language.object import DebugValue
-from pddlstream.language.statistics import load_data
-from pddlstream.language.stream import StreamInfo, DEBUG
-from pddlstream.utils import read, get_file_path, value_or_id, INF, SEPARATOR
+from pddlstream.pddlstream.algorithms.constraints import PlanConstraints, WILD
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.language.constants import PDDLProblem, print_solution
+from pddlstream.pddlstream.language.object import DebugValue
+from pddlstream.pddlstream.language.statistics import load_data
+from pddlstream.pddlstream.language.stream import StreamInfo, DEBUG
+from pddlstream.pddlstream.utils import read, get_file_path, value_or_id, INF, SEPARATOR
 
 
 def create_skeleton(robot, blocks, home=False):

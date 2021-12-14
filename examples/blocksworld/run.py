@@ -4,10 +4,10 @@ from __future__ import print_function
 
 import os
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.utils import read
-from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.pddlstream.utils import read
+from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 
 
 def read_pddl(filename):

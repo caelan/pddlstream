@@ -2,13 +2,13 @@ from __future__ import print_function
 
 import os
 
-from pddlstream.algorithms.reorder import get_partial_orders
-from pddlstream.language.constants import EQ, get_prefix, get_args, str_from_plan, is_parameter, \
+from pddlstream.pddlstream.algorithms.reorder import get_partial_orders
+from pddlstream.pddlstream.language.constants import EQ, get_prefix, get_args, str_from_plan, is_parameter, \
     partition_facts
-from pddlstream.language.conversion import str_from_fact, evaluation_from_fact
-from pddlstream.language.function import FunctionResult
-from pddlstream.language.object import OptimisticObject
-from pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input, flatten
+from pddlstream.pddlstream.language.conversion import str_from_fact, evaluation_from_fact
+from pddlstream.pddlstream.language.function import FunctionResult
+from pddlstream.pddlstream.language.object import OptimisticObject
+from pddlstream.pddlstream.utils import clear_dir, ensure_dir, str_from_object, user_input, flatten
 
 # https://www.graphviz.org/doc/info/
 
@@ -49,7 +49,7 @@ def reset_visualizations():
 
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
-    from pddlstream.retired.synthesizer import decompose_stream_plan
+    from pddlstream.pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     with open(PLAN_LOG_FILE, 'a+') as f:
         f.write('Iteration: {}\n'
@@ -60,7 +60,7 @@ def log_plans(stream_plan, action_plan, iteration):
                 stream_plan, str_from_plan(action_plan)))
 
 def create_synthesizer_visualizations(result, iteration):
-    from pddlstream.retired.synthesizer import decompose_result
+    from pddlstream.pddlstream.retired.synthesizer import decompose_result
     stream_plan = decompose_result(result)
     if len(stream_plan) <= 1:
         return
@@ -83,7 +83,7 @@ def create_visualizations(evaluations, stream_plan, iteration):
     print('Constraints:', str_from_object(constraints))
     visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
 
-    from pddlstream.retired.synthesizer import decompose_stream_plan
+    from pddlstream.pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     if len(decomposed_plan) != len(stream_plan):
         visualize_stream_plan(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))

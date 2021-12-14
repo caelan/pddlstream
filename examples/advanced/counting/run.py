@@ -2,14 +2,14 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.generator import from_fn, from_test
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import PDDLProblem, Or, Exists, print_solution
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.generator import from_fn, from_test
 
 DOMAIN_PDDL = """
 (define (domain debug)
-  (:predicates 
+  (:predicates
     (Integer ?x)
     (Large ?x)
     (Small ?x)

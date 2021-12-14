@@ -4,12 +4,12 @@ from __future__ import print_function
 
 import numpy as np
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.generator import from_fn, from_constant, from_test, universe_test, empty_test
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, get_file_path, Profiler
-from pddlstream.language.constants import print_solution, PDDLProblem
-from pddlstream.language.external import defer_unique, never_defer
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.generator import from_fn, from_constant, from_test, universe_test, empty_test
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.utils import read, get_file_path, Profiler
+from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.pddlstream.language.external import defer_unique, never_defer
 #from examples.advanced.exogenous.run import ik_fn, motion_fn
 
 GRASP = np.array([0, 1])

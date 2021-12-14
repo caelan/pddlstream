@@ -11,7 +11,7 @@ from examples.pybullet.utils.pybullet_tools.utils import get_point, get_custom_l
     wait_for_duration, create_body, visual_shape_from_data, LockRenderer, plan_nonholonomic_motion, create_attachment, \
     pose_from_pose2d, wait_if_gui, child_link_from_joint, get_link_name, Attachment
 from examples.pybullet.turtlebot_rovers.problems import get_base_joints, KINECT_FRAME
-from pddlstream.language.constants import Output
+from pddlstream.pddlstream.language.constants import Output
 
 VIS_RANGE = 2
 COM_RANGE = 2*VIS_RANGE

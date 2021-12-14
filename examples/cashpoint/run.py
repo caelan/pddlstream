@@ -4,13 +4,13 @@ from __future__ import print_function
 
 from random import uniform
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.cashpoint.optimizer import create_optimizer
-from pddlstream.algorithms.search import solve_from_pddl
-from pddlstream.utils import read_pddl, Profiler
-from pddlstream.language.constants import get_length, PDDLProblem, print_solution
-from pddlstream.language.generator import from_test, from_fn, from_sampler
-from pddlstream.language.stream import StreamInfo, PartialInputs
+from pddlstream.pddlstream.algorithms.search import solve_from_pddl
+from pddlstream.pddlstream.utils import read_pddl, Profiler
+from pddlstream.pddlstream.language.constants import get_length, PDDLProblem, print_solution
+from pddlstream.pddlstream.language.generator import from_test, from_fn, from_sampler
+from pddlstream.pddlstream.language.stream import StreamInfo, PartialInputs
 from examples.ipc.rovers.run import dump_plan
 
 # https://github.com/Emresav/ECAI16Domains/blob/master/cashpoint/domain0.pddl

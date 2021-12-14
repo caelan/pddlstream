@@ -8,11 +8,11 @@ from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, ge
     tight, blocked, draw_state, get_random_seed, TAMPState, GROUND_NAME, GRASP, SUCTION_HEIGHT, apply_action
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import user_input, read, INF, get_file_path, Profiler
-from pddlstream.language.constants import print_solution, PDDLProblem
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.pddlstream.utils import user_input, read, INF, get_file_path, Profiler
+from pddlstream.pddlstream.language.constants import print_solution, PDDLProblem
 
 from copy import deepcopy
 

@@ -7,12 +7,12 @@ try:
 except ImportError:
     raise ImportError('This example requires PyBullet (https://pypi.org/project/pybullet/)')
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.algorithms.search import ABSTRIPSLayer
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
-from pddlstream.utils import read, get_file_path, Profiler
-from pddlstream.language.constants import PDDLProblem, And, Equal, print_solution
-from pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.search import ABSTRIPSLayer
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test, accelerate_list_gen_fn
+from pddlstream.pddlstream.utils import read, get_file_path, Profiler
+from pddlstream.pddlstream.language.constants import PDDLProblem, And, Equal, print_solution
+from pddlstream.pddlstream.language.stream import StreamInfo
 
 from examples.pybullet.pr2_belief.primitives import Scan, ScanRoom, Detect, Register, \
     plan_head_traj, get_cone_commands, move_look_trajectory, get_vis_base_gen, \

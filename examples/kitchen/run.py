@@ -1,18 +1,18 @@
 from __future__ import print_function
 
-from pddlstream.algorithms import instantiate_task
+from pddlstream.pddlstream.algorithms import instantiate_task
 instantiate_task.FD_INSTANTIATE = True
-from pddlstream.algorithms import instantiation
+from pddlstream.pddlstream.algorithms import instantiation
 instantiation.USE_RELATION = True
-from pddlstream.algorithms import refinement
+from pddlstream.pddlstream.algorithms import refinement
 refinement.CONSTRAIN_PLANS = False
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import And, print_solution
-from pddlstream.language.stream import DEBUG, SHARED_DEBUG, StreamInfo, PartialInputs
-#from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.language.constants import PDDLProblem, read_pddlstream_pair
-from pddlstream.utils import read, get_file_path, Profiler
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import And, print_solution
+from pddlstream.pddlstream.language.stream import DEBUG, SHARED_DEBUG, StreamInfo, PartialInputs
+#from pddlstream.pddlstream.algorithms.serialized import solve_serialized
+from pddlstream.pddlstream.language.constants import PDDLProblem, read_pddlstream_pair
+from pddlstream.pddlstream.utils import read, get_file_path, Profiler
 
 ROBOT = 'gripper'
 CUP = 'cup'

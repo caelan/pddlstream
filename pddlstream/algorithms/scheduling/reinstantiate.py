@@ -1,7 +1,7 @@
-from pddlstream.algorithms.downward import apply_action, get_conjunctive_parts
-from pddlstream.algorithms.instantiate_task import get_goal_instance
-from pddlstream.utils import MockSet
-from pddlstream.language.optimizer import UNSATISFIABLE
+from pddlstream.pddlstream.algorithms.downward import apply_action, get_conjunctive_parts
+from pddlstream.pddlstream.algorithms.instantiate_task import get_goal_instance
+from pddlstream.pddlstream.utils import MockSet
+from pddlstream.pddlstream.language.optimizer import UNSATISFIABLE
 
 import pddl
 import instantiate

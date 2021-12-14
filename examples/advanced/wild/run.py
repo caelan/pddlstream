@@ -4,10 +4,10 @@ from __future__ import print_function
 
 import random
 
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.constants import PDDLProblem, And, Exists, print_solution, Imply
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.generator import from_fn, from_test, from_sampler, fn_from_constant
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.language.constants import PDDLProblem, And, Exists, print_solution, Imply
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.generator import from_fn, from_test, from_sampler, fn_from_constant
 
 # TODO:
 # Push wild streams
@@ -23,13 +23,13 @@ from pddlstream.language.generator import from_fn, from_test, from_sampler, fn_f
 
 DOMAIN_PDDL = """
 (define (domain wild)
-  (:predicates 
+  (:predicates
     (Carrot ?c)
     (Cut ?c0 ?s ?c1 ?c2)
     (Loc ?l)
     (AtLoc ?c ?l)
   )
-  (:functions 
+  (:functions
     (SplitCost ?c0 ?s)
   )
   (:action move
@@ -40,13 +40,13 @@ DOMAIN_PDDL = """
     :effect (and (AtLoc ?c ?l2)
                  (not (AtLoc ?c ?l1))
                  (increase (total-cost) 1))
-  )  
+  )
   (:action cut
     :parameters (?l ?c0 ?s ?c1 ?c2)
-    :precondition (and (Loc ?l) (Cut ?c0 ?s ?c1 ?c2) 
+    :precondition (and (Loc ?l) (Cut ?c0 ?s ?c1 ?c2)
                        (AtLoc ?c0 ?l))
     :effect (and (AtLoc ?c1 ?l) (AtLoc ?c2 ?l)
-                 (not (AtLoc ?c0 ?l)) 
+                 (not (AtLoc ?c0 ?l))
                  (increase (total-cost) (SplitCost ?c0 ?s)))
   )
 )
@@ -62,7 +62,7 @@ STREAM_PDDL = """
     :inputs (?c0 ?s)
     :domain (and (Carrot ?c0) (Split ?s))
     :outputs (?c1 ?c2)
-    :certified (and (Carrot ?c1) (Carrot ?c2) 
+    :certified (and (Carrot ?c1) (Carrot ?c2)
                     (Cut ?c0 ?s ?c1 ?c2))
   )
   (:function (SplitCost ?c0 ?s)

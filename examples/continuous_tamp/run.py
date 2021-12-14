@@ -9,22 +9,22 @@ import time
 
 from itertools import product
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.continuous_tamp.optimizer.optimizer import cfree_motion_fn, get_optimize_fn
 from examples.continuous_tamp.primitives import get_pose_gen, collision_test, distance_fn, inverse_kin_fn, \
     get_region_test, plan_motion, PROBLEMS, draw_state, get_random_seed, SUCTION_HEIGHT, MOVE_COST, GRASP, \
     update_state, ENVIRONMENT_NAMES, STOVE_NAMES, duration_fn
-from pddlstream.algorithms.downward import get_cost_scale
-from pddlstream.algorithms.constraints import PlanConstraints, WILD
-#from pddlstream.algorithms.serialized import solve_serialized
-from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
-from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or, Output
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.temporal import get_end, compute_duration, retime_plan
-from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
+from pddlstream.pddlstream.algorithms.downward import get_cost_scale
+from pddlstream.pddlstream.algorithms.constraints import PlanConstraints, WILD
+#from pddlstream.pddlstream.algorithms.serialized import solve_serialized
+from pddlstream.pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
+from pddlstream.pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
+from pddlstream.pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or, Output
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.temporal import get_end, compute_duration, retime_plan
+from pddlstream.pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies, inclusive_range, Profiler
 
 

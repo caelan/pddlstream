@@ -5,9 +5,9 @@ from __future__ import print_function
 import argparse
 import numpy as np
 
-#from pddlstream.algorithms.meta import solve, create_parser
+#from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.continuous_tamp.primitives import get_value_at_time
-from pddlstream.language.temporal import get_end, compute_duration
+from pddlstream.pddlstream.language.temporal import get_end, compute_duration
 from examples.pybullet.namo.stream import BASE_RESOLUTIONS, get_turtle_aabb, get_base_joints, set_base_conf, \
     get_custom_limits, point_from_conf, get_motion_fn, create_vertices
 from examples.pybullet.pr2_belief.problems import BeliefState
@@ -19,13 +19,13 @@ from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, dr
     aabb_union, draw_aabb, aabb_overlap, remove_all_debug, get_base_distance_fn, dump_body, \
     link_from_name, get_visual_data, COLOR_FROM_NAME, YELLOW, wait_if_gui, set_all_color, has_gui
 
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.stream import StreamInfo
-from pddlstream.language.function import FunctionInfo, PredicateInfo
-from pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
-from pddlstream.language.generator import from_test, from_fn, negate_test
-from pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range, Profiler
+from pddlstream.pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.language.function import FunctionInfo, PredicateInfo
+from pddlstream.pddlstream.language.constants import And, print_solution, PDDLProblem, Equal
+from pddlstream.pddlstream.language.generator import from_test, from_fn, negate_test
+from pddlstream.pddlstream.utils import read, INF, get_file_path, randomize, inclusive_range, Profiler
 
 # TODO: rename to temporal
 

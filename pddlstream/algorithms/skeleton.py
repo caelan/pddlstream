@@ -5,15 +5,15 @@ from collections import namedtuple, Sized
 from itertools import count
 from heapq import heappush, heappop
 
-from pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified, \
+from pddlstream.pddlstream.algorithms.common import is_instance_ready, compute_complexity, stream_plan_complexity, add_certified, \
     stream_plan_preimage, COMPLEXITY_OP
-from pddlstream.language.conversion import evaluation_from_fact
-from pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
-from pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
-from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
-from pddlstream.language.function import FunctionResult
-from pddlstream.algorithms.visualization import visualize_stream_orders
-from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
+from pddlstream.pddlstream.language.conversion import evaluation_from_fact
+from pddlstream.pddlstream.algorithms.disabled import process_instance, update_bindings, update_cost, bind_action_plan
+from pddlstream.pddlstream.algorithms.reorder import get_output_objects, get_object_orders, get_partial_orders, get_initial_orders
+from pddlstream.pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
+from pddlstream.pddlstream.language.function import FunctionResult
+from pddlstream.pddlstream.algorithms.visualization import visualize_stream_orders
+from pddlstream.pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
     incoming_from_edges, outgoing_from_edges
 
 # TODO: the bias away from solved things is actually due to USE_PRIORITIES+timed_process not REQUIRE_DOWNSTREAM

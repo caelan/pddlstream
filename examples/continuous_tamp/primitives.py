@@ -4,7 +4,7 @@ import numpy as np
 import string
 import random
 
-from pddlstream.utils import str_eq
+from pddlstream.pddlstream.utils import str_eq
 
 GROUND_NAME = 'grey'
 BLOCK_WIDTH = 2

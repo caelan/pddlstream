@@ -14,10 +14,10 @@ from examples.continuous_tamp.primitives import get_pose_gen, inverse_kin_fn, ge
     inverse_kin, forward_kin, collision_test, draw_block, draw_robot
 from examples.continuous_tamp.viewer import ContinuousTMPViewer
 from examples.discrete_tamp.viewer import COLORS
-from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.utils import user_input, read, INF, get_file_path, Profiler, randomize
-from pddlstream.language.constants import print_solution, Exists, And, PDDLProblem
+from pddlstream.pddlstream.algorithms.incremental import solve_incremental
+from pddlstream.pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.pddlstream.utils import user_input, read, INF, get_file_path, Profiler, randomize
+from pddlstream.pddlstream.language.constants import print_solution, Exists, And, PDDLProblem
 
 Mode = namedtuple('Mode', ['pose', 'frame'])
 

@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.namo.stream import BASE_LINK, get_base_joints, set_base_conf, get_custom_limits, \
     get_test_cfree_conf_pose, get_test_cfree_traj_pose, get_grasp_generator, get_ik_fn, get_motion_fn, get_cost_fn, \
     create_vertices
@@ -14,11 +14,11 @@ from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, Pose, co
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, draw_base_limits, WorldSaver, \
     wait_for_user, remove_body, LockRenderer, get_bodies, create_box, stable_z, load_model, TURTLEBOT_URDF, \
     create_cylinder, HideOutput, GREY, TAN, RED, set_point, Point, BLUE, has_gui
-from pddlstream.language.function import FunctionInfo
-from pddlstream.language.constants import And, print_solution, PDDLProblem
-from pddlstream.language.generator import from_test, from_fn, from_gen_fn
-from pddlstream.language.stream import StreamInfo
-from pddlstream.utils import read, INF, get_file_path, Profiler
+from pddlstream.pddlstream.language.function import FunctionInfo
+from pddlstream.pddlstream.language.constants import And, print_solution, PDDLProblem
+from pddlstream.pddlstream.language.generator import from_test, from_fn, from_gen_fn
+from pddlstream.pddlstream.language.stream import StreamInfo
+from pddlstream.pddlstream.utils import read, INF, get_file_path, Profiler
 
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/turtlebot
 # https://github.com/erwincoumans/pybullet_robots/tree/master/data/f10_racecar

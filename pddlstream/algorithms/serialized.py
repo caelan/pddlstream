@@ -1,17 +1,17 @@
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve_restart, solve
-from pddlstream.language.temporal import parse_domain
-from pddlstream.utils import INF, Verbose, str_from_object, SEPARATOR
-from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.focused import solve_focused
-from pddlstream.language.conversion import Certificate, Object, \
+from pddlstream.pddlstream.algorithms.meta import solve_restart, solve
+from pddlstream.pddlstream.language.temporal import parse_domain
+from pddlstream.pddlstream.utils import INF, Verbose, str_from_object, SEPARATOR
+from pddlstream.pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.pddlstream.algorithms.focused import solve_focused
+from pddlstream.pddlstream.language.conversion import Certificate, Object, \
     transform_plan_args, value_from_evaluation
-from pddlstream.language.constants import PDDLProblem, get_function, get_prefix, print_solution, AND, get_args, And, \
+from pddlstream.pddlstream.language.constants import PDDLProblem, get_function, get_prefix, print_solution, AND, get_args, And, \
     Solution, Or, is_plan
-from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
+from pddlstream.pddlstream.algorithms.downward import get_problem, task_from_domain_problem, \
     get_action_instances, apply_action, evaluation_from_fd, get_fluents
-from pddlstream.algorithms.common import evaluations_from_init
+from pddlstream.pddlstream.algorithms.common import evaluations_from_init
 
 
 def serialize_goal(goal):

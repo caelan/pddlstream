@@ -2,11 +2,11 @@
 
 from __future__ import print_function
 
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.pddlstream.algorithms.meta import solve, create_parser
 from examples.discrete_belief.dist import DeltaDist, MixtureDist, UniformDist
 from examples.discrete_belief.run import revisit_mdp_cost
-from pddlstream.language.constants import And, Equal, print_solution, PDDLProblem
-from pddlstream.utils import read, get_file_path, INF, Profiler
+from pddlstream.pddlstream.language.constants import And, Equal, print_solution, PDDLProblem
+from pddlstream.pddlstream.utils import read, get_file_path, INF, Profiler
 
 ROOM = 'room'
 TABLE = 'table'

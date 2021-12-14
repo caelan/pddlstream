@@ -2,30 +2,30 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
-from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
-from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
-#from pddlstream.algorithms.downward import has_costs
-from pddlstream.algorithms.incremental import process_stream_queue
-from pddlstream.algorithms.instantiation import Instantiator
-from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
-from pddlstream.algorithms.scheduling.plan_streams import OptSolution
-from pddlstream.algorithms.reorder import reorder_stream_plan
-from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
+from pddlstream.pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
+from pddlstream.pddlstream.algorithms.common import SolutionStore
+from pddlstream.pddlstream.algorithms.constraints import PlanConstraints
+from pddlstream.pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
+from pddlstream.pddlstream.algorithms.disable_skeleton import create_disabled_axioms
+#from pddlstream.pddlstream.algorithms.downward import has_costs
+from pddlstream.pddlstream.algorithms.incremental import process_stream_queue
+from pddlstream.pddlstream.algorithms.instantiation import Instantiator
+from pddlstream.pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
+from pddlstream.pddlstream.algorithms.scheduling.plan_streams import OptSolution
+from pddlstream.pddlstream.algorithms.reorder import reorder_stream_plan
+from pddlstream.pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
-from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
-from pddlstream.language.fluent import compile_fluent_streams
-from pddlstream.language.function import Function, Predicate
-from pddlstream.language.optimizer import ComponentStream
-from pddlstream.algorithms.recover_optimizers import combine_optimizers
-from pddlstream.language.statistics import load_stream_statistics, \
+from pddlstream.pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
+from pddlstream.pddlstream.language.fluent import compile_fluent_streams
+from pddlstream.pddlstream.language.function import Function, Predicate
+from pddlstream.pddlstream.language.optimizer import ComponentStream
+from pddlstream.pddlstream.algorithms.recover_optimizers import combine_optimizers
+from pddlstream.pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
-from pddlstream.language.stream import Stream, StreamResult
-from pddlstream.utils import INF, implies, str_from_object, safe_zip
+from pddlstream.pddlstream.language.stream import Stream, StreamResult
+from pddlstream.pddlstream.utils import INF, implies, str_from_object, safe_zip
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()

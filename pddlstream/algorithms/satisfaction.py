@@ -3,24 +3,24 @@ from __future__ import print_function
 import time
 from collections import Counter, namedtuple
 
-from pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
-from pddlstream.algorithms.common import SolutionStore
-from pddlstream.algorithms.disable_skeleton import create_disabled_axioms, extract_disabled_clusters
-from pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
-from pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
-from pddlstream.algorithms.reorder import reorder_stream_plan
-from pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
-# from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.algorithms.skeleton import SkeletonQueue
-from pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment, OptPlan
-from pddlstream.language.conversion import revert_solution, \
+from pddlstream.pddlstream.algorithms.algorithm import parse_stream_pddl, evaluations_from_init
+from pddlstream.pddlstream.algorithms.common import SolutionStore
+from pddlstream.pddlstream.algorithms.disable_skeleton import create_disabled_axioms, extract_disabled_clusters
+from pddlstream.pddlstream.algorithms.downward import make_domain, make_predicate, add_predicate
+from pddlstream.pddlstream.algorithms.recover_optimizers import retrace_instantiation, combine_optimizers
+from pddlstream.pddlstream.algorithms.reorder import reorder_stream_plan
+from pddlstream.pddlstream.algorithms.scheduling.postprocess import reschedule_stream_plan
+# from pddlstream.pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.pddlstream.algorithms.skeleton import SkeletonQueue
+from pddlstream.pddlstream.language.constants import is_parameter, get_length, partition_facts, Assignment, OptPlan
+from pddlstream.pddlstream.language.conversion import revert_solution, \
     evaluation_from_fact, replace_expression, get_prefix, get_args
-from pddlstream.language.function import Function
-from pddlstream.language.object import Object, OptimisticObject
-from pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
-from pddlstream.language.stream import Stream
-from pddlstream.algorithms.visualization import visualize_constraints
-from pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
+from pddlstream.pddlstream.language.function import Function
+from pddlstream.pddlstream.language.object import Object, OptimisticObject
+from pddlstream.pddlstream.language.statistics import write_stream_statistics, compute_plan_effort
+from pddlstream.pddlstream.language.stream import Stream
+from pddlstream.pddlstream.algorithms.visualization import visualize_constraints
+from pddlstream.pddlstream.utils import INF, get_mapping, elapsed_time, str_from_object, safe_zip
 
 # TODO: ConstraintProblem?
 SatisfactionProblem = namedtuple('SatisfactionProblem', ['stream_pddl', 'stream_map', 'init', 'terms'])

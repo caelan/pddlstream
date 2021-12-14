@@ -10,10 +10,10 @@ import traceback
 
 from collections import namedtuple
 
-from pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
+from pddlstream.pddlstream.algorithms.downward import TEMP_DIR, DOMAIN_INPUT, PROBLEM_INPUT, make_effects, \
     parse_sequential_domain, get_conjunctive_parts, write_pddl, make_action, make_parameters, make_object, fd_from_fact, Domain, make_effects
-from pddlstream.language.constants import DurativeAction, Fact, Not
-from pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
+from pddlstream.pddlstream.language.constants import DurativeAction, Fact, Not
+from pddlstream.pddlstream.utils import INF, ensure_dir, write, user_input, safe_rm_dir, read, elapsed_time, find_unique, safe_zip
 
 PLANNER = 'tfd' # tfd | tflap | optic | tpshe | cerberus
 
@@ -123,7 +123,7 @@ Options are:
   v - disable verbose printouts
   y - cyclic cg CEA heuristic
   Y - cyclic cg CEA heuristic - preferred operators
-  x - cyclic cg makespan heuristic 
+  x - cyclic cg makespan heuristic
   X - cyclic cg makespan heuristic - preferred operators
   G [m|c|t|w] - G value evaluation, one of m - makespan, c - pathcost, t - timestamp, w [weight] - weighted / Note: One of those has to be set!
   Q [r|p|h] - queue mode, one of r - round robin, p - priority, h - hierarchical
@@ -245,7 +245,7 @@ OPTIC_COMMAND = 'optic-clp -N {} {} | tee {}'
 """
 Usage: optic/src/optic/optic-clp [OPTIONS] domainfile problemfile [planfile, if -r specified]
 
-Options are: 
+Options are:
 
 	-N	Don't optimise solution quality (ignores preferences and costs);
 	-0	Abstract out timed initial literals that represent recurrent windows;
@@ -512,7 +512,7 @@ def expand_condition(condition):
 
 def convert_durative(durative_actions, fluents):
     # TODO: if static, apply as a condition to all
-    from pddlstream.algorithms.advanced import get_predicates
+    from pddlstream.pddlstream.algorithms.advanced import get_predicates
     import pddl
 
     wait_action = make_action(
@@ -571,7 +571,7 @@ def convert_durative(durative_actions, fluents):
 
 
 def simple_from_durative_action(durative_actions, fluents):
-    from pddlstream.algorithms.advanced import get_predicates
+    from pddlstream.pddlstream.algorithms.advanced import get_predicates
     import pddl
     simple_actions = {}
     for action in durative_actions:
