@@ -6,6 +6,7 @@ import sys
 import subprocess
 from collections import namedtuple, defaultdict
 from time import time
+import importlib_resources
 
 from pddlstream.pddlstream.language.constants import EQ, NOT, Head, Evaluation, get_prefix, get_args, OBJECT, TOTAL_COST, Action, Not
 from pddlstream.pddlstream.language.conversion import is_atom, is_negated_atom, objects_from_evaluations, pddl_from_object, \
@@ -35,7 +36,9 @@ if ' ' in filepath:
 
 def find_build(fd_path):
     for release in ['release', 'release64', 'release32']:  # TODO: list the directory
-        path = os.path.join(fd_path, 'builds/{}/'.format(release))
+        with importlib_resources.files("pddlstream.pddlstream") as path:
+            pddlestream_dir = path
+        path = str(pddlestream_dir.parent / f"downward/builds/{release}")
         if os.path.exists(path):
             return path
     # TODO: could also just automatically compile
