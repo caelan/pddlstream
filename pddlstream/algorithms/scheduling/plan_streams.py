@@ -36,7 +36,7 @@ from pddlstream.pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.pddlstream.language.object import Object
 from pddlstream.pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 
-RENAME_ACTIONS = False
+RENAME_ACTIONS = True # Must be on for disjunctive action conditions
 #RENAME_ACTIONS = not USE_FORBID
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'opt_plan', 'cost']) # TODO: move to the below

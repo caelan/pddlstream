@@ -111,6 +111,10 @@ def elapsed_time(start_time):
 
 
 def safe_zip(sequence1, sequence2):
+    sequence1 = list(sequence1)
+    sequence2 = list(sequence2)
+    if len(sequence1) != len(sequence2):
+        raise RuntimeError(sequence1, sequence2)
     assert len(sequence1) == len(sequence2)
     return zip(sequence1, sequence2)
 
@@ -259,15 +263,18 @@ class Saver(object):
 
 class Profiler(Saver):
     fields = ['tottime', 'cumtime']
-    def __init__(self, field='tottime', num=10):
+    def __init__(self, field='tottime', num=10, enable=True):
         assert field in self.fields
         self.field = field
         self.num = num
-        self.pr = cProfile.Profile()
+        self.pr = cProfile.Profile() if enable else None
     def save(self):
-        self.pr.enable()
+        if self.pr is not None:
+            self.pr.enable()
         return self.pr
     def restore(self):
+        if self.pr is None:
+            return None
         self.pr.disable()
         if self.num is None:
             return None

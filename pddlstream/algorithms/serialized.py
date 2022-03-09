@@ -127,6 +127,7 @@ def create_simplified_problem(problem, use_actions=False, use_streams=False, new
         stream_pddl = None
     if new_goal is None:
         new_goal = goal_parts
+    # TODO: allow domain_pddl to be skipped
     domain = parse_domain(domain_pddl) # TODO: Constant map value @base not mentioned in domain :constants
     if not use_actions:
         domain.actions[:] = [] # No actions
@@ -135,8 +136,8 @@ def create_simplified_problem(problem, use_actions=False, use_streams=False, new
 
 def test_init_goal(problem, **kwargs):
     problem = create_simplified_problem(problem, use_actions=False, use_streams=False, new_goal=None)
-    plan, cost, certificate = solve(problem, **kwargs)
-    assert not plan
+    plan, cost, certificate = solve(problem, algorithm='incremental', verbose=True, **kwargs)
+    assert not plan # Impossible to have any actions
     is_goal = is_plan(plan)
     return is_goal, certificate
 
