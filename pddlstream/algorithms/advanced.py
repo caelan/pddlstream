@@ -10,7 +10,8 @@ from pddlstream.language.stream import Stream
 from pddlstream.utils import find_unique, get_mapping
 
 UNIVERSAL_TO_CONDITIONAL = False
-AUTOMATICALLY_NEGATE = False # TODO: fix Yang's bug
+AUTOMATICALLY_NEGATE = True # TODO: fix Yang's bug
+# TODO: AUTOMATICALLY_NEGATE = False can omit collisions
 
 
 def get_predicates(expression):
@@ -118,32 +119,59 @@ def get_certified_predicates(external):
     raise ValueError(external)
 
 
-def identify_non_producers(externals):
-    pairs = set()
+def get_interacting_externals(externals):
+    external_pairs = set()
     for external1 in externals:
         for external2 in externals:
             # TODO: handle case where no domain conditions
             if get_certified_predicates(external1) & get_domain_predicates(external2):
                 # TODO: count intersection when arity of zero
-                pairs.add((external1, external2))
+                external_pairs.add((external1, external2))
                 if external1.is_negated:
                     raise ValueError('Stream [{}] can certify [{}] and thus cannot be negated'.format(
                         external1.name, external2.name))
+    return external_pairs
 
+
+def get_certifiers(externals):
     certifiers = defaultdict(set)
     for external in externals:
         for predicate in get_certified_predicates(external):
             certifiers[predicate].add(external)
+    return certifiers
 
-    producers = {e1 for e1, _ in pairs}
+
+def get_negated_predicates(domain):
+    # TODO: generalize to more complicated formulas and recursive axioms
+    import pddl
+    negated_action_preconditions = set()
+    for action in domain.actions:
+        for part in get_conjunctive_parts(action.precondition):
+            # TODO: at least check more complicated parts for usage
+            if isinstance(part, pddl.NegatedAtom):
+                negated_action_preconditions.add(part.predicate)
+    negated_predicates = set()
+    for axiom in domain.axioms:
+        if axiom.name not in negated_action_preconditions:
+            continue
+        for part in get_conjunctive_parts(axiom.condition):
+            if isinstance(part, pddl.NegatedAtom):
+                negated_predicates.add(part.predicate)
+    return negated_predicates
+
+
+def automatically_negate_externals(domain, externals):
+    negated_predicates = get_negated_predicates(domain)
+    certifiers = get_certifiers(externals)
+    producers = {e1 for e1, _ in get_interacting_externals(externals)}
     non_producers = set(externals) - producers
     for external in non_producers:
         #if external.is_fluent:
         #external.num_opt_fns = 0 # Streams that can be evaluated at the end as tests
-        if AUTOMATICALLY_NEGATE and isinstance(external, Stream) \
-                and external.is_test and not external.is_fluent and not external.is_negated and external.could_succeed() and \
-                all(len(certifiers[predicate]) == 1 for predicate in get_certified_predicates(external)):
+        if isinstance(external, Stream) and not external.is_negated \
+                and external.is_test and not external.is_fluent and external.could_succeed() \
+                and all((predicate in negated_predicates) and (len(certifiers[predicate]) == 1)
+                        for predicate in get_certified_predicates(external)):
             # TODO: could instead only negate if in a negative axiom
             external.info.negate = True
             print('Setting negate={} for stream [{}]'.format(external.is_negated, external.name))
-    return non_producers

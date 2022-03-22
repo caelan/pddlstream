@@ -395,6 +395,7 @@ def get_literals(condition):
     raise ValueError(condition)
 
 def get_conjunctive_parts(condition):
+    # TODO: apply recursively
     return condition.parts if isinstance(condition, pddl.Conjunction) else [condition]
 
 def get_disjunctive_parts(condition):

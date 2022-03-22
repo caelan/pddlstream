@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
+from pddlstream.algorithms.advanced import enforce_simultaneous, automatically_negate_externals
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
@@ -126,7 +126,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
-    identify_non_producers(externals)
+    automatically_negate_externals(domain, externals)
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)
     # TODO: make effort_weight be a function of the current cost
