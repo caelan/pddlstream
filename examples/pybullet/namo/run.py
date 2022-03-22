@@ -199,11 +199,10 @@ def main():
     parser.add_argument('-t', '--max_time', default=120, type=int, help='The max time')
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
-    connect(use_gui=args.viewer)
+    connect(use_gui=True)
     with HideOutput():
         problem = problem_fn(collisions=not args.cfree)
     saver = WorldSaver()

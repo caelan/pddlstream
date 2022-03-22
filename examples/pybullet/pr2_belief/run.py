@@ -261,7 +261,7 @@ def plan_commands(state, args, profile=True, verbose=True):
 def main(time_step=0.01):
     parser = create_parser()
     parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
-    parser.add_argument('-viewer', action='store_true', help='enable the viewer while planning')
+    parser.add_argument('-viewer', action='store_true', help='Enable the viewer while planning')
     # TODO: argument for selecting prior
     args = parser.parse_args()
     print('Arguments:', args)

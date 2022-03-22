@@ -147,7 +147,6 @@ def main():
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
-    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -155,7 +154,7 @@ def main():
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
     problem_fn = problem_fn_from_name[args.problem]
-    connect(use_gui=args.viewer)
+    connect(use_gui=True)
     with HideOutput():
         rovers_problem = problem_fn()
     saver = WorldSaver()

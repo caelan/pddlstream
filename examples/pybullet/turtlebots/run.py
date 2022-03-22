@@ -322,11 +322,10 @@ def main(teleport=False):
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
     parser.add_argument('-t', '--max_time', default=5*60, type=int, help='The max time')
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
-    parser.add_argument('-viewer', action='store_true', help='Enable the viewer and visualizes the plan')
     args = parser.parse_args()
     print('Arguments:', args)
 
-    connect(use_gui=args.viewer)
+    connect(use_gui=True)
     with HideOutput():
         namo_problem = problem_fn(collisions=not args.cfree)
     saver = WorldSaver()
