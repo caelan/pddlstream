@@ -8,6 +8,8 @@ import instantiate
 
 def instantiate_unsatisfiable(state, action, var_mapping, negative_from_name={}):
     precondition = []
+    if not negative_from_name:
+        return precondition
     for effect in action.effects:
         if effect.literal.predicate == UNSATISFIABLE:
             # Condition must be false for plan to succeed
@@ -45,6 +47,7 @@ def reinstantiate_action(state, instance, negative_from_name={}):
         action.precondition.instantiate(var_mapping, init_facts, fluent_facts, precondition)
     except pddl.conditions.Impossible:
         return None
+    # TODO: skip if negative_from_name or state is None
     precondition = list(set(precondition)) + instantiate_unsatisfiable(state, action, var_mapping, negative_from_name)
 
     effects = []

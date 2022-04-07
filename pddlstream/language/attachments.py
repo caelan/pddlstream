@@ -4,7 +4,7 @@ import copy
 
 from pddlstream.pddlstream.algorithms.advanced import get_predicates
 from pddlstream.pddlstream.algorithms.downward import get_literals, get_conjunctive_parts, fd_from_fact, EQ, make_object, \
-    pddl_from_instance, DEFAULT_MAX_TIME, get_cost_scale
+    pddl_from_instance, DEFAULT_MAX_TIME, get_cost_scale, get_conditional_effects
 from pddlstream.pddlstream.language.object import Object
 from pddlstream.pddlstream.language.conversion import obj_from_pddl, substitute_fact
 from pddlstream.pddlstream.language.fluent import get_predicate_map, remap_certified
@@ -152,10 +152,7 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
         py_action = Action({'fd_action': action})
         py_action.conditions = set(action.precondition)
         py_action.effects = set()
-        for condition, effect in action.del_effects:
-            assert not condition
-            py_action.effects.add(effect.negate())
-        for condition, effect in action.add_effects:
+        for condition, effect in get_conditional_effects(action):
             assert not condition
             py_action.effects.add(effect)
         py_action.cost = action.cost

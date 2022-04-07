@@ -1,5 +1,5 @@
 from pddlstream.pddlstream.algorithms.downward import fd_from_fact, substitute_derived, is_applicable, apply_action, \
-    fd_from_evaluation, task_from_domain_problem, get_problem, get_action_instances
+    fd_from_evaluation, task_from_domain_problem, get_problem, get_action_instances, get_conditional_effects
 from pddlstream.pddlstream.algorithms.reorder import separate_plan, get_stream_stats, dynamic_programming
 from pddlstream.pddlstream.algorithms.scheduling.recover_axioms import extract_axioms
 from pddlstream.pddlstream.algorithms.instantiate_task import get_achieving_axioms
@@ -109,8 +109,7 @@ def get_combined_orders(evaluations, stream_plan, action_plan, domain):
                 orders.add((stream_plan[i], stream_plan[j]))
     for i, instance1 in enumerate(stream_instances):
         for j, instance2 in enumerate(action_instances):
-            effects = {e for _, e in  instance1.add_effects} | \
-                      {e.negate() for _, e in  instance1.del_effects}
+            effects = {e for _, e in get_conditional_effects(instance1)}
             if effects & set(instance2.precondition):
                 orders.add((stream_plan[i], action_plan[j]))
     return orders

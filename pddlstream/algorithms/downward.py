@@ -556,10 +556,12 @@ def apply_action(state, action):
     for conditions, effect in action.add_effects:
         if conditions_hold(state, conditions):
             state.add(effect)
+    return state
 
 def apply_axiom(state, axiom):
-    assert(isinstance(state, pddl.PropositionalAxiom))
+    assert(isinstance(axiom, pddl.PropositionalAxiom))
     state.add(axiom.effect)
+    return state
 
 def is_valid_plan(initial_state, plan): #, goal):
     state = set(initial_state)
@@ -630,14 +632,11 @@ def add_preimage_effect(effect, preimage):
 
 
 def has_conditional_effects(action_instance):
-    for conditions, effect in (action_instance.add_effects + action_instance.del_effects):
-        if conditions:
-            return True
-    return False
+    return any(conditions for conditions, _ in get_conditional_effects(action_instance))
 
 
 def action_preimage(action, preimage, i):
-    for conditions, effect in (action.add_effects + action.del_effects):
+    for conditions, effect in (action.add_effects + action.del_effects): # TODO: get_conditional_effects
         assert(not conditions)
         # TODO: can later select which conditional effects are used
         # TODO: might need to truely decide whether one should hold or not for a preimage

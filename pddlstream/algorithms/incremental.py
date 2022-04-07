@@ -17,8 +17,6 @@ from pddlstream.pddlstream.language.temporal import solve_tfd, SimplifiedDomain
 from pddlstream.pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.pddlstream.utils import INF, Verbose, str_from_object, elapsed_time
 
-UPDATE_STATISTICS = False
-
 def solve_temporal(evaluations, goal_exp, domain, debug=False, **kwargs):
     assert isinstance(domain, SimplifiedDomain)
     problem = get_problem_pddl(evaluations, goal_exp, domain.pddl)
@@ -99,7 +97,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
                       max_iterations=INF, max_time=INF, max_memory=INF,
                       initial_complexity=0, complexity_step=1, max_complexity=INF,
-                      verbose=False, **search_kwargs):
+                      statistics=False, verbose=False, **search_kwargs):
     """
     Solves a PDDLStream problem by alternating between applying all possible streams and searching
     :param problem: a PDDLStream problem
@@ -116,6 +114,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     :param complexity_step: the increase in the stream complexity limit per iteration
     :param max_complexity: the maximum stream complexity limit
 
+    :param statistics: if True, reads and writes stream statistics
     :param verbose: if True, print the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
 
@@ -130,7 +129,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory) # TODO: include other info here?
-    if UPDATE_STATISTICS:
+    if statistics:
         load_stream_statistics(externals)
     static_externals = compile_fluents_as_attachments(domain, externals)
     num_iterations = num_calls = 0
@@ -165,7 +164,7 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     })
     print('Summary: {}'.format(str_from_object(summary, ndigits=3))) # TODO: return the summary
 
-    if UPDATE_STATISTICS:
+    if statistics:
         write_stream_statistics(externals, verbose)
     return store.extract_solution()
 

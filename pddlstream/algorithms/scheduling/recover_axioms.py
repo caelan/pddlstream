@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from pddlstream.pddlstream.algorithms.downward import get_literals, apply_action, \
-    get_derived_predicates, literal_holds, GOAL_NAME, get_precondition
+    get_derived_predicates, literal_holds, GOAL_NAME, get_precondition, get_conditional_effects
 from pddlstream.pddlstream.algorithms.instantiate_task import get_goal_instance, filter_negated, get_achieving_axioms
 from pddlstream.pddlstream.language.constants import is_parameter
 from pddlstream.pddlstream.utils import Verbose, MockSet, safe_zip, flatten
@@ -74,6 +74,7 @@ def extract_axioms(state, axiom_from_atom, conditions, axiom_plan, negated_from_
         if fact not in axiom_from_atom:
             print('Fact is not achievable:', fact)
             success = False
+            #break
             continue
         axiom = axiom_from_atom[fact]
         if (axiom is None) or (axiom in axiom_plan):
@@ -193,12 +194,12 @@ def recover_axioms_plans(instantiated, action_instances):
     axiom_plans = []
     for action in new_action_instances + [get_goal_instance(instantiated.task.goal)]:
         all_conditions = list(get_precondition(action)) + list(flatten(
-            cond for cond, _ in action.add_effects + action.del_effects))
+            cond for cond, _ in get_conditional_effects(action)))
         axioms = backtrack_axioms(all_conditions, axioms_from_effect, set())
         axiom_from_atom, _ = get_achieving_axioms(state, axioms)
 
         action.applied_effects = []
-        for effects in [action.add_effects, action.del_effects]:
+        for effects in [action.add_effects, action.del_effects]: # TODO: get_conditional_effects
             negate = (effects is action.del_effects)
             for i, (conditions, effect) in reversed(list(enumerate(effects))):
                 if all(literal_holds(state, literal) or (literal in axiom_from_atom) for literal in conditions):
