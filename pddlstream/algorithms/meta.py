@@ -7,12 +7,13 @@ from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, \
-    fd_from_evaluations, INTERNAL_AXIOM
+    fd_from_evaluations, INTERNAL_AXIOM, get_conditional_effects
 from pddlstream.algorithms.incremental import solve_incremental
-from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive, get_negative_externals
+from pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive, \
+    get_negative_externals, compile_fluent_streams
 from pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
 from pddlstream.algorithms.refinement import optimistic_process_streams
-from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom
+from pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom, reinstantiate_action
 from pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
 from pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, Solution
 from pddlstream.language.conversion import value_from_obj_expression, EQ
@@ -50,7 +51,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
           unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
           #temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[],
           #planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False
-          visualize=False, verbose=True, **search_kwargs):
+          visualize=False, statistics=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem generically using one of the available algorithms
     :param problem: a PDDLStream problem
@@ -79,6 +80,7 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
     :param reorder: if True, reorder stream plans to minimize the expected sampling overhead
 
     :param visualize: if True, draw the constraint network and stream plan as a graphviz file
+    :param statistics: if True, reads and writes stream statistics
     :param verbose: if True, print the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
 
@@ -185,7 +187,7 @@ def set_unique(externals):
         external.info.opt_gen_fn = PartialInputs(unique=True)
         external.num_opt_fns = 0
 
-def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False, verbose=False, debug=False, **kwargs):
+def examine_instantiated(problem, unique=False, normalize=True, reinstantiate=True, unit_costs=False, debug=False, **kwargs):
     # TODO: refactor to an analysis file
     domain_pddl, constant_map, stream_pddl, _, init, goal = problem
     stream_map = DEBUG if unique else SHARED_DEBUG # DEBUG_MODES
@@ -193,6 +195,10 @@ def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False
 
     evaluations, goal_exp, domain, externals = parse_problem(problem, **kwargs)
     assert not isinstance(domain, SimplifiedDomain)
+    #identify_non_producers(externals)
+    #enforce_simultaneous(domain, externals)
+    compile_fluent_streams(domain, externals)
+
     negative = get_negative_externals(externals)
     externals = list(filter(lambda s: s not in negative, externals))
 
@@ -214,8 +220,12 @@ def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False
         instantiated = instantiate_task(task, check_infeasible=False)
         if instantiated is None:
             return results, None
-        # TODO: reinstantiate actions?
-        instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
+        if reinstantiate:
+            for action in instantiated.actions:
+                # TODO: careful about conditional and universal effects
+                action.applied_effects = [literal for _, literal, _, _ in action.effect_mappings] # TODO: hasattr
+            instantiated.actions[:] = [reinstantiate_action(None, action) for action in instantiated.actions]
+            instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
         if normalize:
             instantiated = convert_instantiated(instantiated)
     return results, instantiated
@@ -257,6 +267,7 @@ def recurse_subgoals(goals, condition_from_effect):
 def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, blocked_predicates=[], **kwargs):
     # TODO: instantiate all goal partial states
     # TODO: remove actions/axioms that never could achieve a subgoal
+    # TODO: filter actions, streams, axioms, etc.
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
     evaluations = evaluations_from_init(init)
     init = set(fd_from_evaluations(evaluations))
@@ -273,14 +284,10 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
         # TODO: selectively ignore some conditions (e.g. HandEmpty)
         # TODO: refactor into separate method
         for action in instantiated.actions:
-            for conditional, effect in action.add_effects:
+            for conditional, effect in get_conditional_effects(action):
                 for condition in (action.precondition + conditional):
                     if condition.predicate not in blocked_predicates:
                         condition_from_effect[effect].add(condition)
-            for conditional, effect in action.del_effects:
-                for condition in (action.precondition + conditional):
-                    if condition.predicate not in blocked_predicates:
-                        condition_from_effect[effect.negate()].add(condition)
     if use_axioms:
         # TODO: axiom_rules.handle_axioms(...)
         # print('Axioms:', instantiated.axioms)

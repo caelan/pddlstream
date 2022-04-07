@@ -1,9 +1,21 @@
 from collections import defaultdict, deque
 
-from pddlstream.algorithms.downward import literal_holds, get_derived_predicates, apply_action
+from pddlstream.algorithms.downward import literal_holds, get_derived_predicates, apply_action, \
+    get_conditional_effects, has_conditional_effects
 from pddlstream.algorithms.instantiate_task import get_goal_instance
 from pddlstream.algorithms.scheduling.recover_axioms import extract_axioms
 
+
+def get_fluents(init, action_instances):
+    fluents = set()
+    for action in action_instances:  # TODO: just actions if no action_instances
+        for cond, eff in get_conditional_effects(action):
+            assert not cond
+            if not literal_holds(init, eff):
+                fluents.add(eff.positive())
+    return fluents
+
+##################################################
 
 class SuccessorNode(object):
     def __init__(self, depth=0):
@@ -23,19 +35,6 @@ class SuccessorNode(object):
             if (value is None) or (literal_holds(state, atom) is value):
                 instances.extend(node.get_successors(atom_order, state))
         return instances
-
-def get_fluents(init, action_instances):
-    fluents = set()
-    for action in action_instances:  # TODO: just actions if no action_instances
-        for cond, eff in action.add_effects:
-            assert not cond
-            if not literal_holds(init, eff):
-                fluents.add(eff)
-        for cond, eff in action.del_effects:
-            assert not cond
-            if not literal_holds(init, eff.negate()):
-                fluents.add(eff)
-    return fluents
 
 class SuccessorGenerator(object):
     def __init__(self, instantiated, action_instances=[]):
@@ -134,10 +133,8 @@ def recover_axioms_plans2(instantiated, action_instances):
             if not literal_holds(state, literal):
                 preimage.append(literal)
                 assert literal in axiom_from_atom
-        for cond, eff in (action.add_effects + action.del_effects):
-            # TODO: add conditional effects that must hold here
-            assert not cond
+        assert not has_conditional_effects(action) # TODO: add conditional effects that must hold here
         axiom_plans.append([])
-        assert extract_axioms(axiom_from_atom, preimage, axiom_plans[-1])
+        assert extract_axioms(axiom_from_atom, preimage, axiom_plans[-1]) # TODO: fourth argument
         apply_action(state, action)
     return axiom_plans

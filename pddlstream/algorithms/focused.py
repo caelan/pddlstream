@@ -70,12 +70,12 @@ def check_dominated(skeleton_queue, stream_plan):
 ##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
-                  unit_costs=False, success_cost=INF,
-                  max_time=INF, max_iterations=INF, max_memory=INF,
-                  initial_complexity=0, complexity_step=1, max_complexity=INF,
-                  max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
-                  unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
-                  visualize=False, verbose=True, **search_kwargs):
+                   unit_costs=False, success_cost=INF,
+                   max_time=INF, max_iterations=INF, max_memory=INF,
+                   initial_complexity=0, complexity_step=1, max_complexity=INF,
+                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
+                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
+                   statistics=False, visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
@@ -104,6 +104,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     :param effort_weight: a multiplier for stream effort compared to action costs
     :param reorder: if True, reorder stream plans to minimize the expected sampling overhead
 
+    :param statistics: if True, reads and writes stream statistics
     :param visualize: if True, draw the constraint network and stream plan as a graphviz file
     :param verbose: if True, print the result of each stream application
     :param search_kwargs: keyword args for the search subroutine
@@ -133,7 +134,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # if (effort_weight is None) and not has_costs(domain):
     #     effort_weight = 1
 
-    load_stream_statistics(externals)
+    if statistics:
+        load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
         print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
@@ -165,6 +167,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
             len(evaluations), eager_calls, store.best_cost, store.search_time, store.sample_time, store.elapsed_time()))
+
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       replan_actions=replan_actions, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
@@ -241,7 +244,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     })
     print('Summary: {}'.format(str_from_object(summary, ndigits=3))) # TODO: return the summary
 
-    write_stream_statistics(externals, verbose)
+    if statistics:
+        write_stream_statistics(externals, verbose)
     return store.extract_solution()
 
 solve_focused = solve_abstract # TODO: deprecate solve_focused
