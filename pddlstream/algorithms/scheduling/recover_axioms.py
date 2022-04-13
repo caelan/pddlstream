@@ -94,6 +94,7 @@ def is_useful_atom(atom, conditions_from_predicate):
             return True
     return False
 
+
 def extraction_helper(state, instantiated_axioms, goals, negative_from_name={}):
     # TODO: filter instantiated_axioms that aren't applicable?
     import options
