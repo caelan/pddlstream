@@ -107,7 +107,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         # TODO: constrain future plan skeletons
 
     global_certificate = Certificate(all_facts={}, preimage_facts=None)
-    return global_plan, global_cost, global_certificate
+    return Solution(global_plan, global_cost, global_certificate)
 
 ##################################################
 

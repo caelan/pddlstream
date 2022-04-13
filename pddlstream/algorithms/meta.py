@@ -7,16 +7,19 @@ from pddlstream.pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.pddlstream.algorithms.common import evaluations_from_init
 from pddlstream.pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.pddlstream.algorithms.downward import get_problem, task_from_domain_problem, fact_from_fd, fd_from_fact, \
-    fd_from_evaluations, INTERNAL_AXIOM, get_conditional_effects
+    fd_from_evaluations, INTERNAL_AXIOM, get_conditional_effects, get_action_instances, apply_action, is_applicable, conditions_hold
 from pddlstream.pddlstream.algorithms.incremental import solve_incremental
 from pddlstream.pddlstream.algorithms.focused import solve_focused_original, solve_binding, solve_adaptive, \
     get_negative_externals, compile_fluent_streams
-from pddlstream.pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated
+from pddlstream.pddlstream.algorithms.instantiate_task import instantiate_task, convert_instantiated, get_goal_instance, \
+    instantiate_goal
+from pddlstream.pddlstream.algorithms.instantiated import derive_axioms, reachable_literals, state_difference
 from pddlstream.pddlstream.algorithms.refinement import optimistic_process_streams
-from pddlstream.pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom, reinstantiate_action
+from pddlstream.pddlstream.algorithms.scheduling.reinstantiate import reinstantiate_axiom_instances, reinstantiate_action
 from pddlstream.pddlstream.algorithms.scheduling.recover_streams import evaluations_from_stream_plan
+from pddlstream.pddlstream.language.object import Object
 from pddlstream.pddlstream.language.constants import is_plan, Certificate, PDDLProblem, get_prefix, Solution
-from pddlstream.pddlstream.language.conversion import value_from_obj_expression, EQ
+from pddlstream.pddlstream.language.conversion import value_from_obj_expression, EQ, transform_plan_args
 from pddlstream.pddlstream.language.external import DEBUG, SHARED_DEBUG
 from pddlstream.pddlstream.language.stream import PartialInputs
 from pddlstream.pddlstream.language.temporal import SimplifiedDomain
@@ -182,10 +185,83 @@ def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=INF, abo
 
 ##################################################
 
+def get_certificate(certificate, preimage=True):
+    all_facts, preimage_facts = certificate
+    if preimage and preimage_facts:
+        return preimage_facts
+    return all_facts
+
+
+def check_solution(problem, solution, unit_costs=False, verbose=False): #**search_kwargs):
+    # https://lis-mit.slack.com/archives/DGLNHLCLT/p1631117676003300
+    domain_pddl, constant_map, _, _, init, goal = problem
+    plan, cost, certificate = solution
+    if not is_plan(plan):
+        return False
+    # TODO: return sequence of states
+
+    certificate_facts = get_certificate(certificate)
+    new_init = init + certificate_facts
+    new_problem = PDDLProblem(domain_pddl, constant_map, None, None, new_init, goal)
+
+    # TODO: can always formulate as a planning problem (but then no intermediate state recovery)
+    #constraints = PlanConstraints(skeletons=[TBD], exact=True)
+    evaluations, goal_exp, domain, _ = parse_problem(new_problem, constraints=None, unit_costs=unit_costs)
+    #plan, cost = solve_finite(evaluations, goal_exp, domain, max_cost=INF, **search_kwargs)
+    #return is_plan(plan)
+
+    task = task_from_domain_problem(domain, get_problem(evaluations, goal_exp, domain, unit_costs))
+
+    obj_plan = transform_plan_args(plan, Object.from_value)
+    instance_plan = get_action_instances(task, obj_plan)
+    instance_plan.append(get_goal_instance(task.goal))
+    task.actions[:] = [] # No longer need actions
+    # TODO: reinstantiate?
+
+    # TODO: check programmatically created predicates (fluent, negated, etc.)
+    states = [set(task.init)]
+    for action in instance_plan:
+        state = states[-1]
+        task.init = state
+        with Verbose(verbose=False):
+            instantiated = instantiate_task(task, check_infeasible=False) # Could do upfront once as well
+        assert instantiated is not None
+        _, atoms, _, axioms, _, _ = instantiated
+        #derived_state = state & atoms
+        #derived_state = reachable_literals(instantiated)
+        derived_state = derive_axioms(state, instantiated.axioms)
+        if not is_applicable(derived_state, action):
+           return False
+
+        new_state = apply_action(states[-1].copy(), action)
+        if verbose:
+            print(action)
+            print(state_difference(new_state, states[-1]))
+        states.append(new_state)
+    #return conditions_hold(new_state[-1], instantiate_goal(task.goal))
+    return True
+
+##################################################
+
 def set_unique(externals):
     for external in externals:
         external.info.opt_gen_fn = PartialInputs(unique=True)
         external.num_opt_fns = 0
+
+
+def reinstantiate_actions(instantiated):
+    state = None
+    #state = instantiated.task.init
+    actions = [reinstantiate_action(state, action) for action in instantiated.actions]
+    #instantiated.actions[:] = actions
+    return actions
+
+
+def reinstantiate_axioms(instantiated):
+    axioms = reinstantiate_axiom_instances(instantiated.axioms)
+    #instantiated.axioms[:] = axioms
+    return axioms
+
 
 def examine_instantiated(problem, unique=False, normalize=True, reinstantiate=True, unit_costs=False, debug=False, **kwargs):
     # TODO: refactor to an analysis file
@@ -224,8 +300,8 @@ def examine_instantiated(problem, unique=False, normalize=True, reinstantiate=Tr
             for action in instantiated.actions:
                 # TODO: careful about conditional and universal effects
                 action.applied_effects = [literal for _, literal, _, _ in action.effect_mappings] # TODO: hasattr
-            instantiated.actions[:] = [reinstantiate_action(None, action) for action in instantiated.actions]
-            instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
+            instantiated.actions[:] = reinstantiate_actions(instantiated)
+            instantiated.axioms[:] = reinstantiate_axioms(instantiated)
         if normalize:
             instantiated = convert_instantiated(instantiated)
     return results, instantiated
