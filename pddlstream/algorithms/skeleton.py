@@ -128,6 +128,7 @@ class Binding(object):
         self.complexity = None
         self.complexities = None
         self.max_history = max(self.history) if self.history else 0
+        self.introduced = False
         self.skeleton.update_best(self)
         self.num = next(self.counter) # TODO: FIFO
     @property
@@ -247,6 +248,17 @@ class Binding(object):
         self.complexity = None # Forces re-computation
         #self.skeleton.visualize_bindings()
         return new_bindings
+    def introduce(self):
+        if self.introduced:
+            return False
+        self.introduced = True
+        if self.parent is not None:
+            self.parent.introduce()
+        result = self.parent_result
+
+        #result.call_index = 0  # Pretends the fact was first
+        add_certified(self.skeleton.evaluations, result) #, **kwargs)
+        return True
     def __repr__(self):
         return '{}(skeleton={}, {})'.format(self.__class__.__name__, self.skeleton.index, self.result)
 
@@ -417,16 +429,25 @@ class SkeletonQueue(Sized):
         for skeleton in self.skeletons:
             if not skeleton.improved:
                 continue
+            binding = skeleton.best_binding
+            # print(skeleton)
+            # print(binding)
+            # print(binding.is_unsatisfied(), binding.visits, binding.calls)
+            # print(skeleton.best_binding.recover_bound_results())
+            # print(binding.result, binding.result.compute_complexity(self.evaluations, **kwargs))
+
             skeleton.improved = False
             for result in skeleton.best_binding.recover_bound_results():
                 # TODO: just accelerate the facts within the plan preimage
-                #print(result, result.compute_complexity(self.evaluations, **kwargs))
+                #print(result, result.compute_complexity(self.evaluations, **kwargs), result.instance.disabled)
                 result.call_index = 0 # Pretends the fact was first
                 #print(result.compute_complexity(self.evaluations, **kwargs))
                 add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
         # TODO: AssertionError: Could not find instantiation for numeric expression: dist
+            #print(binding.result, binding.result.compute_complexity(self.evaluations, **kwargs), binding.result.instance.disabled)
+            #input()
 
-    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=False):
+    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=True):
         start_time = time.time()
         if is_plan(stream_plan):
             self.new_skeleton(stream_plan, action_plan, cost)
