@@ -73,7 +73,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                    unit_costs=False, success_cost=INF,
                    max_time=INF, max_post_time=INF, max_iterations=INF, max_memory=INF,
                    initial_complexity=0, complexity_step=1, max_complexity=INF,
-                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
+                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0, post_process=False,
                    unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                    statistics=False, visualize=False, verbose=True, **search_kwargs):
     """
@@ -151,7 +151,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
     store = SolutionStore(evaluations, success_cost=success_cost, max_time=max_time, max_post_time=max_post_time,
                           max_memory=max_memory, verbose=verbose)
-    skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
+    skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers, post_process=post_process)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
