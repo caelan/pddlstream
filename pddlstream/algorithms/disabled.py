@@ -1,10 +1,9 @@
 import time
 
 from pddlstream.algorithms.common import add_facts, add_certified, is_instance_ready, UNKNOWN_EVALUATION
-from pddlstream.algorithms.algorithm import remove_blocked
 from pddlstream.language.constants import OptPlan
 from pddlstream.language.function import FunctionResult
-from pddlstream.language.stream import StreamResult
+from pddlstream.language.stream import StreamResult, StreamInstance
 from pddlstream.language.conversion import is_plan, transform_action_args, replace_expression
 from pddlstream.utils import INF, safe_zip, apply_mapping, flatten, elapsed_time
 
@@ -65,11 +64,14 @@ def process_instance(store, domain, instance, disable=False):
         instance.disable(evaluations, domain)
     for result in new_results:
         #add_certified(evaluations, result)  # TODO: only add if the fact is actually new?
-        complexity = INF if (not disable or result.external.is_special) else \
-            result.compute_complexity(evaluations)
+        # complexity = INF if (not disable or result.external.is_special) else \
+        #     result.compute_complexity(evaluations) # TODO: add back in
+        complexity = INF
         add_facts(evaluations, result.get_certified(), result=result, complexity=complexity)
-    if disable:
-        remove_blocked(evaluations, domain, instance, new_results)
+    if new_results and disable and isinstance(instance, StreamInstance):
+        # TODO: previously was refactoring this
+        instance.enable(evaluations, domain)
+
     add_facts(evaluations, new_facts, result=UNKNOWN_EVALUATION, complexity=0) # TODO: record the instance
     return new_results, new_facts
 
