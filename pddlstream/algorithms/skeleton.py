@@ -255,13 +255,14 @@ class Binding(object):
 STANDBY = None
 
 class SkeletonQueue(Sized):
-    def __init__(self, store, domain, disable=True):
+    def __init__(self, store, domain, disable=True, post_process=False):
         # TODO: multi-threaded
         self.store = store
         self.domain = domain
         self.skeletons = []
         self.queue = [] # TODO: deque version
         self.disable = disable
+        self.post_process = post_process # TODO: prune unsatisfied skeletons
         self.standby = []
 
     @property
@@ -437,8 +438,11 @@ class SkeletonQueue(Sized):
             return FAILED
 
         # TODO: add and process
-        self.timed_process(max_time=(max_time - elapsed_time(start_time)))
+        remaining_time = max_time - elapsed_time(start_time)
+        self.timed_process(max_time=remaining_time)
         self.process_complexity(complexity_limit)
+        if self.post_process and self.store.has_solution():
+            self.timed_process(max_time=INF)
         if accelerate:
            self.accelerate_best_bindings()
         return FAILED
