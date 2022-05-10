@@ -95,7 +95,7 @@ def process_stream_queue(instantiator, store, complexity_limit=INF, verbose=Fals
 
 def solve_incremental(problem, constraints=PlanConstraints(),
                       unit_costs=False, success_cost=INF,
-                      max_iterations=INF, max_time=INF, max_memory=INF,
+                      max_iterations=INF, max_time=INF, max_post_time=INF, max_memory=INF,
                       initial_complexity=0, complexity_step=1, max_complexity=INF,
                       statistics=False, verbose=False, **search_kwargs):
     """
@@ -128,7 +128,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
     # TODO: warning if optimizers are present
     evaluations, goal_expression, domain, externals = parse_problem(
         problem, constraints=constraints, unit_costs=unit_costs)
-    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory) # TODO: include other info here?
+    store = SolutionStore(evaluations, success_cost=success_cost, max_time=max_time, max_post_time=max_post_time,
+                          max_memory=max_memory, verbose=verbose) # TODO: include other info here?
     if statistics:
         load_stream_statistics(externals)
     static_externals = compile_fluents_as_attachments(domain, externals)
@@ -142,8 +143,8 @@ def solve_incremental(problem, constraints=PlanConstraints(),
               'Search Time: {:.3f} | Sample Time: {:.3f} | Time: {:.3f}'.format(
             num_iterations, complexity_limit, num_calls, len(evaluations),
             store.has_solution(), store.best_cost, store.search_time, store.sample_time, store.elapsed_time()))
-        plan, cost = solve_finite(evaluations, goal_expression, domain,
-                                  max_cost=min(store.best_cost, constraints.max_cost), **search_kwargs)
+        max_cost = min(store.best_cost, constraints.max_cost)
+        plan, cost = solve_finite(evaluations, goal_expression, domain, max_cost=max_cost, **search_kwargs)
         if is_plan(plan):
             store.add_plan(plan, cost)
         if not instantiator:

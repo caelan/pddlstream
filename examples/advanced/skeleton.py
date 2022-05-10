@@ -161,7 +161,7 @@ def opt_from_graph(names, orders, infos={}):
 
 def solve_skeleton(evaluations={}, opt_solutions=[], max_time=INF, success_cost=0,
                    max_complexity=INF, reorder=False, visualize=True):
-    store = SolutionStore(evaluations=evaluations, max_time=max_time, success_cost=success_cost, verbose=True)
+    store = SolutionStore(evaluations, success_cost=success_cost, max_time=max_time, verbose=True)
     skeleton_queue = SkeletonQueue(store, domain=None, disable=True)
 
     for opt_solution in opt_solutions:

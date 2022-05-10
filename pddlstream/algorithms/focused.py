@@ -71,7 +71,7 @@ def check_dominated(skeleton_queue, stream_plan):
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
                    unit_costs=False, success_cost=INF,
-                   max_time=INF, max_iterations=INF, max_memory=INF,
+                   max_time=INF, max_post_time=INF, max_iterations=INF, max_memory=INF,
                    initial_complexity=0, complexity_step=1, max_complexity=INF,
                    max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                    unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
@@ -149,7 +149,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
     ################
 
-    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
+    store = SolutionStore(evaluations, success_cost=success_cost, max_time=max_time, max_post_time=max_post_time,
+                          max_memory=max_memory, verbose=verbose)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):

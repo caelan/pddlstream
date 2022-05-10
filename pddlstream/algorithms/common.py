@@ -23,16 +23,17 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 SOLUTIONS = [] # TODO: remove global variable
 
 class SolutionStore(object):
-    def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
+    def __init__(self, evaluations, success_cost=INF, max_time=INF, max_post_time=INF, max_memory=INF, verbose=False):
         # TODO: store a map from head to value?
         # TODO: include other problem information here?
         # TODO: determine when the plan converges
         self.evaluations = evaluations
         #self.initial_evaluations = copy.copy(evaluations)
         self.start_time = time.time()
-        self.max_time = max_time
-        self.max_memory = max_memory
         self.success_cost = success_cost # Inclusive
+        self.max_time = max_time
+        self.max_post_time = max_post_time
+        self.max_memory = max_memory
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
         self.solutions = []
@@ -47,6 +48,9 @@ class SolutionStore(object):
     @property
     def best_cost(self):
         return self.solutions[-1].cost if self.solutions else INF
+    @property
+    def first_time(self):
+        return self.solutions[0].time if self.solutions else INF
     def add_plan(self, plan, cost):
         # TODO: double-check that plan is a solution
         if is_plan(plan) and (cost < self.best_cost):
@@ -57,8 +61,12 @@ class SolutionStore(object):
         return self.has_solution() and (self.best_cost <= self.success_cost)
     def elapsed_time(self):
         return elapsed_time(self.start_time)
+    def post_first_time(self):
+        return self.elapsed_time() - self.first_time
     def is_timeout(self):
-        return (self.max_time <= self.elapsed_time()) or not check_memory(self.max_memory)
+        return (self.max_time <= self.elapsed_time()) or \
+               (self.max_post_time <= self.post_first_time()) or \
+               not check_memory(self.max_memory)
     def is_terminated(self):
         return self.is_solved() or self.is_timeout()
     #def __repr__(self):
