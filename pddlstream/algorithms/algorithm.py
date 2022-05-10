@@ -171,10 +171,3 @@ def parse_stream_pddl(stream_pddl, stream_map, stream_info={}, unit_costs=False,
     if unit_efforts:
         set_unit_efforts(externals)
     return externals
-
-##################################################
-
-def remove_blocked(evaluations, domain, instance, new_results):
-    # TODO: finish refactoring this
-    if new_results and isinstance(instance, StreamInstance):
-        instance.enable(evaluations, domain)

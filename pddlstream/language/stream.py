@@ -388,8 +388,9 @@ class StreamInstance(Instance):
         index = len(self.external.disabled_instances)
         self.external.disabled_instances.append(self)
         self._axiom_predicate = '_ax{}-{}'.format(self.external.blocked_predicate, index)
-        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION,
-                 complexity=self.compute_complexity(evaluations))
+        #complexity = self.compute_complexity(evaluations)
+        complexity = 0
+        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION, complexity=complexity)
         # TODO: allow reporting back minimum unsatisfiable subset
 
         static_fact = Fact(self._axiom_predicate, self.external.inputs)
@@ -406,8 +407,9 @@ class StreamInstance(Instance):
         if self.successful:
             return
         self.disabled = True
-        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION,
-                 complexity=self.compute_complexity(evaluations))
+        #complexity = self.compute_complexity(evaluations)
+        complexity = 0
+        add_fact(evaluations, self.get_blocked_fact(), result=INTERNAL_EVALUATION, complexity=complexity)
 
     def disable(self, evaluations, domain):
         #assert not self.disabled
