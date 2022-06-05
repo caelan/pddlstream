@@ -36,7 +36,7 @@
 
   (:action pick
     :parameters (?a ?o ?p ?g ?q ?t)
-    :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
+    :precondition (and (Kin ?a ?o ?p ?g ?q ?t) (AtBConf ?q)
                        (AtPose ?o ?p) (HandEmpty ?a)
                        (forall (?o2 ?p2)
                          (imply (and (AtPose ?o2 ?p2) (not (= ?o ?o2)))
@@ -51,7 +51,7 @@
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                       (AtGrasp ?a ?o ?g)
+                       (AtGrasp ?a ?o ?g) (AtBConf ?q)
                        (forall (?o2 ?p2)
                          (imply (and (AtPose ?o2 ?p2) (not (= ?o ?o2)))
                                 (CFreeTrajPose ?t ?o2 ?p2)))
