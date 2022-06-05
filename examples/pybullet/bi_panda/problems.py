@@ -7,7 +7,7 @@ from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, ge
     arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
-    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY
+    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder
 
 def sample_placements(body_surfaces, obstacles=None, min_distances={}):
     if obstacles is None:
@@ -34,7 +34,7 @@ def packed(arm='left', grasp_type='top', num=2):
     base_extent = 5.0
 
     base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
-    block_width = 0.07
+    block_width = 0.04
     block_height = 0.1
     #block_height = 2*block_width
     block_area = block_width*block_width
@@ -60,10 +60,10 @@ def packed(arm='left', grasp_type='top', num=2):
     table = create_short_table()
     plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
     plate_z = stable_z(plate, table)
-    set_point(table, Point(z=plate_z))
+    set_point(plate, Point(z=plate_z))
     surfaces = [table, plate]
 
-    blocks = [create_box(block_width, block_width, block_height, color=BLUE) for _ in range(num)]
+    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
@@ -79,7 +79,7 @@ def blocked(arm='left', grasp_type='side', num=1):
     x_extent = 10.0
 
     base_limits = (-x_extent/2.*np.ones(2), x_extent/2.*np.ones(2))
-    block_width = 0.07
+    block_width = 0.04
     #block_height = 0.1
     block_height = 2*block_width
     #block_height = 0.2
