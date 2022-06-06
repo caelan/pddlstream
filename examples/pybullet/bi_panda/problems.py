@@ -7,7 +7,7 @@ from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, ge
     arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
-    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder
+    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity
 
 def sample_placements(body_surfaces, obstacles=None, min_distances={}):
     if obstacles is None:
@@ -40,12 +40,12 @@ def packed(arm='left', grasp_type='top', num=2):
     block_area = block_width*block_width
 
     #plate_width = 2*math.sqrt(num*block_area)
-    plate_width = 0.15
+    plate_width = 0.2
     #plate_width = 0.28
     #plate_width = 0.3
     print('Width:', plate_width)
     plate_width = min(plate_width, 0.6)
-    plate_height = 0.001
+    plate_height = 0.005
 
     other_arm = get_other_arm(arm)
     initial_conf = get_carry_conf(arm, grasp_type)
@@ -68,9 +68,9 @@ def packed(arm='left', grasp_type='top', num=2):
 
     min_distances = {block: 0.05 for block in blocks}
     sample_placements(initial_surfaces, min_distances=min_distances)
-
-    return Problem(robot=bi_panda, movable=blocks, arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
-                   #goal_holding=[(arm, block) for block in blocks])
+    enable_gravity()
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+                #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
 #######################################################

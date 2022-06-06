@@ -38,7 +38,7 @@ def get_bodies_from_type(problem):
         bodies_from_type.setdefault(ty, set()).add(body)
     return bodies_from_type
 
-def pddlstream_from_problem(problem, base_limits=None, collisions=False, teleport=False):
+def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport=False):
     robot = problem.robot
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -86,9 +86,9 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=False, telepor
         bodies = bodies_from_type[get_parameter_name(ty)] if is_parameter(ty) else [ty]
         init += [('Stackable', b, s) for b in bodies]
         goal_literals += [('On', ty, s)]
-    # goal_literals += [('Holding', a, b) for a, b in problem.goal_holding] + \
-    #                  [('Cleaned', b)  for b in problem.goal_cleaned] + \
-    #                  [('Cooked', b)  for b in problem.goal_cooked]
+    goal_literals += [('Holding', a, b) for a, b in problem.goal_holding] + \
+                     [('Cleaned', b)  for b in problem.goal_cleaned] + \
+                     [('Cooked', b)  for b in problem.goal_cooked]
     goal_formula = []
     for literal in goal_literals:
         parameters = [a for a in get_args(literal) if is_parameter(a)]

@@ -48,6 +48,7 @@ class BeliefTask(object):
     def get_gripper(self, arm='left'):
         if self.gripper is None:
             self.gripper = create_gripper(self.robot, arm=arm)
+
         return self.gripper
 
 
