@@ -4,7 +4,7 @@ import numpy as np
 
 from examples.pybullet.utils.pybullet_tools.bi_panda_problems import create_bi_panda, create_short_table, Problem
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, get_carry_conf, set_arm_conf, open_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM
+    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM, get_extended_conf
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
     RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity
@@ -25,6 +25,54 @@ def sample_placements(body_surfaces, obstacles=None, min_distances={}):
                 obstacles.append(body)
                 break
     return True
+
+#######################################################
+
+def arm_strain(arm='left', grasp_type='top', num=2):
+    # TODO: packing problem where you have to place in one direction
+    print('in packed')
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.04
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    #plate_width = 2*math.sqrt(num*block_area)
+    plate_width = 0.2
+    #plate_width = 0.28
+    #plate_width = 0.3
+    print('Width:', plate_width)
+    plate_width = min(plate_width, 0.6)
+    plate_height = 0.005
+
+    other_arm = get_other_arm(arm)
+    initial_conf = get_extended_conf(arm)
+
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    bi_panda = create_bi_panda()
+    set_arm_conf(bi_panda, arm, initial_conf)
+    open_arm(bi_panda, arm)
+    set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, STRAIGHT_LEFT_ARM))
+    close_arm(bi_panda, other_arm)
+
+    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
+    plate_z = stable_z(plate, floor)
+    set_point(plate, Point(z=plate_z))
+    surfaces = [floor, plate]
+
+    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
+    initial_surfaces = {block: floor for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+    enable_gravity()
+
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+                #    goal_holding=[(arm, plate)],
+                   goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
 #######################################################
 
@@ -156,4 +204,5 @@ def blocked(arm='left', grasp_type='side', num=1):
 PROBLEMS = [
     packed,
     blocked,
+    arm_strain
 ]
