@@ -4,10 +4,14 @@ import numpy as np
 
 from examples.pybullet.utils.pybullet_tools.bi_panda_problems import create_bi_panda, create_short_table, Problem
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, get_carry_conf, set_arm_conf, open_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM, get_extended_conf
+    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM, get_extended_conf, get_group_links
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
-    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity
+    RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity, link_from_name, get_link_pose, \
+    Pose
+from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import set_joint_force_limits
+
+import pybullet as p
 
 def sample_placements(body_surfaces, obstacles=None, min_distances={}):
     if obstacles is None:
@@ -30,9 +34,9 @@ def sample_placements(body_surfaces, obstacles=None, min_distances={}):
 
 def arm_strain(arm='left', grasp_type='top', num=2):
     # TODO: packing problem where you have to place in one direction
-    print('in packed')
+    print('in arm strain')
     base_extent = 5.0
-
+    enable_gravity()
     base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
     block_width = 0.04
     block_height = 0.1
@@ -53,24 +57,76 @@ def arm_strain(arm='left', grasp_type='top', num=2):
     add_data_path()
     floor = load_pybullet("plane.urdf")
     bi_panda = create_bi_panda()
+
     set_arm_conf(bi_panda, arm, initial_conf)
     open_arm(bi_panda, arm)
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, STRAIGHT_LEFT_ARM))
     close_arm(bi_panda, other_arm)
+    l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
+    hand_pose = get_link_pose(bi_panda, l_hand_link)
+    print(hand_pose)
+    plate = create_box(0.09, plate_width, plate_height, color=GREEN, pose=Pose(point=(hand_pose[0][0]+.055, hand_pose[0][1], hand_pose[0][2] + 0.1)), mass=2000)
 
-    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
-    plate_z = stable_z(plate, floor)
-    set_point(plate, Point(z=plate_z))
+    # plate_z = stable_z(plate, floor)
+    # set_point(plate, Point(z=plate_z))
     surfaces = [floor, plate]
 
     blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
-    initial_surfaces = {block: floor for block in blocks}
+    initial_surfaces = {block: plate for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
     sample_placements(initial_surfaces, min_distances=min_distances)
     enable_gravity()
 
     return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+                #    goal_holding=[(arm, plate)],
+                   goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
+
+#######################################################
+
+def bi_manual_place(arm='left', grasp_type='top', num=2):
+    # TODO: packing problem where you have to place in one direction
+    print('in packed')
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.04
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    #plate_width = 2*math.sqrt(num*block_area)
+    plate_width = 0.2
+    #plate_width = 0.28
+    #plate_width = 0.3
+    print('Width:', plate_width)
+    plate_width = min(plate_width, 0.6)
+    plate_height = 0.005
+
+    other_arm = get_other_arm(arm)
+    initial_conf = STRAIGHT_LEFT_ARM
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    bi_panda = create_bi_panda()
+    set_joint_force_limits(bi_panda, arm)
+    set_arm_conf(bi_panda, arm, initial_conf)
+    open_arm(bi_panda, arm)
+    set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, initial_conf))
+    close_arm(bi_panda, other_arm)
+
+    table = create_short_table()
+    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
+    plate_z = stable_z(plate, table)
+    set_point(plate, Point(z=plate_z))
+    surfaces = [table, plate]
+
+    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
+    initial_surfaces = {block: table for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+    enable_gravity()
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm, other_arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
@@ -96,13 +152,14 @@ def packed(arm='left', grasp_type='top', num=2):
     plate_height = 0.005
 
     other_arm = get_other_arm(arm)
-    initial_conf = get_carry_conf(arm, grasp_type)
+    initial_conf = STRAIGHT_LEFT_ARM
     add_data_path()
     floor = load_pybullet("plane.urdf")
     bi_panda = create_bi_panda()
+    set_joint_force_limits(bi_panda, arm)
     set_arm_conf(bi_panda, arm, initial_conf)
     open_arm(bi_panda, arm)
-    set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, STRAIGHT_LEFT_ARM))
+    set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, initial_conf))
     close_arm(bi_panda, other_arm)
 
     table = create_short_table()
@@ -117,7 +174,7 @@ def packed(arm='left', grasp_type='top', num=2):
     min_distances = {block: 0.05 for block in blocks}
     sample_placements(initial_surfaces, min_distances=min_distances)
     enable_gravity()
-    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm, other_arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 

@@ -8,7 +8,7 @@ from examples.pybullet.bi_panda.streams import get_cfree_approach_pose_test, get
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
     get_stable_gen, get_grasp_gen, control_commands
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
-    get_group_conf
+    get_group_conf, get_group_links
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit
 from examples.pybullet.namo.stream import get_custom_limits
@@ -171,8 +171,8 @@ def main(verbose=True):
     # TODO: option to only consider costs during local optimization
 
     parser = create_parser()
-    parser.add_argument('-problem', default='arm_strain', help='The name of the problem to solve')
-    parser.add_argument('-n', '--number', default=2, type=int, help='The number of objects')
+    parser.add_argument('-problem', default='packed', help='The name of the problem to solve')
+    parser.add_argument('-n', '--number', default=5, type=int, help='The number of objects')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
