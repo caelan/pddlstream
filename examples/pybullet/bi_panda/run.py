@@ -134,7 +134,7 @@ def post_process(problem, plan, teleport=False):
         elif name == 'pick':
             a, b, p, g, _, c = args
             [t] = c.commands
-            close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
+            close_gripper = GripperCommand(problem.robot, a, g.grasp_width+.01, teleport=teleport)
             attach = Attach(problem.robot, a, g, b)
             new_commands = [t, close_gripper, attach, t.reverse()]
         elif name == 'place':
@@ -171,7 +171,7 @@ def main(verbose=True):
     # TODO: option to only consider costs during local optimization
 
     parser = create_parser()
-    parser.add_argument('-problem', default='packed', help='The name of the problem to solve')
+    parser.add_argument('-problem', default='bi_manual_forceful', help='The name of the problem to solve')
     parser.add_argument('-n', '--number', default=5, type=int, help='The number of objects')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
