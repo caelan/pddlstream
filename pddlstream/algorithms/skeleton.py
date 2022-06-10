@@ -1,7 +1,12 @@
 from __future__ import print_function
 
+import sys
 import time
-from collections import namedtuple, Sized
+from collections import namedtuple
+if sys.version_info >= (3, 10):
+    from collections.abc import Sized
+else:
+    from collections import Sized
 from itertools import count
 from heapq import heappush, heappop
 

@@ -1,4 +1,9 @@
-from collections import defaultdict, namedtuple, Sized
+import sys
+from collections import defaultdict, namedtuple
+if sys.version_info >= (3, 10):
+    from collections.abc import Sized
+else:
+    from collections import Sized
 from heapq import heappush, heappop
 from itertools import product
 

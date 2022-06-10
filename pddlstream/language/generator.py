@@ -1,5 +1,11 @@
+import sys
 import time
-from collections import Iterator, namedtuple, deque
+
+from collections import namedtuple, deque
+if sys.version_info >= (3, 10):
+    from collections.abc import Iterator
+else:
+    from collections import Iterator
 from itertools import count
 
 from pddlstream.utils import INF, elapsed_time

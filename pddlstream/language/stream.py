@@ -1,5 +1,11 @@
+import sys
 import time
-from collections import Counter, Sequence
+
+from collections import Counter
+if sys.version_info >= (3, 10):
+    from collections.abc import Sequence
+else:
+    from collections import Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom
