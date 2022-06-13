@@ -134,14 +134,14 @@ def post_process(problem, plan, teleport=False):
         elif name == 'pick':
             a, b, p, g, _, c = args
             [t] = c.commands
-            close_gripper = GripperCommand(problem.robot, a, g.grasp_width+.01, teleport=teleport)
+            close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
             attach = Attach(problem.robot, a, g, b)
             new_commands = [t, close_gripper, attach, t.reverse()]
         elif name == 'place':
             a, b, p, g, _, c = args
             [t] = c.commands
             gripper_joint = get_gripper_joints(problem.robot, a)[0]
-            position = get_max_limit(problem.robot, gripper_joint)
+            position = 0.05
             open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
             detach = Detach(problem.robot, a, b)
             new_commands = [t, detach, open_gripper, t.reverse()]
@@ -201,7 +201,7 @@ def main(verbose=True):
     #    handles.append(draw_link_name(problem.robot, link))
     #wait_for_user()
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=True)
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
@@ -225,7 +225,7 @@ def main(verbose=True):
     success_cost = 0 if args.optimal else INF
     planner = 'ff-astar' if args.optimal else 'ff-wastar3'
     search_sample_ratio = 2
-    max_planner_time = 10
+    max_planner_time = 20
     # effort_weight = 0 if args.optimal else 1
     effort_weight = 1e-3 if args.optimal else 1
 

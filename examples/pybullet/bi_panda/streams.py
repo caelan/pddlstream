@@ -71,9 +71,16 @@ def get_cfree_traj_pose_test(robot, collisions=True):
         p2.assign()
         for _ in c.apply(state):
             state.assign()
+            print(state.bodies)
+            print(state.body_names)
+            print("state attachments: ",state.attachments)
+
             for b1 in state.attachments:
+                if (b1 > 3 and b2 < 4) or (b1 < 4 and b2 > 3):
+                    continue
                 if pairwise_collision(b1, b2):
                     #wait_for_user()
+                    print("in collision: ", b1,b2)
                     return False
             if pairwise_collision(robot, b2):
                 return False

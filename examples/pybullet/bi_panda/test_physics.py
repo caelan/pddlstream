@@ -95,7 +95,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     block_area = block_width*block_width
 
     #plate_width = 2*math.sqrt(num*block_area)
-    plate_width = 0.2
+    plate_width = 0.3
     #plate_width = 0.28
     #plate_width = 0.3
     print('Width:', plate_width)
@@ -113,15 +113,15 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED))
     close_arm(bi_panda, other_arm)
 
-    table = create_table(length=0.3, height=0.6)
-    set_point(table, point=Point(0,-0.15, 0))
+    table = create_table(length=0.3, height=0.35, width=0.4)
+    set_point(table, point=Point(0.5,-.5, 0))
     l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
     #left finger joint
     l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
     #right finger joint
     l_right_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint2')
-    set_joint_position(bi_panda, l_right_finger_joint,-plate_height/2)
-    set_joint_position(bi_panda, l_left_finger_joint, (plate_height/2))
+    set_joint_position(bi_panda, l_right_finger_joint,plate_height+.07)
+    set_joint_position(bi_panda, l_left_finger_joint, plate_height+.07)
     #left finger joint
     r_left_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint1')
     #right finger joint
