@@ -142,7 +142,6 @@ def find(test, sequence):
             return item
     return None
 
-
 def find_unique(test, sequence):
     found, value = False, None
     for item in sequence:

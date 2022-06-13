@@ -250,6 +250,7 @@ def packed(arm='left', grasp_type='top', num=2):
 
     min_distances = {block: 0.07 for block in blocks}
     sample_placements(initial_surfaces, min_distances=min_distances)
+    enable_gravity()
     return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)

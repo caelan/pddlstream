@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-from examples.pybullet.bi_panda.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
-    get_cfree_traj_grasp_pose_test, distance_fn
+from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
+    get_cfree_traj_grasp_pose_test, distance_fn, get_forces_balanced_test
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
     get_stable_gen, get_grasp_gen, control_commands
@@ -115,7 +115,7 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
         'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
         'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(robot, collisions=collisions)),
-
+        'test-forces-balanced': from_test(get_forces_balanced_test(problem)),
         #'test-cfree-traj-grasp-pose': from_test(get_cfree_traj_grasp_pose_test(problem, collisions=collisions)),
         # 'Distance': distance_fn,
 
@@ -212,7 +212,7 @@ def main(verbose=True):
         'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
         'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
         'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: apply to arm and base trajs
-        'test_forces_balanced': StreamInfo(p_success=1e-1, verbose=verbose),
+        'test-forces-balanced': StreamInfo(p_success=1e-1, verbose=verbose),
         #'test-cfree-traj-grasp-pose': StreamInfo(verbose=verbose),
 
         # 'Distance': FunctionInfo(p_success=0.99, opt_fn=lambda q1, q2: 0),
@@ -260,7 +260,6 @@ def main(verbose=True):
 
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
     wait_for_user()
-    p.setGravity(0, 0, -9.8, physicsClientId=0)
     if args.simulate:
         control_commands(commands)
     else:
@@ -268,7 +267,7 @@ def main(verbose=True):
         apply_commands(State(), commands, time_step)
     p.setRealTimeSimulation(True)
     while True:
-        p.stepSimulation()
+        continue
     disconnect()
 
 if __name__ == '__main__':
