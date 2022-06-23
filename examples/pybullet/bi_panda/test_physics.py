@@ -9,7 +9,7 @@ from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, ge
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
     RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity, link_from_name, get_link_pose, \
-    Pose, set_joint_position, TRAY_URDF, set_pose
+    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, enable_gravity
 import pybullet as p
@@ -138,7 +138,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     control_commands([attach,])
     surfaces = [table, plate]
 
-    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
+    blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
     initial_surfaces = {block: plate for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}

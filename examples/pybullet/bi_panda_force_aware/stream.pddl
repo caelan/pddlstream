@@ -3,7 +3,7 @@
     :inputs (?o ?r)
     :domain (Stackable ?o ?r)
     :outputs (?p)
-    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r))
+    :certified (and (Pose ?o ?p) (Supported ?o ?p ?r) (ForcesBalanced ?o ?p ?r))
   )
   (:stream sample-grasp
     :inputs (?o)
@@ -29,11 +29,6 @@
     :domain (and (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
     :certified (CFreeApproachPose ?o1 ?p1 ?g1 ?o2 ?p2)
   )
-  (:stream test-forces-balanced
-    :inputs (?o ?p ?r)
-    :domain (and (Pose ?o ?p))
-    :certified (ForcesBalanced ?o ?p ?r))
-
   (:stream test-cfree-traj-pose
     :inputs (?t ?o2 ?p2)
     :domain (and (ATraj ?t) (Pose ?o2 ?p2))

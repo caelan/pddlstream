@@ -9,7 +9,7 @@ from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, ge
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
     RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity, link_from_name, get_link_pose, \
-    Pose, set_joint_position, TRAY_URDF, set_pose
+    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, set_euler
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import set_joint_force_limits
 
 import pybullet as p
@@ -45,13 +45,8 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     #block_height = 2*block_width
     block_area = block_width*block_width
 
-    #plate_width = 2*math.sqrt(num*block_area)
-    plate_width = 0.3
-    #plate_width = 0.28
-    #plate_width = 0.3
-    print('Width:', plate_width)
-    plate_width = 0.3
-    plate_height = 0.01
+    plate_width = 0.2063
+    plate_height = 0.018
 
     other_arm = get_other_arm(arm)
     initial_conf = PLATE_GRASP_LEFT_ARM
@@ -66,14 +61,14 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     close_arm(bi_panda, other_arm)
 
     table = create_table(length=0.4, height=0.5, width = 0.3)
-    set_point(table, point=Point(0.5,-.5, 0))
+    set_point(table, point=Point(0.45,-.65, 0))
     l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
     #left finger joint
     l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
     #right finger joint
     l_right_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint2')
-    set_joint_position(bi_panda, l_right_finger_joint,(plate_height/2) + .01)
-    set_joint_position(bi_panda, l_left_finger_joint, (plate_height/2) + 0.01)
+    set_joint_position(bi_panda, l_right_finger_joint,(plate_height/2))
+    set_joint_position(bi_panda, l_left_finger_joint, (plate_height/2))
     #left finger joint
     r_left_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint1')
     #right finger joint
@@ -90,7 +85,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     control_commands([attach])
     surfaces = [table, plate]
 
-    blocks = [create_cylinder(block_width/2, block_height, color=BLUE, mass=.05) for _ in range(num)]
+    blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}

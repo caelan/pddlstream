@@ -15,7 +15,7 @@
     (Supported ?o ?p ?r)
     (BTraj ?t)
     (ATraj ?t)
-    (ForcesBalanced o? p?)
+    (ForcesBalanced ?o ?p)
 
     (CFreePosePose ?o ?p ?o2 ?p2)
     (CFreeApproachPose ?o ?p ?g ?o2 ?p2)
@@ -66,13 +66,13 @@
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t ?r)
     :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                        (ForcesBalanced ?o ?p ?r)
+                        (AtGrasp ?a ?o ?g)
                        (not (UnsafePose ?o ?p))
                        (not (UnsafeApproach ?o ?p ?g))
                        (not (UnsafeATraj ?t))
                   )
     :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
-                 (not (AtGrasp ?a ?o ?g)) (On ?o ?r)
+                 (not (AtGrasp ?a ?o ?g))
                  (increase (total-cost) (PlaceCost)))
   )
 
@@ -102,7 +102,7 @@
   (:derived (UnsafePose ?o ?p)
     (exists (?o2 ?p2) (and (Pose ?o ?p) (Pose ?o2 ?p2) (not (= ?o ?o2))
                            (not (CFreePosePose ?o ?p ?o2 ?p2))
-                           (AtPose ?o2 ?p2))
+                           (AtPose ?o2 ?p2)))
   )
   (:derived (UnsafeApproach ?o ?p ?g)
     (exists (?o2 ?p2) (and (Pose ?o ?p) (Grasp ?o ?g) (Pose ?o2 ?p2) (not (= ?o ?o2))

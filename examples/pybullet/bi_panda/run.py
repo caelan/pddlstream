@@ -23,7 +23,7 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import apply_commands, State
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, get_bodies
 
 from examples.pybullet.bi_panda.problems import PROBLEMS
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
@@ -261,6 +261,9 @@ def main(verbose=True):
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
     wait_for_user()
     p.setGravity(0, 0, -9.8, physicsClientId=0)
+    print(get_bodies())
+    p.removeCollisionShape(get_bodies()[-1])
+    p.removeBody(get_bodies()[-1])
     if args.simulate:
         control_commands(commands)
     else:
@@ -268,7 +271,7 @@ def main(verbose=True):
         apply_commands(State(), commands, time_step)
     p.setRealTimeSimulation(True)
     while True:
-        p.stepSimulation()
+        pass
     disconnect()
 
 if __name__ == '__main__':
