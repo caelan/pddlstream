@@ -17,6 +17,8 @@ EPSILON = 1e-6
 # Can also include the overhead to process skeletons
 
 Stats = namedtuple('Stats', ['p_success', 'overhead'])
+from pybullet_tools.logging import myprint as print
+
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
@@ -132,10 +134,10 @@ def write_stream_statistics(externals, verbose):
     if not externals:
         return
     if verbose:
-        #dump_online_statistics(externals)
-        dump_total_statistics(externals)
+        dump_online_statistics(externals)
+        # dump_total_statistics(externals)
     pddl_name = externals[0].pddl_name # TODO: ensure the same
-    previous_data = load_data(pddl_name)
+    previous_data = load_data(pddl_name)  ## YANG: print only current statistics
     data = {}
     for external in externals:
         if not hasattr(external, 'instances'):

@@ -57,7 +57,6 @@ def instantiate_condition(action, is_static, args_from_predicate):
         yield solution.get_mapping(element)
 
 def get_reachable_action_params(instantiated_actions):
-    # TODO: use pddl_from_instance
     reachable_action_params = defaultdict(list)
     for inst_action in instantiated_actions:
         action = inst_action.action
@@ -177,7 +176,6 @@ def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwarg
     normalize.normalize(task)
     #with Profiler(field='tottime', num=25):
     if use_fd:
-        # TODO: recover relaxed reachability (from model)
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
@@ -295,16 +293,12 @@ def translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, verbose):
     return task
 
 
-def convert_instantiated(instantiated_task, verbose=False):
+def convert_instantiated(instantiated_task):
+    import axiom_rules
     task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
     normalize.normalize(task)
-    import axiom_rules
-    #axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
-    #init = task.init + axiom_init
-    import options
-    with Verbose(verbose):
-        axioms, axiom_layers = axiom_rules.handle_axioms(actions, axioms, goal_list, options.layer_strategy)
-    init = task.init
+    axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
+    init = task.init + axiom_init
     # axioms.sort(key=lambda axiom: axiom.name)
     # for axiom in axioms:
     #  axiom.dump()

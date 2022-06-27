@@ -195,9 +195,18 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     start_time = time.time()
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
     num_iterations = 0
+    timeout = 5 * 60
+    # last_result = None
     while True:
         num_iterations += 1
         results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit, **effort_args)
+        # summarize_results(results, complexity_limit, num_iterations)  ## added by Yang
+        # if last_result == len(results):
+        #     last_result = len(results)
+        #     print('num_iterations', num_iterations, len(results))
+        #     continue
+        # last_result = len(results)
+
         opt_solution, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
@@ -206,7 +215,53 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
             num_iterations, len(results), final_depth, is_plan(action_plan), elapsed_time(start_time)))
         if is_plan(action_plan):
             return OptSolution(stream_plan, action_plan, cost)
-        if final_depth == 0:
+
+        if final_depth == 0: ## or (time.time() - start_time > timeout):
             status = INFEASIBLE if exhausted else FAILED
             return OptSolution(status, status, cost)
+
     # TODO: should streams along the sampled path automatically have no optimistic value
+
+def summarize_results(results, complexity_limit, num_iterations):
+    from os.path import join, isdir
+    from os import mkdir
+    from datetime import datetime
+
+    summary = {}
+    print_results = []
+    for result in results:
+        name = result.name
+        obj = result.input_objects[0].value
+        if name not in summary:
+            summary[name] = {}
+        if obj not in summary[name]:
+            summary[name][obj] = []
+        summary[name][obj].append(result)
+
+        # for op in result.output_objects:
+        #     if not isinstance(op, OptimisticObject):
+        #         print(op.__class__.__name__, '  |  ', op)
+
+    abstract = {}
+    for k, v in summary.items():
+        for kk, vv in v.items():
+            key = f'{k}({kk}, ...)'
+            abstract[key] = (len(vv), vv[0])
+    abstract = {k: v for k, v in sorted(abstract.items(), key=lambda item: item[1][0], reverse=True)}
+    abstract_full = '\n'.join([f'    {v[0]} \t {k}  |  e.g. {v[1]}' for k,v in abstract.items()])
+    abstract_filtered = '\n'.join([f'    {v[0]} \t {k}  |  e.g. {v[1]}' for k,v in abstract.items() if v[0]>=3])
+    headline = f'COMPLEXITY: {complexity_limit}  |  ATTEMPT: {num_iterations}   |  RESULTS: {len(results)} \n\n'
+
+    folder = join('visualizations', 'stream_results')
+    if not isdir(folder): mkdir(folder)
+    now = datetime.now().strftime("%m%d-%H%M%S")
+    with open(join(folder, f'{now}_{complexity_limit}_{num_iterations}.txt'), 'w') as f:
+        f.write(abstract_full)
+        f.write(headline)
+        f.write('\n\n-----------------------------------\n\n')
+        f.write('\n'.join([str(r) for r in results]))
+
+    with open(join(folder, f'stream_results.txt'), 'a') as f:
+        f.write(headline)
+        f.write(abstract_filtered)
+        f.write('\n\n-----------------------------------\n\n')

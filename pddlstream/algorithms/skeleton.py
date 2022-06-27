@@ -25,6 +25,8 @@ REQUIRE_DOWNSTREAM = True
 Priority = namedtuple('Priority', ['not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])
 
+YANG = False
+
 def compute_affected_downstream(stream_plan, index):
     # TODO: if the cost is pruned, then add everything that contributes, not just the last function
     affected_indices = [index]
@@ -149,6 +151,7 @@ class Binding(object):
     def is_unsatisfied(self):
         return not self.children
     def is_greedy(self):
+        if YANG: print(f'    is_greedy \t {self.visits <= GREEDY_VISITS} \t {not GREEDY_BEST} \t {self.is_best()}') ## YANG
         return (self.visits <= GREEDY_VISITS) and (not GREEDY_BEST or self.is_best())
     def up_to_date(self):
         if self.is_fully_bound:
@@ -344,11 +347,14 @@ class SkeletonQueue(Sized):
 
     def greedily_process(self):
         num_new = 0
+        if YANG: print('1 greedily_process starting')
         while self.is_active():
             priority, binding = self.peak_binding()
             if not binding.is_greedy(): #priority.not_greedy:
                 break
             num_new += self.process_root()
+            if YANG: print('1 greedily_process num_new', num_new)
+        if YANG: print('1 greedily_process finished', num_new)
         return num_new
 
     def process_until_new(self, print_frequency=1.):
@@ -397,15 +403,20 @@ class SkeletonQueue(Sized):
 
     def timed_process(self, max_time=INF, max_iterations=INF):
         # TODO: combine process methods into process_until
+
+        if YANG: print('2 timed_process starting', max_time, max_iterations)
+
         iterations = num_new = 0
         if not self.is_active():
             return num_new
-        print('Sampling for up to {:.3f} seconds'.format(max_time)) #, max_iterations))
+        if YANG: print('Sampling for up to {:.3f} seconds'.format(max_time)) #, max_iterations))
         start_time = time.time() # TODO: instead use sample_time
         while self.is_active() and (elapsed_time(start_time) < max_time) and (iterations < max_iterations):
+            if YANG: print(f'2 timed_process \t{self.is_active()} \t{elapsed_time(start_time) < max_time} \t{iterations < max_iterations}')
             iterations += 1
             num_new += self.process_root()
         #print('Iterations: {} | New: {} | Time: {:.3f}'.format(iterations, num_new, elapsed_time(start_time)))
+        if YANG: print('2 timed_process finished', num_new)
         return num_new + self.greedily_process()
 
     #########################

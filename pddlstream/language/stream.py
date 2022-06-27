@@ -283,16 +283,18 @@ class StreamInstance(Instance):
         return self.history[self.num_calls]
 
     def dump_new_values(self, new_values=[]):
+        # from zzz.logging import myprint as print
+        ## YANG for debugging
         if (not new_values and VERBOSE_FAILURES) or \
                 (new_values and self.info.verbose):
-            print('iter={}, outs={}) {}:{}->{}'.format(
+            print('   iter={}, outs={}) {}:{}->{}'.format(
                 self.get_iteration(), len(new_values), self.external.name,
                 str_from_object(self.get_input_values()), str_from_object(new_values)))
 
     def dump_new_facts(self, new_facts=[]):
         if VERBOSE_WILD and new_facts:
             # TODO: format all_new_facts
-            print('iter={}, facts={}) {}:{}->{}'.format(
+            print('   iter={}, facts={}) {}:{}->{}'.format(
                 self.get_iteration(), self.external.name, str_from_object(self.get_input_values()),
                 new_facts, len(new_facts)))
 
@@ -479,6 +481,7 @@ class Stream(External):
         if not self.is_test and not self.is_special and not \
                 (isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique):
             self.opt_gen_fns.append(self.info.opt_gen_fn)
+            # self.opt_gen_fns.extend([self.info.opt_gen_fn]*4) ## instead of sampling 2, give four grasp samples
 
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs

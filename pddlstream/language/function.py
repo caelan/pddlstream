@@ -28,10 +28,9 @@ def add_opt_function(name, base_fn, stream_map, stream_info, constant=0., coeffi
 
 class FunctionInfo(ExternalInfo):
     _default_eager = True
-    def __init__(self, opt_fn=None, eager=_default_eager, verbose=True, **kwargs): # Setting eager=True as a heuristic
+    def __init__(self, opt_fn=None, eager=_default_eager, **kwargs): # Setting eager=True as a heuristic
         super(FunctionInfo, self).__init__(eager=eager, **kwargs)
         self.opt_fn = opt_fn
-        self.verbose = verbose # TODO: move to ExternalInfo
         #self.order = 0
 
 class FunctionResult(Result):
@@ -102,7 +101,7 @@ class FunctionInstance(Instance):
 
         if (value is not False) and verbose:
             # TODO: str(new_results[-1])
-            print('iter={}, outs={}) {}{}={:.3f}'.format(
+            print('   iter={}, outs={}) {}{}={:.3f}'.format(
                 self.get_iteration(), len(new_results), get_prefix(self.external.head),
                 str_from_object(self.get_input_values()), value))
         if start_history <= len(self.history) - 1:

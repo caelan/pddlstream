@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.advanced import enforce_simultaneous, automatically_negate_externals
+from pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
@@ -17,7 +17,7 @@ from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
-from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
+from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE, str_from_action
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
@@ -126,14 +126,14 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
-    automatically_negate_externals(domain, externals)
+    identify_non_producers(externals)
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)
     # TODO: make effort_weight be a function of the current cost
     # if (effort_weight is None) and not has_costs(domain):
     #     effort_weight = 1
 
-    load_stream_statistics(externals)
+    # load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
         print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
@@ -150,6 +150,10 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
+
+    timeout = 20*60 ## before Apr 5
+    timeout = 10*60
+    start_time = time.time()
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
@@ -194,9 +198,29 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
         action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
-        print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
-            get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan,
-            get_length(action_plan), cost, str_from_plan(action_plan)))
+
+        # --------------------------------------
+
+        ## YANG for debugging
+        if isinstance(stream_plan, list):
+            stream_plan_str = ''
+            index = 0
+            for n in stream_plan:
+                index += 1
+                stream_plan_str += f'\n   {index} > ' + str(n)
+        else:
+            stream_plan_str = stream_plan
+
+        if isinstance(action_plan, list):
+            action_plan_str = '\n   ' + '\n   '.join(list(map(str_from_action, action_plan)))
+        else:
+            action_plan_str = 'None'
+
+        # --------------------------------------
+
+        print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}\n'.format(
+            get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
+            get_length(action_plan), cost, action_plan_str))  ##, str_from_plan(action_plan)))
         if is_plan(stream_plan) and visualize:
             log_plans(stream_plan, action_plan, num_iterations)
             create_visualizations(evaluations, stream_plan, num_iterations)
@@ -228,7 +252,16 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
             if len(skeleton_queue.skeletons) <= max_skeletons else INF
-        if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
+
+        # YANG for debugging
+        # allocated_sample_time = 20
+        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
+        # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
+        #     break
+
+        print(f'\n\nfocused.py | time.time() - start_time = {round(time.time() - start_time, 2)} (timeout = {timeout})', )
+        if (time.time() - start_time > timeout):
+            print('\n\n--------- TIMEOUT --------\n\n')
             break
 
     ################
@@ -241,7 +274,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     })
     print('Summary: {}'.format(str_from_object(summary, ndigits=3))) # TODO: return the summary
 
-    write_stream_statistics(externals, verbose)
+    # from zzz.logging import write_stream_statistics
+    write_stream_statistics(externals, verbose=True)
     return store.extract_solution()
 
 solve_focused = solve_abstract # TODO: deprecate solve_focused

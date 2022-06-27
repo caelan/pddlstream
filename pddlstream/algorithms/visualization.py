@@ -54,10 +54,11 @@ def log_plans(stream_plan, action_plan, iteration):
     with open(PLAN_LOG_FILE, 'a+') as f:
         f.write('Iteration: {}\n'
                 'Component plan: {}\n'
-                'Stream plan: {}\n'
-                'Action plan: {}\n\n'.format(
+                '\nStream plan:\n {}\n'
+                '\nAction plan: {}\n\n'.format(
                 iteration, decomposed_plan,
-                stream_plan, str_from_plan(action_plan)))
+                '\n'.join([str(n) for n in stream_plan]), ## stream_plan, ## YANG: log plan
+                str_from_plan(action_plan)))
 
 def create_synthesizer_visualizations(result, iteration):
     from pddlstream.retired.synthesizer import decompose_result
@@ -170,11 +171,14 @@ def visualize_stream_orders(orders, streams=[], filename='stream_orders'+DEFAULT
     graph.graph_attr['outputMode'] = 'nodesfirst'
     graph.graph_attr['dpi'] = 300
 
+    def mystr(obj):  ## YANG: in place of str()
+        return str(obj).replace(':',':\n').replace('->','\n->').replace(',','\n,')
+
     streams = set(streams) | set(flatten(orders))
     for stream in streams:
-        graph.add_node(str(stream))
+        graph.add_node(mystr(stream))
     for stream1, stream2 in orders:
-        graph.add_edge(str(stream1), str(stream2))
+        graph.add_edge(mystr(stream1), mystr(stream2))
     # TODO: could also print the raw values (or a lookup table)
     # https://stackoverflow.com/questions/3499056/making-a-legend-key-in-graphviz
 

@@ -125,6 +125,9 @@ def apply_mapping(sequence, mapping):
 
 def safe_apply_mapping(sequence, mapping):
     # TODO: flip arguments order
+    for e in sequence:
+        if e not in mapping:
+            print(f'{e} not in mapping')
     return tuple(mapping[e] for e in sequence)
 
 
@@ -602,10 +605,10 @@ def is_hashable(value):
     return True
 
 
-# def hash_or_id(value):
-#     if is_hashable(value):
-#         return hash(value)
-#     return id(value)
+def hash_or_id(value):
+    if is_hashable(value):
+        return hash(value)
+    return id(value)
 
 
 def value_or_id(value):

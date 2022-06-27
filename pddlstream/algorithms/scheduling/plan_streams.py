@@ -36,7 +36,7 @@ from pddlstream.language.write_pddl import get_problem_pddl
 from pddlstream.language.object import Object
 from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 
-RENAME_ACTIONS = True
+RENAME_ACTIONS = False
 #RENAME_ACTIONS = not USE_FORBID
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'opt_plan', 'cost']) # TODO: move to the below
@@ -177,6 +177,8 @@ def recover_stream_plan(evaluations, current_plan, opt_evaluations, goal_express
     fact_sequence = [set(result.get_domain()) for result in stream_plan] + [extraction_facts]
     for facts in reversed(fact_sequence): # Bellman ford
         for fact in facts: # could flatten instead
+            if fact not in node_from_atom: ## YANG added
+                continue
             result = node_from_atom[fact].result
             if result is None:
                 continue

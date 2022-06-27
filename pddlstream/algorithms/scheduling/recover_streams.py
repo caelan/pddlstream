@@ -64,6 +64,7 @@ def extract_stream_plan(node_from_atom, target_facts, stream_plan):
     # TODO: can optimize for all streams & axioms all at once
     for fact in target_facts:
         if fact not in node_from_atom:
+            return ## YANG added
             raise RuntimeError('Preimage fact {} is not achievable!'.format(fact))
             #RuntimeError: Preimage fact ('new-axiom@0',) is not achievable!
         result = node_from_atom[fact].result
