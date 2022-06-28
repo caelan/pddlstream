@@ -28,6 +28,8 @@ PLAN_LOG_FILE = os.path.join(VISUALIZATIONS_DIR, 'log.txt')
 ITERATION_TEMPLATE = 'iteration_{}' + DEFAULT_EXTENSION
 SYNTHESIZER_TEMPLATE = '{}_{}' + DEFAULT_EXTENSION
 
+COMPLEXITY_ITERATION_TEMPLATE = '{}_{}' + DEFAULT_EXTENSION
+
 ##################################################
 
 def has_pygraphviz():
@@ -47,18 +49,57 @@ def reset_visualizations():
     ensure_dir(CONSTRAINT_NETWORK_DIR)
     ensure_dir(STREAM_PLAN_DIR)
 
+def load_plan_log():
+    import json
+    json_file = os.path.join(VISUALIZATIONS_DIR, 'log.json')
+    plans = []
+    if os.path.isfile(json_file):
+        with open(json_file, 'r') as f:
+            plans = json.load(f)
+    return json_file, plans
+
+def log_failed_streams(name, args):
+    json_file, plan_log = load_plan_log()
+    streams = plan_log[-1]
+    streams.append({
+        'name': name, 'args': [str(n) for n in args]
+    })
+    plan_log[-1] = streams
+
+    from pybullet_planning.pybullet_tools.logging import dump_json
+    dump_json(plan_log, json_file, sort_dicts=False)
+
+def log_actions(stream_plan, action_plan, iteration):
+    json_file, plans = load_plan_log()
+
+    actions = []
+    for a in action_plan:
+        actions.append({
+            'name': a.name, 'args': [str(n) for n in a.args]
+        })
+    plans.append(actions)
+    plans.append([])
+
+    # with open(json_file, 'a+') as f:
+        # json.dump(plans, f, indent=3)
+    from pybullet_planning.pybullet_tools.logging import dump_json
+    dump_json(plans, json_file, sort_dicts=False)
+
+
 def log_plans(stream_plan, action_plan, iteration):
     # TODO: do this within the focused algorithm itself?
     from pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
     with open(PLAN_LOG_FILE, 'a+') as f:
-        f.write('Iteration: {}\n'
-                'Component plan: {}\n'
-                '\nStream plan:\n {}\n'
-                '\nAction plan: {}\n\n'.format(
-                iteration, decomposed_plan,
-                '\n'.join([str(n) for n in stream_plan]), ## stream_plan, ## YANG: log plan
-                str_from_plan(action_plan)))
+        # f.write('Iteration: {}\n'
+        #         'Component plan: {}\n'
+        #         '\nStream plan:\n {}\n'
+        #         '\nAction plan: {}\n\n'.format(
+        #         iteration, decomposed_plan,
+        #         '\n'.join([str(n) for n in stream_plan]), ## stream_plan, ## YANG: log plan
+        #         str_from_plan(action_plan)))
+
+        f.write('Action plan: \n{}\n\n'.format('\n'.join([str(n) for n in action_plan])))
 
 def create_synthesizer_visualizations(result, iteration):
     from pddlstream.retired.synthesizer import decompose_result
@@ -76,13 +117,15 @@ def create_visualizations(evaluations, stream_plan, iteration):
     for result in stream_plan:
         create_synthesizer_visualizations(result, iteration)
     filename = ITERATION_TEMPLATE.format(iteration)
+    # filename = COMPLEXITY_ITERATION_TEMPLATE.format(complexity, iteration)
     # visualize_stream_plan(stream_plan, path)
 
     constraints = set() # TODO: approximates needed facts using produced ones
     for stream in stream_plan:
         constraints.update(filter(lambda f: evaluation_from_fact(f) not in evaluations, stream.get_certified()))
     print('Constraints:', str_from_object(constraints))
-    visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    g1 = visualize_constraints(constraints, os.path.join(CONSTRAINT_NETWORK_DIR, filename))
+    g1.draw(os.path.join(CONSTRAINT_NETWORK_DIR, filename.replace('.png', '.dot')), prog='dot')
 
     from pddlstream.retired.synthesizer import decompose_stream_plan
     decomposed_plan = decompose_stream_plan(stream_plan)
@@ -90,7 +133,8 @@ def create_visualizations(evaluations, stream_plan, iteration):
         visualize_stream_plan(decompose_stream_plan(stream_plan), os.path.join(STREAM_PLAN_DIR, filename))
 
     #visualize_stream_plan_bipartite(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
-    visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
+    g2 = visualize_stream_plan(stream_plan, os.path.join(STREAM_PLAN_DIR, 'fused_' + filename))
+    g2.draw(os.path.join(STREAM_PLAN_DIR, filename.replace('.png', '.dot')), prog='dot')
 
 ##################################################
 

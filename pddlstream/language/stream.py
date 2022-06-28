@@ -290,6 +290,9 @@ class StreamInstance(Instance):
             print('   iter={}, outs={}) {}:{}->{}'.format(
                 self.get_iteration(), len(new_values), self.external.name,
                 str_from_object(self.get_input_values()), str_from_object(new_values)))
+            if len(new_values) == 0:
+                from pddlstream.algorithms.visualization import log_failed_streams
+                log_failed_streams(self.external.name, self.get_input_values())
 
     def dump_new_facts(self, new_facts=[]):
         if VERBOSE_WILD and new_facts:

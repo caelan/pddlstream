@@ -16,7 +16,7 @@ from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
-    has_pygraphviz, log_plans
+    has_pygraphviz, log_plans, log_actions
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE, str_from_action
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import Function, Predicate
@@ -222,7 +222,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
             get_length(action_plan), cost, action_plan_str))  ##, str_from_plan(action_plan)))
         if is_plan(stream_plan) and visualize:
-            log_plans(stream_plan, action_plan, num_iterations)
+            log_actions(stream_plan, action_plan, num_iterations)
+            # log_plans(stream_plan, action_plan, num_iterations)
+
             create_visualizations(evaluations, stream_plan, num_iterations)
 
         ################
