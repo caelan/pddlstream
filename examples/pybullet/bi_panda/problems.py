@@ -5,11 +5,12 @@ import math
 
 from examples.pybullet.utils.pybullet_tools.bi_panda_problems import create_bi_panda, create_short_table, Problem, create_table
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, get_carry_conf, set_arm_conf, open_arm, \
-    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM, get_extended_conf, get_group_links, PLATE_GRASP_LEFT_ARM, get_max_limit, get_gripper_joints, TOP_HOLDING_LEFT_ARM_CENTERED
+    arm_conf, REST_LEFT_ARM, close_arm, set_group_conf, STRAIGHT_LEFT_ARM, get_extended_conf, get_group_links, \
+    PLATE_GRASP_LEFT_ARM, get_max_limit, get_gripper_joints, TOP_HOLDING_LEFT_ARM_CENTERED, BI_PANDA_GROUPS, arm_from_arm
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
     RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity, link_from_name, get_link_pose, \
-    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, set_euler
+    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, set_euler, set_joint_positions_torque
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import set_joint_force_limits
 
 import pybullet as p
@@ -58,6 +59,8 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_arm_conf(bi_panda, arm, PLATE_GRASP_LEFT_ARM)
     open_arm(bi_panda, arm)
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED))
+    joints = [joint_from_name(bi_panda, name) for name in BI_PANDA_GROUPS[arm_from_arm(arm)]]
+    set_joint_positions_torque(bi_panda, joints, PLATE_GRASP_LEFT_ARM)
     close_arm(bi_panda, other_arm)
 
     table = create_table(length=0.4, height=0.5, width = 0.3)
@@ -79,7 +82,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     plate = load_pybullet(TRAY_URDF)
     pose=Pose(point=(hand_pose[0][0] + ((plate_width / 2 + 0.07)*math.cos(initial_conf[0])), hand_pose[0][1] + ((plate_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
     set_pose(plate, pose)
-    grasp = Grasp('side', plate, pose, [], [])
+    grasp = Grasp('top', plate, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, plate)#Attach(bi_panda, arm, grasp, plate)
 
     control_commands([attach])
@@ -92,8 +95,8 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     sample_placements(initial_surfaces, min_distances=min_distances)
 
     enable_gravity()
-    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[other_arm], grasp_types=[grasp_type], surfaces=surfaces,
-                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
+                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits, holding_grasp=grasp)
 
 #######################################################
 
@@ -124,9 +127,9 @@ def arm_strain(arm='left', grasp_type='top', num=2):
     bi_panda = create_bi_panda(length=.3)
 
     set_arm_conf(bi_panda, arm, initial_conf)
-    open_arm(bi_panda, arm)
+    open_arm(bi_panda, other_arm)
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, STRAIGHT_LEFT_ARM))
-    close_arm(bi_panda, other_arm)
+    close_arm(bi_panda, arm)
     l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     print(hand_pose)
@@ -143,7 +146,7 @@ def arm_strain(arm='left', grasp_type='top', num=2):
     sample_placements(initial_surfaces, min_distances=min_distances)
     enable_gravity()
 
-    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[other_arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
@@ -198,7 +201,7 @@ def bi_manual_place(arm='left', grasp_type='top', num=2):
     min_distances = {block: 0.05 for block in blocks}
     sample_placements(initial_surfaces, min_distances=min_distances)
     enable_gravity()
-    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[arm, other_arm], grasp_types=[grasp_type], surfaces=surfaces,
+    return Problem(robot=bi_panda, movable=blocks+[plate], arms=[other_arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 

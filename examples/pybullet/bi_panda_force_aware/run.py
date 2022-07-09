@@ -6,11 +6,11 @@ from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_po
     get_cfree_traj_grasp_pose_test, distance_fn
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
-    get_stable_gen, get_grasp_gen, control_commands
+    get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, get_sample_stable_holding_conf_gen
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
-    get_group_conf, get_group_links
+    get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
-    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit
+    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point
 from examples.pybullet.namo.stream import get_custom_limits
 
 from pddlstream.algorithms.meta import create_parser, solve
@@ -23,7 +23,7 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import apply_commands, State
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, joint_from_name
 
 from examples.pybullet.bi_panda.problems import PROBLEMS
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
@@ -57,6 +57,7 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         ('AtBConf', initial_bq),
         Equal(('PickCost',), 1),
         Equal(('PlaceCost',), 1),
+        Equal(('ReconfigureCost',), 1),
     ] + [('Sink', s) for s in problem.sinks] + \
            [('Stove', s) for s in problem.stoves] + \
            [('Connected', b, d) for b, d in problem.buttons] + \
@@ -65,7 +66,7 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
     #for arm in problem.arms:
         joints = get_arm_joints(robot, arm)
         conf = Conf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', arm), ('AConf', arm, conf), ('HandEmpty', arm), ('AtAConf', arm, conf)]
+        init += [('Arm', arm), ('AConf', arm, conf), ('HandEmpty', arm), ('AtAConf', arm, conf), ('TorqueLimitsNotExceded', arm)]
         if arm in problem.arms:
             init += [('Controllable', arm)]
     for body in problem.movable:
@@ -90,7 +91,8 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         goal_literals += [('On', ty, s)]
     goal_literals += [('Holding', a, b) for a, b in problem.goal_holding] + \
                      [('Cleaned', b)  for b in problem.goal_cleaned] + \
-                     [('Cooked', b)  for b in problem.goal_cooked]
+                     [('Cooked', b)  for b in problem.goal_cooked] + \
+                    [('TorqueLimitsNotExceded', a) for a in problem.arms]
     goal_formula = []
     for literal in goal_literals:
         parameters = [a for a in get_args(literal) if is_parameter(a)]
@@ -111,6 +113,8 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         #'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
                                                         collisions=collisions, teleport=teleport)),
+        'sample-stable-holding-conf': from_gen_fn(get_sample_stable_holding_conf_gen(problem) ),
+        'test_torque_limits_not_exceded': from_test(get_torque_limits_not_exceded_test(problem)),
 
         'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
         'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
@@ -136,18 +140,28 @@ def post_process(problem, plan, teleport=False):
             new_commands = c.commands
         elif name == 'pick':
             a, b, p, g, _, c = args
-            [t] = c.commands
+            trajs = c.commands
             close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
             attach = Attach(problem.robot, a, g, b)
-            new_commands = [t, close_gripper, attach, t.reverse()]
+            if len(trajs) == 2:
+                [t1, t2] = trajs
+                new_commands = [t1, t2, close_gripper, attach, t2.reverse()]
+            else:
+                [t2] = trajs
+                new_commands = [t2, close_gripper, attach, t2.reverse()]
         elif name == 'place':
             a, b, p, g, _, c, _ = args
-            [t] = c.commands
+            trajectories = c.commands
             gripper_joint = get_gripper_joints(problem.robot, a)[0]
             position = 0.05
             open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
             detach = Detach(problem.robot, a, b)
-            new_commands = [t, detach, open_gripper, t.reverse()]
+            if len(trajectories) == 2:
+                [t1, t2] = c.commands
+                new_commands = [t1, t2, detach, open_gripper, t2.reverse()]
+            else:
+                [t2] = c.commands
+                new_commands = [t2, detach, open_gripper, t2.reverse()]
         elif name == 'clean': # TODO: add text or change color?
             body, sink = args
             new_commands = [Clean(body)]
@@ -208,7 +222,8 @@ def main(verbose=True):
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
-
+        'sample-stable-holding-conf': StreamInfo(),
+        'test_torque_limits_not_exceded': StreamInfo(p_success=1e-1),
         'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
         'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
         'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: apply to arm and base trajs
@@ -255,6 +270,7 @@ def main(verbose=True):
         return
 
     with LockRenderer(lock=not args.enable):
+        problem.remove_gripper()
         commands = post_process(problem, plan, teleport=args.teleport)
         saver.restore()
     # p.setRealTimeSimulation(True)
@@ -265,7 +281,17 @@ def main(verbose=True):
     else:
         time_step = None if args.teleport else 0.01
         apply_commands(State(), commands, time_step)
+    jointNums = []
+    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
+    for joint in joints:
+        jointNums.append(joint_from_name(problem.robot, joint))
+    jointPos = get_joint_positions(problem.robot, jointNums)
+    set_joint_positions_torque(problem.robot, jointNums, jointPos)
     p.setRealTimeSimulation(True)
+    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
+    jointNums = []
+    for joint in joints:
+        jointNums.append(joint_from_name(problem.robot, joint))
     while True:
         continue
     disconnect()

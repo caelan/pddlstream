@@ -16,6 +16,7 @@
     (BTraj ?t)
     (ATraj ?t)
     (ForcesBalanced ?o ?p)
+    (TorqueLimitsNotExceded ?a)
 
     (CFreePosePose ?o ?p ?o2 ?p2)
     (CFreeApproachPose ?o ?p ?g ?o2 ?p2)
@@ -42,6 +43,7 @@
     (MoveCost ?t)
     (PickCost)
     (PlaceCost)
+    (ReconfigureCost)
   )
 
   ;(:action move_arm
@@ -65,17 +67,24 @@
   )
   (:action place
     :parameters (?a ?o ?p ?g ?q ?t ?r)
-    :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
+    :precondition (and (TorqueLimitsNotExceded ?a)
+                        (Kin ?a ?o ?p ?g ?q ?t)
                         (AtGrasp ?a ?o ?g)
                        (not (UnsafePose ?o ?p))
                        (not (UnsafeApproach ?o ?p ?g))
                        (not (UnsafeATraj ?t))
+                       (TorqueLimitsNotExceded ?a)
                   )
     :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
                  (not (AtGrasp ?a ?o ?g))
                  (increase (total-cost) (PlaceCost)))
   )
 
+  (:action reconfigure
+      :parameters (?a ?q1 ?q2)
+      :precondition (and (not (TorqueLimitsNotExceded ?a)) (AtAConf ?a ?q1))
+      :effect (and (TorqueLimitsNotExceded ?a) (AtAConf ?a ?q2) (increase (total-cost) (ReconfigureCost)))
+  )
   (:action clean
     :parameters (?o ?r)
     :precondition (and (Stackable ?o ?r) (Type ?r @sink) ; (Sink ?r)

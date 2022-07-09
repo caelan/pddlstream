@@ -125,6 +125,7 @@ def apply_mapping(sequence, mapping):
 
 def safe_apply_mapping(sequence, mapping):
     # TODO: flip arguments order
+    print(sequence, mapping)
     return tuple(mapping[e] for e in sequence)
 
 

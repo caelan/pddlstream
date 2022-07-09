@@ -1,10 +1,9 @@
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import iterate_approach_path
 from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance, multiply, set_pose, \
     interpolate_poses, invert, wait_if_gui, is_b1_on_b2, get_mass, get_pose, get_COM, get_link_pose, link_from_name, \
-    point_from_pose, TARGET, check_overlap, get_max_force, compute_jacobian
+    point_from_pose, TARGET, check_overlap, get_max_force, compute_jacobian, matrix_from_quat
 from examples.pybullet.utils.pybullet_tools.panda_utils import BI_PANDA_GROUPS, get_other_arm, PANDA_GRIPPER_ROOTS
-from transformations import matrix_from_quat
-
+import math
 BASE_CONSTANT = 1
 BASE_VELOCITY = 0.25
 
@@ -115,32 +114,3 @@ def get_cfree_traj_grasp_pose_test(problem, collisions=True):
                 return False
         return True
     return test
-
-
-def get_torque_limits_exceded_test(problem):
-    arm = problem.arms[0]
-    max_limits = []
-    joints = BI_PANDA_GROUPS[arm_from_arm(arm)]
-    for joint in joints:
-        jointNum = joint_from_name(robot, joint)
-        max_limits.append(get_max_force(problem.robot, jointNum))
-    tray_arm = get_other_arm(arm)
-    l = PANDA_GRIPPER_ROOTS[tray_arm]
-    Jl, Ja = compute_jacobian(problem.robot, link_from_name(problem.robot, l))
-    Jl = np.array(Jl)
-    Ja = np.array(Ja)
-    J = Jl[:7,:]
-
-    def test(a, b1, p1, q):
-        if check_overlap(p1, TARGET):
-            tray_arm = get_other_arm(a)
-            com, mass = get_COM(bodies, TARGET, b1, p1)
-            force = np.array([0, 0, mass * 9.8])
-            ee_pose = get_link_pose(problem.robot, PANDA_GRIPPER_ROOTS[tray_arm])
-            rotMat = matrix_from_quat(ee_pose[1])
-            rotForce = np.matmul(rotMat, force)
-            torques = np.matmul(J, rotForce)
-            for i in range(len(torques)):
-                if (abs(torques[i]) > max_limits[i]):
-                    return False
-        return True
