@@ -1,7 +1,5 @@
 from __future__ import print_function
 
-import time
-
 from pddlstream.pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
 from pddlstream.pddlstream.algorithms.common import SolutionStore
@@ -25,7 +23,7 @@ from pddlstream.pddlstream.algorithms.recover_optimizers import combine_optimize
 from pddlstream.pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
 from pddlstream.pddlstream.language.stream import Stream, StreamResult
-from pddlstream.pddlstream.utils import INF, implies, str_from_object, safe_zip
+from pddlstream.pddlstream.utils import INF, implies, str_from_object, safe_zip, find
 
 def get_negative_externals(externals):
     negative_predicates = list(filter(lambda s: type(s) is Predicate, externals)) # and s.is_negative()
@@ -87,6 +85,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     :param success_cost: the exclusive (strict) upper bound on plan cost to successfully terminate
 
     :param max_time: the maximum runtime
+    :param max_post_time: the maximum post-processing runtime
     :param max_iterations: the maximum number of search iterations
     :param max_memory: the maximum amount of memory
 
@@ -146,6 +145,11 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     positive_externals = streams + functions + optimizers
     has_optimizers = bool(optimizers) # TODO: deprecate
     assert implies(has_optimizers, use_skeletons)
+
+    for action_name in replan_actions:
+        action = find(lambda a: a.name == action_name, domain.actions)
+        if action is None:
+            raise ValueError('No replan_action with name: {}'.format(action_name))
 
     ################
 
