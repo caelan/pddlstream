@@ -9,7 +9,7 @@ from pddlstream.algorithms.downward import make_predicate, make_preconditions, m
 from pddlstream.language.constants import Or, And, is_parameter, Not, str_from_plan, EQ
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.utils import find_unique, safe_zip, str_from_object, INF, is_hashable, neighbors_from_orders, \
-    get_ancestors, get_descendants
+    get_ancestors, get_descendants, find
 
 OrderedSkeleton = namedtuple('OrderedSkeleton', ['actions', 'orders']) # TODO: AND/OR tree
 
@@ -99,6 +99,12 @@ def add_plan_constraints(constraints, domain, evaluations, goal_exp, internal=Fa
         for step, (name, args) in enumerate(actions):
             # TODO: could also just remove the free parameter from the action
             new_action = deepcopy(find_unique(lambda a: a.name == name, domain.actions))
+            if isinstance(args, dict):
+                for a in args:
+                    param = find(lambda p: p.name == a, new_action.parameters)
+                    if param is None:
+                        raise ValueError('No parameter with name: {}'.format(a))
+                args = [args.get(p.name, WILD) for p in new_action.parameters]
             local_from_global = {a: p.name for a, p in safe_zip(args, new_action.parameters) if is_parameter(a)}
 
             ancestors, descendants = get_ancestors(step, orders), get_descendants(step, orders)

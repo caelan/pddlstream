@@ -125,6 +125,13 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
 
 #######################################################
 
+def print_solutions():
+    #print(SOLUTIONS)
+    cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
+    for i, (cost, runtime) in enumerate(cost_over_time):
+        print('Plan: {} | Cost: {:.3f} | Time: {:.3f}'.format(i, cost, runtime))
+        #print_solution(solution)
+
 def main(verbose=True):
     # TODO: could work just on postprocessing
     # TODO: try the other reachability database
@@ -197,10 +204,7 @@ def main(verbose=True):
             saver.restore()
 
 
-    cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
-    for i, (cost, runtime) in enumerate(cost_over_time):
-        print('Plan: {} | Cost: {:.3f} | Time: {:.3f}'.format(i, cost, runtime))
-    #print(SOLUTIONS)
+    print_solutions()
     print_solution(solution)
     plan, cost, evaluations = solution
     if (plan is None) or not has_gui():
