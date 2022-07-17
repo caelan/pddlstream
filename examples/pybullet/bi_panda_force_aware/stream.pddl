@@ -13,13 +13,6 @@
     :certified (Grasp ?o ?g)
   )
 
-  (:stream sample-stable-holding-conf
-    :inputs (?a)
-    :domain (and (Arm ?a))
-    :outputs (?q ?t)
-    :certified (and (ATraj ?t) (BConf ?q) (TorqueLimitsNotExceded ?a))
-  )
-
   (:stream inverse-kinematics
     :inputs (?a ?o ?p ?g)
     :domain (and (Controllable ?a) (Pose ?o ?p) (Grasp ?o ?g))

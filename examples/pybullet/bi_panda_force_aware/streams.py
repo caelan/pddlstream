@@ -63,7 +63,6 @@ def get_cfree_approach_pose_test(problem, collisions=True):
 
 def get_cfree_traj_pose_test(robot, collisions=True):
     def test(c, b2, p2):
-        print("in free traj pose test")
         # TODO: infer robot from c
         if not collisions:
             return True
@@ -75,13 +74,10 @@ def get_cfree_traj_pose_test(robot, collisions=True):
         skip = False
         for _ in c.apply(state):
             state.assign()
-            print(state.bodies)
-            print(state.body_names)
-            print("state attachments: ",state.attachments)
 
             for b1 in state.attachments:
-                if (b1 > 3 and b2 < 4) or (b1 < 4 and b2 > 3):
-                    continue
+                # if (b1 > 3 and b2 < 4) or (b1 < 4 and b2 > 3):
+                #     continue
                 if pairwise_collision(b1, b2):
                     #wait_for_user()
                     print("in collision: ", b1,b2)

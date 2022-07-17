@@ -113,7 +113,6 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         #'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
                                                         collisions=collisions, teleport=teleport)),
-        'sample-stable-holding-conf': from_gen_fn(get_sample_stable_holding_conf_gen(problem) ),
         'test_torque_limits_not_exceded': from_test(get_torque_limits_not_exceded_test(problem)),
 
         'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
@@ -144,9 +143,11 @@ def post_process(problem, plan, teleport=False):
             close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
             attach = Attach(problem.robot, a, g, b)
             if len(trajs) == 2:
+                print("reconfig present")
                 [t1, t2] = trajs
                 new_commands = [t1, t2, close_gripper, attach, t2.reverse()]
             else:
+                print("no reconfig")
                 [t2] = trajs
                 new_commands = [t2, close_gripper, attach, t2.reverse()]
         elif name == 'place':
@@ -157,9 +158,11 @@ def post_process(problem, plan, teleport=False):
             open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
             detach = Detach(problem.robot, a, b)
             if len(trajectories) == 2:
+                print("reconfig present")
                 [t1, t2] = c.commands
                 new_commands = [t1, t2, detach, open_gripper, t2.reverse()]
             else:
+                print("no reconfig")
                 [t2] = c.commands
                 new_commands = [t2, detach, open_gripper, t2.reverse()]
         elif name == 'clean': # TODO: add text or change color?
@@ -203,6 +206,9 @@ def main(verbose=True):
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
+    if args.problem == "bi_manual_forceful_bin":
+        global TARGET
+        TARGET = "bin"
     problem_fn = problem_fn_from_name[args.problem]
     print('problem fn loaded')
     connect(use_gui=True)
@@ -222,7 +228,6 @@ def main(verbose=True):
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
-        'sample-stable-holding-conf': StreamInfo(),
         'test_torque_limits_not_exceded': StreamInfo(p_success=1e-1),
         'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
         'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
@@ -240,7 +245,10 @@ def main(verbose=True):
     print('Init:', init)
     print('Goal:', goal)
     print('Streams:', str_from_object(set(stream_map)))
-
+    jointNums = []
+    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
+    for joint in joints:
+        jointNums.append(joint_from_name(problem.robot, joint))
     success_cost = 0 if args.optimal else INF
     planner = 'ff-astar' if args.optimal else 'ff-wastar3'
     search_sample_ratio = 2
@@ -273,25 +281,23 @@ def main(verbose=True):
         problem.remove_gripper()
         commands = post_process(problem, plan, teleport=args.teleport)
         saver.restore()
-    # p.setRealTimeSimulation(True)
+    p.setRealTimeSimulation(True)
+
+    # jointPos = get_joint_positions(problem.robot, jointNums)
+    # set_joint_positions_torque(problem.robot, jointNums, jointPos)
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
+    jointPos = get_joint_positions(problem.robot, jointNums)
+    set_joint_positions_torque(problem.robot, jointNums, jointPos)
     wait_for_user()
     if args.simulate:
         control_commands(commands)
     else:
         time_step = None if args.teleport else 0.01
         apply_commands(State(), commands, time_step)
-    jointNums = []
-    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
-    for joint in joints:
-        jointNums.append(joint_from_name(problem.robot, joint))
+
     jointPos = get_joint_positions(problem.robot, jointNums)
     set_joint_positions_torque(problem.robot, jointNums, jointPos)
     p.setRealTimeSimulation(True)
-    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
-    jointNums = []
-    for joint in joints:
-        jointNums.append(joint_from_name(problem.robot, joint))
     while True:
         continue
     disconnect()
