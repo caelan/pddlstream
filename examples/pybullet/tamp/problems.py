@@ -74,6 +74,55 @@ def packed(arm='left', grasp_type='top', num=5):
                    #goal_holding=[(arm, block) for block in blocks])
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
+def rearangement(arm='left', grasp_type='top', num=5):
+    # TODO: packing problem where you have to place in one direction
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.07
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    #plate_width = 2*math.sqrt(num*block_area)
+    plate_width = 0.27
+    #plate_width = 0.28
+    #plate_width = 0.3
+    print('Width:', plate_width)
+    plate_width = min(plate_width, 0.6)
+    plate_height = 0.001
+
+    other_arm = get_other_arm(arm)
+    initial_conf = get_carry_conf(arm, grasp_type)
+
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    pr2 = create_pr2()
+    set_arm_conf(pr2, arm, initial_conf)
+    open_arm(pr2, arm)
+    set_arm_conf(pr2, other_arm, arm_conf(other_arm, REST_LEFT_ARM))
+    close_arm(pr2, other_arm)
+    set_group_conf(pr2, 'base', [-1.0, 0, 0]) # Be careful to not set the pr2's pose
+
+    table1 = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table1, point=Point(0.45,-.65, 0))
+    table3 = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table3, point=Point(-0.45, .65, 0))
+    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
+    plate_z = stable_z(plate, table3)
+    p = get_point(table3)
+    set_point(plate, Point(x = p[0], y = p[1], z=plate_z))
+    surfaces = [table1, table3, plate]
+    blocks = [create_box(block_width, block_width, block_height, color=BLUE) for _ in range(num)]
+    initial_surfaces = {block: table1 for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+
+    return Problem(robot=pr2, movable=blocks, arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
+                   #goal_holding=[(arm, block) for block in blocks])
+                   goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
+
 #######################################################
 
 def blocked(arm='left', grasp_type='side', num=1):
@@ -160,4 +209,5 @@ def blocked(arm='left', grasp_type='side', num=1):
 PROBLEMS = [
     packed,
     blocked,
+    rearangement
 ]
