@@ -136,7 +136,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
         visualize = False
-        print('Warning, visualize=True requires pygraphviz. Setting visualize=False')
+        print('\n\n\n\nWarning, visualize=True requires pygraphviz. Setting visualize=False\n\n\n\n')
     if visualize:
         reset_visualizations()
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)

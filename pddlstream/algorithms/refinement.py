@@ -222,6 +222,7 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
 
     # TODO: should streams along the sampled path automatically have no optimistic value
 
+
 def summarize_results(results, complexity_limit, num_iterations):
     from os.path import join, isdir
     from os import mkdir

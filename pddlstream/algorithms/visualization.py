@@ -52,22 +52,27 @@ def reset_visualizations():
 def load_plan_log():
     import json
     json_file = os.path.join(VISUALIZATIONS_DIR, 'log.json')
-    plans = []
+    plans = None
     if os.path.isfile(json_file):
         with open(json_file, 'r') as f:
             plans = json.load(f)
+    else:
+        with open(json_file, 'w') as f:
+            json.dump({}, f)
+            plans = []
     return json_file, plans
 
 def log_failed_streams(name, args):
     json_file, plan_log = load_plan_log()
-    streams = plan_log[-1]
-    streams.append({
-        'name': name, 'args': [str(n) for n in args]
-    })
-    plan_log[-1] = streams
+    if plan_log is not None:
+        streams = plan_log[-1]
+        streams.append({
+            'name': name, 'args': [str(n) for n in args]
+        })
+        plan_log[-1] = streams
 
-    from pybullet_planning.pybullet_tools.logging import dump_json
-    dump_json(plan_log, json_file, sort_dicts=False)
+        from pybullet_planning.pybullet_tools.logging import dump_json
+        dump_json(plan_log, json_file, sort_dicts=False)
 
 def log_actions(stream_plan, action_plan, iteration):
     json_file, plans = load_plan_log()
