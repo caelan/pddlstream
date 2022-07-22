@@ -220,12 +220,14 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}\n'.format(
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
-            get_length(action_plan), cost, action_plan_str))  ##, str_from_plan(action_plan)))
-        if is_plan(stream_plan) and visualize:
-            log_actions(stream_plan, action_plan, num_iterations)
-            # log_plans(stream_plan, action_plan, num_iterations)
+            get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
+        if is_plan(stream_plan):
+            ## TODO: here for skipping skeleton refinement
+            if visualize:
+                log_actions(stream_plan, action_plan, num_iterations)
+                # log_plans(stream_plan, action_plan, num_iterations)
 
-            create_visualizations(evaluations, stream_plan, num_iterations)
+                create_visualizations(evaluations, stream_plan, num_iterations)
 
         ################
 
