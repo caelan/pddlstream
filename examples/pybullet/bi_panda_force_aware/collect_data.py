@@ -7,11 +7,11 @@ from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_po
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
     get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, get_sample_stable_holding_conf_gen, \
-    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig
+    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, get_objects_on_target
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
     get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
-    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point
+    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point, get_mass
 from examples.pybullet.namo.stream import get_custom_limits
 
 from pddlstream.algorithms.meta import create_parser, solve
@@ -30,7 +30,9 @@ from examples.pybullet.bi_panda.problems import PROBLEMS
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
     get_gripper_joints, GripperCommand, apply_commands, State
-
+import time
+import datetime
+import csv
 import pybullet as p
 
 # TODO: collapse similar streams into a single stream when reodering
@@ -188,13 +190,17 @@ def post_process(problem, plan, teleport=False):
         commands += new_commands
     return commands
 
+data_dir = '/home/liam/exp_data/'
+
 def main(verbose=True):
     # TODO: could work just on postprocessing
     # TODO: try the other reachability database
     # TODO: option to only consider costs during local optimization
 
+
     parser = create_parser()
     parser.add_argument('-problem', default='bi_manual_forceful', help='The name of the problem to solve')
+    parser.add_argument('-loops', default=1, type=int, help='The number of itterations to run experiment')
     parser.add_argument('-n', '--number', default=5, type=int, help='The number of objects')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
@@ -206,6 +212,16 @@ def main(verbose=True):
     args = parser.parse_args()
     print('Arguments:', args)
 
+
+    timestamp = str(datetime.datetime.now())
+    timestamp = "{}_{}".format(timestamp.split(' ')[0], timestamp.split(' ')[1])
+    datafile = data_dir + timestamp + "_" + args.problem + '.csv'
+    data = ["TotalTime", "ExecutionTime", "Solved", "TotalItems", "SuccessfulDeliveries", "Mass per Object"]
+    with open(datafile, 'w') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
+
+
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
@@ -214,96 +230,119 @@ def main(verbose=True):
         TARGET = "bin"
     problem_fn = problem_fn_from_name[args.problem]
     print('problem fn loaded')
-    connect(use_gui=True)
-    print('connected to gui')
-    with HideOutput():
-        problem = problem_fn(num=args.number)
-    print('problem found')
-    draw_base_limits(problem.base_limits, color=(1, 0, 0))
-    saver = WorldSaver()
-    print("world made")
-    #handles = []
-    #for link in get_group_joints(problem.robot, 'left_arm'):
-    #    handles.append(draw_link_name(problem.robot, link))
-    #wait_for_user()
+    for _ in range(args.loops):
+      connect(use_gui=True)
+      print('connected to gui')
+      with HideOutput():
+          problem = problem_fn(num=args.number)
+      print('problem found')
+      draw_base_limits(problem.base_limits, color=(1, 0, 0))
+      saver = WorldSaver()
+      print("world made")
+      #handles = []
+      #for link in get_group_joints(problem.robot, 'left_arm'):
+      #    handles.append(draw_link_name(problem.robot, link))
+      #wait_for_user()
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=False, name=args.problem)
-    stream_info = {
-        'inverse-kinematics': StreamInfo(),
-        'plan-base-motion': StreamInfo(overhead=1e1),
-        'test_torque_limits_not_exceded': StreamInfo(p_success=1e-1),
-        'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
-        'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
-        'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: apply to arm and base trajs
-        # 'test-forces-balanced': StreamInfo(p_success=1e-1, verbose=verbose),
-        #'test-cfree-traj-grasp-pose': StreamInfo(verbose=verbose),
+      pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=False, name=args.problem)
+      stream_info = {
+          'inverse-kinematics': StreamInfo(),
+          'plan-base-motion': StreamInfo(overhead=1e1),
+          'test_torque_limits_not_exceded': StreamInfo(p_success=1e-1),
+          'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),
+          'test-cfree-approach-pose': StreamInfo(p_success=1e-2, verbose=verbose),
+          'test-cfree-traj-pose': StreamInfo(p_success=1e-1, verbose=verbose), # TODO: apply to arm and base trajs
+          # 'test-forces-balanced': StreamInfo(p_success=1e-1, verbose=verbose),
+          #'test-cfree-traj-grasp-pose': StreamInfo(verbose=verbose),
 
-        # 'Distance': FunctionInfo(p_success=0.99, opt_fn=lambda q1, q2: 0),
+          # 'Distance': FunctionInfo(p_success=0.99, opt_fn=lambda q1, q2: 0),
 
-        #'MoveCost': FunctionInfo(lambda t: BASE_CONSTANT),
-    }
-    #stream_info = {}
+          #'MoveCost': FunctionInfo(lambda t: BASE_CONSTANT),
+      }
+      #stream_info = {}
 
-    _, _, _, stream_map, init, goal = pddlstream_problem
-    print('Init:', init)
-    print('Goal:', goal)
-    print('Streams:', str_from_object(set(stream_map)))
-    jointNums = []
-    joints = BI_PANDA_GROUPS[arm_from_arm('left')]
-    for joint in joints:
-        jointNums.append(joint_from_name(problem.robot, joint))
-    success_cost = 0 if args.optimal else INF
-    planner = 'ff-astar' if args.optimal else 'ff-wastar3'
-    search_sample_ratio = 2
-    max_planner_time = 20
-    # effort_weight = 0 if args.optimal else 1
-    effort_weight = 1e-3 if args.optimal else 1
+      _, _, _, stream_map, init, goal = pddlstream_problem
+      print('Init:', init)
+      print('Goal:', goal)
+      print('Streams:', str_from_object(set(stream_map)))
+      jointNums = []
+      joints = BI_PANDA_GROUPS[arm_from_arm('left')]
+      for joint in joints:
+          jointNums.append(joint_from_name(problem.robot, joint))
+      success_cost = 0 if args.optimal else INF
+      planner = 'ff-astar' if args.optimal else 'ff-wastar3'
+      search_sample_ratio = 2
+      max_planner_time = 20
+      # effort_weight = 0 if args.optimal else 1
+      effort_weight = 1e-3 if args.optimal else 1
+      start_time = time.time()
+      with Profiler(field='tottime', num=25): # cumtime | tottime
+          with LockRenderer(lock=not args.enable):
+              solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
+                              planner=planner, max_planner_time=max_planner_time,
+                              unit_costs=args.unit, success_cost=success_cost,
+                              max_time=args.max_time, verbose=True, debug=True,
+                              unit_efforts=True, effort_weight=effort_weight,
+                              search_sample_ratio=search_sample_ratio)
+              saver.restore()
 
-    with Profiler(field='tottime', num=25): # cumtime | tottime
-        with LockRenderer(lock=not args.enable):
-            solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
-                             planner=planner, max_planner_time=max_planner_time,
-                             unit_costs=args.unit, success_cost=success_cost,
-                             max_time=args.max_time, verbose=True, debug=True,
-                             unit_efforts=True, effort_weight=effort_weight,
-                             search_sample_ratio=search_sample_ratio)
-            saver.restore()
 
+      cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
+      for i, (cost, runtime) in enumerate(cost_over_time):
+          print('Plan: {} | Cost: {:.3f} | Time: {:.3f}'.format(i, cost, runtime))
+      #print(SOLUTIONS)
+      print_solution(solution)
+      plan, cost, evaluations = solution
+      if (plan is None) or not has_gui():
+        total_time = time.time() - start_time
+        exec_time = -1
+        items = args.number
+        deliveries = 0
+        solved = False
 
-    cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
-    for i, (cost, runtime) in enumerate(cost_over_time):
-        print('Plan: {} | Cost: {:.3f} | Time: {:.3f}'.format(i, cost, runtime))
-    #print(SOLUTIONS)
-    print_solution(solution)
-    plan, cost, evaluations = solution
-    if (plan is None) or not has_gui():
-        disconnect()
-        return
-
-    with LockRenderer(lock=not args.enable):
-        problem.remove_gripper()
-        commands = post_process(problem, plan, teleport=args.teleport)
-        saver.restore()
-    p.setRealTimeSimulation(True)
-
-    jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
-    draw_base_limits(problem.base_limits, color=(1, 0, 0))
-    jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
-    wait_for_user()
-    if args.simulate:
-        control_commands(commands)
-    else:
-        time_step = None if args.teleport else 0.01
-        apply_commands(State(), commands, time_step)
-
-    jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
-    p.setRealTimeSimulation(True)
-    while True:
+        print(total_time, exec_time, solved, items, deliveries)
+        data = [total_time, exec_time, solved, items, deliveries]
+        with open(datafile, 'a') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
+            disconnect()
         continue
-    disconnect()
+
+      with LockRenderer(lock=not args.enable):
+          problem.remove_gripper()
+          commands = post_process(problem, plan, teleport=args.teleport)
+          saver.restore()
+      p.setRealTimeSimulation(True)
+
+      # jointPos = get_joint_positions(problem.robot, jointNums)
+      # set_joint_positions_torque(problem.robot, jointNums, jointPos)
+      draw_base_limits(problem.base_limits, color=(1, 0, 0))
+      jointPos = get_joint_positions(problem.robot, jointNums)
+      set_joint_positions_torque(problem.robot, jointNums, jointPos)
+      exec_time = time.time()
+      if args.simulate:
+          control_commands(commands)
+      else:
+          time_step = None if args.teleport else 0.01
+          apply_commands(State(), commands, time_step)
+
+      jointPos = get_joint_positions(problem.robot, jointNums)
+      set_joint_positions_torque(problem.robot, jointNums, jointPos)
+
+      total_time = time.time() - start_time
+      exec_time = time.time() - exec_time
+      items = args.number
+      deliveries = len(get_objects_on_target(problem))
+      solved = True
+      mass = get_mass(problem.movable[0])
+
+      print(total_time, exec_time, items, deliveries, mass)
+      data = [total_time, exec_time, solved, items, deliveries, mass]
+      with open(datafile, 'a') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
+      p.setRealTimeSimulation(True)
+      disconnect()
 
 if __name__ == '__main__':
     main()

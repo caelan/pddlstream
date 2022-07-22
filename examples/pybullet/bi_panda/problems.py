@@ -61,7 +61,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     open_arm(bi_panda, arm)
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED))
     joints = [joint_from_name(bi_panda, name) for name in BI_PANDA_GROUPS[arm_from_arm(arm)]]
-    set_joint_positions_torque(bi_panda, joints, PLATE_GRASP_LEFT_ARM)
+    # set_joint_positions(bi_panda, joints, PLATE_GRASP_LEFT_ARM)
     open_arm(bi_panda, other_arm)
 
     table = create_table(length=0.4, height=0.5, width = 0.3)
@@ -82,7 +82,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     tray = load_pybullet(TRAY_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.01)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
     set_pose(tray, pose)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
@@ -97,7 +97,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     sample_placements(initial_surfaces, min_distances=min_distances)
 
     enable_gravity()
-    return Problem(robot=bi_panda, movable=blocks + [tray], arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
+    return Problem(robot=bi_panda, movable=blocks, arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
                     goal_on=[(block, tray) for block in blocks], base_limits=base_limits, holding_grasp=grasp, target_width=tray_width)
 
 #######################################################
@@ -112,7 +112,7 @@ def bi_manual_forceful_bin(arm='left', grasp_type='top', num=2):
     #block_height = 2*block_width
     block_area = block_width*block_width
 
-    bin_width = 0.21
+    bin_width = 0.25
 
     other_arm = get_other_arm(arm)
     initial_conf = PLATE_GRASP_LEFT_ARM
@@ -138,7 +138,7 @@ def bi_manual_forceful_bin(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     binB = load_pybullet(BIN_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((bin_width / 2 + 0.01)*math.cos(initial_conf[0])), hand_pose[0][1] + ((bin_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0] + ((bin_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] - .075 + ((bin_width / 2) *math.sin(initial_conf[0])), hand_pose[0][2]- .05), euler=(0,0,initial_conf[0]))
     set_pose(binB, pose)
     grasp = Grasp('top', binB, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, binB)#Attach(bi_panda, arm, grasp, plate)
@@ -153,10 +153,75 @@ def bi_manual_forceful_bin(arm='left', grasp_type='top', num=2):
     sample_placements(initial_surfaces, min_distances=min_distances)
 
     enable_gravity()
-    return Problem(robot=bi_panda, movable=blocks + [binB], arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
+    return Problem(robot=bi_panda, movable=blocks, arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
                     goal_on=[(block, binB) for block in blocks], base_limits=base_limits, holding_grasp=grasp, target_width=bin_width)
 
 #######################################################
+
+def bi_manual_forceful_base(arm='left', grasp_type='top', num=2):
+    print('in bi_manual_place')
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.04
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    tray_width = 0.2363
+    tray_height = 0.018
+
+    other_arm = get_other_arm(arm)
+    initial_conf = PLATE_GRASP_LEFT_ARM
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    bi_panda = create_bi_panda()
+    set_joint_force_limits(bi_panda, arm)
+    set_joint_force_limits(bi_panda, other_arm)
+    set_arm_conf(bi_panda, arm, PLATE_GRASP_LEFT_ARM)
+    open_arm(bi_panda, arm)
+    set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED))
+    joints = [joint_from_name(bi_panda, name) for name in BI_PANDA_GROUPS[arm_from_arm(arm)]]
+    # set_joint_positions(bi_panda, joints, PLATE_GRASP_LEFT_ARM)
+    open_arm(bi_panda, other_arm)
+
+    table = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table, point=Point(0.45,-.65, 0))
+    l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
+    # #left finger joint
+    # l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
+    # #right finger joint
+    # l_right_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint2')
+    # set_joint_position(bi_panda, l_right_finger_joint,(tray_height/2))
+    # set_joint_position(bi_panda, l_left_finger_joint, (tray_height/2))
+    # open_arm(bi_panda, arm)
+    #left finger joint
+    r_left_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint1')
+    #right finger joint
+    r_right_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint2')
+    set_joint_position(bi_panda, r_right_finger_joint,block_width)
+    set_joint_position(bi_panda, r_left_finger_joint, block_width)
+    hand_pose = get_link_pose(bi_panda, l_hand_link)
+    tray = load_pybullet(TRAY_URDF)
+    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    set_pose(tray, pose)
+    grasp = Grasp('top', tray, pose, [], [])
+    attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
+
+    control_commands([attach])
+    surfaces = [table]
+
+    blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
+    initial_surfaces = {block: table for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+
+    enable_gravity()
+    return Problem(robot=bi_panda, movable=blocks, arms=[other_arm], holding_arm=arm, grasp_types=[grasp_type], surfaces=surfaces,
+                    goal_on=[(block, tray) for block in blocks], base_limits=base_limits, holding_grasp=grasp, target_width=tray_width)
+
+###################################################
 
 def arm_strain(arm='left', grasp_type='top', num=2):
     # TODO: packing problem where you have to place in one direction
@@ -278,8 +343,143 @@ def bi_manual_place(arm='left', grasp_type='top', num=2):
                 #    goal_holding=[(arm, plate)],
                    goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
 
+############################################################################
+
+def bi_manual_place_2t(arm='left', grasp_type='top', num=2):
+    # TODO: packing problem where you have to place in one direction
+    print('in bi_manual_place')
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.04
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    #plate_width = 2*math.sqrt(num*block_area)
+    plate_width = 0.2
+    #plate_width = 0.28
+    #plate_width = 0.3
+    print('Width:', plate_width)
+    plate_width = min(plate_width, 0.6)
+    plate_height = 0.005
+
+    other_arm = get_other_arm(arm)
+    initial_conf = arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED)
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    bi_panda = create_bi_panda_with_gripper()
+    set_joint_force_limits(bi_panda, arm)
+    set_arm_conf(bi_panda, arm, initial_conf)
+    open_arm(bi_panda, arm)
+    set_arm_conf(bi_panda, other_arm, TOP_HOLDING_LEFT_ARM_CENTERED)
+
+    open_arm(bi_panda, other_arm)
+
+    #left finger joint
+    l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
+    #right finger joint
+    l_right_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint2')
+    set_joint_position(bi_panda, l_right_finger_joint,block_width+.01)
+    set_joint_position(bi_panda, l_left_finger_joint, block_width+.01)
+
+    #left finger joint
+    r_left_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint1')
+    #right finger joint
+    r_right_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint2')
+    set_joint_position(bi_panda, r_right_finger_joint,block_width+.01)
+    set_joint_position(bi_panda, r_left_finger_joint, block_width+.01)
+
+    table1 = create_table(length=1.5, height=0.5, width = 0.3)
+    set_point(table1, point=Point(0.45, 0, 0))
+    table2 = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table2, point=Point(-0.45, .65, 0))
+
+
+    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
+    plate_z = stable_z(plate, table2)
+    p = get_point(table2)
+    set_point(plate, Point(x = p[0], y = p[1], z=plate_z))
+    surfaces = [table1, table2, plate]
+
+    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
+    initial_surfaces = {block: table1 for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+    enable_gravity()
+    return Problem(robot=bi_panda, movable=blocks, arms=[arm, other_arm], grasp_types=[grasp_type], surfaces=surfaces,
+                #    goal_holding=[(arm, plate)],
+                   goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
+
 #######################################################
 
+def bi_manual_place_3t(arm='left', grasp_type='top', num=2):
+    # TODO: packing problem where you have to place in one direction
+    print('in bi_manual_place')
+    base_extent = 5.0
+
+    base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
+    block_width = 0.04
+    block_height = 0.1
+    #block_height = 2*block_width
+    block_area = block_width*block_width
+
+    plate_width = 0.2
+    print('Width:', plate_width)
+    plate_width = min(plate_width, 0.6)
+    plate_height = 0.005
+
+    other_arm = get_other_arm(arm)
+    initial_conf = arm_conf(other_arm, TOP_HOLDING_LEFT_ARM_CENTERED)
+    add_data_path()
+    floor = load_pybullet("plane.urdf")
+    bi_panda = create_bi_panda_with_gripper()
+    set_joint_force_limits(bi_panda, arm)
+    set_arm_conf(bi_panda, arm, initial_conf)
+    open_arm(bi_panda, arm)
+    set_arm_conf(bi_panda, other_arm, TOP_HOLDING_LEFT_ARM_CENTERED)
+
+    open_arm(bi_panda, other_arm)
+
+    #left finger joint
+    l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
+    #right finger joint
+    l_right_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint2')
+    set_joint_position(bi_panda, l_right_finger_joint,block_width+.01)
+    set_joint_position(bi_panda, l_left_finger_joint, block_width+.01)
+
+    #left finger joint
+    r_left_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint1')
+    #right finger joint
+    r_right_finger_joint = joint_from_name(bi_panda, 'r_panda_finger_joint2')
+    set_joint_position(bi_panda, r_right_finger_joint,block_width+.01)
+    set_joint_position(bi_panda, r_left_finger_joint, block_width+.01)
+
+    table1 = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table1, point=Point(0.45,-.65, 0))
+    table2 = create_table(length=0.4, height=0.5, width = 0.3)
+    table3 = create_table(length=0.4, height=0.5, width = 0.3)
+    set_point(table3, point=Point(-0.45, .65, 0))
+
+
+    plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
+    plate_z = stable_z(plate, table3)
+    p = get_point(table3)
+    set_point(plate, Point(x = p[0], y = p[1], z=plate_z))
+    surfaces = [table1, table2, table3, plate]
+
+    blocks = [create_cylinder(block_width/2, block_height, color=BLUE) for _ in range(num)]
+    initial_surfaces = {block: table1 for block in blocks}
+
+    min_distances = {block: 0.05 for block in blocks}
+    sample_placements(initial_surfaces, min_distances=min_distances)
+    enable_gravity()
+    return Problem(robot=bi_panda, movable=blocks, arms=[arm, other_arm], grasp_types=[grasp_type], surfaces=surfaces,
+                #    goal_holding=[(arm, plate)],
+                   goal_on=[(block, plate) for block in blocks], base_limits=base_limits)
+
+######################################################
 def packed(arm='left', grasp_type='top', num=2):
     # TODO: packing problem where you have to place in one direction
     print('in packed')
@@ -409,7 +609,9 @@ PROBLEMS = [
     packed,
     blocked,
     arm_strain,
-    bi_manual_place,
+    bi_manual_place_3t,
+    bi_manual_place_2t,
     bi_manual_forceful,
+    bi_manual_forceful_base,
     bi_manual_forceful_bin
 ]
