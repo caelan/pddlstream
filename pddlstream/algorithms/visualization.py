@@ -64,7 +64,7 @@ def load_plan_log():
 
 def log_failed_streams(name, args):
     json_file, plan_log = load_plan_log()
-    if plan_log is not None:
+    if plan_log is not None and len(plan_log) > 0:
         streams = plan_log[-1]
         streams.append({
             'name': name, 'args': [str(n) for n in args]
