@@ -16,7 +16,7 @@ from pddlstream.algorithms.scheduling.plan_streams import OptSolution
 from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
-    has_pygraphviz, log_plans, log_actions
+    has_pygraphviz, log_plans, log_actions, set_visualizations_false
 from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE, str_from_action
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import Function, Predicate
@@ -75,7 +75,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                   initial_complexity=0, complexity_step=1, max_complexity=INF,
                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
-                  visualize=False, verbose=True, **search_kwargs):
+                  visualize=False, verbose=True, fc=None, **search_kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
@@ -139,6 +139,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         print('\n\n\n\nWarning, visualize=True requires pygraphviz. Setting visualize=False\n\n\n\n')
     if visualize:
         reset_visualizations()
+    else:
+        set_visualizations_false()
+
     streams, functions, negative, optimizers = partition_externals(externals, verbose=verbose)
     eager_externals = list(filter(lambda e: e.info.eager, externals))
     positive_externals = streams + functions + optimizers
@@ -223,7 +226,13 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
             get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
         if is_plan(stream_plan):
-            ## TODO: here for skipping skeleton refinement
+            ## TODO: check plan feasibility here
+            if fc is not None:
+                if not fc.check():
+                    complexity_limit += complexity_step
+                    print('Skip planning according to oracle: increasing complexity from {} to {}\n'.format(
+                        complexity_limit, complexity_limit + complexity_step))
+                    continue
             if visualize:
                 log_actions(stream_plan, action_plan, num_iterations)
                 # log_plans(stream_plan, action_plan, num_iterations)
@@ -234,7 +243,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
             break
-        if not is_plan(stream_plan):
+
+        ## skipping skeleton refinement
+        if not is_plan(stream_plan): ##  or (is_plan(stream_plan) and fc is not None and not fc.check()):
             print('No plan: increasing complexity from {} to {}'.format(complexity_limit, complexity_limit+complexity_step))
             complexity_limit += complexity_step
             if not eager_disabled:

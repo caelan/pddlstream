@@ -44,12 +44,20 @@ def has_pygraphviz():
         return False
     return True
 
+
 def reset_visualizations():
     clear_dir(VISUALIZATIONS_DIR)
     ensure_dir(CONSTRAINT_NETWORK_DIR)
     ensure_dir(STREAM_PLAN_DIR)
 
+VISUALIZE = True
+def set_visualizations_false():
+    global VISUALIZE
+    VISUALIZE = False
+
+
 def load_plan_log():
+    if not VISUALIZE: return
     import json
     json_file = os.path.join(VISUALIZATIONS_DIR, 'log.json')
     plans = None
@@ -62,7 +70,9 @@ def load_plan_log():
             plans = []
     return json_file, plans
 
+
 def log_failed_streams(name, args):
+    if not VISUALIZE: return
     json_file, plan_log = load_plan_log()
     if plan_log is not None and len(plan_log) > 0:
         streams = plan_log[-1]
@@ -75,6 +85,7 @@ def log_failed_streams(name, args):
         dump_json(plan_log, json_file, sort_dicts=False)
 
 def log_actions(stream_plan, action_plan, iteration):
+    if not VISUALIZE: return
     json_file, plans = load_plan_log()
 
     actions = []
