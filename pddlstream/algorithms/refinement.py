@@ -195,7 +195,7 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     start_time = time.time()
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
     num_iterations = 0
-    timeout = 5 * 60
+    timeout = 2 * 60
     # last_result = None
     while True:
         num_iterations += 1
@@ -216,7 +216,9 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
         if is_plan(action_plan):
             return OptSolution(stream_plan, action_plan, cost)
 
-        if final_depth == 0: ## or (time.time() - start_time > timeout):
+        if final_depth == 0 or (time.time() - start_time > timeout):
+            if (time.time() - start_time > timeout):
+                print(f'iterative_plan_streams.timeout = {timeout}')
             status = INFEASIBLE if exhausted else FAILED
             return OptSolution(status, status, cost)
 

@@ -153,6 +153,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
     timeout = 20*60 ## before Apr 5
     timeout = 10*60
+    timeout = 2*60  ## on Jul 26
     start_time = time.time()
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
