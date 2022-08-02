@@ -17,8 +17,23 @@ EPSILON = 1e-6
 # Can also include the overhead to process skeletons
 
 Stats = namedtuple('Stats', ['p_success', 'overhead'])
-from pybullet_tools.logging import myprint as print
 
+TXT_FILE = os.path.abspath('txt_file.txt')
+
+def myprint(text='', *kwargs):
+    # from pybullet_tools.logging import myprint as print
+    string = [str(text)]
+    if len(kwargs) > 0:
+        print(text, kwargs)
+        string.extend([str(n) for n in kwargs])
+    else:
+        print(text)
+    string = ' '.join(string)+'\n'
+    string = string.replace('\t', '    ')
+    with open(TXT_FILE, 'a+') as f:
+        f.writelines(string)
+
+print = myprint
 
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
