@@ -58,7 +58,8 @@ def apply_sas_operator(init, op):
 
 
 def name_from_action(action, args):
-    return '({})'.format(' '.join((action,) + args))
+    # TODO: need double parenthesis?
+    return '(({}))'.format(' '.join((action,) + args))
 
 def parse_sas_plan(sas_task, plan):
     op_from_name = {op.name: op for op in sas_task.operators} # No need to keep repeats

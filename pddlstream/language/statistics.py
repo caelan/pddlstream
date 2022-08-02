@@ -33,8 +33,6 @@ def myprint(text='', *kwargs):
     with open(TXT_FILE, 'a+') as f:
         f.writelines(string)
 
-print = myprint
-
 # TODO: ability to "burn in" streams by sampling artificially to get better estimates
 
 def safe_ratio(numerator, denominator, undefined=None):
@@ -77,7 +75,7 @@ def load_data(pddl_name):
     data = read_pickle(filename) # TODO: try/except
     #except pickle.UnpicklingError:
     #return {}
-    #print('Loaded:', filename)
+    #myprint('Loaded:', filename)
     return data
 
 def load_stream_statistics(externals):
@@ -93,17 +91,17 @@ def load_stream_statistics(externals):
 ##################################################
 
 def dump_online_statistics(externals):
-    print('\nLocal External Statistics')
+    myprint('\nLocal External Statistics')
     overall_calls = 0
     overall_overhead = 0
     for external in externals:
         external.dump_online()
         overall_calls += external.online_calls
         overall_overhead += external.online_overhead
-    print('Overall calls: {} | Overall overhead: {:.3f}'.format(overall_calls, overall_overhead))
+    myprint('Overall calls: {} | Overall overhead: {:.3f}'.format(overall_calls, overall_overhead))
 
 def dump_total_statistics(externals):
-    print('\nTotal External Statistics')
+    myprint('\nTotal External Statistics')
     for external in externals:
         external.dump_total()
         # , external.get_effort()) #, data[external.name])
@@ -119,7 +117,7 @@ def merge_data(external, previous_data):
         if instance.results_history:
             # attempts = len(instance.results_history)
             # successes = sum(map(bool, instance.results_history))
-            # print(instance, successes, attempts)
+            # myprint(instance, successes, attempts)
             # TODO: also first attempt, first success
             last_success = -1
             for i, results in enumerate(instance.results_history):
@@ -128,8 +126,8 @@ def merge_data(external, previous_data):
                     # successful = (0 <= last_success)
                     last_success = i
     combined_distribution = previous_data.get('distribution', []) + distribution
-    # print(external, distribution)
-    # print(external, Counter(combined_distribution))
+    # myprint(external, distribution)
+    # myprint(external, Counter(combined_distribution))
     # TODO: count num failures as well
     # Alternatively, keep metrics on the lower bound and use somehow
     # Could assume that it is some other distribution beyond that point
@@ -167,7 +165,7 @@ def write_stream_statistics(externals, verbose):
     ensure_dir(filename)
     write_pickle(filename, data)
     if verbose:
-        print('Wrote:', filename)
+        myprint('Wrote:', filename)
 
 ##################################################
 
@@ -261,12 +259,12 @@ class Performance(object):
         sign = -1 if negate else +1
         return Stats(p_success=self.get_p_success(), overhead=sign * self.get_overhead())
     def dump_total(self):
-        print('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
+        myprint('External: {} | n: {:d} | p_success: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.total_calls, self._estimate_p_success(), self._estimate_overhead()))
     def dump_online(self):
         if not self.online_calls:
             return
-        print('External: {} | n: {:d} | p_success: {:.3f} | mean overhead: {:.3f} | overhead: {:.3f}'.format(
+        myprint('External: {} | n: {:d} | p_success: {:.3f} | mean overhead: {:.3f} | overhead: {:.3f}'.format(
             self.name, self.online_calls,
             safe_ratio(self.online_successes, self.online_calls),
             safe_ratio(self.online_overhead, self.online_calls),
