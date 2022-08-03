@@ -80,7 +80,6 @@ def get_cfree_traj_pose_test(robot, collisions=True):
                 #     continue
                 if pairwise_collision(b1, b2):
                     #wait_for_user()
-                    print("in collision: ", b1,b2)
                     return False
             if pairwise_collision(robot, b2):
                 print("in collision with robot")

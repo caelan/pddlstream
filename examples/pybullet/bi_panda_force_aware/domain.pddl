@@ -73,18 +73,12 @@
                        (not (UnsafePose ?o ?p))
                        (not (UnsafeApproach ?o ?p ?g))
                        (not (UnsafeATraj ?t))
-                       (TorqueLimitsNotExceded ?a)
                   )
     :effect (and (AtPose ?o ?p) (HandEmpty ?a) (CanMove)
                  (not (AtGrasp ?a ?o ?g))
                  (increase (total-cost) (PlaceCost)))
   )
 
-  (:action reconfigure
-      :parameters (?a ?q1 ?q2)
-      :precondition (and (not (TorqueLimitsNotExceded ?a)) (AtAConf ?a ?q1))
-      :effect (and (TorqueLimitsNotExceded ?a) (AtAConf ?a ?q2) (increase (total-cost) (ReconfigureCost)))
-  )
   (:action clean
     :parameters (?o ?r)
     :precondition (and (Stackable ?o ?r) (Type ?r @sink) ; (Sink ?r)

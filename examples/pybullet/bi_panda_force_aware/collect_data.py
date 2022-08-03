@@ -6,7 +6,7 @@ from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_po
     get_cfree_traj_grasp_pose_test, distance_fn
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
-    get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, get_sample_stable_holding_conf_gen, \
+    get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, \
     get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, get_objects_on_target
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
     get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
@@ -121,6 +121,16 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
     }
     if (name == 'bi_manual_forceful' or name == 'bi_manual_forceful_bin'):
         stream_map['sample-pose'] =  from_gen_fn(get_stable_gen(problem, collisions=collisions))
+        stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
+                                                            collisions=collisions, teleport=teleport))
+        stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_not_exceded_test(problem))
+    elif name == 'bi_manual_forceful_ip':
+        stream_map['sample-pose'] =  from_gen_fn(get_stable_gen(problem, collisions=collisions))
+        stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen_no_reconfig(problem, custom_limits=custom_limits,
+                                                            collisions=collisions, teleport=teleport))
+        stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_mock_test(problem))
+    elif name == 'bi_manual_forceful_reconfig':
+        stream_map['sample-pose'] =  from_gen_fn(get_stable_gen_dumb(problem, collisions=collisions))
         stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
                                                             collisions=collisions, teleport=teleport))
         stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_not_exceded_test(problem))
@@ -323,7 +333,7 @@ def main(verbose=True):
       if args.simulate:
           control_commands(commands)
       else:
-          time_step = None if args.teleport else 0.01
+          time_step = None if args.teleport else 0.005
           apply_commands(State(), commands, time_step)
 
       jointPos = get_joint_positions(problem.robot, jointNums)
@@ -336,12 +346,13 @@ def main(verbose=True):
       solved = True
       mass = get_mass(problem.movable[0])
 
-      print(total_time, exec_time, items, deliveries, mass)
+      print(total_time, exec_time*2, items, deliveries, mass)
       data = [total_time, exec_time, solved, items, deliveries, mass]
       with open(datafile, 'a') as file:
         writer = csv.writer(file)
         writer.writerow(data)
       p.setRealTimeSimulation(True)
+      time.sleep(2)
       disconnect()
 
 if __name__ == '__main__':

@@ -6,10 +6,10 @@ from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_po
     get_cfree_traj_grasp_pose_test, distance_fn
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
-    get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, get_sample_stable_holding_conf_gen, \
-    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig
+    get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, \
+    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, hack_table_place
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
-    get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
+    get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET, PLATE_GRASP_LEFT_ARM
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point
 from examples.pybullet.namo.stream import get_custom_limits
@@ -24,12 +24,12 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import apply_commands, State
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, joint_from_name
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, joint_from_name, is_pose_on_r, body_from_name
 
 from examples.pybullet.bi_panda.problems import PROBLEMS
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
     get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
-    get_gripper_joints, GripperCommand, apply_commands, State
+    get_gripper_joints, GripperCommand, apply_commands, State, FixObj
 
 import pybullet as p
 
@@ -122,6 +122,16 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
         stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
                                                             collisions=collisions, teleport=teleport))
         stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_not_exceded_test(problem))
+    elif name == 'bi_manual_forceful_ip':
+        stream_map['sample-pose'] =  from_gen_fn(get_stable_gen(problem, collisions=collisions))
+        stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen_no_reconfig(problem, custom_limits=custom_limits,
+                                                            collisions=collisions, teleport=teleport))
+        stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_mock_test(problem))
+    elif name == 'bi_manual_forceful_reconfig':
+        stream_map['sample-pose'] =  from_gen_fn(get_stable_gen_dumb(problem, collisions=collisions))
+        stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
+                                                            collisions=collisions, teleport=teleport))
+        stream_map['test_torque_limits_not_exceded'] = from_test(get_torque_limits_not_exceded_test(problem))
     else:
         stream_map['sample-pose'] =  from_gen_fn(get_stable_gen_dumb(problem, collisions=collisions))
         stream_map["inverse-kinematics"] = from_gen_fn(get_ik_ir_gen_no_reconfig(problem, custom_limits=custom_limits,
@@ -154,7 +164,7 @@ def post_process(problem, plan, teleport=False):
                 [t2] = trajs
                 new_commands = [t2, close_gripper, attach, t2.reverse()]
         elif name == 'place':
-            a, b, p, g, _, c, _ = args
+            a, b, p, g, _, c, r = args
             trajectories = c.commands
             gripper_joint = get_gripper_joints(problem.robot, a)[0]
             position = 0.05
@@ -257,7 +267,7 @@ def main(verbose=True):
     search_sample_ratio = 2
     max_planner_time = 20
     # effort_weight = 0 if args.optimal else 1
-    effort_weight = 1e-3 if args.optimal else 1
+    effort_weight = 1e-3 if args.optimal else .1
 
     with Profiler(field='tottime', num=25): # cumtime | tottime
         with LockRenderer(lock=not args.enable):
@@ -268,7 +278,6 @@ def main(verbose=True):
                              unit_efforts=True, effort_weight=effort_weight,
                              search_sample_ratio=search_sample_ratio)
             saver.restore()
-
 
     cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
     for i, (cost, runtime) in enumerate(cost_over_time):
@@ -284,23 +293,29 @@ def main(verbose=True):
         problem.remove_gripper()
         commands = post_process(problem, plan, teleport=args.teleport)
         saver.restore()
-    p.setRealTimeSimulation(True)
+
 
     jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
+
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
-    jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
+    # jointPos = get_joint_positions(problem.robot, jointNums)
+    # set_joint_positions_torque(problem.robot, jointNums, jointPos)
+    set_joint_positions_torque(problem.robot, jointNums, PLATE_GRASP_LEFT_ARM)
+
     wait_for_user()
+    state = State()
+    p.setRealTimeSimulation(True)
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if args.teleport else 0.01
-        apply_commands(State(), commands, time_step)
+        time_step = None if args.teleport else .01
+        state = apply_commands(state, commands, time_step)
 
     jointPos = get_joint_positions(problem.robot, jointNums)
-    set_joint_positions_torque(problem.robot, jointNums, jointPos)
-    p.setRealTimeSimulation(True)
+    # set_joint_positions_torque(problem.robot, jointNums, jointPos)
+
+    # p.setRealTimeSimulation(True)
+    hack_table_place(problem, state)
     while True:
         continue
     disconnect()
