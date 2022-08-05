@@ -196,6 +196,7 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     complexity_evals = {e: n for e, n in all_evaluations.items() if n.complexity <= complexity_limit}
     num_iterations = 0
     timeout = 2 * 60
+    timeout = 5 * 60
     # last_result = None
     while True:
         num_iterations += 1
