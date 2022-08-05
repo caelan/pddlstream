@@ -235,9 +235,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                     continue
             if visualize:
                 log_actions(stream_plan, action_plan, num_iterations)
-                # log_plans(stream_plan, action_plan, num_iterations)
 
-                create_visualizations(evaluations, stream_plan, num_iterations)
+                # create_visualizations(evaluations, stream_plan, num_iterations)
 
         ################
 
