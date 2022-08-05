@@ -66,6 +66,8 @@ def parse_sas_plan(sas_task, plan):
     sas_plan = []
     for action, args in plan:
         name = name_from_action(action, args)
+        if name not in op_from_name:
+            return None
         sas_plan.append(op_from_name[name])
     return sas_plan
 
