@@ -11,7 +11,7 @@ from examples.pybullet.utils.pybullet_tools.panda_utils import get_other_arm, ge
 from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_placement, pairwise_collision, \
     add_data_path, load_pybullet, set_point, Point, create_box, stable_z, joint_from_name, get_point, wait_for_user,\
     RED, GREEN, BLUE, BLACK, WHITE, BROWN, TAN, GREY, create_cylinder, enable_gravity, link_from_name, get_link_pose, \
-    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, set_euler, set_joint_positions_torque, BIN_URDF, TARGET
+    Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, set_euler, set_joint_positions_torque, BIN_URDF, TARGET, add_fixed_constraint
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import set_joint_force_limits
 
 import pybullet as p
@@ -88,6 +88,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_pose(tray, pose)
     table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
     set_point(table2, point=Point(0, 2, 0))
+    add_fixed_constraint(table2, floor)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
     gripper_link = get_gripper_link(bi_panda, arm)
