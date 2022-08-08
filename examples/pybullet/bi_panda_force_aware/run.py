@@ -24,7 +24,7 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo, DEBUG
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import apply_commands, State
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, joint_from_name, is_pose_on_r, body_from_name
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, has_gui, str_from_object, joint_from_name, is_pose_on_r, body_from_name, remove_fixed_constraint
 
 from examples.pybullet.bi_panda.problems import PROBLEMS
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
@@ -56,8 +56,8 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
     init = [
         ('BConf', initial_bq),
         ('AtBConf', initial_bq),
-        Equal(('PickCost',), 1),
-        Equal(('PlaceCost',), 1),
+        Equal(('PickCost',), 5),
+        Equal(('PlaceCost',), 5),
         Equal(('ReconfigureCost',), 1),
     ] + [('Sink', s) for s in problem.sinks] + \
            [('Stove', s) for s in problem.stoves] + \
@@ -219,9 +219,6 @@ def main(verbose=True):
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
-    if args.problem == "bi_manual_forceful_bin":
-        global TARGET
-        TARGET = "bin"
     problem_fn = problem_fn_from_name[args.problem]
     print('problem fn loaded')
     connect(use_gui=True)
@@ -308,6 +305,9 @@ def main(verbose=True):
     if args.simulate:
         control_commands(commands)
     else:
+        for body in problem.movable:
+            remove_fixed_constraint(body, body_from_name(TARGET), -1)
+
         time_step = None if args.teleport else .01
         state = apply_commands(state, commands, time_step)
 

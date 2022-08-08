@@ -84,10 +84,10 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     tray = load_pybullet(TRAY_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0], hand_pose[0][1] - (tray_width / 2) - 0.062, hand_pose[0][2]), euler=(0,0,math.pi/2))
     set_pose(tray, pose)
-    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
-    set_point(table2, point=Point(0, 2, 0))
+    table2 = create_table(length=0.5, height=pose[0][2] - 0.2, width = 0.7)
+    set_point(table2, point=Point(0, 1.9, 0))
     add_fixed_constraint(table2, floor)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
@@ -95,10 +95,9 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     gripper_pose = get_link_pose(bi_panda, gripper_link)
     control_commands([attach])
     surfaces = [table]
-
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
     for block in blocks:
-        p.changeDynamics(block, -1, rollingFriction=2, lateralFriction=2, spinningFriction=2)
+        p.changeDynamics(block, -1, rollingFriction=1, lateralFriction=1, spinningFriction=1)
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
@@ -149,9 +148,10 @@ def bi_manual_forceful_bin(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     binB = load_pybullet(BIN_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((bin_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] - .075 + ((bin_width / 2) *math.sin(initial_conf[0])), hand_pose[0][2]- .05), euler=(0,0,initial_conf[0]))
-    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
+    pose=Pose(point=(hand_pose[0][0], hand_pose[0][1] - (bin_width / 2) - 0.062, hand_pose[0][2]), euler=(0,0,math.pi/2))
+    table2 = create_table(length=0.5, height=pose[0][2] - 0.2, width = 0.7)
     set_point(table2, point=Point(0, 2, 0))
+    add_fixed_constraint(table2, floor)
     set_pose(binB, pose)
     grasp = Grasp('top', binB, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, binB)#Attach(bi_panda, arm, grasp, plate)
@@ -162,6 +162,8 @@ def bi_manual_forceful_bin(arm='left', grasp_type='top', num=2):
     surfaces = [table]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
+    for block in blocks:
+        p.changeDynamics(block, -1, rollingFriction=1, lateralFriction=1, spinningFriction=1)
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
@@ -219,10 +221,11 @@ def bi_manual_forceful_base(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     tray = load_pybullet(TRAY_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.0005)*math.cos(initial_conf[0])), hand_pose[0][1] - (((tray_width / 2) + 0.062)), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0], hand_pose[0][1] - (tray_width / 2) - 0.062, hand_pose[0][2]), euler=(0,0,math.pi/2))
     set_pose(tray, pose)
-    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
+    table2 = create_table(length=0.5, height=pose[0][2] - 0.2, width = 0.7)
     set_point(table2, point=Point(0, 2, 0))
+    add_fixed_constraint(table2, floor)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
 
@@ -230,6 +233,8 @@ def bi_manual_forceful_base(arm='left', grasp_type='top', num=2):
     surfaces = [table]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
+    for block in blocks:
+        p.changeDynamics(block, -1, rollingFriction=1, lateralFriction=1, spinningFriction=1)
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
@@ -269,8 +274,7 @@ def bi_manual_forceful_ip(arm='left', grasp_type='top', num=2):
 
     table = create_table(length=0.4, height=0.35, width = 0.3)
     set_point(table, point=Point(0.45,-.65, 0))
-    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
-    set_point(table2, point=Point(0, 2, 0))
+    
     l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
     # #left finger joint
     # l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
@@ -287,17 +291,22 @@ def bi_manual_forceful_ip(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     tray = load_pybullet(TRAY_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0], hand_pose[0][1] - (tray_width / 2) - 0.062, hand_pose[0][2]), euler=(0,0,math.pi/2))
     set_pose(tray, pose)
-    gripper_link = get_gri
+    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.7)
+    set_point(table2, point=Point(0, 2, 0))
+    add_fixed_constraint(table2, floor)
     grasp = Grasp('top', tray, pose, [], [])
 
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
-
+    gripper_link = get_gripper_link(bi_panda, arm)
+    gripper_pose = get_link_pose(bi_panda, gripper_link)
     control_commands([attach])
     surfaces = [table]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
+    for block in blocks:
+        p.changeDynamics(block, -1, rollingFriction=1, lateralFriction=1, spinningFriction=1)
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}
@@ -337,8 +346,7 @@ def bi_manual_forceful_reconfig(arm='left', grasp_type='top', num=2):
 
     table = create_table(length=0.4, height=0.5, width = 0.3)
     set_point(table, point=Point(0.45,-.65, 0))
-    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
-    set_point(table2, point=Point(0, 2, 0))
+    
     l_hand_link = link_from_name(bi_panda, 'l_panda_hand')
     # #left finger joint
     # l_left_finger_joint = joint_from_name(bi_panda, 'l_panda_finger_joint1')
@@ -359,11 +367,17 @@ def bi_manual_forceful_reconfig(arm='left', grasp_type='top', num=2):
     set_pose(tray, pose)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
-
+    gripper_link = get_gripper_link(bi_panda, arm)
+    gripper_pose = get_link_pose(bi_panda, gripper_link)
+    table2 = create_table(length=0.5, height=pose[0][2] - 0.1, width = 0.6)
+    set_point(table2, point=Point(0, 2, 0))
+    add_fixed_constraint(table2, floor)
     control_commands([attach])
     surfaces = [table]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
+    for block in blocks:
+        p.changeDynamics(block, -1, rollingFriction=1, lateralFriction=1, spinningFriction=1)
     initial_surfaces = {block: table for block in blocks}
 
     min_distances = {block: 0.05 for block in blocks}

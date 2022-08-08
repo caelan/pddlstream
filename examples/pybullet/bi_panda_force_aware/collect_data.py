@@ -7,11 +7,12 @@ from examples.pybullet.bi_panda_force_aware.streams import get_cfree_approach_po
 
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Conf, get_ik_ir_gen, \
     get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, \
-    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, get_objects_on_target
+    get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, get_objects_on_target, hack_table_place
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
     get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
-    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point, get_mass
+    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point,\
+    get_mass, is_b1_on_b2, body_from_name, remove_fixed_constraint
 from examples.pybullet.namo.stream import get_custom_limits
 
 from pddlstream.algorithms.meta import create_parser, solve
@@ -58,8 +59,8 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
     init = [
         ('BConf', initial_bq),
         ('AtBConf', initial_bq),
-        Equal(('PickCost',), 1),
-        Equal(('PlaceCost',), 1),
+        Equal(('PickCost',), 5),
+        Equal(('PlaceCost',), 5),
         Equal(('ReconfigureCost',), 1),
     ] + [('Sink', s) for s in problem.sinks] + \
            [('Stove', s) for s in problem.stoves] + \
@@ -145,8 +146,9 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
 
 #######################################################
 def post_process(problem, plan, teleport=False):
+    reconfig_count = 0
     if plan is None:
-        return None
+        return None, reconfig_count
     commands = []
     for i, (name, args) in enumerate(plan):
         if name == 'move_base':
@@ -160,6 +162,7 @@ def post_process(problem, plan, teleport=False):
             if len(trajs) == 2:
                 print("reconfig present")
                 [t1, t2] = trajs
+                reconfig_count += 1
                 new_commands = [t1, t2, close_gripper, attach, t2.reverse()]
             else:
                 print("no reconfig")
@@ -175,6 +178,7 @@ def post_process(problem, plan, teleport=False):
             if len(trajectories) == 2:
                 print("reconfig present")
                 [t1, t2] = c.commands
+                reconfig_count+=1
                 new_commands = [t1, t2, detach, open_gripper, t2.reverse()]
             else:
                 print("no reconfig")
@@ -198,9 +202,9 @@ def post_process(problem, plan, teleport=False):
             raise ValueError(name)
         print(i, name, args, new_commands)
         commands += new_commands
-    return commands
+    return commands, reconfig_count
 
-data_dir = '/home/liam/exp_data/'
+data_dir = '/home/liam/exp_data_cfg2/'
 
 def main(verbose=True):
     # TODO: could work just on postprocessing
@@ -210,8 +214,8 @@ def main(verbose=True):
 
     parser = create_parser()
     parser.add_argument('-problem', default='bi_manual_forceful', help='The name of the problem to solve')
-    parser.add_argument('-loops', default=1, type=int, help='The number of itterations to run experiment')
-    parser.add_argument('-n', '--number', default=5, type=int, help='The number of objects')
+    parser.add_argument('-loops', default=3, type=int, help='The number of itterations to run experiment')
+    parser.add_argument('-n', '--number', default=6, type=int, help='The number of objects')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
@@ -226,7 +230,7 @@ def main(verbose=True):
     timestamp = str(datetime.datetime.now())
     timestamp = "{}_{}".format(timestamp.split(' ')[0], timestamp.split(' ')[1])
     datafile = data_dir + timestamp + "_" + args.problem + '.csv'
-    data = ["TotalTime", "ExecutionTime", "Solved", "TotalItems", "SuccessfulDeliveries", "Mass per Object"]
+    data = ["TotalTime", "ExecutionTime", "Solved", "TotalItems", "NumReconfigs", "SuccessfulDeliveries", "TrayDelivered", "MassPerObject"]
     with open(datafile, 'w') as file:
         writer = csv.writer(file)
         writer.writerow(data)
@@ -235,9 +239,7 @@ def main(verbose=True):
     problem_fn_from_name = {fn.__name__: fn for fn in PROBLEMS}
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
-    if args.problem == "bi_manual_forceful_bin":
-        global TARGET
-        TARGET = "bin"
+
     problem_fn = problem_fn_from_name[args.problem]
     print('problem fn loaded')
     for _ in range(args.loops):
@@ -309,9 +311,11 @@ def main(verbose=True):
         items = args.number
         deliveries = 0
         solved = False
+        trayDelivered = False
+        reconfig_count = 0
 
-        print(total_time, exec_time, solved, items, deliveries)
-        data = [total_time, exec_time, solved, items, deliveries]
+        print(total_time, exec_time, solved, reconfig_count, items, deliveries)
+        data = [total_time, exec_time, solved, items, trayDelivered, deliveries]
         with open(datafile, 'a') as file:
             writer = csv.writer(file)
             writer.writerow(data)
@@ -320,7 +324,7 @@ def main(verbose=True):
 
       with LockRenderer(lock=not args.enable):
           problem.remove_gripper()
-          commands = post_process(problem, plan, teleport=args.teleport)
+          commands, reconfig_count = post_process(problem, plan, teleport=args.teleport)
           saver.restore()
       p.setRealTimeSimulation(True)
 
@@ -330,14 +334,18 @@ def main(verbose=True):
       jointPos = get_joint_positions(problem.robot, jointNums)
       set_joint_positions_torque(problem.robot, jointNums, jointPos)
       exec_time = time.time()
+      state = State()
       if args.simulate:
           control_commands(commands)
       else:
-          time_step = None if args.teleport else 0.005
-          apply_commands(State(), commands, time_step)
+        for body in problem.movable:
+            remove_fixed_constraint(body, body_from_name(TARGET), -1)
+        time_step = None if args.teleport else 0.01
+        state = apply_commands(state, commands, time_step)
 
       jointPos = get_joint_positions(problem.robot, jointNums)
-      set_joint_positions_torque(problem.robot, jointNums, jointPos)
+    #   set_joint_positions_torque(problem.robot, jointNums, jointPos)
+      hack_table_place(problem, state)
 
       total_time = time.time() - start_time
       exec_time = time.time() - exec_time
@@ -345,9 +353,9 @@ def main(verbose=True):
       deliveries = len(get_objects_on_target(problem))
       solved = True
       mass = get_mass(problem.movable[0])
-
+      trayDelivered = is_b1_on_b2(body_from_name(TARGET), problem.post_goal)
       print(total_time, exec_time*2, items, deliveries, mass)
-      data = [total_time, exec_time, solved, items, deliveries, mass]
+      data = [total_time, exec_time, solved, reconfig_count, items, deliveries, trayDelivered, mass]
       with open(datafile, 'a') as file:
         writer = csv.writer(file)
         writer.writerow(data)

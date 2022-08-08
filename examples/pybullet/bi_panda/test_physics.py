@@ -13,9 +13,10 @@ from examples.pybullet.utils.pybullet_tools.utils import get_bodies, sample_plac
     Pose, set_joint_position, TRAY_URDF, set_pose, COKE_URDF, get_max_force, body_from_name, TARGET, is_pose_close, compute_jacobian, euler_from_quat,\
     wait_for_duration
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
-    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, enable_gravity, get_link_pose
+    get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, enable_gravity, get_link_pose, set_joint_positions_torque
 import pybullet as p
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import set_joint_force_limits, Attach, control_commands, Grasp, GripperCommand
+from examples.pybullet.utils.pybullet_tools.ikfast.franka_panda.ik import is_ik_compiled, ikfast_inverse_kinematics, PANDA_LEFT_INFO, bi_panda_inverse_kinematics
 
 def sample_placements(body_surfaces, obstacles=None, min_distances={}):
     if obstacles is None:
@@ -199,6 +200,22 @@ def velocity_control(problem):
     pose = ((pose[0][0], pose[0][1] + 0.001, pose[0][2]), pose[1])
     velocity_move(robot, arm, pose)
 
+def sample_joint_poses(problem):
+    robot = problem.robot
+    jointNums = get_arm_joints(robot, problem.holding_arm)
+    jointPoses = get_joint_positions(robot, jointNums)
+    gripper_link = get_gripper_link(robot, problem.holding_arm)
+    gripper_pose = get_link_pose(robot, gripper_link)
+    gripper_pose = ((gripper_pose[0][0], gripper_pose[0][1]+.025,
+                    gripper_pose[0][2]),problem.gripper_ori)
+    newJointPoses = None
+    repeat_count = 0
+    count = 0
+    while newJointPoses is None  and not is_pose_close(get_link_pose(robot, gripper_link), gripper_pose):
+        count += 1
+        newJointPoses = bi_panda_inverse_kinematics(robot, problem.holding_arm, gripper_link, gripper_pose)
+    set_joint_positions_torque(robot, jointNums, newJointPoses)
+    print(get_joint_positions(robot, jointNums))
 
 
 def main():
@@ -208,7 +225,7 @@ def main():
   with HideOutput():
     problem = bi_manual_forceful()
   p.setRealTimeSimulation(1)
-  velocity_control(problem)
+  sample_joint_poses(problem)
   while True:
     # p.stepSimulation()
     # wait_for_user()
