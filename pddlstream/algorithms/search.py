@@ -58,13 +58,16 @@ def apply_sas_operator(init, op):
 
 
 def name_from_action(action, args):
-    return '({})'.format(' '.join((action,) + args))
+    # TODO: need double parenthesis?
+    return '(({}))'.format(' '.join((action,) + args))
 
 def parse_sas_plan(sas_task, plan):
     op_from_name = {op.name: op for op in sas_task.operators} # No need to keep repeats
     sas_plan = []
     for action, args in plan:
         name = name_from_action(action, args)
+        if name not in op_from_name:
+            return None
         sas_plan.append(op_from_name[name])
     return sas_plan
 
@@ -140,16 +143,23 @@ def prune_hierarchy_pre_eff(sas_task, layers):
     return pruned
 
 
+def add_var(sas_task, domain=2, layer=-1, init_value=0, prefix='value'):
+    # http://www.fast-downward.org/TranslatorOutputFormat
+    subgoal_var = len(sas_task.variables.ranges)
+    sas_task.variables.ranges.append(domain)
+    sas_task.variables.axiom_layers.append(layer)
+    sas_task.variables.value_names.append(
+        ['{}{}'.format(prefix, i) for i in range(domain)])
+    sas_task.init.values.append(init_value)
+    return subgoal_var
+
+
 def add_subgoals(sas_task, subgoal_plan):
     if not subgoal_plan:
         return None
-    subgoal_var = len(sas_task.variables.ranges)
+
     subgoal_range = len(subgoal_plan) + 1
-    sas_task.variables.ranges.append(subgoal_range)
-    sas_task.variables.axiom_layers.append(-1)
-    sas_task.variables.value_names.append(
-        ['subgoal{}'.format(i) for i in range(subgoal_range)])
-    sas_task.init.values.append(0)
+    subgoal_var = add_var(sas_task, domain=subgoal_range, init_value=0, prefix='subgoal')
     sas_task.goal.pairs.append((subgoal_var, subgoal_range - 1))
 
     # TODO: make this a subroutine that depends on the length

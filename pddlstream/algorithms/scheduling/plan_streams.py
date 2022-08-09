@@ -21,6 +21,7 @@ from pddlstream.algorithms.scheduling.stream_action import add_stream_actions
 from pddlstream.algorithms.scheduling.utils import partition_results, \
     add_unsatisfiable_to_goal, get_instance_facts
 from pddlstream.algorithms.search import solve_from_task
+from pddlstream.algorithms.diverse import diverse_from_task
 from pddlstream.algorithms.advanced import UNIVERSAL_TO_CONDITIONAL
 from pddlstream.language.constants import Not, get_prefix, EQ, FAILED, OptPlan, Action
 from pddlstream.language.conversion import obj_from_pddl_plan, evaluation_from_fact, \
@@ -323,7 +324,11 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
+    if True:
+        assert not RENAME_ACTIONS
+        renamed_plan, _ = diverse_from_task(sas_task, debug=debug, **kwargs)
+    else:
+        renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
     if renamed_plan is None:
         return instantiated, None, temporal_plan, INF
 
