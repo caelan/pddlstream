@@ -93,6 +93,8 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
                 forbid_plan(plan)
                 print('Plan: {} | Cost: {} | Length: {} | Runtime: {:.3f}'.format(
                         len(plans), cost, len(plan), elapsed_time(start_time)))
+            if len(plan) == 0:
+                break
 
         if clean:
             safe_rm_dir(temp_dir)

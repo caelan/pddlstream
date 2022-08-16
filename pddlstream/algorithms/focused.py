@@ -24,7 +24,8 @@ from pddlstream.language.optimizer import ComponentStream
 from pddlstream.algorithms.recover_optimizers import combine_optimizers
 from pddlstream.language.statistics import load_stream_statistics, \
     write_stream_statistics, compute_plan_effort
-from pddlstream.language.stream import Stream, StreamResult
+from pddlstream.language.stream import Stream, StreamResult, PartialInputs, StreamInfo
+from pddlstream.language.external import never_defer
 from pddlstream.utils import INF, implies, str_from_object, safe_zip
 
 def get_negative_externals(externals):
@@ -67,9 +68,26 @@ def check_dominated(skeleton_queue, stream_plan):
             print(skeleton.stream_plan)
     raise NotImplementedError()
 
+def set_all_opt_gen_fn(externals, unique=None, verbose=True):
+    # TODO: move to parse_problem?
+    if unique is None:
+        return
+    # from pddlstream.algorithms.meta import set_unique
+    # set_unique(externals)
+    for i, external in enumerate(externals):
+        if isinstance(external, Stream):
+            # TODO: apply only if not in stream_map?
+            #external.info.opt_gen_fn.unique = unique
+            external.info.opt_gen_fn = PartialInputs(unique=unique)
+            external.info.defer_fn = never_defer
+            #external.info = StreamInfo(opt_gen_fn=PartialInputs(unique=unique))
+        if verbose:
+            print(i, external, external.info)
+
 ##################################################
 
-def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
+def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
+                  unique_optimistic=None, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
                   max_time=INF, max_iterations=INF, max_memory=INF,
                   initial_complexity=0, complexity_step=1, max_complexity=INF,
@@ -126,6 +144,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     evaluations, goal_exp, domain, externals = parse_problem(
         problem, stream_info=stream_info, constraints=constraints,
         unit_costs=unit_costs, unit_efforts=unit_efforts)
+    set_all_opt_gen_fn(externals, unique=unique_optimistic)
+
     identify_non_producers(externals)
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)

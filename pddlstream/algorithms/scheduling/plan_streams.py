@@ -39,6 +39,7 @@ from pddlstream.utils import Verbose, INF, topological_sort, get_ancestors
 
 RENAME_ACTIONS = False
 #RENAME_ACTIONS = not USE_FORBID
+DIVERSE_PLANNING = True
 
 OptSolution = namedtuple('OptSolution', ['stream_plan', 'opt_plan', 'cost']) # TODO: move to the below
 #OptSolution = namedtuple('OptSolution', ['stream_plan', 'action_plan', 'cost', 'supporting_facts', 'axiom_plan'])
@@ -324,7 +325,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    if True:
+    if DIVERSE_PLANNING:
         assert not RENAME_ACTIONS
         renamed_plan, _ = diverse_from_task(sas_task, debug=debug, **kwargs)
     else:
@@ -378,8 +379,11 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
         applied_results, negative, deferred_from_name, action_instances)
 
     action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
-    replan_step = min([step+1 for step, action in enumerate(action_plan)
-                       if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
+    if replan_actions is True: # TODO: True or None?
+        replan_step = 0
+    else:
+        replan_step = min([step+1 for step, action in enumerate(action_plan)
+                           if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
 
     stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
         node_from_atom, action_instances, axiom_plans, negative, replan_step)
