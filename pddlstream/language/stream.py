@@ -473,18 +473,8 @@ class Stream(External):
             print('Warning! Output [{}] for stream [{}] is not covered by a certified condition'.format(p, name))
 
         # TODO: automatically switch to unique if only used once
-        self.gen_fn = gen_fn # DEBUG_MODES
-        if gen_fn == DEBUG:
-            self.gen_fn = get_debug_gen_fn(self, shared=False) # TODO: list of abstractions that is considered in turn
-        elif gen_fn == SHARED_DEBUG:
-            self.gen_fn = get_debug_gen_fn(self, shared=True)
-        assert callable(self.gen_fn)
-
-        self.opt_gen_fns = [PartialInputs(unique=True)]
-        if not self.is_test and not self.is_special and not \
-                (isinstance(self.info.opt_gen_fn, PartialInputs) and self.info.opt_gen_fn.unique):
-            self.opt_gen_fns.append(self.info.opt_gen_fn)
-            # self.opt_gen_fns.extend([self.info.opt_gen_fn]*4) ## instead of sampling 2, give four grasp samples
+        self.setup_gen_fns(gen_fn)
+        self.setup_opt_gen_fns(self.info.opt_gen_fn)
 
         if NEGATIVE_BLOCKED:
             self.blocked_predicate = '~{}{}'.format(self.name, NEGATIVE_SUFFIX) # Args are self.inputs
@@ -521,6 +511,19 @@ class Stream(External):
     @property
     def is_function(self):
         return False
+    def setup_gen_fns(self, gen_fn):
+        self.gen_fn = gen_fn # DEBUG_MODES
+        if gen_fn == DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=False) # TODO: list of abstractions that is considered in turn
+        elif gen_fn == SHARED_DEBUG:
+            self.gen_fn = get_debug_gen_fn(self, shared=True)
+        assert callable(self.gen_fn)
+    def setup_opt_gen_fns(self, opt_gen_fn):
+        self.opt_gen_fns = [PartialInputs(unique=True)]
+        if not self.is_test and not self.is_special and not \
+                (isinstance(opt_gen_fn, PartialInputs) and opt_gen_fn.unique):
+            self.opt_gen_fns.append(opt_gen_fn)
+            # self.opt_gen_fns.extend([opt_gen_fn]*4) ## instead of sampling 2, give four grasp samples
     def get_instance(self, input_objects, fluent_facts=frozenset()):
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)

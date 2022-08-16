@@ -300,15 +300,16 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, debug=False, **kwargs):
+                                effort_weight, max_plans=1, debug=False, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
+    solutions = []
     problem = get_problem(opt_evaluations, goal_expression, stream_domain)  # begin_metric
     with Verbose(verbose=debug):
         task = task_from_domain_problem(stream_domain, problem)
         instantiated = instantiate_task(task)
     if instantiated is None:
-        return instantiated, None, temporal_plan, INF
+        return instantiated, solutions
 
     cost_from_action = {action: action.cost for action in instantiated.actions}
     add_stream_efforts(node_from_atom, instantiated, effort_weight)
@@ -325,18 +326,19 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    if DIVERSE_PLANNING:
-        assert not RENAME_ACTIONS
-        renamed_plan, _ = diverse_from_task(sas_task, debug=debug, **kwargs)
+    if max_plans == 1:
+        renamed_plan, renamed_cost = solve_from_task(sas_task, debug=debug, **kwargs)
+        renamed_solutions = [(renamed_plan, renamed_cost)] if renamed_plan is not None else []
     else:
-        renamed_plan, _ = solve_from_task(sas_task, debug=debug, **kwargs)
-    if renamed_plan is None:
-        return instantiated, None, temporal_plan, INF
+        assert not RENAME_ACTIONS
+        renamed_solutions = diverse_from_task(sas_task, max_plans=max_plans, debug=debug, **kwargs)
 
-    action_instances = [action_from_name[name if RENAME_ACTIONS else '({} {})'.format(name, ' '.join(args))]
-                        for name, args in renamed_plan]
-    cost = get_plan_cost(action_instances, cost_from_action)
-    return instantiated, action_instances, temporal_plan, cost
+    for renamed_plan, _ in renamed_solutions:
+        action_instances = [action_from_name[name if RENAME_ACTIONS else '({} {})'.format(name, ' '.join(args))]
+                            for name, args in renamed_plan]
+        cost = get_plan_cost(action_instances, cost_from_action)
+        solutions.append((action_instances, temporal_plan, cost))
+    return instantiated, solutions
 
 ##################################################
 
@@ -366,29 +368,32 @@ def plan_streams(evaluations, goal_expression, domain, all_results, negative, ef
 
     temporal = isinstance(stream_domain, SimplifiedDomain)
     optimistic_fn = solve_optimistic_temporal if temporal else solve_optimistic_sequential
-    instantiated, action_instances, temporal_plan, cost = optimistic_fn(
+    instantiated, solutions = optimistic_fn(
         domain, stream_domain, applied_results, all_results, opt_evaluations,
         node_from_atom, goal_expression, effort_weight, **kwargs)
-    if action_instances is None:
-        return OptSolution(FAILED, FAILED, cost)
 
-    action_instances, axiom_plans = recover_axioms_plans(instantiated, action_instances)
-    # TODO: extract out the minimum set of conditional effects that are actually required
-    #simplify_conditional_effects(instantiated.task, action_instances)
-    stream_plan, action_instances = recover_simultaneous(
-        applied_results, negative, deferred_from_name, action_instances)
+    combined_plans = []
+    for action_instances, temporal_plan, cost in solutions:
+        action_instances, axiom_plans = recover_axioms_plans(instantiated, action_instances)
+        # TODO: extract out the minimum set of conditional effects that are actually required
+        #simplify_conditional_effects(instantiated.task, action_instances)
+        stream_plan, action_instances = recover_simultaneous(
+            applied_results, negative, deferred_from_name, action_instances)
 
-    action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
-    if replan_actions is True: # TODO: True or None?
-        replan_step = 0
-    else:
-        replan_step = min([step+1 for step, action in enumerate(action_plan)
-                           if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
+        action_plan = transform_plan_args(map(pddl_from_instance, action_instances), obj_from_pddl)
+        if replan_actions is True: # TODO: True or None?
+            replan_step = 0
+        elif not replan_actions:
+            replan_step = INF
+        else:
+            replan_step = min([step+1 for step, action in enumerate(action_plan)
+                               if action.name in replan_actions] or [len(action_plan)+1]) # step after action application
 
-    stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
-        node_from_atom, action_instances, axiom_plans, negative, replan_step)
-    if temporal_plan is not None:
-        # TODO: handle deferred streams
-        assert all(isinstance(action, Action) for action in opt_plan.action_plan)
-        opt_plan.action_plan[:] = temporal_plan
-    return OptSolution(stream_plan, opt_plan, cost)
+        stream_plan, opt_plan = recover_stream_plan(evaluations, stream_plan, opt_evaluations, goal_expression, stream_domain,
+            node_from_atom, action_instances, axiom_plans, negative, replan_step)
+        if temporal_plan is not None:
+            # TODO: handle deferred streams
+            assert all(isinstance(action, Action) for action in opt_plan.action_plan)
+            opt_plan.action_plan[:] = temporal_plan
+        combined_plans.append(OptSolution(stream_plan, opt_plan, cost))  # TODO: contains certificate
+    return combined_plans

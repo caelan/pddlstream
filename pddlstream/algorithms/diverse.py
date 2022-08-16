@@ -1,7 +1,5 @@
 from __future__ import print_function
 
-import math
-
 from collections import defaultdict
 from time import time
 
@@ -22,10 +20,10 @@ def get_all_preconditions(sas_action):
 PRIOR_PLANS = [] # TODO: clear between runs
 
 def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
-                      planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_plans=2,
+                      planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_plans=1,
                       hierarchy=[], temp_dir=TEMP_DIR, clean=False, debug=False, **search_args):
     # TODO: make a free version of the sas_action after it's applied
-    # if False:
+    # if max_plans == 1:
     #     return solve_from_task(sas_task, planner=planner, max_planner_time=max_planner_time, max_plans=max_plans,
     #                            temp_dir=temp_dir, clean=clean, debug=debug, hierarchy=hierarchy, **search_args)
     assert prohibit_actions or prohibit_predicates
@@ -73,6 +71,7 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
             sas_task.axioms.append(axiom)
             return axiom
 
+        # TODO: option to not use PRIOR_PLANS
         for plan, _ in PRIOR_PLANS:
             forbid_plan(plan)
 
@@ -104,6 +103,4 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
                 i, cost, len(plan), list(map(str_from_action, plan))))
 
     PRIOR_PLANS.extend(plans)
-    if not plans:
-        return None, INF
-    return plans[0] # TODO: generator version
+    return plans

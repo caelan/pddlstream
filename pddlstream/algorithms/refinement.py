@@ -157,10 +157,11 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn, complexity_limit,
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
-        return OptSolution(None, None, INF), depth
-    stream_plan, opt_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
-    if not is_plan(opt_plan) or is_refined(stream_plan):
-        return OptSolution(stream_plan, opt_plan, cost), depth
+        return [], depth
+    solutions = optimistic_solve_fn(evaluations, results, constraints)
+    if all(is_refined(stream_plan) for stream_plan, _, _ in solutions):
+        return solutions, depth
+
     #action_plan, preimage_facts = opt_plan
     #dump_plans(stream_plan, action_plan, cost)
     #create_visualizations(evaluations, stream_plan, depth)
@@ -177,15 +178,17 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
 
     # TODO: identify control parameters that can be separated across actions
     new_depth = depth + 1
-    new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
+    for stream_plan, _, _ in solutions:
+        new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not (CONSTRAIN_STREAMS or CONSTRAIN_PLANS):
-        return OptSolution(FAILED, FAILED, INF), new_depth
+        return [], new_depth
     #if CONSTRAIN_STREAMS:
     #    next_results = compute_stream_results(evaluations, new_results, externals, complexity_limit, **effort_args)
     #else:
     next_results, _ = optimistic_process_streams(evaluations, externals, complexity_limit, **effort_args)
     next_constraints = None
     if CONSTRAIN_PLANS:
+        raise NotImplementedError()
         next_constraints = compute_skeleton_constraints(opt_plan, bindings)
     return hierarchical_plan_streams(evaluations, externals, next_results, optimistic_solve_fn, complexity_limit,
                                      new_depth, next_constraints, **effort_args)
@@ -208,20 +211,19 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
         #     continue
         # last_result = len(results)
 
-        opt_solution, final_depth = hierarchical_plan_streams(
+        opt_solutions, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
-        stream_plan, action_plan, cost = opt_solution
-        print('Attempt: {} | Results: {} | Depth: {} | Success: {} | Time: {:.3f}'.format(
-            num_iterations, len(results), final_depth, is_plan(action_plan), elapsed_time(start_time)))
-        if is_plan(action_plan):
-            return OptSolution(stream_plan, action_plan, cost)
+        print('Attempt: {} | Results: {} | Depth: {} | Solutions: {} | Time: {:.3f}'.format(
+            num_iterations, len(results), final_depth, len(opt_solutions), elapsed_time(start_time)))
+        if opt_solutions:
+            return opt_solutions
 
         if final_depth == 0 or (time.time() - start_time > timeout):
             if (time.time() - start_time > timeout):
                 print(f'iterative_plan_streams.timeout = {timeout}')
-            status = INFEASIBLE if exhausted else FAILED
-            return OptSolution(status, status, cost)
+            status = INFEASIBLE if exhausted else opt_solutions
+            return status
 
     # TODO: should streams along the sampled path automatically have no optimistic value
 

@@ -8,6 +8,7 @@ from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
+from pddlstream.algorithms.diverse import PRIOR_PLANS
 #from pddlstream.algorithms.downward import has_costs
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
@@ -72,6 +73,7 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
     # TODO: move to parse_problem?
     if unique is None:
         return
+    # from pddlstream.language.stream import DEFAULT_UNIQUE
     # from pddlstream.algorithms.meta import set_unique
     # set_unique(externals)
     for i, external in enumerate(externals):
@@ -81,6 +83,7 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
             external.info.opt_gen_fn = PartialInputs(unique=unique)
             external.info.defer_fn = never_defer
             #external.info = StreamInfo(opt_gen_fn=PartialInputs(unique=unique))
+            external.setup_opt_gen_fns(external.info.opt_gen_fn)
         if verbose:
             print(i, external, external.info)
 
@@ -174,6 +177,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
 
+    PRIOR_PLANS.clear() # TODO(caelan): better way of handling this
     timeout = 20*60 ## before Apr 5
     timeout = 10*60
     timeout = 5*60  ## on Jul 26
@@ -198,101 +202,99 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                                                       max_cost=min(store.best_cost, constraints.max_cost),
                                                       max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand
+        opt_solutions = INFEASIBLE
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
                 domain.axioms.extend(disabled_axioms)
-            stream_plan, opt_plan, cost = iterative_plan_streams(evaluations, positive_externals,
+            opt_solutions = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
-        else:
-            stream_plan, opt_plan, cost = OptSolution(INFEASIBLE, INFEASIBLE, INF) # TODO: apply elsewhere
 
-        ################
+        if opt_solutions is INFEASIBLE:
+            opt_solutions = []
+            if (not eager_instantiator) and (not skeleton_queue) and (not disabled):
+                break
 
-        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
-        stream_plan = combine_optimizers(evaluations, stream_plan)
-        #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
-        #                                       [s for s in synthesizers if not s.post_only])
-        #stream_plan = recover_optimistic_outputs(stream_plan)
-        if reorder:
-            # TODO: this blows up memory wise for long stream plans
-            stream_plan = reorder_stream_plan(store, stream_plan)
-
-        num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
-        action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
-
-        # --------------------------------------
-
-        ## YANG for debugging
-        if isinstance(stream_plan, list):
-            stream_plan_str = ''
-            index = 0
-            for n in stream_plan:
-                index += 1
-                stream_plan_str += f'\n   {index} > ' + str(n)
-        else:
-            stream_plan_str = stream_plan
-
-        if isinstance(action_plan, list):
-            action_plan_str = '\n   ' + '\n   '.join(list(map(str_from_action, action_plan)))
-        else:
-            action_plan_str = 'None'
-
-        # --------------------------------------
-
-        print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}\n'.format(
-            get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
-            get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
-        if is_plan(stream_plan):
-            ## TODO: check plan feasibility here
-            if fc is not None:
-                if not fc.check():
-                    complexity_limit += complexity_step
-                    print('Skip planning according to oracle: increasing complexity from {} to {}\n'.format(
-                        complexity_limit, complexity_limit + complexity_step))
-                    continue
-            if visualize:
-                log_actions(stream_plan, action_plan, num_iterations)
-
-                # create_visualizations(evaluations, stream_plan, num_iterations)
-
-        ################
-
-        if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
-            break
-
-        ## skipping skeleton refinement
-        if not is_plan(stream_plan): ##  or (is_plan(stream_plan) and fc is not None and not fc.check()):
-            print('No plan: increasing complexity from {} to {}'.format(complexity_limit, complexity_limit+complexity_step))
+        if not opt_solutions:
+            print('No plans: increasing complexity from {} to {}'.format(complexity_limit, complexity_limit+complexity_step))
             complexity_limit += complexity_step
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
-        #print(stream_plan_complexity(evaluations, stream_plan))
-        if not use_skeletons:
-            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
-            continue
+        for i, (stream_plan, opt_plan, cost) in enumerate(opt_solutions):
+            #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
+            stream_plan[:] = combine_optimizers(evaluations, stream_plan)
+            #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
+            #                                       [s for s in synthesizers if not s.post_only])
+            #stream_plan = recover_optimistic_outputs(stream_plan)
+            if reorder:
+                # TODO: this blows up memory wise for long stream plans
+                stream_plan[:] = reorder_stream_plan(store, stream_plan)
 
-        ################
+            num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
+            action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
 
-        #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
-        optimizer_plan = None
-        if optimizer_plan is not None:
-            # TODO: post process a bound plan
-            print('Optimizer plan ({}, {:.3f}): {}'.format(
-                get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
-            skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+            # --------------------------------------
 
-        allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
-            if len(skeleton_queue.skeletons) <= max_skeletons else INF
+            ## YANG for debugging
+            if isinstance(stream_plan, list):
+                stream_plan_str = ''
+                index = 0
+                for n in stream_plan:
+                    index += 1
+                    stream_plan_str += f'\n   {index} > ' + str(n)
+            else:
+                stream_plan_str = stream_plan
 
-        # YANG for debugging
-        # allocated_sample_time = 20
-        skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
-        # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
-        #     break
+            if isinstance(action_plan, list):
+                action_plan_str = '\n   ' + '\n   '.join(list(map(str_from_action, action_plan)))
+            else:
+                action_plan_str = 'None'
+
+            # --------------------------------------
+
+            print('{}) Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}\n'.format(i,
+                get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
+                get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
+
+            ## TODO: check plan feasibility here
+            if fc is not None:
+                if not fc.check():
+                    complexity_limit += complexity_step
+                    print('Skip planning according to oracle')
+                    continue
+            if visualize:
+                log_actions(stream_plan, action_plan, num_iterations)
+                # create_visualizations(evaluations, stream_plan, num_iterations)
+
+            ################
+
+            #print(stream_plan_complexity(evaluations, stream_plan))
+            if not use_skeletons:
+                process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
+                continue
+
+            ################
+
+            # TODO(caelan): add all skeletons and process
+            #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
+            optimizer_plan = None
+            if optimizer_plan is not None:
+                # TODO: post process a bound plan
+                print('Optimizer plan ({}, {:.3f}): {}'.format(
+                    get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
+                skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+
+            allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
+                if len(skeleton_queue.skeletons) <= max_skeletons else INF
+
+            # YANG for debugging
+            # allocated_sample_time = 20
+            skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
+            # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
+            #     break
 
         print(f'\n\nfocused.py | time.time() - start_time = {round(time.time() - start_time, 2)} (timeout = {timeout})', )
         if (time.time() - start_time > timeout):

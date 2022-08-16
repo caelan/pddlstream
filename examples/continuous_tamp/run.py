@@ -18,11 +18,11 @@ from pddlstream.algorithms.downward import get_cost_scale
 from pddlstream.algorithms.constraints import PlanConstraints, WILD
 #from pddlstream.algorithms.serialized import solve_serialized
 from pddlstream.algorithms.visualization import VISUALIZATIONS_DIR
-from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound
+from pddlstream.language.external import defer_shared, get_defer_all_unbound, get_defer_any_unbound, never_defer
 from pddlstream.language.constants import And, Equal, PDDLProblem, TOTAL_COST, print_solution, Or, Output
 from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_test, from_fn
-from pddlstream.language.stream import StreamInfo
+from pddlstream.language.stream import StreamInfo, PartialInputs
 from pddlstream.language.temporal import get_end, compute_duration, retime_plan
 from pddlstream.utils import ensure_dir, safe_rm_dir, user_input, read, INF, get_file_path, str_from_object, \
     sorted_str_from_list, implies, inclusive_range, Profiler
@@ -240,6 +240,15 @@ def main():
         #'gurobi': OptimizerInfo(p_success=0),
         #'rrt': OptimizerInfo(p_success=0),
     }
+    stream_info = {
+        # 's-region': StreamInfo(opt_gen_fn=PartialInputs(unique=True)),
+        # 's-grasp': StreamInfo(opt_gen_fn=PartialInputs(unique=True)),
+        # 's-ik': StreamInfo(opt_gen_fn=PartialInputs(unique=True)),
+        # 's-motion': StreamInfo(opt_gen_fn=PartialInputs(unique=True)),
+        # 't-cfree': StreamInfo(opt_gen_fn=PartialInputs(unique=True), eager=False, verbose=False),
+        # 'dist': FunctionInfo(eager=False, opt_fn=lambda q1, q2: MOVE_COST),
+        't-region': StreamInfo(opt_gen_fn=PartialInputs(unique=True), eager=True, p_success=0),
+    }
     #stream_info = {}
 
     hierarchy = [
@@ -254,8 +263,11 @@ def main():
                                   #skeletons=[skeleton, []],
                                   exact=True,
                                   max_cost=max_cost)
-    replan_actions = set()
+
+    replan_actions = False
+    #replan_actions = set()
     #replan_actions = {'move', 'pick', 'place'}
+    unique_optimistic = True
 
     pddlstream_problem = pddlstream_from_tamp(tamp_problem, collisions=not args.cfree,
                                               use_stream=not args.gurobi, use_optimizer=args.gurobi)
@@ -270,8 +282,10 @@ def main():
     #effort_weight = None
 
     with Profiler(field='cumtime', num=20):
-        solution = solve(pddlstream_problem, algorithm=args.algorithm, constraints=constraints, stream_info=stream_info,
-                         replan_actions=replan_actions, planner=planner, max_planner_time=10, hierarchy=hierarchy,
+        solution = solve(pddlstream_problem, algorithm=args.algorithm, constraints=constraints,
+                         stream_info=stream_info, unique_optimistic=unique_optimistic,
+                         replan_actions=replan_actions,
+                         planner=planner, max_planner_time=10, max_plans=5, hierarchy=hierarchy,
                          max_time=args.max_time, max_iterations=INF, debug=False, verbose=True,
                          unit_costs=args.unit, success_cost=success_cost,
                          unit_efforts=True, effort_weight=effort_weight,
