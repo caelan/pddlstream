@@ -1,7 +1,7 @@
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import iterate_approach_path
 from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance, multiply, set_pose, \
     interpolate_poses, invert, wait_if_gui, is_b1_on_b2, get_mass, get_pose, get_COM, get_link_pose, link_from_name, \
-    point_from_pose, TARGET, check_overlap, get_max_force, compute_jacobian, matrix_from_quat
+    point_from_pose, TARGET, check_overlap, get_max_force, compute_jacobian, matrix_from_quat, get_name
 from examples.pybullet.utils.pybullet_tools.panda_utils import BI_PANDA_GROUPS, get_other_arm, PANDA_GRIPPER_ROOTS
 import math
 BASE_CONSTANT = 1
@@ -47,7 +47,7 @@ def get_cfree_obj_approach_pose_test(collisions=True):
 
 def get_cfree_approach_pose_test(problem, collisions=True):
     # TODO: apply this before inverse kinematics as well
-    arm = 'left'
+    arm = 'right'
     gripper = problem.get_gripper()
     def test(b1, p1, g1, b2, p2):
         print("in free approach pose test")
@@ -56,7 +56,10 @@ def get_cfree_approach_pose_test(problem, collisions=True):
         p2.assign()
         for _ in iterate_approach_path(problem.robot, arm, gripper, p1, g1, body=b1):
             if pairwise_collision(b1, b2): #or pairwise_collision(gripper, b2):
+                print(get_name(b1))
+                print(get_name(b2))
                 return False
+        print("passed")
         return True
     return test
 

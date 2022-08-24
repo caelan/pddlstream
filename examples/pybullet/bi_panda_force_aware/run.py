@@ -292,7 +292,7 @@ def main(verbose=True):
         saver.restore()
 
 
-    jointPos = get_joint_positions(problem.robot, jointNums)
+    # jointPos = get_joint_positions(problem.robot, jointNums)
 
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
     # jointPos = get_joint_positions(problem.robot, jointNums)

@@ -133,7 +133,7 @@ def bi_manual_forceful(arm='left', grasp_type='top', num=2):
     set_joint_position(bi_panda, r_left_finger_joint, block_width)
     hand_pose = get_link_pose(bi_panda, l_hand_link)
     tray = load_pybullet(TRAY_URDF)
-    pose=Pose(point=(hand_pose[0][0] + ((tray_width / 2 + 0.001)*math.cos(initial_conf[0])), hand_pose[0][1] + ((tray_width / 2 + 0.07) *math.sin(initial_conf[0])), hand_pose[0][2]), euler=(0,0,initial_conf[0]))
+    pose=Pose(point=(hand_pose[0][0], hand_pose[0][1] - (tray_width / 2) - 0.062, hand_pose[0][2]), euler=(0,0,math.pi/2))
     set_pose(tray, pose)
     grasp = Grasp('top', tray, pose, [], [])
     attach = Attach(bi_panda, arm, grasp, tray)#Attach(bi_panda, arm, grasp, tray)
@@ -197,26 +197,39 @@ def velocity_control(problem):
     arm = 'left'
     gripper_link = link_from_name(robot, 'l_panda_link8')
     pose = list(get_link_pose(robot, gripper_link))
-    pose = ((pose[0][0], pose[0][1] + 0.001, pose[0][2]), pose[1])
-    velocity_move(robot, arm, pose)
+    step = .15 / 50
+    pose = [[pose[0][0], pose[0][1] + step, pose[0][2]], pose[1]]
+    for _ in range(50):
+
+        velocity_move(robot, arm, pose)
 
 def sample_joint_poses(problem):
     robot = problem.robot
     jointNums = get_arm_joints(robot, problem.holding_arm)
     jointPoses = get_joint_positions(robot, jointNums)
     gripper_link = get_gripper_link(robot, problem.holding_arm)
-    gripper_pose = get_link_pose(robot, gripper_link)
-    gripper_pose = ((gripper_pose[0][0], gripper_pose[0][1]+.025,
-                    gripper_pose[0][2]),problem.gripper_ori)
+    pose = get_link_pose(robot, gripper_link)
     newJointPoses = None
     repeat_count = 0
     count = 0
-    while newJointPoses is None  and not is_pose_close(get_link_pose(robot, gripper_link), gripper_pose):
-        count += 1
-        newJointPoses = bi_panda_inverse_kinematics(robot, problem.holding_arm, gripper_link, gripper_pose)
-    set_joint_positions_torque(robot, jointNums, newJointPoses)
-    print(get_joint_positions(robot, jointNums))
-
+    custom_limits = {}
+    custom_limits[jointNums[0]] = (PLATE_GRASP_LEFT_ARM[0]-(math.pi/4), PLATE_GRASP_LEFT_ARM[0] + (math.pi/2))
+    custom_limits[jointNums[-1]] = (PLATE_GRASP_LEFT_ARM[-1] - (math.pi/2), math.pi/2 - .1)
+    step = .2
+    pose = [[pose[0][0], pose[0][1] + step, pose[0][2]], pose[1]]
+    joints = [jointPoses]
+    for _ in range(70):
+        set_joint_positions_torque(robot, jointNums, PLATE_GRASP_LEFT_ARM)
+        while newJointPoses is None and not is_pose_close(get_link_pose(robot, gripper_link), pose):
+            newJointPoses = bi_panda_inverse_kinematics(robot, problem.holding_arm, gripper_link, pose, custom_limits = custom_limits)
+        set_joint_positions_torque(robot, jointNums, newJointPoses)
+        pose = [[pose[0][0], pose[0][1] + step, pose[0][2]], pose[1]]
+        joints.append(newJointPoses)
+    # print(get_joint_positions(robot, jointNums))
+    print()
+    print()
+    print()
+    print(joints)
 
 def main():
   connect(use_gui=True)
