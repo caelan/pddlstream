@@ -53,7 +53,7 @@ def reenable_disabled(evaluations, domain, disabled):
         instance.enable(evaluations, domain)
     disabled.clear()
 
-def process_instance(store, domain, instance, disable=False):
+def process_instance(store, domain, instance, disable=False, **kwargs):
     if instance.enumerated:
         return [], []
     start_time = time.time()
