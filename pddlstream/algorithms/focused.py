@@ -255,13 +255,15 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
 
             # --------------------------------------
 
-            print('{}) Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}\n'.format(i,
+            print('{}/{}) Stream plan ({}, {}, {:.3f}): {}\n'
+                  'Action plan ({}, {:.3f}): {}\n'.format(
+                i, len(opt_solutions),
                 get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
                 get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
 
             ## TODO: check plan feasibility here
             if fc is not None:
-                if not fc.check():
+                if not fc(action_plan):
                     complexity_limit += complexity_step
                     print('Skip planning according to oracle')
                     continue

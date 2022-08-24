@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import time
 
+from collections import Counter
 from itertools import product
 from copy import deepcopy, copy
 
@@ -51,7 +52,7 @@ def prune_high_effort_streams(streams, max_effort=INF, **effort_args):
             low_effort_streams.append(stream)
     return low_effort_streams
 
-def optimistic_process_streams(evaluations, streams, complexity_limit=INF, **effort_args):
+def optimistic_process_streams(evaluations, streams, complexity_limit=INF, verbose=True, **effort_args):
     optimistic_streams = prune_high_effort_streams(streams, **effort_args)
     instantiator = Instantiator(optimistic_streams)
     for evaluation, node in evaluations.items():
@@ -62,6 +63,10 @@ def optimistic_process_streams(evaluations, streams, complexity_limit=INF, **eff
         results.extend(optimistic_process_instance(instantiator, instantiator.pop_stream()))
         # TODO: instantiate and solve to avoid repeated work
     exhausted = not instantiator
+    if verbose:
+        stream_frequencies = Counter(result.external.name for result in results)
+        print('Optimistic streams:', stream_frequencies)
+        print('Exhausted optimistic:', exhausted)
     return results, exhausted
 
 ##################################################
@@ -91,6 +96,8 @@ def optimistic_stream_evaluation(evaluations, stream_plan, use_bindings=True):
     opt_evaluations = set(evaluations)
     new_results = []
     bindings = {} # TODO: report the depth considered
+    #if is_refined(stream_plan):
+    #    return new_results, bindings
     for opt_result in stream_plan: # TODO: just refine the first step of the plan
         for new_instance in optimistic_stream_instantiation(
                 opt_result.instance, (bindings if use_bindings else {}), opt_evaluations):
@@ -155,7 +162,7 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 ##################################################
 
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn, complexity_limit,
-                              depth, constraints, **effort_args):
+                              depth, constraints, **effort_args): # refine_all=False
     if MAX_DEPTH <= depth:
         return [], depth
     solutions = optimistic_solve_fn(evaluations, results, constraints)
@@ -177,11 +184,19 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     #print()
 
     # TODO: identify control parameters that can be separated across actions
-    new_depth = depth + 1
-    for stream_plan, _, _ in solutions:
-        new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
+    refined_solutions = []
+    for solution in solutions:
+        stream_plan, _, _ = solution
+        if not is_refined(stream_plan):
+            optimistic_stream_evaluation(evaluations, stream_plan)
+        # else:
+        #     refined_solutions.append(solution)
+    #if refine_all and (len(refined_solutions) != len(solutions)):
+    #    refined_solutions.clear()
+
+    new_depth = depth + 1 # TODO: need to handle depth to use refined_solutions
     if not (CONSTRAIN_STREAMS or CONSTRAIN_PLANS):
-        return [], new_depth
+        return refined_solutions, new_depth
     #if CONSTRAIN_STREAMS:
     #    next_results = compute_stream_results(evaluations, new_results, externals, complexity_limit, **effort_args)
     #else:

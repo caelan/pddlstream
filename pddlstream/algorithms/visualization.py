@@ -81,7 +81,7 @@ def log_failed_streams(name, args):
         })
         plan_log[-1] = streams
 
-        from pybullet_planning.pybullet_tools.logging import dump_json
+        from pybullet_tools.logging import dump_json
         dump_json(plan_log, json_file, sort_dicts=False)
 
 def log_actions(stream_plan, action_plan, iteration):
@@ -98,7 +98,7 @@ def log_actions(stream_plan, action_plan, iteration):
 
     # with open(json_file, 'a+') as f:
         # json.dump(plans, f, indent=3)
-    from pybullet_planning.pybullet_tools.logging import dump_json
+    from pybullet_tools.logging import dump_json
     dump_json(plans, json_file, sort_dicts=False)
 
 

@@ -300,7 +300,7 @@ def solve_optimistic_temporal(domain, stream_domain, applied_results, all_result
 
 def solve_optimistic_sequential(domain, stream_domain, applied_results, all_results,
                                 opt_evaluations, node_from_atom, goal_expression,
-                                effort_weight, max_plans=1, debug=False, **kwargs):
+                                effort_weight, forbid=True, max_plans=1, debug=False, **kwargs):
     #print(sorted(map(fact_from_evaluation, opt_evaluations)))
     temporal_plan = None
     solutions = []
@@ -326,7 +326,7 @@ def solve_optimistic_sequential(domain, stream_domain, applied_results, all_resu
 
     # TODO: apply renaming to hierarchy as well
     # solve_from_task | serialized_solve_from_task | abstrips_solve_from_task | abstrips_solve_from_task_sequential
-    if max_plans == 1:
+    if not forbid: # max_plans == 1: (still might want to forbid)
         renamed_plan, renamed_cost = solve_from_task(sas_task, debug=debug, **kwargs)
         renamed_solutions = [(renamed_plan, renamed_cost)] if renamed_plan is not None else []
     else:
