@@ -89,6 +89,34 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
 
 ##################################################
 
+def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, max_time=10):
+    # TODO: reset the streams
+    # TODO: create a new store
+    # TODO: could pass domain=None
+    # TODO: reuse instantiation
+    stream_plan, opt_plan, cost = opt_solution
+    if not is_plan(opt_plan):
+        return None
+    externals = {result.external for result in stream_plan}
+    for external in externals:
+        external.get_complexity = lambda num_calls: 0
+
+    store.solutions = []
+    skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback)
+    #skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+    skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=-1, max_time=max_time)
+    plan = store.best_plan
+    # TODO: need to reset the complexity (but not the opt fn)
+
+    store.solutions = []
+    for external in externals:
+        external.get_complexity = lambda num_calls: 0
+        for instance in external.instances.values():
+            instance.enumerated = False
+    return plan
+
+##################################################
+
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                   unique_optimistic=None, replan_actions=set(),
                   unit_costs=False, success_cost=INF,

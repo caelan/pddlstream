@@ -384,7 +384,7 @@ class SkeletonQueue(Sized):
     def process_complexity(self, complexity_limit):
         # TODO: could copy the queue and filter instances that exceed complexity_limit
         num_new = 0
-        if not self.is_active():
+        if not self.is_active() or (complexity_limit < 0): # TODO: <=?
             return num_new
         print('Sampling while complexity <= {}'.format(complexity_limit))
         while self.is_active():
@@ -447,7 +447,7 @@ class SkeletonQueue(Sized):
         if not self.queue:
             return FAILED
 
-        # TODO: add and process
+        # TODO: add and process method
         self.timed_process(max_time=(max_time - elapsed_time(start_time)))
         self.process_complexity(complexity_limit)
         if accelerate:
