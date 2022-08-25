@@ -261,19 +261,23 @@ class Saver(object):
 
 
 class Profiler(Saver):
-    fields = ['tottime', 'cumtime']
+    fields = ['tottime', 'cumtime', None]
     def __init__(self, field='tottime', num=10):
         assert field in self.fields
         self.field = field
         self.num = num
+        if field is None:
+            return
         self.pr = cProfile.Profile()
     def save(self):
+        if self.field is None:
+            return
         self.pr.enable()
         return self.pr
     def restore(self):
+        if self.field is None:
+            return
         self.pr.disable()
-        if self.num is None:
-            return None
         stream = None
         #stream = io.StringIO()
         stats = pstats.Stats(self.pr, stream=stream).sort_stats(self.field) # TODO: print multiple

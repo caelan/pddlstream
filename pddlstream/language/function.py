@@ -77,7 +77,7 @@ class FunctionInstance(Instance):
     def value(self):
         assert len(self.history) == 1
         return self.history[0]
-    def _compute_output(self):
+    def _compute_output(self, context=None):
         self.enumerated = True
         self.num_calls += 1
         if self.history:
@@ -91,11 +91,11 @@ class FunctionInstance(Instance):
             raise ValueError('Function [{}] produced a negative value [{}]'.format(self.external.name, value))
         self.history.append(self.external.codomain(value))
         return self.value
-    def next_results(self, verbose=False):
+    def next_results(self, verbose=False, **kwargs):
         assert not self.enumerated
         start_time = time.time()
         start_history = len(self.history)
-        value = self._compute_output()
+        value = self._compute_output(**kwargs)
         new_results = [self._Result(self, value, optimistic=False)]
         new_facts = []
 

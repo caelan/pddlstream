@@ -258,13 +258,21 @@ class StreamInstance(Instance):
     def get_fluent_values(self):
         return [Fact(get_prefix(f), values_from_objects(get_args(f))) for f in self.fluent_facts]
 
-    def _create_generator(self):
+    def _create_generator(self, context=None):
         if self._generator is None:
             input_values = self.get_input_values()
             if self.external.is_fluent: # self.fluent_facts
+                # TODO: how to handle fluent & context
                 self._generator = self.external.gen_fn(*input_values, fluents=self.get_fluent_values())
-            else:
+            elif context is None:
                 self._generator = self.external.gen_fn(*input_values)
+            else:
+                # import inspect
+                # print(inspect.getfullargspec(self.external.gen_fn)) # TODO: doesn't work due to wrapping
+                try:
+                    self._generator = self.external.gen_fn(*input_values, context=context)
+                except TypeError: # TODO: too broad of an error
+                    self._generator = self.external.gen_fn(*input_values)
         return self._generator
 
     def _next_wild(self):
@@ -273,9 +281,9 @@ class StreamInstance(Instance):
             output = WildOutput(values=output)
         return output
 
-    def _next_outputs(self):
+    def _next_outputs(self, **kwargs):
         # TODO: deprecate
-        self._create_generator()
+        self._create_generator(**kwargs)
         # TODO: shuffle history
         # TODO: return all test stream outputs at once
         if self.num_calls == len(self.history):
@@ -301,11 +309,11 @@ class StreamInstance(Instance):
                 self.get_iteration(), self.external.name, str_from_object(self.get_input_values()),
                 new_facts, len(new_facts)))
 
-    def next_results(self, verbose=False):
+    def next_results(self, verbose=False, **kwargs):
         assert not self.enumerated
         start_time = time.time()
         start_history = len(self.history)
-        new_values, new_facts = self._next_outputs()
+        new_values, new_facts = self._next_outputs(**kwargs)
         self._check_output_values(new_values)
         self._check_wild_facts(new_facts)
         if verbose:
@@ -524,7 +532,7 @@ class Stream(External):
                 (isinstance(opt_gen_fn, PartialInputs) and opt_gen_fn.unique):
             self.opt_gen_fns.append(opt_gen_fn)
             # self.opt_gen_fns.extend([opt_gen_fn]*4) ## instead of sampling 2, give four grasp samples
-    def get_instance(self, input_objects, fluent_facts=frozenset()):
+    def get_instance(self, input_objects, fluent_facts=frozenset()): # TODO: add context?
         input_objects = tuple(input_objects)
         fluent_facts = frozenset(fluent_facts)
         assert all(isinstance(obj, Object) or isinstance(obj, OptimisticObject) for obj in input_objects)

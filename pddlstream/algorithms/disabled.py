@@ -57,7 +57,7 @@ def process_instance(store, domain, instance, disable=False, **kwargs):
     if instance.enumerated:
         return [], []
     start_time = time.time()
-    new_results, new_facts = instance.next_results(verbose=store.verbose)
+    new_results, new_facts = instance.next_results(verbose=store.verbose, **kwargs)
     store.sample_time += elapsed_time(start_time)
 
     evaluations = store.evaluations

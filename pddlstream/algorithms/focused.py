@@ -89,7 +89,7 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
 
 ##################################################
 
-def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, max_time=10):
+def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use_contexts=False, max_time=10):
     # TODO: reset the streams
     # TODO: create a new store
     # TODO: could pass domain=None
@@ -102,23 +102,28 @@ def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, max
         external.get_complexity = lambda num_calls: 0
 
     store.solutions = []
-    skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback)
+    skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback, use_contexts=use_contexts)
     #skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
     skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=-1, max_time=max_time)
     plan = store.best_plan
     # TODO: need to reset the complexity (but not the opt fn)
 
+    # TODO: need to condition on new stream plan to use the result
     store.solutions = []
     for external in externals:
         external.get_complexity = lambda num_calls: 0
         for instance in external.instances.values():
+            #instance._generator = None # All generators are wrapped to function calls
             instance.enumerated = False
+            #instance.reset()
+            # for results in instance.results_history:
+            #     print(results)
     return plan
 
 ##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
-                  unique_optimistic=None, replan_actions=set(),
+                  unique_optimistic=None, use_feedback=True, replan_actions=set(),
                   unit_costs=False, success_cost=INF,
                   max_time=INF, max_iterations=INF, max_memory=INF,
                   initial_complexity=0, complexity_step=1, max_complexity=INF,
@@ -202,7 +207,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
     ################
 
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
-    skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
+    skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback and not has_optimizers)
     disabled = set() # Max skeletons after a solution
 
     PRIOR_PLANS.clear() # TODO(caelan): better way of handling this
@@ -251,7 +256,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
-        for i, (stream_plan, opt_plan, cost) in enumerate(opt_solutions):
+        for i, opt_solution in enumerate(opt_solutions):
+            stream_plan, opt_plan, cost = opt_solution
             #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
             stream_plan[:] = combine_optimizers(evaluations, stream_plan)
             #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations

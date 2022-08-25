@@ -14,7 +14,8 @@ from pddlstream.language.constants import is_plan, INFEASIBLE, FAILED, SUCCEEDED
 from pddlstream.language.function import FunctionResult
 from pddlstream.algorithms.visualization import visualize_stream_orders
 from pddlstream.utils import elapsed_time, HeapElement, apply_mapping, INF, get_mapping, adjacent_from_edges, \
-    incoming_from_edges, outgoing_from_edges
+    incoming_from_edges, outgoing_from_edges, get_connected_components
+from pddlstream.algorithms.reorder import get_object_orders
 
 # TODO: the bias away from solved things is actually due to USE_PRIORITIES+timed_process not REQUIRE_DOWNSTREAM
 USE_PRIORITIES = True
@@ -258,13 +259,14 @@ class Binding(object):
 STANDBY = None
 
 class SkeletonQueue(Sized):
-    def __init__(self, store, domain, disable=True):
+    def __init__(self, store, domain, disable=True, use_contexts=False):
         # TODO: multi-threaded
         self.store = store
         self.domain = domain
         self.skeletons = []
         self.queue = [] # TODO: deque version
         self.disable = disable
+        self.use_contexts = use_contexts
         self.standby = []
 
     @property
@@ -328,7 +330,18 @@ class SkeletonQueue(Sized):
         #if not is_instance_ready(self.evaluations, instance):
         #    raise RuntimeError(instance)
         if binding.up_to_date():
-            new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable)
+
+            stream_plan = None # TODO: instead add to kwargs
+            if self.use_contexts and instance.external.has_outputs:
+                # TODO: copy the stream generator to condition it on the new inputs
+                # TODO: only want to only want to use contexts for some streams so that we can reuse values
+                stream_plan = binding.skeleton.stream_plan[binding.index:]
+                component = get_connected_components(stream_plan, get_object_orders(stream_plan))[0]
+                stream_plan = [result for result in stream_plan if result in component]
+                stream_plan = [result.remap_inputs(binding.mapping) for result in stream_plan]
+                #print(stream_plan)
+
+            new_results, _ = process_instance(self.store, self.domain, instance, disable=self.disable, context=stream_plan)
             is_new = bool(new_results)
         for new_binding in binding.update_bindings():
             self.push_binding(new_binding)
