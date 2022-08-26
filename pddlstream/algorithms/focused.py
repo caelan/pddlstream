@@ -89,6 +89,13 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
 
 ##################################################
 
+# class PlanDataset(object): # Optimistic
+#     # TODO: integrate with SolutionStore?
+#     def __init__(self):
+#         pass
+#     def add_plan(self, ):
+#         pass
+
 def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use_contexts=False, max_time=10):
     # TODO: reset the streams
     # TODO: create a new store
@@ -105,7 +112,8 @@ def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use
     skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback, use_contexts=use_contexts)
     #skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
     skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=-1, max_time=max_time)
-    plan = store.best_plan
+    #plan = store.best_plan
+    solution = store.extract_solution()
     # TODO: need to reset the complexity (but not the opt fn)
 
     # TODO: need to condition on new stream plan to use the result
@@ -118,18 +126,20 @@ def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use
             #instance.reset()
             # for results in instance.results_history:
             #     print(results)
-    return plan
+    # TODO: generator for making multiple plans
+    return solution
 
 ##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
-                  unique_optimistic=None, use_feedback=True, replan_actions=set(),
-                  unit_costs=False, success_cost=INF,
-                  max_time=INF, max_iterations=INF, max_memory=INF,
-                  initial_complexity=0, complexity_step=1, max_complexity=INF,
-                  max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
-                  unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
-                  visualize=False, verbose=True, fc=None, **search_kwargs):
+                   unique_optimistic=None, use_feedback=True, replan_actions=set(),
+                   unit_costs=False, success_cost=INF,
+                   max_time=INF, max_iterations=INF, max_memory=INF,
+                   initial_complexity=0, complexity_step=1, max_complexity=INF,
+                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
+                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
+                   visualize=False, verbose=True,
+                   fc=None, plan_dataset=None, evaluate_plans=True, **search_kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
@@ -267,6 +277,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                 # TODO: this blows up memory wise for long stream plans
                 stream_plan[:] = reorder_stream_plan(store, stream_plan)
 
+            #for i, result in enumerate(stream_plan):
+            #    result.context = stream_plan[i:]
+
             num_optimistic = sum(r.optimistic for r in stream_plan) if stream_plan else 0
             action_plan = opt_plan.action_plan if is_plan(opt_plan) else opt_plan
 
@@ -294,6 +307,13 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                 i, len(opt_solutions),
                 get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan_str, ## stream_plan,
                 get_length(action_plan), cost, action_plan_str))  ## , str_from_plan(action_plan)))
+
+            if plan_dataset is not None:
+                solution = None
+                if evaluate_plans:
+                    solution = satisfy_optimistic_plan(store, domain, opt_solution, max_time=10)
+                plan_dataset.append((opt_solution, solution))
+                continue
 
             ## TODO: check plan feasibility here
             if fc is not None:
