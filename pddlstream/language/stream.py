@@ -412,7 +412,8 @@ class StreamInstance(Instance):
             parameters=self.external.inputs,
             preconditions=preconditions,
             derived=derived_fact)
-        domain.axioms.append(self._disabled_axiom)
+        if domain is not None:
+            domain.axioms.append(self._disabled_axiom)
 
     def _disable_negated(self, evaluations):
         assert self.external.is_negated

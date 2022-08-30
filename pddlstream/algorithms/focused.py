@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import time
 
-from pddlstream.algorithms.algorithm import parse_problem
+from pddlstream.algorithms.algorithm import parse_problem, reset_globals
 from pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
@@ -97,7 +97,6 @@ def set_all_opt_gen_fn(externals, unique=None, verbose=True):
 #         pass
 
 def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use_contexts=False, max_time=10):
-    # TODO: reset the streams
     # TODO: create a new store
     # TODO: could pass domain=None
     # TODO: reuse instantiation
@@ -110,22 +109,28 @@ def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use
 
     store.solutions = []
     skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback, use_contexts=use_contexts)
-    #skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
-    skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit=-1, max_time=max_time)
+    skeleton_queue.new_skeleton(stream_plan, opt_plan, cost)
+    skeleton_queue.process(complexity_limit=-1, max_time=max_time)
     #plan = store.best_plan
     solution = store.extract_solution()
     # TODO: need to reset the complexity (but not the opt fn)
+    # TODO: discard if same plan ignoring action order
 
     # TODO: need to condition on new stream plan to use the result
     store.solutions = []
     for external in externals:
         external.get_complexity = lambda num_calls: 0
         for instance in external.instances.values():
-            #instance._generator = None # All generators are wrapped to function calls
+            instance._generator = None # All generators are wrapped to function calls
+            instance.history = []
+            instance.results_history = []
             instance.enumerated = False
-            #instance.reset()
+            instance.reset()
             # for results in instance.results_history:
             #     print(results)
+        #external.instances.clear()
+        #external.reset()
+    #reset_globals()
     # TODO: generator for making multiple plans
     return solution
 
@@ -139,7 +144,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                    max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                    unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                    visualize=False, verbose=True,
-                   fc=None, plan_dataset=None, evaluate_plans=True, **search_kwargs):
+                   fc=None, plan_dataset=None, evaluation_time=30, max_solutions=1,
+                   **search_kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
@@ -217,7 +223,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
     ################
 
     store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
-    skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback and not has_optimizers)
+    skeleton_queue = SkeletonQueue(store, domain if use_feedback else None, disable=use_feedback and not has_optimizers)
     disabled = set() # Max skeletons after a solution
 
     PRIOR_PLANS.clear() # TODO(caelan): better way of handling this
@@ -311,9 +317,15 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
 
             if plan_dataset is not None:
                 solution = None
-                if evaluate_plans:
-                    solution = satisfy_optimistic_plan(store, domain, opt_solution, max_time=10)
+                if evaluation_time is not None:
+                    solution = satisfy_optimistic_plan(store, domain, opt_solution, max_time=evaluation_time)
                 plan_dataset.append((opt_solution, solution))
+                num_plans = len(plan_dataset)
+                num_solutions = sum(is_plan(plan) for _, (plan, _, _) in plan_dataset)
+                print(f'Plans: {num_plans} | Solutions: {num_plans}')
+                if num_solutions >= max_solutions:
+                    #write_stream_statistics(externals, verbose=True)
+                    return store.extract_solution() # TODO: return plan_dataset
                 continue
 
             ## TODO: check plan feasibility here
