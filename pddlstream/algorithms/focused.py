@@ -266,6 +266,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
+        # TODO: batch together multiple plans
         for i, opt_solution in enumerate(opt_solutions):
             stream_plan, opt_plan, cost = opt_solution
             #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
@@ -342,15 +343,17 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                 print('Optimizer plan ({}, {:.3f}): {}'.format(
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+            else:
+                skeleton_queue.new_skeleton(stream_plan, action_plan, cost)
 
-            allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
-                if len(skeleton_queue.skeletons) <= max_skeletons else INF
+        allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
+            if len(skeleton_queue.skeletons) <= max_skeletons else INF
 
-            # YANG for debugging
-            # allocated_sample_time = 20
-            skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time)
-            # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
-            #     break
+        # YANG for debugging
+        # allocated_sample_time = 20
+        skeleton_queue.process(complexity_limit=complexity_limit, max_time=allocated_sample_time)
+        # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
+        #     break
 
         print(f'\n\nfocused.py | time.time() - start_time = {round(time.time() - start_time, 2)} (timeout = {timeout})', )
         if (time.time() - start_time > timeout):

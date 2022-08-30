@@ -297,6 +297,8 @@ class SkeletonQueue(Sized):
         return priority, binding
 
     def new_skeleton(self, stream_plan, action_plan, cost):
+        if not is_plan(stream_plan):
+            return None
         skeleton = Skeleton(self, stream_plan, action_plan, cost)
         self.skeletons.append(skeleton)
         self.push_binding(skeleton.root)
@@ -449,18 +451,17 @@ class SkeletonQueue(Sized):
                 add_certified(self.evaluations, result, **kwargs) # TODO: should special have a complexity of INF?
         # TODO: AssertionError: Could not find instantiation for numeric expression: dist
 
-    def process(self, stream_plan, action_plan, cost, complexity_limit, max_time=0, accelerate=False):
+    def process(self, complexity_limit, max_time=0, accelerate=False): # stream_plan, action_plan, cost,
         start_time = time.time()
-        if is_plan(stream_plan):
-            self.new_skeleton(stream_plan, action_plan, cost)
-            self.greedily_process()
-        elif (stream_plan is INFEASIBLE) and not self.process_until_new():
-            # Move this after process_complexity
-            return INFEASIBLE
+        # if is_plan(stream_plan):
+        #     self.new_skeleton(stream_plan, action_plan, cost)
+        #     self.greedily_process()
+        # elif (stream_plan is INFEASIBLE) and not self.process_until_new():
+        #     # Move this after process_complexity
+        #     return INFEASIBLE
         if not self.queue:
             return FAILED
-
-        # TODO: add and process method
+        self.greedily_process()
         self.timed_process(max_time=(max_time - elapsed_time(start_time)))
         self.process_complexity(complexity_limit)
         if accelerate:
