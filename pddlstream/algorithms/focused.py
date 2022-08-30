@@ -344,7 +344,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                     get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
                 skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
             else:
-                skeleton_queue.new_skeleton(stream_plan, action_plan, cost)
+                skeleton_queue.new_skeleton(stream_plan, opt_plan, cost)
 
         allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
             if len(skeleton_queue.skeletons) <= max_skeletons else INF
