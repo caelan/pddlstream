@@ -111,6 +111,7 @@ def satisfy_optimistic_plan(store, domain, opt_solution, use_feedback=False, use
     skeleton_queue = SkeletonQueue(store, domain, disable=use_feedback, use_contexts=use_contexts)
     skeleton_queue.new_skeleton(stream_plan, opt_plan, cost)
     skeleton_queue.process(complexity_limit=-1, max_time=max_time)
+    skeleton_queue.greedily_process()
     #plan = store.best_plan
     solution = store.extract_solution()
     # TODO: need to reset the complexity (but not the opt fn)
@@ -321,7 +322,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                     solution = satisfy_optimistic_plan(store, domain, opt_solution, max_time=evaluation_time)
                 plan_dataset.append((opt_solution, solution))
                 num_plans = len(plan_dataset)
-                num_solutions = sum(is_plan(plan) for _, (plan, _, _) in plan_dataset)
+                num_solutions = sum((soln is not None) and is_plan(soln[0]) for _, soln in plan_dataset)
                 print(f'Plans: {num_plans} | Solutions: {num_plans}')
                 if num_solutions >= max_solutions:
                     #write_stream_statistics(externals, verbose=True)
