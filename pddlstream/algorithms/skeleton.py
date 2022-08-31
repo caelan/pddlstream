@@ -21,7 +21,7 @@ from pddlstream.algorithms.reorder import get_object_orders
 USE_PRIORITIES = True
 GREEDY_VISITS = 0
 GREEDY_BEST = True
-REQUIRE_DOWNSTREAM = True
+REQUIRE_DOWNSTREAM = False
 
 Priority = namedtuple('Priority', ['not_greedy', 'complexity', 'visits', 'remaining', 'cost']) # TODO: FIFO
 Affected = namedtuple('Affected', ['indices', 'has_cost'])

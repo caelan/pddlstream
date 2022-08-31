@@ -12,6 +12,11 @@ def str_from_action(action):
     name, args = action
     return '{}({})'.format(name, ', '.join(args))
 
+def str_from_plan(plan):
+    if plan is None:
+        return plan
+    return '[{}]'.format(', '.join(map(str_from_action, plan)))
+
 def get_all_preconditions(sas_action):
     # TODO: use reinstantiate instead
     conditions = get_conjunctive_parts(sas_action.propositional_action.action.precondition)
@@ -36,7 +41,7 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
     var_from_action = {}
     actions_from_precondition = defaultdict(set)
     cost_from_action = {action: action.cost for action in sas_task.operators}
-    with Verbose(debug):
+    with Verbose(True): # TODO: remove
         deadend_var = add_var(sas_task, layer=1)
         for sas_action in sas_task.operators:
             sas_action.prevail.append((deadend_var, 0))
@@ -78,8 +83,9 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
         while (elapsed_time(start_time) < max_planner_time) and (len(plans) < max_plans):
             write_sas_task(sas_task, temp_dir)
             remaining_time = max_planner_time - elapsed_time(start_time)
-            plan, cost = run_search(temp_dir, debug=debug, planner=planner,
-                                    max_planner_time=remaining_time, **search_args) # max_plans=1
+            with Verbose(debug):
+                plan, cost = run_search(temp_dir, debug=debug, planner=planner,
+                                        max_planner_time=remaining_time, **search_args) # max_plans=1
             solutions = [] if plan is None else [(plan, cost)]
 
             if not solutions:
@@ -90,17 +96,18 @@ def diverse_from_task(sas_task, prohibit_actions=True, prohibit_predicates=[],
                 cost = sum(cost_from_action[action] for action in sas_plan)
                 plans.append((plan, cost))
                 forbid_plan(plan)
-                print('Plan: {} | Cost: {} | Length: {} | Runtime: {:.3f}'.format(
-                        len(plans), cost, len(plan), elapsed_time(start_time)))
+                print('Plan: {} | Cost: {} | Length: {} | Runtime: {:.3f} | Remaining: {:.3f}\nActions: {}'.format(
+                        len(plans), cost, len(plan), elapsed_time(start_time), max_planner_time - elapsed_time(start_time),
+                    str_from_plan(plan)))
             if len(plan) == 0:
                 break
 
         if clean:
             safe_rm_dir(temp_dir)
         print('Plans: {} | Total runtime: {:.3f}'.format(len(plans), elapsed_time(start_time)))
-        for i, (plan, cost) in enumerate(plans):
-            print('Plan: {} | Cost: {} | Length: {} | Actions: {}'.format(
-                i, cost, len(plan), list(map(str_from_action, plan))))
+        # for i, (plan, cost) in enumerate(plans):
+        #     print('Plan: {} | Cost: {} | Length: {} | Actions: {}'.format(
+        #         i, cost, len(plan), str_from_plan(plan)))
 
     PRIOR_PLANS.extend(plans)
     return plans
