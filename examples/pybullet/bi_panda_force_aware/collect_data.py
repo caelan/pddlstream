@@ -9,7 +9,7 @@ from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import Pose, Con
     get_stable_gen, get_grasp_gen, control_commands, get_torque_limits_not_exceded_test, \
     get_stable_gen_dumb, get_torque_limits_mock_test, get_ik_ir_gen_no_reconfig, get_objects_on_target, hack_table_place
 from examples.pybullet.utils.pybullet_tools.panda_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
-    get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET
+    get_group_conf, get_group_links, BI_PANDA_GROUPS, arm_from_arm, TARGET, PLATE_GRASP_LEFT_ARM
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
     get_joint_positions, HideOutput, LockRenderer, wait_for_user, get_max_limit, set_joint_positions_torque, set_point,\
     get_mass, is_b1_on_b2, body_from_name, remove_fixed_constraint
@@ -329,10 +329,10 @@ def main(verbose=True):
       p.setRealTimeSimulation(True)
 
       # jointPos = get_joint_positions(problem.robot, jointNums)
-      # set_joint_positions_torque(problem.robot, jointNums, jointPos)
+      set_joint_positions_torque(problem.robot, jointNums, PLATE_GRASP_LEFT_ARM)
       draw_base_limits(problem.base_limits, color=(1, 0, 0))
-      jointPos = get_joint_positions(problem.robot, jointNums)
-      set_joint_positions_torque(problem.robot, jointNums, jointPos)
+    #   jointPos = get_joint_positions(problem.robot, jointNums)
+    #   set_joint_positions_torque(problem.robot, jointNums, jointPos)
       exec_time = time.time()
       state = State()
       if args.simulate:
