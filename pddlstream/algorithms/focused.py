@@ -262,6 +262,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
             for axiom in disabled_axioms:
                 domain.axioms.remove(axiom)
 
+        # TODO: sample-pose ahead of sample-grasp
+        #print(opt_solutions, not eager_instantiator, not skeleton_queue, not disabled, len(skeleton_queue))
+        #print(skeleton_queue.queue)
         if opt_solutions is INFEASIBLE:
             opt_solutions = []
             if (not eager_instantiator) and (not skeleton_queue) and (not disabled):
@@ -286,6 +289,8 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
             opt_solutions = [opt_solution for opt_solution, _ in scored_solutions]
 
         # TODO: batch together multiple plans
+        # TODO: prune skeletons
+        # TODO: limit the length
         for i, opt_solution in enumerate(opt_solutions):
             stream_plan, opt_plan, cost = opt_solution
             #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
