@@ -273,6 +273,18 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
+        if fc is not None:
+            scored_solutions = []
+            for i, opt_solution in enumerate(opt_solutions):
+                stream_plan, opt_plan, cost = opt_solution
+                action_plan = opt_plan.action_plan
+                feasible = fc(action_plan)
+                if feasible:
+                    score = feasible # TODO: could use another class method to score
+                    scored_solutions.append((opt_solution, score))
+            scored_solutions.sort(key=lambda item: item[1], reverse=True)
+            opt_solutions = [opt_solution for opt_solution, _ in scored_solutions]
+
         # TODO: batch together multiple plans
         for i, opt_solution in enumerate(opt_solutions):
             stream_plan, opt_plan, cost = opt_solution
@@ -329,12 +341,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                     return store.extract_solution() # TODO: return plan_dataset
                 continue
 
-            ## TODO: check plan feasibility here
-            if fc is not None:
-                if not fc(action_plan):
-                    complexity_limit += complexity_step
-                    print('Skip planning according to oracle')
-                    continue
             if visualize:
                 log_actions(stream_plan, action_plan, num_iterations)
                 # create_visualizations(evaluations, stream_plan, num_iterations)
