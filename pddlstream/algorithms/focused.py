@@ -231,6 +231,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
     timeout = 20*60 ## before Apr 5
     timeout = 10*60
     timeout = 5*60  ## on Jul 26
+    timeout = 8*60  ## on Sep 8
     start_time = time.time()
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
@@ -347,6 +348,12 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                     return solution
                 continue
 
+            ## TODO: check plan feasibility here
+            if fc is not None:
+                if not fc(action_plan):
+                    complexity_limit += complexity_step
+                    print('Skip planning according to', fc.__class__.__name__)
+                    continue
             if visualize:
                 log_actions(stream_plan, action_plan, num_iterations)
                 # create_visualizations(evaluations, stream_plan, num_iterations)
