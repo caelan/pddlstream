@@ -341,9 +341,10 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                 num_plans = len(plan_dataset)
                 num_solutions = sum((soln is not None) and is_plan(soln[0]) for _, soln in plan_dataset)
                 print(f'Plans: {num_plans} | Solutions: {num_plans}')
-                if num_solutions >= max_solutions:
+                if (solution is not None) and num_solutions >= max_solutions:
                     #write_stream_statistics(externals, verbose=True)
-                    return store.extract_solution() # TODO: return plan_dataset
+                    #return store.extract_solution() # TODO: return plan_dataset
+                    return solution
                 continue
 
             if visualize:
