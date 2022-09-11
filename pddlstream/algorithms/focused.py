@@ -285,6 +285,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
                 feasible = fc(action_plan)
                 if feasible:
                     score = feasible # TODO: could use another class method to score
+                    print(score, action_plan)
                     scored_solutions.append((opt_solution, score))
             scored_solutions.sort(key=lambda item: item[1], reverse=True)
             opt_solutions = [opt_solution for opt_solution, _ in scored_solutions]
