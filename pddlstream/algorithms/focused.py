@@ -279,20 +279,27 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
 
         if fc is not None:
             scored_solutions = []
+            # for i, opt_solution in enumerate(opt_solutions):
+            #     stream_plan, opt_plan, cost = opt_solution
+            #     action_plan = opt_plan.action_plan
+            #     feasible = fc(action_plan)
+            #     if feasible:
+            #         score = feasible # TODO: could use another class method to score
+            #         print(score, action_plan)
+            #         scored_solutions.append((opt_solution, score))
+            action_plans = [opt_solution[1].action_plan for opt_solution in opt_solutions]
+            predictions = fc(action_plans)
             for i, opt_solution in enumerate(opt_solutions):
-                stream_plan, opt_plan, cost = opt_solution
-                action_plan = opt_plan.action_plan
-                feasible = fc(action_plan)
-                if feasible:
-                    score = feasible # TODO: could use another class method to score
-                    print(score, action_plan)
-                    scored_solutions.append((opt_solution, score))
+                action_plan = action_plans[i]
+                score = predictions[i]
+                # print(score, action_plan)
+                scored_solutions.append((opt_solution, score))
             scored_solutions.sort(key=lambda item: item[1], reverse=True)
             opt_solutions = [opt_solution for opt_solution, _ in scored_solutions]
 
-        # TODO: batch together multiple plans
-        # TODO: prune skeletons
-        # TODO: limit the length
+        ## ICRA 2022
+        search_sample_ratio = 1
+
         for i, opt_solution in enumerate(opt_solutions):
             stream_plan, opt_plan, cost = opt_solution
             #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
@@ -385,6 +392,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={},
         # YANG for debugging
         # allocated_sample_time = 20
         skeleton_queue.process(complexity_limit=complexity_limit, max_time=allocated_sample_time)
+        # skeleton_queue.process(complexity_limit=-1, max_time=allocated_sample_time)
         # if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
         #     break
 
