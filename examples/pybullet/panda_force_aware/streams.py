@@ -1,7 +1,9 @@
 from examples.pybullet.utils.pybullet_tools.panda_primitives_v2 import iterate_approach_path
 from examples.pybullet.utils.pybullet_tools.utils import pairwise_collision, get_distance, multiply, set_pose, \
-    interpolate_poses, invert, wait_if_gui
-
+    interpolate_poses, invert, wait_if_gui, is_b1_on_b2, get_mass, get_pose, get_COM, get_link_pose, link_from_name, \
+    point_from_pose, TARGET, check_overlap, get_max_force, compute_jacobian, matrix_from_quat, get_name
+from examples.pybullet.utils.pybullet_tools.panda_utils import BI_PANDA_GROUPS, get_other_arm, PANDA_GRIPPER_ROOTS
+import math
 BASE_CONSTANT = 1
 BASE_VELOCITY = 0.25
 
@@ -30,6 +32,7 @@ def get_cfree_pose_pose_test(collisions=True, **kwargs):
 
 def get_cfree_obj_approach_pose_test(collisions=True):
     def test(b1, p1, g1, b2, p2):
+        print("obj approach test")
         if not collisions or (b1 == b2):
             return True
         p2.assign()
@@ -50,40 +53,43 @@ def get_cfree_approach_pose_test(problem, collisions=True):
     def test(b1, p1, g1, b2, p2):
         print("in free approach pose test")
         if not collisions or (b1 == b2):
+            print("no collision")
             return True
         p2.assign()
         for _ in iterate_approach_path(problem.robot, arm, gripper, p1, g1, body=b1):
-            if pairwise_collision(b1, b2) or pairwise_collision(gripper, b2):
+            if pairwise_collision(b1, b2): #or pairwise_collision(gripper, b2):
+                print(get_name(b1))
+                print(get_name(b2))
                 return False
+        print("passed")
         return True
     return test
 
 
 def get_cfree_traj_pose_test(robot, collisions=True):
     def test(c, b2, p2):
-        print("in free traj pose test")
+        print("traj test")
         # TODO: infer robot from c
         if not collisions:
             return True
         state = c.assign()
         if b2 in state.attachments:
+            print("b2 in attatchments")
             return True
         p2.assign()
+        skip = False
         for _ in c.apply(state):
             state.assign()
 
             for b1 in state.attachments:
-                if (b1 > 3 and b2 < 4) or (b1 < 4 and b2 > 3):
-
-                    continue
+                # if (b1 > 3 and b2 < 4) or (b1 < 4 and b2 > 3):
+                #     continue
                 if pairwise_collision(b1, b2):
                     #wait_for_user()
-                    print("in collision: ", b1,b2)
                     return False
             if pairwise_collision(robot, b2):
-                print("in collision: ", robot,b2)
+                print("in collision with robot")
                 return False
-        print("no collision")
         # TODO: just check collisions with moving links
         return True
     return test
