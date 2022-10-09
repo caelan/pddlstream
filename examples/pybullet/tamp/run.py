@@ -216,7 +216,7 @@ def main(verbose=True):
     if args.simulate:
         control_commands(commands)
     else:
-        time_step = None if args.teleport else 0.01
+        time_step = None if args.teleport else None
         apply_commands(State(), commands, time_step)
     wait_for_user()
     disconnect()

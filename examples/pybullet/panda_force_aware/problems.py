@@ -122,11 +122,11 @@ def packed_force_aware(arm='right', grasp_type='top', num=2):
     # r_right_finger_joint = joint_from_name(panda, 'r_panda_finger_joint2')
     # set_joint_position(panda, r_right_finger_joint,block_width)
     # set_joint_position(panda, r_left_finger_joint, block_width)
-    set_point(table, point=Point(0.35,0, 0.02))
+    set_point(table, point=Point(0.4,0, 0.02))
     # add_fixed_constraint(table, floor)
     plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
     plate_z = stable_z(plate, table)
-    set_point(plate, Point(x=0.35, z=plate_z))
+    set_point(plate, Point(x=0.4, z=plate_z))
     surfaces = [table, plate]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
