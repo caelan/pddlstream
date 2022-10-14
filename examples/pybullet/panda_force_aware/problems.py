@@ -51,7 +51,7 @@ def packed_force_aware_transfer(arm='right', grasp_type='top', num=2):
     #plate_width = 0.28
     #plate_width = 0.3
     print('Width:', plate_width)
-    plate_width = min(plate_width, 0.6)
+    plate_width = min(plate_width, 0.04)
     plate_height = 0.005
 
     initial_conf = get_carry_conf(arm, grasp_type)
@@ -63,23 +63,24 @@ def packed_force_aware_transfer(arm='right', grasp_type='top', num=2):
     set_arm_conf(panda, arm, initial_conf)
     open_arm(panda, arm)
 
-    table = create_table(length=0.5, height=0.35, width = 0.3)
-    set_point(table, point=Point(0.5,0, 0.02))
-    table2 = create_table(length=0.5, height=0.35, width = 0.3)
-    set_point(table2, point=Point(-0.5,0, 0.02))
-    # add_fixed_constraint(table, floor)
-    # add_fixed_constraint(table2, floor)
+    table = create_table(length=0.35, height=0.4, width = 0.3)
+    table2 = create_table(length=0.35, height=0.4, width = 0.3)
+    r_left_finger_joint = joint_from_name(panda, 'r_panda_finger_joint1')
+
+    set_point(table, point=Point(0.35,0, 0.02))
+    set_point(table2, point=Point(-0.35,0, 0.02))
 
     plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
     plate_z = stable_z(plate, table2)
-    set_point(plate, Point(x=-0.5, z=plate_z + 0.01))
-    surfaces = [table, table2, plate]
+    set_point(plate, Point(x=-0.35, z=plate_z))
+    surfaces = [table, plate]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
     initial_surfaces = {block: table for block in blocks}
 
-    min_distances = {block: 0.07 for block in blocks}
-    sample_placements(initial_surfaces, min_distances)
+    min_distances = {block: 0.02 for block in blocks}
+    sample_placements(initial_surfaces)
+    set_point(blocks[0], (0.45569211602211, -0.1283925175666809, 0.4259999990463257))
     enable_gravity()
     return Problem(robot=panda, movable=blocks, arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
@@ -104,7 +105,7 @@ def packed_force_aware(arm='right', grasp_type='top', num=2):
     #plate_width = 0.28
     #plate_width = 0.3
     print('Width:', plate_width)
-    plate_width = min(plate_width, 0.6)
+    plate_width = min(plate_width, 0.04)
     plate_height = 0.005
 
     initial_conf = get_carry_conf(arm, grasp_type)
@@ -122,11 +123,11 @@ def packed_force_aware(arm='right', grasp_type='top', num=2):
     # r_right_finger_joint = joint_from_name(panda, 'r_panda_finger_joint2')
     # set_joint_position(panda, r_right_finger_joint,block_width)
     # set_joint_position(panda, r_left_finger_joint, block_width)
-    set_point(table, point=Point(0.4,0, 0.02))
+    set_point(table, point=Point(0.5,0, 0.02))
     # add_fixed_constraint(table, floor)
     plate = create_box(plate_width, plate_width, plate_height, color=GREEN)
     plate_z = stable_z(plate, table)
-    set_point(plate, Point(x=0.4, z=plate_z))
+    set_point(plate, Point(x=0.5, z=plate_z))
     surfaces = [table, plate]
 
     blocks = [load_pybullet(COKE_URDF) for _ in range(num)]
@@ -134,6 +135,7 @@ def packed_force_aware(arm='right', grasp_type='top', num=2):
 
     min_distances = {block: 0.02 for block in blocks}
     sample_placements(initial_surfaces)
+    set_point(blocks[0], (0.49569211602211, -0.1283925175666809, 0.4259999990463257))
     enable_gravity()
     return Problem(robot=panda, movable=blocks, arms=[arm], grasp_types=[grasp_type], surfaces=surfaces,
                 #    goal_holding=[(arm, plate)],
@@ -163,7 +165,6 @@ def blocked(arm='left', grasp_type='side', num=1):
     set_arm_conf(bi_panda, other_arm, arm_conf(other_arm, REST_LEFT_ARM))
     close_arm(bi_panda, other_arm)
     set_group_conf(bi_panda, 'base', [x_extent/4, 0, 0]) # Be careful to not set the bi_panda's pose
-
 
     #table3 = create_table()
     #set_point(table3, Point(x=0, y=0))

@@ -229,7 +229,7 @@ def main(verbose=True):
     args = parser.parse_args()
     print('Arguments:', args)
 
-
+    data_dir = '/home/liam/exp_data_cfg2/'
     timestamp = str(datetime.datetime.now())
     timestamp = "{}_{}".format(timestamp.split(' ')[0], timestamp.split(' ')[1])
     datafile = data_dir + timestamp + "_" + args.problem + '.csv'
