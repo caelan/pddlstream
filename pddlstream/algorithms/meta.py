@@ -191,55 +191,74 @@ def get_certificate(certificate, preimage=True):
         return preimage_facts
     return all_facts
 
+def derive_state(task, state):
+    task.init = state
+    with Verbose(verbose=False):
+        instantiated = instantiate_task(task, check_infeasible=False)  # Could do upfront once as well
+    assert instantiated is not None
+    _, atoms, _, axioms, _, _ = instantiated
+    # derived_state = state & atoms
+    # derived_state = reachable_literals(instantiated)
+    derived_state = derive_axioms(state, instantiated.axioms)
+    return derived_state
 
-def check_solution(problem, solution, unit_costs=False, verbose=False): #**search_kwargs):
+def check_solution(problem, solution, check_applicable=True, include_goal=True,
+                   unit_costs=False, verbose=False): #**search_kwargs):
     # https://lis-mit.slack.com/archives/DGLNHLCLT/p1631117676003300
     domain_pddl, constant_map, _, _, init, goal = problem
     plan, cost, certificate = solution
-    if not is_plan(plan):
-        return False
-    # TODO: return sequence of states
+    if check_applicable and not is_plan(plan):
+        return None
+    # TODO: automatically add this info to the solution output
 
-    certificate_facts = get_certificate(certificate)
+    certificate_facts = get_certificate(certificate, preimage=True)
     new_init = init + certificate_facts
-    new_problem = PDDLProblem(domain_pddl, constant_map, None, None, new_init, goal)
+    stream_pddl = stream_map = None
+    new_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, new_init, goal)
 
     # TODO: can always formulate as a planning problem (but then no intermediate state recovery)
     #constraints = PlanConstraints(skeletons=[TBD], exact=True)
     evaluations, goal_exp, domain, _ = parse_problem(new_problem, constraints=None, unit_costs=unit_costs)
     #plan, cost = solve_finite(evaluations, goal_exp, domain, max_cost=INF, **search_kwargs)
     #return is_plan(plan)
-
     task = task_from_domain_problem(domain, get_problem(evaluations, goal_exp, domain, unit_costs))
 
-    obj_plan = transform_plan_args(plan, Object.from_value)
-    instance_plan = get_action_instances(task, obj_plan)
-    instance_plan.append(get_goal_instance(task.goal))
+    if is_plan(plan):
+        obj_plan = transform_plan_args(plan, Object.from_value)
+        instance_plan = get_action_instances(task, obj_plan)
+        #if include_goal:
+        #    instance_plan.append(get_goal_instance(task.goal))
+    else:
+        instance_plan = plan
     task.actions[:] = [] # No longer need actions
     # TODO: reinstantiate?
 
     # TODO: check programmatically created predicates (fluent, negated, etc.)
     states = [set(task.init)]
-    for action in instance_plan:
-        state = states[-1]
-        task.init = state
-        with Verbose(verbose=False):
-            instantiated = instantiate_task(task, check_infeasible=False) # Could do upfront once as well
-        assert instantiated is not None
-        _, atoms, _, axioms, _, _ = instantiated
-        #derived_state = state & atoms
-        #derived_state = reachable_literals(instantiated)
-        derived_state = derive_axioms(state, instantiated.axioms)
-        if not is_applicable(derived_state, action):
-           return False
+    derived_states = [derive_state(task, states[-1])]
+    if not is_plan(plan):
+        if check_applicable:
+            return None
+        return derived_states
 
-        new_state = apply_action(states[-1].copy(), action)
+    # TODO: recover the cost
+    for action_instance in instance_plan:
+        if check_applicable and not is_applicable(derived_states[-1], action_instance):
+           return None
+        state = states[-1]
+        new_state = apply_action(state.copy(), action_instance)
         if verbose:
-            print(action)
-            print(state_difference(new_state, states[-1]))
+            print('Action:', action_instance)
+            print('Difference:', state_difference(new_state, state))
         states.append(new_state)
+        new_derived_state = derive_state(task, new_state)
+        derived_states.append(new_derived_state)
     #return conditions_hold(new_state[-1], instantiate_goal(task.goal))
-    return True
+
+    if include_goal:
+        if check_applicable and not conditions_hold(derived_states[-1], instantiate_goal(task.goal)):
+            return None
+    return derived_states
 
 ##################################################
 
