@@ -280,7 +280,7 @@ class External(Performance):
         return False
     @property
     def zero_complexity(self):
-        return self.is_special or not self.has_outputs
+        return self.is_special or self.is_function or not self.has_outputs
     def get_complexity(self, num_calls=0):
         if self.zero_complexity:
             return 0
