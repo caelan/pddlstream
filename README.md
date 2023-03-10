@@ -150,6 +150,7 @@ External projects that make use of PDDLStream:
 * Online TAMP - https://github.com/caelan/SS-Replan
 * Automated Construction - https://github.com/caelan/pb-construction
 * Learning + TAMP (LTAMP) - https://github.com/caelan/LTAMP
+* pyrobosim - https://github.com/sea-bass/pyrobosim
 <!--https://github.com/rachelholladay/ftamp-->
 
 ## Algorithms
