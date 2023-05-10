@@ -23,7 +23,7 @@ Caelan R. Garrett, Tomás Lozano-Pérez, Leslie P. Kaelbling. PDDLStream: Integr
 
 ## Contact
 
-Caelan Garrett: [username]@mit.edu
+Caelan Garrett: [username]@csail.mit.edu
 
 ## History
 
