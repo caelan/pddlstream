@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.algorithms.advanced import enforce_simultaneous, identify_non_producers
+from pddlstream.algorithms.advanced import enforce_simultaneous, automatically_negate_externals
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan

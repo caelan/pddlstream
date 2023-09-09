@@ -1,11 +1,11 @@
-from pddlstream.pddlstream.algorithms.downward import get_conditional_effects, get_precondition, is_applicable, \
+from pddlstream.algorithms.downward import get_conditional_effects, get_precondition, is_applicable, \
     apply_axiom, apply_action
-from pddlstream.pddlstream.algorithms.instantiate_task import sas_from_instantiated
-from pddlstream.pddlstream.algorithms.scheduling.plan_streams import RENAME_ACTIONS, rename_instantiated_actions, \
+from pddlstream.algorithms.instantiate_task import sas_from_instantiated
+from pddlstream.algorithms.scheduling.plan_streams import RENAME_ACTIONS, rename_instantiated_actions, \
     get_plan_cost
-from pddlstream.pddlstream.algorithms.search import solve_from_task
-from pddlstream.pddlstream.retired.successor_generator import get_fluents
-from pddlstream.pddlstream.utils import INF, Verbose
+from pddlstream.algorithms.search import solve_from_task
+from pddlstream.retired.successor_generator import get_fluents
+from pddlstream.utils import INF, Verbose
 
 
 def sanitize_state(state):
@@ -27,7 +27,7 @@ def compute_conditions(instantiated):
 
 
 def compute_fluents(instantiated):
-    #from pddlstream.pddlstream.algorithms.instantiate_task import get_goal_instance
+    #from pddlstream.algorithms.instantiate_task import get_goal_instance
     initial = get_initial_state(instantiated.task)
     return get_fluents(initial, instantiated.actions)
 
@@ -87,7 +87,7 @@ def state_difference(state2, state1):
 ################################################################################
 
 def solve_instantiated(instantiated, rename=RENAME_ACTIONS, debug=False, **kwargs):
-    #from pddlstream.pddlstream.algorithms.scheduling.plan_streams import solve_optimistic_sequential
+    #from pddlstream.algorithms.scheduling.plan_streams import solve_optimistic_sequential
     plan, cost = None, INF
     if instantiated is None:
         return plan, cost
