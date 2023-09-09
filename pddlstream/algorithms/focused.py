@@ -71,7 +71,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                    unit_costs=False, success_cost=INF,
                    max_time=INF, max_post_time=INF, max_iterations=INF, max_memory=INF,
                    initial_complexity=0, complexity_step=1, max_complexity=INF,
-                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0, post_process=False,
+                   max_skeletons=INF, search_sample_ratio=0, min_sample_time=0, bind=True, max_failures=0, post_process=False,
                    unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
                    statistics=False, visualize=False, verbose=True, **search_kwargs):
     """
@@ -95,6 +95,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
     :param max_skeletons: the maximum number of plan skeletons (max_skeletons=None indicates not adaptive)
     :param search_sample_ratio: the desired ratio of sample time / search time when max_skeletons!=None
+    :param min_sample_time: the minimum sample time per plan skeleton
     :param bind: if True, propagates parameter bindings when max_skeletons=None
     :param max_failures: the maximum number of stream failures before switching phases when max_skeletons=None
 
@@ -236,6 +237,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
             if len(skeleton_queue.skeletons) <= max_skeletons else INF
+        allocated_sample_time = max(min_sample_time, allocated_sample_time)
         if skeleton_queue.process(stream_plan, opt_plan, cost, complexity_limit, allocated_sample_time) is INFEASIBLE:
             break
 
