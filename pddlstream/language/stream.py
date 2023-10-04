@@ -1,5 +1,10 @@
 import time
-from collections import Counter, Sequence
+
+from collections import Counter
+try:
+    from collections import Sequence
+except ImportError:
+    from collections.abc import Sequence
 
 from pddlstream.algorithms.common import INTERNAL_EVALUATION, add_fact
 from pddlstream.algorithms.downward import make_axiom

@@ -1,5 +1,9 @@
 import time
-from collections import Iterator, namedtuple, deque
+try:
+    from collections import Iterator
+except ImportError:
+    from collections.abc import Iterator
+from collections import namedtuple, deque
 from itertools import count
 
 from pddlstream.utils import INF, elapsed_time
