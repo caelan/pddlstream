@@ -5,3 +5,4 @@ visualizations
 statistics
 gurobi.log
 .DS_Store
+COLCON_IGNORE
